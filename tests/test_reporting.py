@@ -11,8 +11,12 @@ from local_ai_control_center_installer.session import DependencyRecord, Installe
 
 def test_build_run_paths_keeps_temp_artifacts_even_for_failed_runs(tmp_path: Path):
     paths = build_run_paths(tmp_path, "2026-05-20T10-00-00")
-    assert str(paths.log_path).endswith("install.log")
-    assert "LocalAIControlCenterInstaller" in str(paths.log_path)
+    expected_run_dir = (
+        tmp_path / "LocalAIControlCenterInstaller" / "runs" / "2026-05-20T10-00-00"
+    )
+    assert paths.run_dir == expected_run_dir
+    assert paths.log_path == expected_run_dir / "install.log"
+    assert paths.json_report_path == expected_run_dir / "install-report.json"
 
 
 def test_write_human_log_includes_install_root_dependency_outcomes_and_failing_step(

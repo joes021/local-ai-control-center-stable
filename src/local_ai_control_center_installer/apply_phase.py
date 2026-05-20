@@ -13,7 +13,7 @@ def apply_bootstrap_phase(
     session: InstallerSession,
     temp_root: Path,
 ) -> InstallerSession:
-    install_root = Path(session.install_root or ".")
+    install_root = _require_install_root(session)
     logs_dir = install_root / "logs"
     config_dir = install_root / "config"
     run_paths = build_run_paths(temp_root, _build_run_id(session))
@@ -45,3 +45,10 @@ def apply_bootstrap_phase(
 
 def _build_run_id(session: InstallerSession) -> str:
     return (session.started_at or "manual-run").replace(":", "-")
+
+
+def _require_install_root(session: InstallerSession) -> Path:
+    install_root = (session.install_root or "").strip()
+    if not install_root:
+        raise ValueError("session.install_root is required for bootstrap apply phase")
+    return Path(install_root)

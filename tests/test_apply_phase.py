@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from local_ai_control_center_installer.apply_phase import apply_bootstrap_phase
 from local_ai_control_center_installer.reporting import build_run_paths
 from local_ai_control_center_installer.session import DependencyRecord, InstallerSession
@@ -17,10 +19,15 @@ def test_apply_bootstrap_phase_marks_ready_only_when_all_required_dependencies_a
     )
 
     updated = apply_bootstrap_phase(session, temp_root=tmp_path / "temp-runs")
+    run_paths = build_run_paths(tmp_path / "temp-runs", "manual-run")
 
     assert updated.bootstrap_status == "ready"
+    assert updated.product_installation_status == "incomplete"
     assert Path(updated.install_root, "config", "installer-session.json").exists()
+    assert Path(updated.install_root, "logs", "install.log").exists()
     assert Path(updated.install_root, "logs", "install-report.json").exists()
+    assert run_paths.log_path.exists()
+    assert run_paths.json_report_path.exists()
 
 
 def test_apply_bootstrap_phase_marks_blocked_dependency_runs_as_failed_and_persists_temp_artifacts(
@@ -49,3 +56,17 @@ def test_apply_bootstrap_phase_marks_blocked_dependency_runs_as_failed_and_persi
     assert Path(updated.install_root, "logs").is_dir()
     assert run_paths.log_path.exists()
     assert run_paths.json_report_path.exists()
+
+
+def test_apply_bootstrap_phase_requires_install_root_before_writing_files(
+    tmp_path: Path,
+):
+    session = InstallerSession(
+        install_root="",
+        dependencies=[
+            DependencyRecord(name="python", required=True, status="ready", detected=True),
+        ],
+    )
+
+    with pytest.raises(ValueError, match="install_root"):
+        apply_bootstrap_phase(session, temp_root=tmp_path / "temp-runs")
