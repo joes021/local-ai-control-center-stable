@@ -1,5 +1,6 @@
 import pytest
 
+import local_ai_control_center_installer.main as main_module
 from local_ai_control_center_installer.main import run_installer
 from local_ai_control_center_installer.prompts import PromptCancelledError
 from local_ai_control_center_installer.session import InstallerSession
@@ -16,7 +17,12 @@ def test_run_installer_confirms_summary_before_dependency_scan():
         events.append("scan")
         return session
 
-    run_installer(collect_answers=fake_collect, scan_dependencies=fake_scan)
+    run_installer(
+        collect_answers=fake_collect,
+        scan_dependencies=fake_scan,
+        apply_phase=lambda session: session,
+        write_reports=lambda session: None,
+    )
 
     assert events == ["summary-confirm", "scan"]
 
@@ -118,11 +124,32 @@ def test_run_installer_returns_final_session_payload():
     assert result["failing_step"] == "dependency-bootstrap"
 
 
-def test_run_installer_uses_noop_defaults_when_no_collaborators_are_injected():
-    result = run_installer()
+def test_run_installer_uses_default_collaborators_when_none_are_injected(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    events: list[str] = []
 
-    assert result["bootstrap_status"] == "failed"
-    assert result["product_installation_status"] == "incomplete"
-    assert result["failing_step"] is None
-    assert result["install_root"] is None
-    assert result["dependencies"] == []
+    def fake_collect(session: InstallerSession):
+        events.append("collect")
+        return session
+
+    def fake_scan(session: InstallerSession):
+        events.append("scan")
+        return session
+
+    def fake_apply(session: InstallerSession):
+        events.append("apply")
+        return session
+
+    def fake_write_reports(session: InstallerSession):
+        del session
+        events.append("report")
+
+    monkeypatch.setattr(main_module, "default_collect_answers", fake_collect, raising=False)
+    monkeypatch.setattr(main_module, "default_scan_dependencies", fake_scan, raising=False)
+    monkeypatch.setattr(main_module, "default_apply_phase", fake_apply, raising=False)
+    monkeypatch.setattr(main_module, "default_write_reports", fake_write_reports, raising=False)
+
+    run_installer()
+
+    assert events == ["collect", "scan", "apply", "report"]
