@@ -4,9 +4,38 @@ import subprocess
 import pytest
 
 import local_ai_control_center_installer.defaults as defaults_module
+import local_ai_control_center_installer.main as main_module
 from local_ai_control_center_installer.main import run_installer
 from local_ai_control_center_installer.prompts import PromptCancelledError
 from local_ai_control_center_installer.session import InstallerSession
+
+
+def test_main_delegates_to_run_installer_and_returns_zero(monkeypatch: pytest.MonkeyPatch):
+    calls: list[str] = []
+
+    def fake_run_installer():
+        calls.append("run")
+        return {"bootstrap_status": "ready"}
+
+    monkeypatch.setattr(main_module, "run_installer", fake_run_installer)
+
+    assert main_module.main() == 0
+    assert calls == ["run"]
+
+
+def test_main_returns_non_zero_when_prompt_is_cancelled(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
+    def fake_run_installer():
+        raise PromptCancelledError("Installer questionnaire cancelled.")
+
+    monkeypatch.setattr(main_module, "run_installer", fake_run_installer)
+
+    assert main_module.main() == 1
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == "Installer questionnaire cancelled.\n"
 
 
 def test_run_installer_confirms_summary_before_dependency_scan():

@@ -31,3 +31,37 @@ Priority order:
 3. Ubuntu arm64
 
 The current goal is not feature expansion. The goal is a trustworthy installer and runtime product.
+
+## Development Setup
+
+Use an editable install for local development:
+
+```powershell
+python -m pip install -e .[dev]
+```
+
+Run the test suite with:
+
+```powershell
+python -m pytest
+```
+
+## Manual Bootstrap From Checkout
+
+For a manual installer run straight from a clean checkout, use the PowerShell launcher:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\bootstrap\install.ps1
+```
+
+The launcher is intentionally thin. It should:
+
+- resolve the repo root from `bootstrap/`
+- find `python` or fall back to `py`
+- set a process-local `PYTHONPATH` that includes `src`
+- hand off to the Python installer module without an import error
+
+Smoke checklist:
+
+- the launcher reaches the installer prompts from a repo checkout
+- cancelling the questionnaire exits without a Python import traceback
