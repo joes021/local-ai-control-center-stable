@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import pytest
@@ -111,3 +112,44 @@ def test_apply_bootstrap_phase_uses_unique_fallback_run_ids_without_started_at(
     assert first_run_paths.run_dir != second_run_paths.run_dir
     assert first_run_paths.log_path.exists()
     assert second_run_paths.log_path.exists()
+
+
+def test_apply_bootstrap_phase_marks_install_root_persistence_failure_in_temp_artifacts(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    monkeypatch.setattr(
+        apply_phase_module,
+        "_generate_fallback_run_id",
+        lambda: "run-persistence-failure",
+    )
+    install_root = tmp_path / "install-root"
+    original_write_human_log = apply_phase_module.write_human_log
+
+    def fail_on_install_root_log(session: InstallerSession, log_path: Path) -> Path:
+        if log_path == install_root / "logs" / "install.log":
+            raise OSError("disk full")
+        return original_write_human_log(session, log_path)
+
+    monkeypatch.setattr(apply_phase_module, "write_human_log", fail_on_install_root_log)
+
+    session = InstallerSession(
+        install_root=str(install_root),
+        dependencies=[
+            DependencyRecord(name="python", required=True, status="ready", detected=True),
+            DependencyRecord(name="git", required=True, status="ready", detected=True),
+        ],
+    )
+
+    updated = apply_bootstrap_phase(session, temp_root=tmp_path / "temp-runs")
+    run_paths = build_run_paths(tmp_path / "temp-runs", "run-persistence-failure")
+    report_payload = json.loads(run_paths.json_report_path.read_text(encoding="utf-8"))
+    log_contents = run_paths.log_path.read_text(encoding="utf-8")
+
+    assert updated.bootstrap_status == "failed"
+    assert updated.failing_step == "install-root-persistence"
+    assert updated.product_installation_status == "incomplete"
+    assert report_payload["bootstrap_status"] == "failed"
+    assert report_payload["failing_step"] == "install-root-persistence"
+    assert "Bootstrap status: failed" in log_contents
+    assert "Failing step: install-root-persistence" in log_contents
