@@ -255,3 +255,51 @@ def test_apply_bootstrap_phase_cleans_partial_install_root_artifacts_on_report_w
     assert not Path(updated.install_root, "config", "installer-session.json").exists()
     assert report_payload["bootstrap_status"] == "failed"
     assert report_payload["failing_step"] == "install-root-persistence"
+
+
+def test_apply_bootstrap_phase_rolls_back_directories_when_install_root_mkdir_fails(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    monkeypatch.setattr(
+        apply_phase_module,
+        "_generate_fallback_run_id",
+        lambda: "run-mkdir-failure",
+    )
+    install_root = tmp_path / "install-root"
+    config_dir = install_root / "config"
+    original_mkdir = Path.mkdir
+
+    def fail_on_config_dir_mkdir(
+        self: Path,
+        mode: int = 0o777,
+        parents: bool = False,
+        exist_ok: bool = False,
+    ) -> None:
+        if self == config_dir:
+            raise OSError("config mkdir failed")
+        return original_mkdir(self, mode=mode, parents=parents, exist_ok=exist_ok)
+
+    monkeypatch.setattr(Path, "mkdir", fail_on_config_dir_mkdir)
+
+    session = InstallerSession(
+        install_root=str(install_root),
+        dependencies=[
+            DependencyRecord(name="python", required=True, status="ready", detected=True),
+            DependencyRecord(name="git", required=True, status="ready", detected=True),
+        ],
+    )
+
+    updated = apply_bootstrap_phase(session, temp_root=tmp_path / "temp-runs")
+    run_paths = build_run_paths(tmp_path / "temp-runs", "run-mkdir-failure")
+    report_payload = json.loads(run_paths.json_report_path.read_text(encoding="utf-8"))
+    log_contents = run_paths.log_path.read_text(encoding="utf-8")
+
+    assert updated.bootstrap_status == "failed"
+    assert updated.failing_step == "install-root-persistence"
+    assert updated.product_installation_status == "incomplete"
+    assert report_payload["bootstrap_status"] == "failed"
+    assert report_payload["failing_step"] == "install-root-persistence"
+    assert "Bootstrap status: failed" in log_contents
+    assert "Failing step: install-root-persistence" in log_contents
+    assert not install_root.exists()
