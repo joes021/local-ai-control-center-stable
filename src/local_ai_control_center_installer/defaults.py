@@ -1,5 +1,6 @@
 from pathlib import Path
 import shutil
+import subprocess
 import sys
 import tempfile
 
@@ -22,17 +23,10 @@ def default_scan_dependencies(session: InstallerSession) -> InstallerSession:
     return scan_all_dependencies(
         session,
         probes={
-            "python": _probe_python,
-            "git": _probe_command("git"),
-            "node": _probe_command("node"),
-            "build-tools": _probe_command(
-                "cl",
-                "gcc",
-                "clang",
-                "cmake",
-                "nmake",
-                "make",
-            ),
+            "python": _probe_python_version,
+            "git": _probe_git_version,
+            "node": _probe_node_version,
+            "build-tools": _probe_build_tools_version,
         },
     )
 
@@ -57,22 +51,61 @@ def _build_run_id(session: InstallerSession) -> str:
     return "manual-run"
 
 
-def _probe_python() -> str | None:
-    if Path(sys.executable).exists():
-        return sys.executable
-    return _find_first_available("python", "python3")
+def _probe_python_version() -> str | None:
+    executable = sys.executable or ""
+    if executable and Path(executable).exists():
+        return sys.version.split()[0]
+    return _capture_first_available_output(
+        ["python", "--version"],
+        ["python3", "--version"],
+    )
 
 
-def _probe_command(*names: str):
-    def probe() -> str | None:
-        return _find_first_available(*names)
-
-    return probe
+def _probe_git_version() -> str | None:
+    return _capture_first_available_output(["git", "--version"])
 
 
-def _find_first_available(*names: str) -> str | None:
-    for name in names:
-        detected = shutil.which(name)
-        if detected:
-            return detected
+def _probe_node_version() -> str | None:
+    return _capture_first_available_output(["node", "--version"])
+
+
+def _probe_build_tools_version() -> str | None:
+    return _capture_first_available_output(
+        ["cl"],
+        ["gcc", "--version"],
+        ["clang", "--version"],
+        ["cmake", "--version"],
+        ["nmake", "/?"],
+        ["make", "--version"],
+    )
+
+
+def _capture_first_available_output(*command: list[str]) -> str | None:
+    for parts in command:
+        if not shutil.which(parts[0]):
+            continue
+        first_line = _capture_first_output_line(parts)
+        if first_line:
+            return first_line
+    return None
+
+
+def _capture_first_output_line(command: list[str]) -> str | None:
+    try:
+        result = subprocess.run(
+            command,
+            capture_output=True,
+            check=False,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+    except OSError:
+        return None
+
+    for output in (result.stdout, result.stderr):
+        for line in output.splitlines():
+            stripped = line.strip()
+            if stripped:
+                return stripped
     return None

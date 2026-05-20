@@ -2,12 +2,7 @@ from collections.abc import Callable
 from datetime import datetime, timezone
 import platform as platform_module
 
-from local_ai_control_center_installer.defaults import (
-    default_apply_phase,
-    default_collect_answers,
-    default_scan_dependencies,
-    default_write_reports,
-)
+import local_ai_control_center_installer.defaults as defaults_module
 from local_ai_control_center_installer.session import InstallerSession
 
 
@@ -29,10 +24,10 @@ def run_installer(
     apply_phase: SessionStep | None = None,
     write_reports: ReportStep | None = None,
 ):
-    collect_answers = collect_answers or default_collect_answers
-    scan_dependencies = scan_dependencies or default_scan_dependencies
-    apply_phase = apply_phase or default_apply_phase
-    write_reports = write_reports or default_write_reports
+    collect_answers = collect_answers or defaults_module.default_collect_answers
+    scan_dependencies = scan_dependencies or defaults_module.default_scan_dependencies
+    apply_phase = apply_phase or defaults_module.default_apply_phase
+    write_reports = write_reports or defaults_module.default_write_reports
 
     session = build_default_session()
     session = collect_answers(session)
