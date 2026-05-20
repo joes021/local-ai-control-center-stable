@@ -2,6 +2,12 @@ from collections.abc import Callable
 from datetime import datetime, timezone
 import platform as platform_module
 
+from local_ai_control_center_installer.defaults import (
+    default_apply_phase,
+    default_collect_answers,
+    default_scan_dependencies,
+    default_write_reports,
+)
 from local_ai_control_center_installer.session import InstallerSession
 
 
@@ -23,17 +29,14 @@ def run_installer(
     apply_phase: SessionStep | None = None,
     write_reports: ReportStep | None = None,
 ):
+    collect_answers = collect_answers or default_collect_answers
+    scan_dependencies = scan_dependencies or default_scan_dependencies
+    apply_phase = apply_phase or default_apply_phase
+    write_reports = write_reports or default_write_reports
+
     session = build_default_session()
-    session = (collect_answers or _identity_session_step)(session)
-    session = (scan_dependencies or _identity_session_step)(session)
-    session = (apply_phase or _identity_session_step)(session)
-    (write_reports or _noop_report_step)(session)
+    session = collect_answers(session)
+    session = scan_dependencies(session)
+    session = apply_phase(session)
+    write_reports(session)
     return session.to_dict()
-
-
-def _identity_session_step(session: InstallerSession) -> InstallerSession:
-    return session
-
-
-def _noop_report_step(session: InstallerSession) -> None:
-    del session
