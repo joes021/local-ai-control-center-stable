@@ -1,4 +1,5 @@
 from pathlib import Path
+from uuid import uuid4
 
 from local_ai_control_center_installer.reporting import (
     build_run_paths,
@@ -44,11 +45,19 @@ def apply_bootstrap_phase(
 
 
 def _build_run_id(session: InstallerSession) -> str:
-    return (session.started_at or "manual-run").replace(":", "-")
+    if session.started_at:
+        return session.started_at.replace(":", "-")
+    return _generate_fallback_run_id()
 
 
 def _require_install_root(session: InstallerSession) -> Path:
     install_root = (session.install_root or "").strip()
     if not install_root:
         raise ValueError("session.install_root is required for bootstrap apply phase")
-    return Path(install_root)
+    normalized_install_root = Path(install_root)
+    session.install_root = str(normalized_install_root)
+    return normalized_install_root
+
+
+def _generate_fallback_run_id() -> str:
+    return uuid4().hex
