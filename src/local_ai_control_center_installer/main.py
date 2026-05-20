@@ -1,20 +1,12 @@
+from collections.abc import Callable
 from datetime import datetime, timezone
-from pathlib import Path
 import platform as platform_module
-import sys
-import tempfile
 
-from local_ai_control_center_installer.apply_phase import (
-    apply_bootstrap_phase as _apply_bootstrap_phase,
-)
-from local_ai_control_center_installer.dependencies import (
-    scan_all_dependencies as _scan_all_dependencies,
-)
-from local_ai_control_center_installer.prompts import (
-    DEFAULT_INSTALL_ROOT,
-    collect_installer_answers as _collect_installer_answers,
-)
 from local_ai_control_center_installer.session import InstallerSession
+
+
+SessionStep = Callable[[InstallerSession], InstallerSession]
+ReportStep = Callable[[InstallerSession], None]
 
 
 def build_default_session() -> InstallerSession:
@@ -24,48 +16,24 @@ def build_default_session() -> InstallerSession:
     )
 
 
-def collect_installer_answers(session: InstallerSession) -> InstallerSession:
-    if sys.stdin is None or not sys.stdin.isatty():
-        return session
-    return _collect_installer_answers(session)
-
-
-def scan_all_dependencies(session: InstallerSession) -> InstallerSession:
-    return _scan_all_dependencies(
-        session,
-        probes={
-            "python": _missing_probe,
-            "git": _missing_probe,
-            "node": _missing_probe,
-            "build-tools": _missing_probe,
-        },
-    )
-
-
-def apply_bootstrap_phase(session: InstallerSession) -> InstallerSession:
-    if not session.install_root:
-        session.install_root = DEFAULT_INSTALL_ROOT
-    return _apply_bootstrap_phase(session, temp_root=Path(tempfile.gettempdir()))
-
-
-def write_reports(session: InstallerSession) -> None:
-    return None
-
-
 def run_installer(
     *,
-    collect_answers=collect_installer_answers,
-    scan_dependencies=scan_all_dependencies,
-    apply_phase=apply_bootstrap_phase,
-    write_reports=write_reports,
+    collect_answers: SessionStep | None = None,
+    scan_dependencies: SessionStep | None = None,
+    apply_phase: SessionStep | None = None,
+    write_reports: ReportStep | None = None,
 ):
     session = build_default_session()
-    session = collect_answers(session)
-    session = scan_dependencies(session)
-    session = apply_phase(session)
-    write_reports(session)
+    session = (collect_answers or _identity_session_step)(session)
+    session = (scan_dependencies or _identity_session_step)(session)
+    session = (apply_phase or _identity_session_step)(session)
+    (write_reports or _noop_report_step)(session)
     return session.to_dict()
 
 
-def _missing_probe() -> None:
-    return None
+def _identity_session_step(session: InstallerSession) -> InstallerSession:
+    return session
+
+
+def _noop_report_step(session: InstallerSession) -> None:
+    del session

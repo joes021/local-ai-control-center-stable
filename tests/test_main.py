@@ -5,11 +5,11 @@ from local_ai_control_center_installer.prompts import PromptCancelledError
 from local_ai_control_center_installer.session import InstallerSession
 
 
-def test_run_installer_collects_answers_before_dependency_scan():
+def test_run_installer_confirms_summary_before_dependency_scan():
     events: list[str] = []
 
     def fake_collect(session, **_):
-        events.append("collect")
+        events.append("summary-confirm")
         return session
 
     def fake_scan(session, **_):
@@ -18,7 +18,7 @@ def test_run_installer_collects_answers_before_dependency_scan():
 
     run_installer(collect_answers=fake_collect, scan_dependencies=fake_scan)
 
-    assert events == ["collect", "scan"]
+    assert events == ["summary-confirm", "scan"]
 
 
 def test_run_installer_stops_before_dependency_scan_when_confirmation_is_cancelled():
@@ -116,3 +116,13 @@ def test_run_installer_returns_final_session_payload():
 
     assert result["bootstrap_status"] == "failed"
     assert result["failing_step"] == "dependency-bootstrap"
+
+
+def test_run_installer_uses_noop_defaults_when_no_collaborators_are_injected():
+    result = run_installer()
+
+    assert result["bootstrap_status"] == "failed"
+    assert result["product_installation_status"] == "incomplete"
+    assert result["failing_step"] is None
+    assert result["install_root"] is None
+    assert result["dependencies"] == []
