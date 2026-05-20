@@ -1,4 +1,5 @@
 import json
+import subprocess
 
 import pytest
 
@@ -183,6 +184,37 @@ def test_probe_build_tools_version_requires_compiler_and_build_driver(
         defaults_module._probe_build_tools_version()
         == "gcc (GCC) 14.2.0; cmake version 3.31.6"
     )
+
+
+def test_probe_node_version_rejects_non_zero_stderr_banner(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    availability = {
+        "node": "C:\\Tools\\node.exe",
+        "npm": "C:\\Tools\\npm.cmd",
+    }
+
+    def fake_run(command: list[str], **kwargs) -> subprocess.CompletedProcess[str]:
+        if tuple(command) == ("node", "--version"):
+            return subprocess.CompletedProcess(
+                command,
+                1,
+                stdout="",
+                stderr="node is not recognized as an internal or external command\n",
+            )
+        if tuple(command) == ("npm", "--version"):
+            return subprocess.CompletedProcess(
+                command,
+                0,
+                stdout="10.9.2\n",
+                stderr="",
+            )
+        raise AssertionError(f"Unexpected command: {command!r}")
+
+    monkeypatch.setattr(defaults_module.shutil, "which", lambda name: availability.get(name))
+    monkeypatch.setattr(defaults_module.subprocess, "run", fake_run)
+
+    assert defaults_module._probe_node_version() is None
 
 
 def test_run_installer_uses_real_default_scan_apply_and_write_paths(

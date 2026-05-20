@@ -112,6 +112,9 @@ def _capture_first_output_line(command: list[str]) -> str | None:
     except OSError:
         return None
 
+    if result.returncode != 0:
+        return None
+
     for output in (result.stdout, result.stderr):
         for line in output.splitlines():
             stripped = line.strip()
