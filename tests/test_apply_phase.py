@@ -20,6 +20,7 @@ def test_apply_bootstrap_phase_marks_ready_only_when_all_required_dependencies_a
 
     assert updated.bootstrap_status == "ready"
     assert Path(updated.install_root, "config", "installer-session.json").exists()
+    assert Path(updated.install_root, "logs", "install-report.json").exists()
 
 
 def test_apply_bootstrap_phase_marks_blocked_dependency_runs_as_failed_and_persists_temp_artifacts(
