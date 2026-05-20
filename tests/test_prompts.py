@@ -61,8 +61,8 @@ def test_collect_installer_answers_retries_invalid_numbered_input():
 
     assert updated.install_mode == "fresh"
     assert updated.starter_model == "recommended-6gb"
-    assert any("Expected one of ['1', '2']" in line for line in outputs)
-    assert any("Expected one of ['1', '2', '3']" in line for line in outputs)
+    assert any("Please enter 1 or 2." in line for line in outputs)
+    assert any("Please enter 1, 2, or 3." in line for line in outputs)
 
 
 def test_render_confirmation_summary_lists_future_facing_answers():
@@ -117,6 +117,29 @@ def test_collect_installer_answers_raises_prompt_cancelled_error_on_cancel():
         collect_installer_answers(InstallerSession(), input_fn=lambda _: next(answers))
 
 
+def test_collect_installer_answers_cancel_leaves_original_session_unchanged():
+    original = InstallerSession(
+        existing_install_detected=True,
+        install_mode="upgrade",
+        install_root="C:\\Existing",
+        starter_model="recommended-6gb",
+        install_opencode=False,
+        attempt_turboquant=False,
+        additional_model_paths=["D:\\models"],
+    )
+    answers = iter(["2", "D:\\Apps\\LACC", "3", "1", "1", "C:\\models", "2"])
+
+    with pytest.raises(PromptCancelledError):
+        collect_installer_answers(original, input_fn=lambda _: next(answers))
+
+    assert original.install_mode == "upgrade"
+    assert original.install_root == "C:\\Existing"
+    assert original.starter_model == "recommended-6gb"
+    assert original.install_opencode is False
+    assert original.attempt_turboquant is False
+    assert original.additional_model_paths == ["D:\\models"]
+
+
 def test_collect_installer_answers_shows_numbered_options_and_defaults():
     prompts = []
     input_fn = make_capturing_input(["", "", "1", "2", "", "", "1"], prompts)
@@ -162,4 +185,4 @@ def test_collect_installer_answers_retries_invalid_confirmation_then_confirms():
     )
 
     assert updated.starter_model == "recommended-6gb"
-    assert any("Expected one of ['1', '2']" in line for line in outputs)
+    assert any("Please enter 1 or 2." in line for line in outputs)

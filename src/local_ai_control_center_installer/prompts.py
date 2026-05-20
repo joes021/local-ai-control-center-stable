@@ -1,3 +1,4 @@
+from copy import deepcopy
 from pathlib import Path
 
 
@@ -16,12 +17,21 @@ class PromptCancelledError(Exception):
 def choose_number(raw_value: str, default: str, allowed: set[str]) -> str:
     value = raw_value.strip() or default
     if value not in allowed:
-        raise ValueError(f"Expected one of {sorted(allowed)}")
+        raise ValueError(friendly_number_error(sorted(allowed)))
     return value
 
 
 def parse_model_paths(raw_value: str) -> list[str]:
     return [item.strip() for item in raw_value.split(";") if item.strip()]
+
+
+def friendly_number_error(allowed: list[str]) -> str:
+    if len(allowed) == 1:
+        return f"Please enter {allowed[0]}."
+    if len(allowed) == 2:
+        return f"Please enter {allowed[0]} or {allowed[1]}."
+    prefix = ", ".join(allowed[:-1])
+    return f"Please enter {prefix}, or {allowed[-1]}."
 
 
 def build_numbered_prompt(title: str, options: list[tuple[str, str]], default: str) -> str:
@@ -64,7 +74,9 @@ def render_confirmation_summary(session) -> str:
 
 
 def collect_installer_answers(session, input_fn=input, output_fn=print):
-    if session.existing_install_detected:
+    draft_session = deepcopy(session)
+
+    if draft_session.existing_install_detected:
         install_mode = prompt_for_number(
             build_numbered_prompt(
                 "Install mode",
@@ -76,12 +88,12 @@ def collect_installer_answers(session, input_fn=input, output_fn=print):
             input_fn=input_fn,
             output_fn=output_fn,
         )
-        session.install_mode = "upgrade" if install_mode == "1" else "fresh"
+        draft_session.install_mode = "upgrade" if install_mode == "1" else "fresh"
     else:
-        session.install_mode = "fresh"
+        draft_session.install_mode = "fresh"
 
-    default_install_root = session.install_root or DEFAULT_INSTALL_ROOT
-    session.install_root = (
+    default_install_root = draft_session.install_root or DEFAULT_INSTALL_ROOT
+    draft_session.install_root = (
         input_fn(f"Install root (default: {default_install_root}): ").strip()
         or default_install_root
     )
@@ -101,8 +113,8 @@ def collect_installer_answers(session, input_fn=input, output_fn=print):
         input_fn=input_fn,
         output_fn=output_fn,
     )
-    session.starter_model = MODEL_CHOICES[model_choice]
-    session.install_opencode = (
+    draft_session.starter_model = MODEL_CHOICES[model_choice]
+    draft_session.install_opencode = (
         prompt_for_number(
             build_numbered_prompt(
                 "Install OpenCode",
@@ -116,7 +128,7 @@ def collect_installer_answers(session, input_fn=input, output_fn=print):
         )
         == "1"
     )
-    session.attempt_turboquant = (
+    draft_session.attempt_turboquant = (
         prompt_for_number(
             build_numbered_prompt(
                 "Attempt TurboQuant",
@@ -130,11 +142,11 @@ def collect_installer_answers(session, input_fn=input, output_fn=print):
         )
         == "1"
     )
-    session.additional_model_paths = parse_model_paths(
+    draft_session.additional_model_paths = parse_model_paths(
         input_fn("Additional model paths (semicolon-separated, optional): ")
     )
 
-    output_fn(render_confirmation_summary(session))
+    output_fn(render_confirmation_summary(draft_session))
     confirmation = prompt_for_number(
         build_numbered_prompt(
             "Confirm choices",
@@ -149,4 +161,4 @@ def collect_installer_answers(session, input_fn=input, output_fn=print):
     if confirmation == "2":
         raise PromptCancelledError("Installer questionnaire cancelled.")
 
-    return session
+    return draft_session
