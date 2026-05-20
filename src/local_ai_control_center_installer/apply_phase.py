@@ -77,11 +77,37 @@ def _persist_install_root_artifacts(session: InstallerSession, install_root: Pat
     config_dir = install_root / "config"
     logs_dir.mkdir(parents=True, exist_ok=True)
     config_dir.mkdir(parents=True, exist_ok=True)
-    write_human_log(session, logs_dir / "install.log")
-    write_json_report(session, logs_dir / "install-report.json")
-    write_session_snapshot(session, config_dir / "installer-session.json")
+    artifact_paths = [
+        logs_dir / "install.log",
+        logs_dir / "install-report.json",
+        config_dir / "installer-session.json",
+    ]
+    try:
+        write_human_log(session, artifact_paths[0])
+        write_json_report(session, artifact_paths[1])
+        write_session_snapshot(session, artifact_paths[2])
+    except OSError:
+        _cleanup_install_root_artifacts(artifact_paths, logs_dir, config_dir)
+        raise
 
 
 def _write_temp_run_artifacts(session: InstallerSession, run_paths) -> None:
     write_human_log(session, run_paths.log_path)
     write_json_report(session, run_paths.json_report_path)
+
+
+def _cleanup_install_root_artifacts(
+    artifact_paths: list[Path],
+    logs_dir: Path,
+    config_dir: Path,
+) -> None:
+    for artifact_path in artifact_paths:
+        try:
+            artifact_path.unlink()
+        except FileNotFoundError:
+            continue
+    for directory in (config_dir, logs_dir):
+        try:
+            directory.rmdir()
+        except OSError:
+            continue
