@@ -1,3 +1,5 @@
+import json
+
 import pytest
 
 import local_ai_control_center_installer.defaults as defaults_module
@@ -124,80 +126,121 @@ def test_run_installer_returns_final_session_payload():
     assert result["failing_step"] == "dependency-bootstrap"
 
 
-def test_run_installer_uses_real_default_adapters_when_none_are_injected(
+def test_probe_node_version_requires_both_node_and_npm(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    versions = {
+        ("node", "--version"): "v22.14.0",
+        ("npm", "--version"): "10.9.2",
+    }
+    availability = {
+        "node": "C:\\Tools\\node.exe",
+        "npm": None,
+    }
+
+    monkeypatch.setattr(defaults_module.shutil, "which", lambda name: availability.get(name))
+    monkeypatch.setattr(
+        defaults_module,
+        "_capture_first_output_line",
+        lambda command: versions.get(tuple(command)),
+    )
+
+    assert defaults_module._probe_node_version() is None
+
+    availability["npm"] = "C:\\Tools\\npm.cmd"
+
+    assert defaults_module._probe_node_version() == "v22.14.0; npm 10.9.2"
+
+
+def test_probe_build_tools_version_requires_compiler_and_build_driver(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    versions = {
+        ("gcc", "--version"): "gcc (GCC) 14.2.0",
+        ("cmake", "--version"): "cmake version 3.31.6",
+    }
+    availability = {
+        "cl": None,
+        "gcc": None,
+        "clang": None,
+        "cmake": "C:\\Tools\\cmake.exe",
+        "nmake": None,
+        "make": None,
+    }
+
+    monkeypatch.setattr(defaults_module.shutil, "which", lambda name: availability.get(name))
+    monkeypatch.setattr(
+        defaults_module,
+        "_capture_first_output_line",
+        lambda command: versions.get(tuple(command)),
+    )
+
+    assert defaults_module._probe_build_tools_version() is None
+
+    availability["gcc"] = "C:\\Tools\\gcc.exe"
+
+    assert (
+        defaults_module._probe_build_tools_version()
+        == "gcc (GCC) 14.2.0; cmake version 3.31.6"
+    )
+
+
+def test_run_installer_uses_real_default_scan_apply_and_write_paths(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path,
 ):
-    events: list[str] = []
-    written_reports: list[tuple[str, str]] = []
-
     def fake_collect_installer_answers(session: InstallerSession):
-        events.append("collect")
         session.install_root = str(tmp_path / "install-root")
         return session
 
-    def fake_probe_python_version():
-        events.append("probe-python")
-        return "3.13.7"
-
-    def fake_probe_git_version():
-        events.append("probe-git")
-        return "git version 2.49.0.windows.1"
-
-    def fake_probe_node_version():
-        events.append("probe-node")
-        return "v22.14.0"
-
-    def fake_probe_build_tools_version():
-        events.append("probe-build-tools")
-        return "cmake version 3.31.6"
-
-    def fake_apply_bootstrap_phase(session: InstallerSession, temp_root):
-        events.append("apply")
-        assert temp_root == tmp_path / "temp-runs"
-        session.bootstrap_status = "ready"
-        session.failing_step = None
-        return session
-
-    def fake_write_human_log(session: InstallerSession, log_path):
-        events.append("write-log")
-        written_reports.append(("log", str(log_path)))
-        return log_path
-
-    def fake_write_json_report(session: InstallerSession, report_path):
-        events.append("write-json")
-        written_reports.append(("json", str(report_path)))
-        return report_path
-
     monkeypatch.setattr(defaults_module, "collect_installer_answers", fake_collect_installer_answers)
-    monkeypatch.setattr(defaults_module, "_probe_python_version", fake_probe_python_version)
-    monkeypatch.setattr(defaults_module, "_probe_git_version", fake_probe_git_version)
-    monkeypatch.setattr(defaults_module, "_probe_node_version", fake_probe_node_version)
-    monkeypatch.setattr(defaults_module, "_probe_build_tools_version", fake_probe_build_tools_version)
-    monkeypatch.setattr(defaults_module, "apply_bootstrap_phase", fake_apply_bootstrap_phase)
-    monkeypatch.setattr(defaults_module, "write_human_log", fake_write_human_log)
-    monkeypatch.setattr(defaults_module, "write_json_report", fake_write_json_report)
     monkeypatch.setattr(defaults_module, "_default_temp_root", lambda: tmp_path / "temp-runs")
+    availability = {
+        "git": "C:\\Tools\\git.exe",
+        "node": "C:\\Tools\\node.exe",
+        "npm": "C:\\Tools\\npm.cmd",
+        "gcc": "C:\\Tools\\gcc.exe",
+        "cmake": "C:\\Tools\\cmake.exe",
+    }
+    banners = {
+        ("git", "--version"): "git version 2.49.0.windows.1",
+        ("node", "--version"): "v22.14.0",
+        ("npm", "--version"): "10.9.2",
+        ("gcc", "--version"): "gcc (GCC) 14.2.0",
+        ("cmake", "--version"): "cmake version 3.31.6",
+    }
+    monkeypatch.setattr(defaults_module.shutil, "which", lambda name: availability.get(name))
+    monkeypatch.setattr(
+        defaults_module,
+        "_capture_first_output_line",
+        lambda command: banners.get(tuple(command)),
+    )
 
     result = run_installer()
+    run_dir = (
+        tmp_path
+        / "temp-runs"
+        / "LocalAIControlCenterInstaller"
+        / "runs"
+        / result["started_at"].replace(":", "-")
+    )
+    temp_report_path = run_dir / "install-report.json"
+    install_report_path = tmp_path / "install-root" / "logs" / "install-report.json"
+    temp_payload = json.loads(temp_report_path.read_text(encoding="utf-8"))
+    install_payload = json.loads(install_report_path.read_text(encoding="utf-8"))
 
-    assert events == [
-        "collect",
-        "probe-python",
-        "probe-git",
-        "probe-node",
-        "probe-build-tools",
-        "apply",
-        "write-log",
-        "write-json",
-    ]
+    assert result["bootstrap_status"] == "ready"
+    assert result["failing_step"] is None
     assert [dependency["version"] for dependency in result["dependencies"]] == [
-        "3.13.7",
+        defaults_module.sys.version.split()[0],
         "git version 2.49.0.windows.1",
-        "v22.14.0",
-        "cmake version 3.31.6",
+        "v22.14.0; npm 10.9.2",
+        "gcc (GCC) 14.2.0; cmake version 3.31.6",
     ]
-    assert written_reports == [
-        ("log", str(tmp_path / "temp-runs" / "LocalAIControlCenterInstaller" / "runs" / result["started_at"].replace(":", "-") / "install.log")),
-        ("json", str(tmp_path / "temp-runs" / "LocalAIControlCenterInstaller" / "runs" / result["started_at"].replace(":", "-") / "install-report.json")),
-    ]
+    assert all(dependency["status"] == "ready" for dependency in result["dependencies"])
+    assert temp_report_path.exists()
+    assert install_report_path.exists()
+    assert temp_payload["bootstrap_status"] == "ready"
+    assert temp_payload["dependencies"][2]["version"] == "v22.14.0; npm 10.9.2"
+    assert temp_payload["dependencies"][3]["version"] == "gcc (GCC) 14.2.0; cmake version 3.31.6"
+    assert install_payload["bootstrap_status"] == "ready"

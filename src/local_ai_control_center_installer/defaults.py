@@ -66,18 +66,27 @@ def _probe_git_version() -> str | None:
 
 
 def _probe_node_version() -> str | None:
-    return _capture_first_available_output(["node", "--version"])
+    node_version = _capture_first_available_output(["node", "--version"])
+    npm_version = _capture_first_available_output(["npm", "--version"])
+    if not node_version or not npm_version:
+        return None
+    return f"{node_version}; {_format_banner('npm', npm_version)}"
 
 
 def _probe_build_tools_version() -> str | None:
-    return _capture_first_available_output(
+    compiler_banner = _capture_first_available_output(
         ["cl"],
         ["gcc", "--version"],
         ["clang", "--version"],
+    )
+    build_driver_banner = _capture_first_available_output(
         ["cmake", "--version"],
         ["nmake", "/?"],
         ["make", "--version"],
     )
+    if not compiler_banner or not build_driver_banner:
+        return None
+    return f"{compiler_banner}; {build_driver_banner}"
 
 
 def _capture_first_available_output(*command: list[str]) -> str | None:
@@ -109,3 +118,10 @@ def _capture_first_output_line(command: list[str]) -> str | None:
             if stripped:
                 return stripped
     return None
+
+
+def _format_banner(tool_name: str, banner: str) -> str:
+    lowered = banner.lower()
+    if lowered.startswith(f"{tool_name} "):
+        return banner
+    return f"{tool_name} {banner}"
