@@ -74,7 +74,7 @@ def _probe_node_version() -> str | None:
 
 
 def _probe_build_tools_version() -> str | None:
-    compiler_banner = _capture_first_available_output(
+    compiler_banner = _capture_first_available_build_tool_output(
         ["cl"],
         ["gcc", "--version"],
         ["clang", "--version"],
@@ -100,8 +100,30 @@ def _capture_first_available_output(*command: list[str]) -> str | None:
 
 
 def _capture_first_output_line(command: list[str]) -> str | None:
+    result = _run_command(command)
+    if result is None or result.returncode != 0:
+        return None
+    return _extract_first_nonempty_line(result.stdout, result.stderr)
+
+
+def _capture_first_available_build_tool_output(*command: list[str]) -> str | None:
+    for parts in command:
+        if not shutil.which(parts[0]):
+            continue
+        result = _run_command(parts)
+        if result is None:
+            continue
+        first_line = _extract_first_nonempty_line(result.stdout, result.stderr)
+        if not first_line:
+            continue
+        if result.returncode == 0 or _is_recognized_msvc_banner(parts, first_line):
+            return first_line
+    return None
+
+
+def _run_command(command: list[str]) -> subprocess.CompletedProcess[str] | None:
     try:
-        result = subprocess.run(
+        return subprocess.run(
             command,
             capture_output=True,
             check=False,
@@ -112,15 +134,19 @@ def _capture_first_output_line(command: list[str]) -> str | None:
     except OSError:
         return None
 
-    if result.returncode != 0:
-        return None
-
-    for output in (result.stdout, result.stderr):
+def _extract_first_nonempty_line(*outputs: str) -> str | None:
+    for output in outputs:
         for line in output.splitlines():
             stripped = line.strip()
             if stripped:
                 return stripped
     return None
+
+
+def _is_recognized_msvc_banner(command: list[str], banner: str) -> bool:
+    if not command or command[0].lower() != "cl":
+        return False
+    return banner.startswith("Microsoft (R) C/C++") and "Compiler Version" in banner
 
 
 def _format_banner(tool_name: str, banner: str) -> str:

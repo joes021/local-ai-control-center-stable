@@ -46,29 +46,37 @@ def test_apply_bootstrap_phase_writes_temp_run_artifacts_before_install_root_per
     install_report_path = install_root / "logs" / "install-report.json"
     install_session_path = install_root / "config" / "installer-session.json"
     events: list[tuple[str, str, str | None]] = []
+    original_write_human_log = apply_phase_module.write_human_log
+    original_write_json_report = apply_phase_module.write_json_report
+    original_write_session_snapshot = apply_phase_module.write_session_snapshot
+    original_replace = Path.replace
 
     def record_log(session: InstallerSession, log_path: Path) -> Path:
         if log_path == run_paths.log_path:
             events.append(("temp-log", session.bootstrap_status, session.failing_step))
-        elif log_path == install_log_path:
-            events.append(("install-log", session.bootstrap_status, session.failing_step))
-        return log_path
+        return original_write_human_log(session, log_path)
 
     def record_report(session: InstallerSession, report_path: Path) -> Path:
         if report_path == run_paths.json_report_path:
             events.append(("temp-json", session.bootstrap_status, session.failing_step))
-        elif report_path == install_report_path:
-            events.append(("install-json", session.bootstrap_status, session.failing_step))
-        return report_path
+        return original_write_json_report(session, report_path)
 
     def record_snapshot(session: InstallerSession, session_path: Path) -> Path:
-        if session_path == install_session_path:
-            events.append(("install-session", session.bootstrap_status, session.failing_step))
-        return session_path
+        return original_write_session_snapshot(session, session_path)
+
+    def record_promote(self: Path, target: Path) -> Path:
+        if target == install_log_path:
+            events.append(("install-log", "ready", None))
+        elif target == install_report_path:
+            events.append(("install-json", "ready", None))
+        elif target == install_session_path:
+            events.append(("install-session", "ready", None))
+        return original_replace(self, target)
 
     monkeypatch.setattr(apply_phase_module, "write_human_log", record_log)
     monkeypatch.setattr(apply_phase_module, "write_json_report", record_report)
     monkeypatch.setattr(apply_phase_module, "write_session_snapshot", record_snapshot)
+    monkeypatch.setattr(Path, "replace", record_promote)
 
     session = InstallerSession(
         install_root=str(install_root),
@@ -179,14 +187,14 @@ def test_apply_bootstrap_phase_marks_install_root_persistence_failure_in_temp_ar
         lambda: "run-persistence-failure",
     )
     install_root = tmp_path / "install-root"
-    original_write_human_log = apply_phase_module.write_human_log
+    original_replace = Path.replace
 
-    def fail_on_install_root_log(session: InstallerSession, log_path: Path) -> Path:
-        if log_path == install_root / "logs" / "install.log":
+    def fail_on_install_root_log_promote(self: Path, target: Path) -> Path:
+        if target == install_root / "logs" / "install.log":
             raise OSError("disk full")
-        return original_write_human_log(session, log_path)
+        return original_replace(self, target)
 
-    monkeypatch.setattr(apply_phase_module, "write_human_log", fail_on_install_root_log)
+    monkeypatch.setattr(Path, "replace", fail_on_install_root_log_promote)
 
     session = InstallerSession(
         install_root=str(install_root),
@@ -220,20 +228,17 @@ def test_apply_bootstrap_phase_cleans_partial_install_root_artifacts_on_report_w
         lambda: "run-cleanup-failure",
     )
     install_root = tmp_path / "install-root"
-    original_write_json_report = apply_phase_module.write_json_report
+    original_replace = Path.replace
 
-    def fail_on_install_root_report(
-        session: InstallerSession,
-        report_path: Path,
-    ) -> Path:
-        if report_path == install_root / "logs" / "install-report.json":
+    def fail_on_install_root_report_promote(self: Path, target: Path) -> Path:
+        if target == install_root / "logs" / "install-report.json":
             raise OSError("report write failed")
-        return original_write_json_report(session, report_path)
+        return original_replace(self, target)
 
     monkeypatch.setattr(
-        apply_phase_module,
-        "write_json_report",
-        fail_on_install_root_report,
+        Path,
+        "replace",
+        fail_on_install_root_report_promote,
     )
 
     session = InstallerSession(
@@ -303,3 +308,54 @@ def test_apply_bootstrap_phase_rolls_back_directories_when_install_root_mkdir_fa
     assert "Bootstrap status: failed" in log_contents
     assert "Failing step: install-root-persistence" in log_contents
     assert not install_root.exists()
+
+
+def test_apply_bootstrap_phase_preserves_preexisting_install_log_on_report_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    monkeypatch.setattr(
+        apply_phase_module,
+        "_generate_fallback_run_id",
+        lambda: "run-preserve-existing-log",
+    )
+    install_root = tmp_path / "install-root"
+    preexisting_log_path = install_root / "logs" / "install.log"
+    preexisting_log_path.parent.mkdir(parents=True, exist_ok=True)
+    preexisting_log_path.write_text("existing install log\n", encoding="utf-8")
+    original_replace = Path.replace
+
+    def fail_on_install_root_report_promote(self: Path, target: Path) -> Path:
+        if target == install_root / "logs" / "install-report.json":
+            raise OSError("report promote failed")
+        return original_replace(self, target)
+
+    monkeypatch.setattr(
+        Path,
+        "replace",
+        fail_on_install_root_report_promote,
+    )
+
+    session = InstallerSession(
+        install_root=str(install_root),
+        dependencies=[
+            DependencyRecord(name="python", required=True, status="ready", detected=True),
+            DependencyRecord(name="git", required=True, status="ready", detected=True),
+        ],
+    )
+
+    updated = apply_bootstrap_phase(session, temp_root=tmp_path / "temp-runs")
+    run_paths = build_run_paths(tmp_path / "temp-runs", "run-preserve-existing-log")
+    report_payload = json.loads(run_paths.json_report_path.read_text(encoding="utf-8"))
+    log_contents = run_paths.log_path.read_text(encoding="utf-8")
+
+    assert updated.bootstrap_status == "failed"
+    assert updated.failing_step == "install-root-persistence"
+    assert updated.product_installation_status == "incomplete"
+    assert report_payload["bootstrap_status"] == "failed"
+    assert report_payload["failing_step"] == "install-root-persistence"
+    assert "Bootstrap status: failed" in log_contents
+    assert "Failing step: install-root-persistence" in log_contents
+    assert install_root.exists()
+    assert preexisting_log_path.exists()
+    assert preexisting_log_path.read_text(encoding="utf-8") == "existing install log\n"

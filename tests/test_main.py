@@ -172,6 +172,18 @@ def test_probe_build_tools_version_requires_compiler_and_build_driver(
     monkeypatch.setattr(defaults_module.shutil, "which", lambda name: availability.get(name))
     monkeypatch.setattr(
         defaults_module,
+        "_capture_first_available_build_tool_output",
+        lambda *commands: next(
+            (
+                versions.get(tuple(command))
+                for command in commands
+                if availability.get(command[0]) and versions.get(tuple(command))
+            ),
+            None,
+        ),
+    )
+    monkeypatch.setattr(
+        defaults_module,
         "_capture_first_output_line",
         lambda command: versions.get(tuple(command)),
     )
@@ -217,6 +229,45 @@ def test_probe_node_version_rejects_non_zero_stderr_banner(
     assert defaults_module._probe_node_version() is None
 
 
+def test_probe_build_tools_version_accepts_recognized_msvc_banner_on_non_zero_exit(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    availability = {
+        "cl": "C:\\BuildTools\\cl.exe",
+        "gcc": None,
+        "clang": None,
+        "cmake": "C:\\Tools\\cmake.exe",
+        "nmake": None,
+        "make": None,
+    }
+    msvc_banner = "Microsoft (R) C/C++ Optimizing Compiler Version 19.39.33523 for x64"
+
+    def fake_run(command: list[str], **kwargs) -> subprocess.CompletedProcess[str]:
+        if tuple(command) == ("cl",):
+            return subprocess.CompletedProcess(
+                command,
+                2,
+                stdout="",
+                stderr=f"{msvc_banner}\nusage: cl [ option... ] filename... [ /link linkoption... ]\n",
+            )
+        if tuple(command) == ("cmake", "--version"):
+            return subprocess.CompletedProcess(
+                command,
+                0,
+                stdout="cmake version 3.31.6\n",
+                stderr="",
+            )
+        raise AssertionError(f"Unexpected command: {command!r}")
+
+    monkeypatch.setattr(defaults_module.shutil, "which", lambda name: availability.get(name))
+    monkeypatch.setattr(defaults_module.subprocess, "run", fake_run)
+
+    assert (
+        defaults_module._probe_build_tools_version()
+        == "Microsoft (R) C/C++ Optimizing Compiler Version 19.39.33523 for x64; cmake version 3.31.6"
+    )
+
+
 def test_run_installer_uses_real_default_scan_apply_and_write_paths(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path,
@@ -242,6 +293,18 @@ def test_run_installer_uses_real_default_scan_apply_and_write_paths(
         ("cmake", "--version"): "cmake version 3.31.6",
     }
     monkeypatch.setattr(defaults_module.shutil, "which", lambda name: availability.get(name))
+    monkeypatch.setattr(
+        defaults_module,
+        "_capture_first_available_build_tool_output",
+        lambda *commands: next(
+            (
+                banners.get(tuple(command))
+                for command in commands
+                if availability.get(command[0]) and banners.get(tuple(command))
+            ),
+            None,
+        ),
+    )
     monkeypatch.setattr(
         defaults_module,
         "_capture_first_output_line",
