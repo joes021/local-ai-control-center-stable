@@ -57,9 +57,11 @@ def test_apply_bootstrap_phase_marks_blocked_dependency_runs_as_failed_and_persi
     assert updated.bootstrap_status == "failed"
     assert updated.failing_step == "dependency-bootstrap"
     assert updated.product_installation_status == "incomplete"
-    assert Path(updated.install_root, "logs").is_dir()
     assert run_paths.log_path.exists()
     assert run_paths.json_report_path.exists()
+    assert not Path(updated.install_root, "logs", "install.log").exists()
+    assert not Path(updated.install_root, "logs", "install-report.json").exists()
+    assert not Path(updated.install_root, "config", "installer-session.json").exists()
 
 
 def test_apply_bootstrap_phase_requires_install_root_before_writing_files(
