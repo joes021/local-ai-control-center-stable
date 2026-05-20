@@ -75,27 +75,26 @@ def _build_ready_session(session: InstallerSession) -> InstallerSession:
 
 
 def _persist_install_root_artifacts(session: InstallerSession, install_root: Path) -> None:
-    logs_dir = install_root / "logs"
-    config_dir = install_root / "config"
-    artifact_paths = [
-        logs_dir / "install.log",
-        logs_dir / "install-report.json",
-        config_dir / "installer-session.json",
-    ]
+    install_root_preexisting = install_root.exists()
+    staging_root = install_root / f".staging-{uuid4().hex}"
+    artifact_paths = _build_artifact_paths(install_root)
+    staged_artifact_paths = _build_artifact_paths(staging_root)
     try:
-        logs_dir.mkdir(parents=True, exist_ok=True)
-        config_dir.mkdir(parents=True, exist_ok=True)
-        write_human_log(session, artifact_paths[0])
-        write_json_report(session, artifact_paths[1])
-        write_session_snapshot(session, artifact_paths[2])
-    except OSError:
-        _cleanup_install_root_artifacts(
-            artifact_paths,
-            logs_dir,
-            config_dir,
+        write_human_log(session, staged_artifact_paths[0])
+        write_json_report(session, staged_artifact_paths[1])
+        write_session_snapshot(session, staged_artifact_paths[2])
+        _promote_staged_artifacts(
             install_root,
+            staging_root,
+            staged_artifact_paths,
+            artifact_paths,
         )
+    except OSError:
+        _cleanup_staging_root(staging_root)
+        if not install_root_preexisting:
+            _remove_empty_directory(install_root)
         raise
+    _cleanup_staging_root(staging_root)
 
 
 def _write_temp_run_artifacts(session: InstallerSession, run_paths) -> None:
@@ -103,19 +102,93 @@ def _write_temp_run_artifacts(session: InstallerSession, run_paths) -> None:
     write_json_report(session, run_paths.json_report_path)
 
 
-def _cleanup_install_root_artifacts(
-    artifact_paths: list[Path],
-    logs_dir: Path,
-    config_dir: Path,
+def _build_artifact_paths(root: Path) -> list[Path]:
+    logs_dir = root / "logs"
+    config_dir = root / "config"
+    return [
+        logs_dir / "install.log",
+        logs_dir / "install-report.json",
+        config_dir / "installer-session.json",
+    ]
+
+
+def _promote_staged_artifacts(
     install_root: Path,
+    staging_root: Path,
+    staged_artifact_paths: list[Path],
+    artifact_paths: list[Path],
 ) -> None:
-    for artifact_path in artifact_paths:
+    promotion_records: list[dict[str, Path | bool]] = []
+    created_directories: list[Path] = []
+
+    try:
+        for staged_artifact_path, artifact_path in zip(staged_artifact_paths, artifact_paths):
+            parent_directory = artifact_path.parent
+            parent_existed = parent_directory.exists()
+            if not parent_existed:
+                parent_directory.mkdir(parents=True, exist_ok=True)
+                created_directories.append(parent_directory)
+
+            backup_path = staging_root / "backups" / artifact_path.relative_to(install_root)
+            record: dict[str, Path | bool] = {
+                "artifact_path": artifact_path,
+                "backup_path": backup_path,
+                "had_existing_target": artifact_path.exists(),
+                "backup_created": False,
+                "promoted": False,
+            }
+            promotion_records.append(record)
+
+            if record["had_existing_target"]:
+                backup_path.parent.mkdir(parents=True, exist_ok=True)
+                artifact_path.replace(backup_path)
+                record["backup_created"] = True
+
+            staged_artifact_path.replace(artifact_path)
+            record["promoted"] = True
+    except OSError:
+        _rollback_promoted_artifacts(promotion_records, created_directories)
+        raise
+
+
+def _rollback_promoted_artifacts(
+    promotion_records: list[dict[str, Path | bool]],
+    created_directories: list[Path],
+) -> None:
+    for record in reversed(promotion_records):
+        artifact_path = record["artifact_path"]
+        backup_path = record["backup_path"]
+
+        if record["promoted"]:
+            try:
+                artifact_path.unlink()
+            except FileNotFoundError:
+                pass
+
+        if record["backup_created"]:
+            backup_path.replace(artifact_path)
+
+    for directory in reversed(created_directories):
+        _remove_empty_directory(directory)
+
+
+def _cleanup_staging_root(staging_root: Path) -> None:
+    if not staging_root.exists():
+        return
+
+    for path in sorted(staging_root.rglob("*"), reverse=True):
         try:
-            artifact_path.unlink()
-        except FileNotFoundError:
-            continue
-    for directory in (config_dir, logs_dir, install_root):
-        try:
-            directory.rmdir()
+            if path.is_file():
+                path.unlink()
+            else:
+                path.rmdir()
         except OSError:
             continue
+    _remove_empty_directory(staging_root)
+
+
+def _remove_empty_directory(directory: Path) -> None:
+    try:
+        directory.rmdir()
+    except OSError:
+        pass
