@@ -28,18 +28,20 @@ def apply_bootstrap_phase(
         _write_temp_run_artifacts(session, run_paths)
         return session
 
+    ready_session = _build_ready_session(session)
+    _write_temp_run_artifacts(ready_session, run_paths)
+
     try:
-        _persist_install_root_artifacts(_build_ready_session(session), install_root)
+        _persist_install_root_artifacts(ready_session, install_root)
     except OSError as exc:
         session.bootstrap_status = "failed"
         session.failing_step = "install-root-persistence"
         session.error_message = str(exc)
+        _write_temp_run_artifacts(session, run_paths)
     else:
-        session.bootstrap_status = "ready"
-        session.failing_step = None
-        session.error_message = None
-
-    _write_temp_run_artifacts(session, run_paths)
+        session.bootstrap_status = ready_session.bootstrap_status
+        session.failing_step = ready_session.failing_step
+        session.error_message = ready_session.error_message
 
     return session
 

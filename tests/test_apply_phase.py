@@ -35,6 +35,61 @@ def test_apply_bootstrap_phase_marks_ready_only_when_all_required_dependencies_a
     assert run_paths.json_report_path.exists()
 
 
+def test_apply_bootstrap_phase_writes_temp_run_artifacts_before_install_root_persistence_on_success(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    monkeypatch.setattr(apply_phase_module, "_generate_fallback_run_id", lambda: "run-order")
+    run_paths = build_run_paths(tmp_path / "temp-runs", "run-order")
+    install_root = tmp_path / "install-root"
+    install_log_path = install_root / "logs" / "install.log"
+    install_report_path = install_root / "logs" / "install-report.json"
+    install_session_path = install_root / "config" / "installer-session.json"
+    events: list[tuple[str, str, str | None]] = []
+
+    def record_log(session: InstallerSession, log_path: Path) -> Path:
+        if log_path == run_paths.log_path:
+            events.append(("temp-log", session.bootstrap_status, session.failing_step))
+        elif log_path == install_log_path:
+            events.append(("install-log", session.bootstrap_status, session.failing_step))
+        return log_path
+
+    def record_report(session: InstallerSession, report_path: Path) -> Path:
+        if report_path == run_paths.json_report_path:
+            events.append(("temp-json", session.bootstrap_status, session.failing_step))
+        elif report_path == install_report_path:
+            events.append(("install-json", session.bootstrap_status, session.failing_step))
+        return report_path
+
+    def record_snapshot(session: InstallerSession, session_path: Path) -> Path:
+        if session_path == install_session_path:
+            events.append(("install-session", session.bootstrap_status, session.failing_step))
+        return session_path
+
+    monkeypatch.setattr(apply_phase_module, "write_human_log", record_log)
+    monkeypatch.setattr(apply_phase_module, "write_json_report", record_report)
+    monkeypatch.setattr(apply_phase_module, "write_session_snapshot", record_snapshot)
+
+    session = InstallerSession(
+        install_root=str(install_root),
+        dependencies=[
+            DependencyRecord(name="python", required=True, status="ready", detected=True),
+            DependencyRecord(name="git", required=True, status="ready", detected=True),
+        ],
+    )
+
+    updated = apply_bootstrap_phase(session, temp_root=tmp_path / "temp-runs")
+
+    assert updated.bootstrap_status == "ready"
+    assert events == [
+        ("temp-log", "ready", None),
+        ("temp-json", "ready", None),
+        ("install-log", "ready", None),
+        ("install-json", "ready", None),
+        ("install-session", "ready", None),
+    ]
+
+
 def test_apply_bootstrap_phase_marks_blocked_dependency_runs_as_failed_and_persists_temp_artifacts(
     tmp_path: Path,
 ):
