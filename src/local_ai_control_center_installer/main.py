@@ -1,8 +1,10 @@
 from collections.abc import Callable
 from datetime import datetime, timezone
 import platform as platform_module
+import sys
 
 import local_ai_control_center_installer.defaults as defaults_module
+from local_ai_control_center_installer.prompts import PromptCancelledError
 from local_ai_control_center_installer.session import InstallerSession
 
 
@@ -35,3 +37,16 @@ def run_installer(
     session = apply_phase(session)
     write_reports(session)
     return session.to_dict()
+
+
+def main() -> int:
+    try:
+        run_installer()
+    except PromptCancelledError as error:
+        print(str(error), file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
