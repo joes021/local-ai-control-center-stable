@@ -153,3 +153,50 @@ def test_apply_bootstrap_phase_marks_install_root_persistence_failure_in_temp_ar
     assert report_payload["failing_step"] == "install-root-persistence"
     assert "Bootstrap status: failed" in log_contents
     assert "Failing step: install-root-persistence" in log_contents
+
+
+def test_apply_bootstrap_phase_cleans_partial_install_root_artifacts_on_report_write_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    monkeypatch.setattr(
+        apply_phase_module,
+        "_generate_fallback_run_id",
+        lambda: "run-cleanup-failure",
+    )
+    install_root = tmp_path / "install-root"
+    original_write_json_report = apply_phase_module.write_json_report
+
+    def fail_on_install_root_report(
+        session: InstallerSession,
+        report_path: Path,
+    ) -> Path:
+        if report_path == install_root / "logs" / "install-report.json":
+            raise OSError("report write failed")
+        return original_write_json_report(session, report_path)
+
+    monkeypatch.setattr(
+        apply_phase_module,
+        "write_json_report",
+        fail_on_install_root_report,
+    )
+
+    session = InstallerSession(
+        install_root=str(install_root),
+        dependencies=[
+            DependencyRecord(name="python", required=True, status="ready", detected=True),
+            DependencyRecord(name="git", required=True, status="ready", detected=True),
+        ],
+    )
+
+    updated = apply_bootstrap_phase(session, temp_root=tmp_path / "temp-runs")
+    run_paths = build_run_paths(tmp_path / "temp-runs", "run-cleanup-failure")
+    report_payload = json.loads(run_paths.json_report_path.read_text(encoding="utf-8"))
+
+    assert updated.bootstrap_status == "failed"
+    assert updated.failing_step == "install-root-persistence"
+    assert not Path(updated.install_root, "logs", "install.log").exists()
+    assert not Path(updated.install_root, "logs", "install-report.json").exists()
+    assert not Path(updated.install_root, "config", "installer-session.json").exists()
+    assert report_payload["bootstrap_status"] == "failed"
+    assert report_payload["failing_step"] == "install-root-persistence"
