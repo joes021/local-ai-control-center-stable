@@ -36,6 +36,8 @@ def apply_bootstrap_phase(
     write_human_log(session, run_paths.log_path)
     write_json_report(session, run_paths.json_report_path)
     write_human_log(session, logs_dir / "install.log")
+    if session.bootstrap_status == "ready":
+        write_json_report(session, logs_dir / "install-report.json")
     write_session_snapshot(session, config_dir / "installer-session.json")
 
     return session
