@@ -37,20 +37,4 @@ class InstallerSession:
     dependencies: list[DependencyRecord] = field(default_factory=list)
 
     def to_dict(self) -> dict:
-        return {
-            "bootstrap_status": self.bootstrap_status,
-            "product_installation_status": self.product_installation_status,
-            "platform": self.platform,
-            "started_at": self.started_at,
-            "existing_install_detected": self.existing_install_detected,
-            "install_mode": self.install_mode,
-            "install_root": self.install_root,
-            "starter_model": self.starter_model,
-            "install_opencode": self.install_opencode,
-            "attempt_turboquant": self.attempt_turboquant,
-            "additional_model_paths": list(self.additional_model_paths),
-            "last_successful_step": self.last_successful_step,
-            "failing_step": self.failing_step,
-            "error_message": self.error_message,
-            "dependencies": [item.to_dict() for item in self.dependencies],
-        }
+        return asdict(self)
