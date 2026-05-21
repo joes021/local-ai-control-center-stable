@@ -81,7 +81,6 @@ This slice already delivers:
 
 This slice does not yet deliver:
 
-- runnable server verification
 - `OpenCode` verification
 - `TurboQuant`
 - completed product installation
