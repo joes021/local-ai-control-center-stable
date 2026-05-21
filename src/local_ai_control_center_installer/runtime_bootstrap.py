@@ -7,6 +7,7 @@ from urllib.request import urlopen
 from .downloads import (
     extract_archive,
     promote_tree,
+    verify_required_file_checksums,
     verify_required_files,
     verify_runtime_metadata,
     verify_sha256,
@@ -23,17 +24,7 @@ def load_runtime_manifest(manifest_path=None) -> dict:
     payload = json.loads(manifest_path.read_text(encoding="utf-8"))
     if "runtime_artifact" not in payload or "starter_models" not in payload:
         raise ValueError("Runtime manifest is missing required top-level fields.")
-    runtime_artifact = payload["runtime_artifact"]
-    for key in (
-        "id",
-        "url",
-        "sha256",
-        "archive_type",
-        "required_files",
-        "install_subdir",
-    ):
-        if key not in runtime_artifact:
-            raise ValueError(f"Runtime artifact entry is missing required field: {key}")
+    _validate_runtime_artifact(payload["runtime_artifact"])
     return payload
 
 
@@ -52,11 +43,17 @@ def resolve_requested_starter_model(manifest: dict, requested_model_id: str) -> 
             f"Starter model entry for {requested_model_id} must be an object."
         )
 
-    for key in ("id", "url", "sha256", "target_filename", "install_subdir"):
-        if key not in starter_model:
-            raise ValueError(
-                f"Starter model entry for {requested_model_id} is missing required field: {key}"
-            )
+    _validate_manifest_string_field(
+        starter_model,
+        "id",
+        context=f"Starter model entry for {requested_model_id}",
+    )
+    for key in ("url", "sha256", "target_filename", "install_subdir"):
+        _validate_manifest_string_field(
+            starter_model,
+            key,
+            context=f"Starter model entry for {requested_model_id}",
+        )
     return starter_model
 
 
@@ -187,12 +184,12 @@ def _runtime_artifact_ready(
 ) -> bool:
     return verify_required_files(
         runtime_root, runtime_artifact["required_files"]
+    ) and verify_required_file_checksums(
+        runtime_root, runtime_artifact["required_file_sha256"]
     ) and verify_runtime_metadata(
         metadata_path,
         artifact_id=runtime_artifact["id"],
         source_sha256=runtime_artifact["sha256"],
-        root=runtime_root,
-        required_files=runtime_artifact["required_files"],
     )
 
 
@@ -221,13 +218,15 @@ def _stage_runtime_artifact(
     )
     if not verify_required_files(extracted_root, runtime_artifact["required_files"]):
         raise ValueError("Runtime artifact is missing required files.")
+    if not verify_required_file_checksums(
+        extracted_root, runtime_artifact["required_file_sha256"]
+    ):
+        raise ValueError("Runtime artifact required file checksum verification failed.")
 
     write_runtime_metadata(
         extracted_root / "runtime-artifact.json",
         artifact_id=runtime_artifact["id"],
         source_sha256=runtime_artifact["sha256"],
-        root=extracted_root,
-        required_files=runtime_artifact["required_files"],
     )
     promote_tree(staging_root / "payload", install_root)
 
@@ -286,3 +285,55 @@ def _download_file(url: str, destination: Path) -> Path:
     with urlopen(url) as response:
         destination.write_bytes(response.read())
     return destination
+
+
+def _validate_runtime_artifact(runtime_artifact: dict) -> None:
+    if not isinstance(runtime_artifact, dict):
+        raise ValueError("Runtime artifact entry must be an object.")
+
+    for key in ("id", "url", "sha256", "archive_type", "install_subdir"):
+        _validate_manifest_string_field(
+            runtime_artifact,
+            key,
+            context="Runtime artifact entry",
+        )
+
+    required_files = runtime_artifact.get("required_files")
+    if not isinstance(required_files, list) or not required_files:
+        raise ValueError("Runtime artifact entry required_files must be a non-empty list.")
+    for relative_path in required_files:
+        if not isinstance(relative_path, str) or not relative_path.strip():
+            raise ValueError(
+                "Runtime artifact entry required_files must contain non-empty string paths."
+            )
+
+    required_file_sha256 = runtime_artifact.get("required_file_sha256")
+    if not isinstance(required_file_sha256, dict):
+        raise ValueError(
+            "Runtime artifact entry required_file_sha256 must be an object."
+        )
+    for relative_path in required_files:
+        if relative_path not in required_file_sha256:
+            raise ValueError(
+                f"Runtime artifact entry required_file_sha256 is missing required field: {relative_path}"
+            )
+        if (
+            not isinstance(required_file_sha256[relative_path], str)
+            or not required_file_sha256[relative_path].strip()
+        ):
+            raise ValueError(
+                f"Runtime artifact entry required_file_sha256 has invalid value for: {relative_path}"
+            )
+
+
+def _validate_manifest_string_field(
+    payload: dict,
+    key: str,
+    *,
+    context: str,
+) -> None:
+    if key not in payload:
+        raise ValueError(f"{context} is missing required field: {key}")
+    value = payload[key]
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{context} field must be a non-empty string: {key}")

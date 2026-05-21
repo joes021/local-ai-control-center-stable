@@ -7,6 +7,9 @@
     "required_files": [
       "llama-server.exe"
     ],
+    "required_file_sha256": {
+      "llama-server.exe": "621d7fae989fcffdff2c4ba4fc756ea6b68ddf7f50945f7816f33b2355c65bf8"
+    },
     "install_subdir": "runtime/llama.cpp"
   },
   "starter_models": {
