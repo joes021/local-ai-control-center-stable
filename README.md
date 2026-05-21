@@ -64,4 +64,20 @@ The launcher is intentionally thin. It should:
 Smoke checklist:
 
 - the launcher reaches the installer prompts from a repo checkout
+- if Python is missing, the launcher asks whether to attempt Python installation and then exits cleanly because this slice cannot continue without Python bootstrap
 - cancelling the questionnaire exits without a Python import traceback
+
+## Bootstrap Slice Status
+
+This slice already delivers:
+
+- the numbered installer questionnaire contract
+- dependency bootstrap and blocking/failure classification
+- human-readable logging and JSON reporting
+
+This slice does not yet deliver:
+
+- `llama.cpp`
+- model download
+- `OpenCode` verification
+- a runnable server
