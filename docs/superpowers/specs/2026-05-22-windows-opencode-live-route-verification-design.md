@@ -97,15 +97,22 @@ The `OpenCode` verification phase should run in this order:
 2. start a temporary verifier-owned `llama-server` on a loopback port
 3. start an installer-owned relay on a separate loopback port
 4. generate a unique installer-only marker for the verification attempt
-5. build installer-managed `OpenCode` config that points to the relay base URL
-6. launch a bounded `OpenCode` process for a small non-interactive inference smoke
-7. capture combined `stdout` and `stderr` into the `OpenCode` verification log
-8. confirm that:
+5. keep the persisted installer-managed `OpenCode` config pointed at the stable verified runtime URL
+6. inject a verification-only config override that points `OpenCode` at the relay base URL
+7. launch a bounded `OpenCode` process for a small non-interactive inference smoke
+8. capture combined `stdout` and `stderr` into the `OpenCode` verification log
+9. confirm that:
    - the relay saw the expected marker
    - the relay successfully obtained an upstream runtime response
-9. stop `OpenCode`, the relay, and the temporary verifier runtime cleanly
+10. stop `OpenCode`, the relay, and the temporary verifier runtime cleanly
 
 Verification succeeds only if all proof conditions pass inside the same bounded run.
+
+The persisted install-root managed config must remain stable and must keep the real runtime URL:
+
+- `providers.local-lacc.options.baseURL = <verified_server_url>/v1`
+
+The relay URL is verification-only state. It must not be written into the persisted install-root config because the relay is destroyed during cleanup.
 
 ## Relay Contract
 
@@ -122,6 +129,17 @@ Its responsibilities are:
   - whether upstream responded successfully
   - any relay-side transport failure relevant to truthful failure mapping
 
+For this slice, the relay contract is intentionally narrow:
+
+- accept only `POST` requests to `/v1/chat/completions`
+- require JSON request bodies
+- search for the marker inside the request `messages` payload rather than arbitrary top-level fields
+- forward the request to the temporary verifier runtime at its own `/v1/chat/completions` endpoint
+- treat upstream success as:
+  - HTTP `200`
+  - a JSON response body that can be decoded
+  - a response body that contains at least one assistant message/content payload
+
 The relay is not a reusable product component. It is only a verifier helper for this slice.
 
 ## Inference Smoke Contract
@@ -134,6 +152,16 @@ Requirements:
 - keep the request short and deterministic
 - avoid broad prompt semantics or user-facing content
 - aim only to prove route usage, not model quality
+
+The verifier should freeze the smoke command contract to the current documented non-interactive CLI shape:
+
+- `opencode --pure run --format json --model local-lacc/<active-model-id> "<prompt>"`
+
+The prompt should contain the marker in a deterministic, exact-match form such as:
+
+- `LACC_VERIFY_MARKER:<uuid>`
+
+The marker should be placed in the user message text passed to `opencode run`, so the relay can detect it in the JSON request body under `messages`.
 
 The smoke is successful only when:
 
@@ -170,6 +198,19 @@ Failure mapping guidance:
 
 Earlier primary failures must remain authoritative when cleanup also fails.
 
+Truth table for the new failure modes:
+
+| failing_step | opencode_process_status | opencode_connection_status | Meaning |
+|---|---|---|---|
+| `opencode-verification-prerequisites` | `skipped` | `skipped` | verifier could not start because owned prerequisites were not valid |
+| `opencode-runtime-server-start` | `skipped` | `skipped` | temporary verifier runtime never became available |
+| `opencode-relay-start` | `skipped` | `skipped` | relay never became available, so no `OpenCode` proof run happened |
+| `opencode-inference-smoke` | `failed` | `skipped` | `OpenCode` process did not complete the bounded smoke attempt |
+| `opencode-live-route-proof` | `ready` | `failed` | `OpenCode` ran, but live-route proof was missing or upstream proof failed |
+| `opencode-process-stop` | `ready` | `ready` | proof succeeded and only cleanup failed afterward |
+
+The `ready/failed/skipped` combination above is normative for planning, testing, and reporting.
+
 ## Log Truth
 
 `opencode_log_path` must become stricter:
@@ -202,6 +243,8 @@ Likely reporting updates remain narrow:
 - `README.md`
 
 The main installer pipeline in `main.py` should not need a new phase. The stronger proof stays inside the current `OpenCode` verification phase.
+
+The verification-only relay override should be built from `OPENCODE_CONFIG_CONTENT` at process launch time, not by mutating the persisted install-root managed config on disk.
 
 ## Public Wording Changes
 
