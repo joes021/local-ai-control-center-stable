@@ -6,6 +6,7 @@ def test_run_installer_smoke_with_injected_collaborators():
         collect_answers=lambda session: session,
         scan_dependencies=lambda session: session,
         apply_phase=lambda session: session,
+        apply_runtime_payload=lambda session: session,
         write_reports=lambda session: None,
     )
 
