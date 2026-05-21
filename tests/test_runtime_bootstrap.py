@@ -102,6 +102,8 @@ def test_apply_runtime_payload_skips_when_bootstrap_failed(tmp_path: Path):
         bootstrap_status="failed",
         install_root=str(tmp_path / "install-root"),
         starter_model="recommended-6gb",
+        failing_step="dependency-bootstrap",
+        last_successful_step="dependency-scan",
     )
 
     updated = apply_runtime_payload(session, temp_root=tmp_path / "temp-runs")
@@ -110,6 +112,8 @@ def test_apply_runtime_payload_skips_when_bootstrap_failed(tmp_path: Path):
     assert updated.runtime_artifact_status == "skipped"
     assert updated.starter_model_status == "skipped"
     assert updated.active_model_config_status == "skipped"
+    assert updated.failing_step == "dependency-bootstrap"
+    assert updated.last_successful_step == "dependency-scan"
 
 
 def test_apply_runtime_payload_marks_ready_when_runtime_and_model_are_verified_in_place(
@@ -290,6 +294,28 @@ def test_apply_runtime_payload_fails_when_requested_model_manifest_entry_is_miss
 
     assert updated.runtime_payload_status == "failed"
     assert updated.runtime_artifact_status == "skipped"
+    assert updated.starter_model_status == "failed"
+    assert updated.active_model_config_status == "skipped"
+    assert updated.failing_step == "runtime-manifest"
+
+
+def test_apply_runtime_payload_maps_manifest_load_error_to_runtime_manifest_failure(
+    tmp_path: Path,
+):
+    session = InstallerSession(
+        bootstrap_status="ready",
+        install_root=str(tmp_path / "install-root"),
+        starter_model="recommended-6gb",
+    )
+
+    updated = apply_runtime_payload(
+        session,
+        temp_root=tmp_path / "temp-runs",
+        load_manifest=lambda: (_ for _ in ()).throw(ValueError("bad manifest")),
+    )
+
+    assert updated.runtime_payload_status == "failed"
+    assert updated.runtime_artifact_status == "failed"
     assert updated.starter_model_status == "failed"
     assert updated.active_model_config_status == "skipped"
     assert updated.failing_step == "runtime-manifest"
