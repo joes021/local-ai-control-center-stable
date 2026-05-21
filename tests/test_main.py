@@ -447,6 +447,80 @@ def test_run_installer_uses_real_default_scan_apply_and_write_paths(
     assert install_payload["runtime_payload_status"] == "ready"
 
 
+def test_run_installer_real_default_path_converts_install_root_report_persistence_error_to_failed_result(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+):
+    def fake_collect_installer_answers(session: InstallerSession):
+        session.install_root = str(tmp_path / "install-root")
+        session.starter_model = "qwen2.5-7b-instruct"
+        return session
+
+    monkeypatch.setattr(defaults_module, "collect_installer_answers", fake_collect_installer_answers)
+    monkeypatch.setattr(defaults_module, "_default_temp_root", lambda: tmp_path / "temp-runs")
+    monkeypatch.setattr(
+        defaults_module,
+        "default_apply_runtime_payload",
+        lambda session: _mark_runtime_ready(session, tmp_path),
+    )
+    monkeypatch.setattr(
+        defaults_module,
+        "persist_install_root_reports",
+        lambda session: (_ for _ in ()).throw(OSError("locked")),
+    )
+    availability = {
+        "git": "C:\\Tools\\git.exe",
+        "node": "C:\\Tools\\node.exe",
+        "npm": "C:\\Tools\\npm.cmd",
+        "gcc": "C:\\Tools\\gcc.exe",
+        "cmake": "C:\\Tools\\cmake.exe",
+    }
+    banners = {
+        ("git", "--version"): "git version 2.49.0.windows.1",
+        ("node", "--version"): "v22.14.0",
+        ("npm", "--version"): "10.9.2",
+        ("gcc", "--version"): "gcc (GCC) 14.2.0",
+        ("cmake", "--version"): "cmake version 3.31.6",
+    }
+    monkeypatch.setattr(defaults_module.shutil, "which", lambda name: availability.get(name))
+    monkeypatch.setattr(
+        defaults_module,
+        "_capture_first_available_build_tool_output",
+        lambda *commands: next(
+            (
+                banners.get(tuple(command))
+                for command in commands
+                if availability.get(command[0]) and banners.get(tuple(command))
+            ),
+            None,
+        ),
+    )
+    monkeypatch.setattr(
+        defaults_module,
+        "_capture_first_output_line",
+        lambda command: banners.get(tuple(command)),
+    )
+
+    result = run_installer()
+
+    run_dir = (
+        tmp_path
+        / "temp-runs"
+        / "LocalAIControlCenterInstaller"
+        / "runs"
+        / result["started_at"].replace(":", "-")
+    )
+    temp_report_path = run_dir / "install-report.json"
+    temp_payload = json.loads(temp_report_path.read_text(encoding="utf-8"))
+
+    assert result["runtime_payload_status"] == "failed"
+    assert result["failing_step"] == "install-root-persistence"
+    assert result["error_message"] == "locked"
+    assert temp_payload["runtime_payload_status"] == "failed"
+    assert temp_payload["failing_step"] == "install-root-persistence"
+    assert temp_payload["error_message"] == "locked"
+
+
 def _mark_runtime_ready(session: InstallerSession, tmp_path) -> InstallerSession:
     install_root = tmp_path / "install-root"
     session.runtime_payload_status = "ready"

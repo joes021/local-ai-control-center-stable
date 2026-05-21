@@ -65,6 +65,7 @@ def write_json_report(session: InstallerSession, report_path: Path) -> Path:
         "starter_model_path": session.starter_model_path,
         "active_model_config_path": session.active_model_config_path,
         "runtime_metadata_path": session.runtime_metadata_path,
+        "error_message": session.error_message,
     }
     _write_text(report_path, json.dumps(payload, indent=2))
     return report_path

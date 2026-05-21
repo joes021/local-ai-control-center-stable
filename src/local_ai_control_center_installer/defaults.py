@@ -46,7 +46,16 @@ def default_write_reports(session: InstallerSession) -> None:
     write_human_log(session, run_paths.log_path)
     write_json_report(session, run_paths.json_report_path)
     if session.bootstrap_status == "ready":
-        persist_install_root_reports(session)
+        try:
+            persist_install_root_reports(session)
+        except OSError as exc:
+            session.error_message = str(exc)
+            if session.runtime_payload_status == "ready":
+                session.runtime_payload_status = "failed"
+            if session.failing_step is None:
+                session.failing_step = "install-root-persistence"
+            write_human_log(session, run_paths.log_path)
+            write_json_report(session, run_paths.json_report_path)
 
 
 def _default_temp_root() -> Path:
