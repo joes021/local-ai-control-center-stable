@@ -71,7 +71,7 @@ def resolve_server_verification_target(
             "active model config model_path is required",
         )
     )
-    if not model_path.exists():
+    if not model_path.is_file():
         raise ValueError(f"active model file does not exist: {model_path}")
 
     runtime_artifact_path = _require_path_string(
@@ -79,7 +79,7 @@ def resolve_server_verification_target(
         "session.runtime_artifact_path is required",
     )
     server_executable = runtime_artifact_path / "llama-server.exe"
-    if not server_executable.exists():
+    if not server_executable.is_file():
         raise ValueError(f"llama-server.exe was not found at {server_executable}")
 
     return ServerVerificationTarget(
