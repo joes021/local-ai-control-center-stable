@@ -22,12 +22,21 @@ class DependencyRecord:
 class InstallerSession:
     bootstrap_status: str = "failed"
     product_installation_status: str = "incomplete"
+    runtime_payload_status: str = "skipped"
+    runtime_artifact_status: str = "skipped"
+    starter_model_status: str = "skipped"
+    active_model_config_status: str = "skipped"
     platform: str | None = None
     started_at: str | None = None
     existing_install_detected: bool = False
     install_mode: str | None = None
     install_root: str | None = None
+    runtime_artifact_id: str | None = None
+    runtime_artifact_path: str | None = None
     starter_model: str | None = None
+    starter_model_path: str | None = None
+    active_model_config_path: str | None = None
+    runtime_metadata_path: str | None = None
     install_opencode: bool = False
     attempt_turboquant: bool = False
     additional_model_paths: list[str] = field(default_factory=list)
