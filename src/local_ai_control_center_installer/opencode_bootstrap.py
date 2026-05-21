@@ -1,5 +1,20 @@
 import json
 from importlib.resources import files
+from json import JSONDecodeError
+from pathlib import Path
+from tempfile import mkdtemp
+from urllib.request import urlopen
+
+from .downloads import (
+    extract_archive,
+    promote_tree,
+    verify_required_file_checksums,
+    verify_required_files,
+    verify_runtime_metadata,
+    verify_sha256,
+    write_runtime_metadata,
+)
+from .session import InstallerSession
 
 
 def load_opencode_manifest(manifest_path=None) -> dict:
@@ -16,6 +31,118 @@ def load_opencode_manifest(manifest_path=None) -> dict:
 
     _validate_opencode_artifact(payload["opencode_artifact"])
     return payload
+
+
+def apply_opencode_bootstrap(
+    session: InstallerSession,
+    *,
+    temp_root: Path,
+    load_manifest=load_opencode_manifest,
+    download_archive=None,
+    extract_archive=extract_archive,
+    verify_archive_sha256=verify_sha256,
+    verify_required_file_checksums=verify_required_file_checksums,
+    write_managed_config=None,
+) -> InstallerSession:
+    if session.server_verification_status != "ready":
+        session.opencode_artifact_status = "skipped"
+        session.opencode_verification_status = "skipped"
+        session.opencode_process_status = "skipped"
+        session.opencode_connection_status = "skipped"
+        return session
+
+    if not session.install_opencode:
+        session.opencode_artifact_status = "skipped"
+        session.opencode_verification_status = "skipped"
+        session.opencode_process_status = "skipped"
+        session.opencode_connection_status = "skipped"
+        return session
+
+    session.failing_step = None
+
+    install_root = Path(session.install_root).expanduser().resolve()
+    session.install_root = str(install_root)
+
+    try:
+        manifest = load_manifest()
+    except ValueError:
+        session.opencode_artifact_status = "failed"
+        session.opencode_verification_status = "skipped"
+        session.opencode_process_status = "skipped"
+        session.opencode_connection_status = "skipped"
+        session.failing_step = "opencode-manifest"
+        return session
+
+    opencode_artifact = manifest["opencode_artifact"]
+    opencode_root = install_root / opencode_artifact["install_subdir"]
+    metadata_path = opencode_root / "opencode-artifact.json"
+    config_path = install_root / "config" / "opencode" / "managed-config.json"
+
+    session.opencode_artifact_id = opencode_artifact["id"]
+    session.opencode_artifact_path = str(opencode_root)
+    session.opencode_metadata_path = str(metadata_path)
+    session.opencode_config_path = str(config_path)
+
+    artifact_ready = _opencode_artifact_ready(
+        opencode_root,
+        metadata_path,
+        opencode_artifact,
+        verify_required_file_checksums=verify_required_file_checksums,
+    )
+
+    model_id = _resolve_active_model_id(session.active_model_config_path)
+    verified_server_url = (session.verified_server_url or "").strip()
+    if not verified_server_url or model_id is None:
+        session.opencode_artifact_status = "ready" if artifact_ready else "skipped"
+        session.opencode_verification_status = "failed"
+        session.opencode_process_status = "skipped"
+        session.opencode_connection_status = "skipped"
+        session.failing_step = "opencode-verification-prerequisites"
+        return session
+
+    if not artifact_ready:
+        if download_archive is None:
+            download_archive = _download_file
+        try:
+            _stage_opencode_artifact(
+                install_root=install_root,
+                temp_root=temp_root,
+                opencode_artifact=opencode_artifact,
+                download_archive=download_archive,
+                extract_archive=extract_archive,
+                verify_archive_sha256=verify_archive_sha256,
+                verify_required_file_checksums=verify_required_file_checksums,
+            )
+        except Exception:
+            session.opencode_artifact_status = "failed"
+            session.opencode_verification_status = "skipped"
+            session.opencode_process_status = "skipped"
+            session.opencode_connection_status = "skipped"
+            session.failing_step = "opencode-artifact"
+            return session
+
+    session.opencode_artifact_status = "ready"
+    if write_managed_config is None:
+        write_managed_config = _write_managed_config
+
+    try:
+        write_managed_config(
+            config_path,
+            model_id=model_id,
+            verified_server_url=verified_server_url,
+        )
+    except Exception:
+        session.opencode_artifact_status = "ready"
+        session.opencode_verification_status = "failed"
+        session.opencode_process_status = "skipped"
+        session.opencode_connection_status = "skipped"
+        session.failing_step = "opencode-config"
+        return session
+
+    session.opencode_verification_status = "skipped"
+    session.opencode_process_status = "skipped"
+    session.opencode_connection_status = "skipped"
+    return session
 
 
 def _validate_opencode_artifact(opencode_artifact: dict) -> None:
@@ -92,3 +219,121 @@ def _validate_manifest_string_field(
     value = payload[key]
     if not isinstance(value, str) or not value.strip():
         raise ValueError(f"{context} field must be a non-empty string: {key}")
+
+
+def _opencode_artifact_ready(
+    opencode_root: Path,
+    metadata_path: Path,
+    opencode_artifact: dict,
+    *,
+    verify_required_file_checksums,
+) -> bool:
+    return verify_required_files(
+        opencode_root, opencode_artifact["required_files"]
+    ) and verify_required_file_checksums(
+        opencode_root, opencode_artifact["required_file_sha256"]
+    ) and verify_runtime_metadata(
+        metadata_path,
+        artifact_id=opencode_artifact["id"],
+        source_sha256=opencode_artifact["sha256"],
+    )
+
+
+def _resolve_active_model_id(active_model_config_path: str | None) -> str | None:
+    if not isinstance(active_model_config_path, str) or not active_model_config_path.strip():
+        return None
+
+    try:
+        payload = json.loads(
+            Path(active_model_config_path).read_text(encoding="utf-8")
+        )
+    except (JSONDecodeError, OSError, UnicodeDecodeError):
+        return None
+
+    if not isinstance(payload, dict):
+        return None
+
+    model_id = payload.get("model_id")
+    if not isinstance(model_id, str) or not model_id.strip():
+        return None
+    return model_id
+
+
+def _stage_opencode_artifact(
+    *,
+    install_root: Path,
+    temp_root: Path,
+    opencode_artifact: dict,
+    download_archive,
+    extract_archive,
+    verify_archive_sha256,
+    verify_required_file_checksums,
+) -> None:
+    staging_root = _make_staging_root(temp_root)
+    archive_path = staging_root / "downloads" / "opencode-artifact.archive"
+    extracted_root = staging_root / "payload" / opencode_artifact["install_subdir"]
+
+    archive_path.parent.mkdir(parents=True, exist_ok=True)
+    download_archive(opencode_artifact["url"], archive_path)
+    if not verify_archive_sha256(archive_path, opencode_artifact["sha256"]):
+        raise ValueError("OpenCode archive checksum verification failed.")
+
+    extract_archive(
+        archive_path,
+        extracted_root,
+        archive_type=opencode_artifact["archive_type"],
+    )
+    if not verify_required_files(extracted_root, opencode_artifact["required_files"]):
+        raise ValueError("OpenCode artifact is missing required files.")
+    if not verify_required_file_checksums(
+        extracted_root, opencode_artifact["required_file_sha256"]
+    ):
+        raise ValueError("OpenCode artifact required file checksum verification failed.")
+
+    write_runtime_metadata(
+        extracted_root / "opencode-artifact.json",
+        artifact_id=opencode_artifact["id"],
+        source_sha256=opencode_artifact["sha256"],
+    )
+    promote_tree(staging_root / "payload", install_root)
+
+
+def _write_managed_config(
+    config_path: Path,
+    *,
+    model_id: str,
+    verified_server_url: str,
+) -> Path:
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    config_path.write_text(
+        json.dumps(
+            {
+                "installer_managed": True,
+                "autoupdate": False,
+                "model": f"local-lacc/{model_id}",
+                "enabled_providers": ["local-lacc"],
+                "providers": {
+                    "local-lacc": {
+                        "provider": "@ai-sdk/openai-compatible",
+                        "options": {"baseURL": f"{verified_server_url}/v1"},
+                        "models": {model_id: {}},
+                    }
+                },
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    return config_path
+
+
+def _make_staging_root(temp_root: Path) -> Path:
+    temp_root.mkdir(parents=True, exist_ok=True)
+    return Path(mkdtemp(prefix="opencode-payload-", dir=str(temp_root)))
+
+
+def _download_file(url: str, destination: Path) -> Path:
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    with urlopen(url) as response:
+        destination.write_bytes(response.read())
+    return destination
