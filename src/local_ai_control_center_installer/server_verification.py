@@ -159,30 +159,26 @@ def apply_server_verification(
 
     startup_deadline = verification_started_at + 1.0
     health_deadline = verification_started_at + 30.0
+    poll_interval_seconds = 0.1
+    startup_attempt_limit = int(1.0 / poll_interval_seconds) + 2
+    health_attempt_limit = int(30.0 / poll_interval_seconds) + 2
     reached_ready = False
 
-    last_startup_time = verification_started_at
-
     try:
-        while True:
-            current_time = now_fn()
-            if current_time >= startup_deadline or current_time <= last_startup_time:
-                break
-
+        for _ in range(startup_attempt_limit):
             if process.poll() is not None:
                 session.server_verification_status = "failed"
                 session.server_process_status = "failed"
                 session.server_health_status = "skipped"
                 session.failing_step = "server-process-start"
                 return session
+            if now_fn() >= startup_deadline:
+                break
+            sleep_fn(poll_interval_seconds)
 
-            last_startup_time = current_time
-            sleep_fn(0.1)
-
-        last_health_time = verification_started_at
-        while True:
+        for _ in range(health_attempt_limit):
             current_time = now_fn()
-            if current_time > health_deadline or current_time <= last_health_time:
+            if current_time > health_deadline:
                 session.server_verification_status = "failed"
                 session.server_process_status = "ready"
                 session.server_health_status = "failed"
@@ -218,8 +214,7 @@ def apply_server_verification(
                 session.failing_step = "server-health"
                 return session
 
-            last_health_time = current_time
-            sleep_fn(0.1)
+            sleep_fn(poll_interval_seconds)
     finally:
         cleanup_error = _cleanup_server_process(process, stop_process)
         if cleanup_error is not None:
@@ -331,7 +326,7 @@ def stop_server_process(
     except OSError:
         return False
 
-    return False
+    return True
 
 
 def _cleanup_server_process(process, stop_process) -> str | None:
