@@ -67,17 +67,20 @@ Smoke checklist:
 - if Python is missing, the launcher asks whether to attempt Python installation and then exits cleanly because this slice cannot continue without Python bootstrap
 - cancelling the questionnaire exits without a Python import traceback
 
-## Bootstrap Slice Status
+## Current Slice Status
 
 This slice already delivers:
 
 - the numbered installer questionnaire contract
 - dependency bootstrap and blocking/failure classification
+- pinned runtime payload preparation for `llama.cpp`
+- starter model preparation
+- active model configuration
 - human-readable logging and JSON reporting
 
 This slice does not yet deliver:
 
-- `llama.cpp`
-- model download
+- runnable server verification
 - `OpenCode` verification
-- a runnable server
+- `TurboQuant`
+- completed product installation
