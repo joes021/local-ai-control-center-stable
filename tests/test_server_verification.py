@@ -3,6 +3,7 @@ from pathlib import Path
 
 from local_ai_control_center_installer.server_verification import (
     apply_server_verification,
+    probe_server_health,
 )
 from local_ai_control_center_installer.session import InstallerSession
 
@@ -220,6 +221,13 @@ def test_apply_server_verification_continues_polling_through_loading_503_until_r
     assert updated.server_health_status == "ready"
 
 
+def test_probe_server_health_treats_connection_refused_as_loading():
+    assert (
+        probe_server_health("http://127.0.0.1:1", timeout_seconds=0.01)
+        == "loading"
+    )
+
+
 def test_apply_server_verification_marks_process_start_failure_when_process_exits_early(
     tmp_path: Path,
 ):
@@ -241,6 +249,29 @@ def test_apply_server_verification_marks_process_start_failure_when_process_exit
     assert updated.server_process_status == "failed"
     assert updated.server_health_status == "skipped"
     assert updated.failing_step == "server-process-start"
+
+
+def test_apply_server_verification_does_not_claim_ready_when_clean_stop_fails(
+    tmp_path: Path,
+):
+    session = _build_runtime_ready_session(tmp_path)
+    process = FakeProcess([None, None, None, None, None, None])
+
+    updated = apply_server_verification(
+        session,
+        temp_root=tmp_path / "temp-runs",
+        select_port=lambda host="127.0.0.1": 8080,
+        process_factory=lambda command, log_path: process,
+        health_probe=lambda base_url: "ready",
+        stop_process=lambda proc: False,
+        now_fn=_fake_now([0.0, 0.3, 0.6, 0.9, 1.1, 1.2]),
+        sleep_fn=lambda _: None,
+    )
+
+    assert updated.server_verification_status == "failed"
+    assert updated.server_process_status == "failed"
+    assert updated.server_health_status == "ready"
+    assert updated.failing_step == "server-process-stop"
 
 
 def test_apply_server_verification_marks_process_start_failure_when_process_exits_during_startup_window(
