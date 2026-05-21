@@ -3,6 +3,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from local_ai_control_center_installer.server_verification import (
+    _cleanup_server_process,
     apply_server_verification,
     probe_server_health,
     stop_server_process,
@@ -525,6 +526,69 @@ def test_stop_server_process_returns_true_when_kill_succeeds_after_timeout():
     class _KillSucceedsProcess:
         def __init__(self):
             self.kill_calls = 0
+            self._after_kill_poll_results = iter([0])
+
+        def terminate(self) -> None:
+            return None
+
+        def poll(self) -> int | None:
+            if self.kill_calls == 0:
+                return None
+            return next(self._after_kill_poll_results, 0)
+
+        def kill(self) -> None:
+            self.kill_calls += 1
+
+    process = _KillSucceedsProcess()
+
+    assert (
+        stop_server_process(
+            process,
+            now_fn=_fake_now([0.0, 0.1, 5.0, 5.1, 5.2, 5.3]),
+            sleep_fn=lambda _: None,
+        )
+        is True
+    )
+    assert process.kill_calls == 1
+
+
+def test_stop_server_process_waits_for_exit_after_kill_before_returning_true():
+    class _KillThenExitProcess:
+        def __init__(self):
+            self.kill_calls = 0
+            self._after_kill_poll_results = iter([None, 0])
+            self.after_kill_poll_calls = 0
+
+        def terminate(self) -> None:
+            return None
+
+        def poll(self) -> int | None:
+            if self.kill_calls == 0:
+                return None
+            self.after_kill_poll_calls += 1
+            return next(self._after_kill_poll_results, 0)
+
+        def kill(self) -> None:
+            self.kill_calls += 1
+
+    process = _KillThenExitProcess()
+
+    assert (
+        stop_server_process(
+            process,
+            now_fn=_fake_now([0.0, 0.1, 5.0, 5.1, 5.2, 5.3]),
+            sleep_fn=lambda _: None,
+        )
+        is True
+    )
+    assert process.kill_calls == 1
+    assert process.after_kill_poll_calls >= 2
+
+
+def test_stop_server_process_returns_false_when_process_stays_alive_after_kill():
+    class _KillButStillRunningProcess:
+        def __init__(self):
+            self.kill_calls = 0
 
         def terminate(self) -> None:
             return None
@@ -535,17 +599,39 @@ def test_stop_server_process_returns_true_when_kill_succeeds_after_timeout():
         def kill(self) -> None:
             self.kill_calls += 1
 
-    process = _KillSucceedsProcess()
+    process = _KillButStillRunningProcess()
 
     assert (
         stop_server_process(
             process,
-            now_fn=_fake_now([0.0, 0.1, 5.0, 5.1]),
+            now_fn=_fake_now([0.0, 0.1, 5.0, 5.1, 5.2, 10.0, 10.1]),
             sleep_fn=lambda _: None,
         )
-        is True
+        is False
     )
     assert process.kill_calls == 1
+
+
+def test_cleanup_server_process_closes_attached_server_log_handle_on_cleanup_failure():
+    class _FakeLogHandle:
+        def __init__(self):
+            self.close_calls = 0
+
+        def close(self) -> None:
+            self.close_calls += 1
+
+    class _ProcessWithLogHandle:
+        pass
+
+    process = _ProcessWithLogHandle()
+    log_handle = _FakeLogHandle()
+    setattr(process, "_server_log_handle", log_handle)
+
+    assert (
+        _cleanup_server_process(process, stop_process=lambda proc: False)
+        == "failed to stop server verification process"
+    )
+    assert log_handle.close_calls == 1
 
 
 def _fake_now(values: list[float]):
