@@ -67,11 +67,13 @@ def main() -> int:
     except PromptCancelledError as error:
         print(str(error), file=sys.stderr)
         return 1
+    opencode_requested = result.get("install_opencode") is True
+    opencode_ready = result.get("opencode_verification_status") == "ready"
     if (
         result.get("bootstrap_status") == "ready"
         and result.get("runtime_payload_status") == "ready"
         and result.get("server_verification_status") == "ready"
-        and result.get("opencode_verification_status") == "ready"
+        and (not opencode_requested or opencode_ready)
     ):
         return 0
     return 1
