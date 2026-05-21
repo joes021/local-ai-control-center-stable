@@ -139,6 +139,7 @@ For this slice, the relay contract is intentionally narrow:
   - HTTP `200`
   - a JSON response body that can be decoded
   - a response body that contains at least one assistant message/content payload
+- reject or fail any unexpected extra verification-time request shape outside this bounded contract
 
 The relay is not a reusable product component. It is only a verifier helper for this slice.
 
@@ -156,6 +157,12 @@ Requirements:
 The verifier should freeze the smoke command contract to the current documented non-interactive CLI shape:
 
 - `opencode --pure run --format json --model local-lacc/<active-model-id> "<prompt>"`
+
+The verification launch environment must keep the earlier bounded-startup protections:
+
+- keep `OPENCODE_DISABLE_MODELS_FETCH=true`
+- do not allow manifest or other env overrides to replace that value during live-route verification
+- do not allow the verifier run to broaden itself into additional model-discovery traffic beyond the single bounded smoke request
 
 The prompt should contain the marker in a deterministic, exact-match form such as:
 
@@ -210,6 +217,13 @@ Truth table for the new failure modes:
 | `opencode-process-stop` | `ready` | `ready` | proof succeeded and only cleanup failed afterward |
 
 The `ready/failed/skipped` combination above is normative for planning, testing, and reporting.
+
+Partial-smoke truth rule:
+
+- if the `OpenCode` process ultimately fails the smoke step, but the relay already saw the marker and upstream already returned success, `opencode_process_status` remains `failed` while `opencode_connection_status` remains `ready`
+- if the smoke step fails before relay proof is established, `opencode_connection_status` remains `skipped`
+
+This rule preserves the strongest truthful signal available without promoting the overall verification to success.
 
 ## Log Truth
 
