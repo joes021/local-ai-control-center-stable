@@ -372,13 +372,19 @@ def _cleanup_opencode_process(
     *,
     now_fn,
     sleep_fn,
+    timeout_seconds: float = 5.0,
 ) -> str | None:
     try:
         if stop_process(process):
             return None
         return "failed to stop OpenCode verification process"
     except TypeError:
-        if stop_process(process, now_fn=now_fn, sleep_fn=sleep_fn):
+        if stop_process(
+            process,
+            now_fn=now_fn,
+            sleep_fn=sleep_fn,
+            timeout_seconds=timeout_seconds,
+        ):
             return None
         return "failed to stop OpenCode verification process"
     except Exception as exc:

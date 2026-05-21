@@ -494,3 +494,41 @@ def test_apply_opencode_verification_maps_cleanup_failure_after_successful_hands
     assert updated.opencode_process_status == "ready"
     assert updated.opencode_connection_status == "ready"
     assert updated.failing_step == "opencode-process-stop"
+
+
+def test_apply_opencode_verification_passes_cleanup_timeout_contract(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    session = _build_ready_session(tmp_path)
+    captured: dict[str, object] = {}
+    sentinel_now = object()
+    sentinel_sleep = object()
+
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.opencode_verification.load_opencode_manifest",
+        lambda: _build_manifest(),
+    )
+
+    def stop_process(process, *, now_fn, sleep_fn, timeout_seconds):
+        captured["now_fn"] = now_fn
+        captured["sleep_fn"] = sleep_fn
+        captured["timeout_seconds"] = timeout_seconds
+        return True
+
+    updated = apply_opencode_verification(
+        session,
+        temp_root=tmp_path / "temp-runs",
+        process_factory=lambda command, *, cwd, env, log_path: FakeProcess(
+            stdout="local-lacc/recommended-6gb\n",
+            returncode=0,
+        ),
+        stop_process=stop_process,
+        now_fn=sentinel_now,
+        sleep_fn=sentinel_sleep,
+    )
+
+    assert updated.opencode_verification_status == "ready"
+    assert captured["now_fn"] is sentinel_now
+    assert captured["sleep_fn"] is sentinel_sleep
+    assert captured["timeout_seconds"] == 5.0
