@@ -109,7 +109,7 @@ def apply_server_verification(
 
     try:
         process = process_factory(command, run_paths.server_log_path)
-    except OSError as exc:
+    except Exception as exc:
         session.server_verification_status = "failed"
         session.server_process_status = "failed"
         session.server_health_status = "skipped"
@@ -118,14 +118,16 @@ def apply_server_verification(
         return session
 
     startup_deadline = now_fn() + 1.0
-    while now_fn() <= startup_deadline:
+    while True:
         if process.poll() is not None:
             session.server_verification_status = "failed"
             session.server_process_status = "failed"
             session.server_health_status = "skipped"
             session.failing_step = "server-process-start"
             return session
-        break
+        if now_fn() >= startup_deadline:
+            break
+        sleep_fn(0.1)
 
     health_deadline = now_fn() + 30.0
     while now_fn() <= health_deadline:

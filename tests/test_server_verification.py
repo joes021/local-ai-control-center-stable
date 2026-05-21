@@ -176,7 +176,7 @@ def test_apply_server_verification_marks_ready_after_healthy_start_and_clean_sto
     tmp_path: Path,
 ):
     session = _build_runtime_ready_session(tmp_path)
-    process = FakeProcess([None, None, None])
+    process = FakeProcess([None, None, None, None, None, None])
     health_states = iter(["loading", "ready"])
 
     updated = apply_server_verification(
@@ -186,7 +186,7 @@ def test_apply_server_verification_marks_ready_after_healthy_start_and_clean_sto
         process_factory=lambda command, log_path: process,
         health_probe=lambda base_url: next(health_states),
         stop_process=lambda proc: True,
-        now_fn=_fake_now([0.0, 0.1, 0.2, 0.3]),
+        now_fn=_fake_now([0.0, 0.3, 0.6, 0.9, 1.1, 1.2, 1.3]),
         sleep_fn=lambda _: None,
     )
 
@@ -202,7 +202,7 @@ def test_apply_server_verification_continues_polling_through_loading_503_until_r
     tmp_path: Path,
 ):
     session = _build_runtime_ready_session(tmp_path)
-    process = FakeProcess([None, None, None, None])
+    process = FakeProcess([None, None, None, None, None, None, None])
     health_states = iter(["loading", "loading", "ready"])
 
     updated = apply_server_verification(
@@ -212,7 +212,7 @@ def test_apply_server_verification_continues_polling_through_loading_503_until_r
         process_factory=lambda command, log_path: process,
         health_probe=lambda base_url: next(health_states),
         stop_process=lambda proc: True,
-        now_fn=_fake_now([0.0, 0.1, 0.2, 0.3, 0.4]),
+        now_fn=_fake_now([0.0, 0.3, 0.6, 0.9, 1.1, 1.2, 1.3, 1.4]),
         sleep_fn=lambda _: None,
     )
 
@@ -243,7 +243,37 @@ def test_apply_server_verification_marks_process_start_failure_when_process_exit
     assert updated.failing_step == "server-process-start"
 
 
-def test_apply_server_verification_maps_subprocess_start_exception_to_server_process_start(
+def test_apply_server_verification_marks_process_start_failure_when_process_exits_during_startup_window(
+    tmp_path: Path,
+):
+    session = _build_runtime_ready_session(tmp_path)
+    process = FakeProcess([None, None, None, 1])
+    health_probe_calls = 0
+
+    def _health_probe(base_url: str) -> str:
+        nonlocal health_probe_calls
+        health_probe_calls += 1
+        return "ready"
+
+    updated = apply_server_verification(
+        session,
+        temp_root=tmp_path / "temp-runs",
+        select_port=lambda host="127.0.0.1": 8080,
+        process_factory=lambda command, log_path: process,
+        health_probe=_health_probe,
+        stop_process=lambda proc: True,
+        now_fn=_fake_now([0.0, 0.3, 0.6, 0.9, 1.1]),
+        sleep_fn=lambda _: None,
+    )
+
+    assert updated.server_verification_status == "failed"
+    assert updated.server_process_status == "failed"
+    assert updated.server_health_status == "skipped"
+    assert updated.failing_step == "server-process-start"
+    assert health_probe_calls == 0
+
+
+def test_apply_server_verification_maps_general_start_exception_to_server_process_start(
     tmp_path: Path,
 ):
     session = _build_runtime_ready_session(tmp_path)
@@ -253,7 +283,7 @@ def test_apply_server_verification_maps_subprocess_start_exception_to_server_pro
         temp_root=tmp_path / "temp-runs",
         select_port=lambda host="127.0.0.1": 8080,
         process_factory=lambda command, log_path: (_ for _ in ()).throw(
-            OSError("spawn failed")
+            RuntimeError("spawn failed")
         ),
         health_probe=lambda base_url: "ready",
         stop_process=lambda proc: True,
