@@ -76,6 +76,7 @@ This slice already delivers:
 - pinned runtime payload preparation for `llama.cpp`
 - starter model preparation
 - active model configuration
+- runnable `llama.cpp` server verification
 - human-readable logging and JSON reporting
 
 This slice does not yet deliver:
