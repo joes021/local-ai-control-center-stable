@@ -10,7 +10,7 @@ $pythonArgs = @("-m", "local_ai_control_center_installer.main")
 if (-not $pythonCommand) {
     $pythonCommand = Get-Command py -ErrorAction SilentlyContinue
     if ($pythonCommand) {
-        $pythonArgs = @("-3", "-m", "local_ai_control_center_installer.main")
+        $pythonArgs = @("-3.11", "-m", "local_ai_control_center_installer.main")
     }
 }
 
