@@ -1,16 +1,34 @@
 [CmdletBinding()]
 param()
 
+function Test-PythonRequirement {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$CommandPath,
+        [string[]]$VersionArgs = @()
+    )
+
+    & $CommandPath @VersionArgs -c "import sys; raise SystemExit(0 if sys.version_info >= (3, 11) else 1)" *> $null
+    return $LASTEXITCODE -eq 0
+}
+
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).ProviderPath
 $srcRoot = Join-Path $repoRoot "src"
 
 $pythonCommand = Get-Command python -ErrorAction SilentlyContinue
 $pythonArgs = @("-m", "local_ai_control_center_installer.main")
 
+if ($pythonCommand -and -not (Test-PythonRequirement -CommandPath $pythonCommand.Source)) {
+    $pythonCommand = $null
+}
+
 if (-not $pythonCommand) {
     $pythonCommand = Get-Command py -ErrorAction SilentlyContinue
-    if ($pythonCommand) {
-        $pythonArgs = @("-3.11", "-m", "local_ai_control_center_installer.main")
+    if ($pythonCommand -and (Test-PythonRequirement -CommandPath $pythonCommand.Source -VersionArgs @("-3"))) {
+        $pythonArgs = @("-3", "-m", "local_ai_control_center_installer.main")
+    }
+    else {
+        $pythonCommand = $null
     }
 }
 
