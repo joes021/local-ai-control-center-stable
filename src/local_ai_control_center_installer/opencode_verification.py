@@ -20,7 +20,6 @@ class OpenCodeVerificationTarget:
     model_id: str
     model_path: Path
     verified_server_url: str
-    verification_args: list[str]
     extra_env: dict[str, str]
 
 
@@ -58,18 +57,19 @@ def apply_opencode_verification(
         session.error_message = str(exc)
         return session
 
-    command = [
-        str(target.executable_path),
-        *target.verification_args,
-        "local-lacc",
-    ]
+    command = _build_verification_command(target.executable_path)
     session.verified_opencode_command = " ".join(command)
 
     env = _build_verification_env(target)
     working_directory = _make_working_directory(run_paths.run_dir)
 
     try:
-        process = process_factory(command, cwd=working_directory, env=env)
+        process = process_factory(
+            command,
+            cwd=working_directory,
+            env=env,
+            log_path=run_paths.opencode_log_path,
+        )
     except Exception as exc:
         session.opencode_verification_status = "failed"
         session.opencode_process_status = "failed"
@@ -86,6 +86,15 @@ def apply_opencode_verification(
             run_paths.opencode_log_path,
             timeout_seconds=30.0,
         )
+        if process.returncode != 0:
+            session.opencode_verification_status = "failed"
+            session.opencode_process_status = "failed"
+            session.opencode_connection_status = "skipped"
+            session.failing_step = "opencode-process-start"
+            session.error_message = (
+                f"OpenCode verification process exited with code {process.returncode}."
+            )
+            return session
         config_text = target.managed_config_path.read_text(encoding="utf-8")
         handshake_succeeded = _is_successful_handshake(
             process.returncode,
@@ -178,10 +187,7 @@ def resolve_opencode_verification_target(
     if not managed_config_path.is_file():
         raise ValueError(f"managed OpenCode config does not exist: {managed_config_path}")
 
-    manifest = load_opencode_manifest()
-    launch = manifest["opencode_artifact"]["launch"]
-    verification_args = launch["verification_args"]
-    extra_env = launch["extra_env"]
+    extra_env = _load_launch_extra_env()
 
     return OpenCodeVerificationTarget(
         executable_path=executable_path,
@@ -189,7 +195,6 @@ def resolve_opencode_verification_target(
         model_id=model_id,
         model_path=model_path,
         verified_server_url=verified_server_url,
-        verification_args=verification_args,
         extra_env=extra_env,
     )
 
@@ -199,6 +204,7 @@ def launch_opencode_verification_process(
     *,
     cwd: Path,
     env: dict[str, str],
+    log_path: Path,
 ):
     return subprocess.Popen(
         command,
@@ -282,6 +288,10 @@ def _build_verification_env(
     return env
 
 
+def _build_verification_command(executable_path: Path) -> list[str]:
+    return [str(executable_path), "--pure", "models", "local-lacc"]
+
+
 def _make_working_directory(run_dir: Path) -> Path:
     run_dir.mkdir(parents=True, exist_ok=True)
     return Path(mkdtemp(prefix="opencode-verification-", dir=str(run_dir)))
@@ -310,6 +320,36 @@ def _coerce_output_text(output: object) -> str:
     if isinstance(output, bytes):
         return output.decode("utf-8", errors="replace")
     return str(output)
+
+
+def _load_launch_extra_env() -> dict[str, str]:
+    manifest = load_opencode_manifest()
+    if not isinstance(manifest, dict):
+        raise ValueError("OpenCode manifest must be a JSON object.")
+
+    artifact = manifest.get("opencode_artifact")
+    if not isinstance(artifact, dict):
+        raise ValueError("OpenCode manifest opencode_artifact must be an object.")
+
+    launch = artifact.get("launch")
+    if not isinstance(launch, dict):
+        raise ValueError("OpenCode manifest launch contract is missing or invalid.")
+
+    verification_args = launch.get("verification_args")
+    if verification_args != ["--pure", "models"]:
+        raise ValueError(
+            "OpenCode manifest verification_args must equal ['--pure', 'models']."
+        )
+
+    extra_env = launch.get("extra_env")
+    if not isinstance(extra_env, dict):
+        raise ValueError("OpenCode manifest extra_env must be an object.")
+
+    for key, value in extra_env.items():
+        if not isinstance(key, str) or not isinstance(value, str):
+            raise ValueError("OpenCode manifest extra_env entries must be strings.")
+
+    return extra_env
 
 
 def _is_successful_handshake(
