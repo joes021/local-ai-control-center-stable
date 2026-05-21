@@ -13,3 +13,6 @@ dev = ["pytest>=8.0"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
+
+[tool.setuptools.package-data]
+local_ai_control_center_installer = ["manifests/*.json"]
