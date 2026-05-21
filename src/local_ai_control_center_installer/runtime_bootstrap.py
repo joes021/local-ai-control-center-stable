@@ -38,10 +38,26 @@ def load_runtime_manifest(manifest_path=None) -> dict:
 
 
 def resolve_requested_starter_model(manifest: dict, requested_model_id: str) -> dict:
+    starter_models = manifest.get("starter_models")
+    if not isinstance(starter_models, dict):
+        raise ValueError("Runtime manifest starter_models entry must be an object.")
+
     try:
-        return manifest["starter_models"][requested_model_id]
+        starter_model = starter_models[requested_model_id]
     except KeyError as exc:
         raise ValueError(f"Missing starter model entry for {requested_model_id}") from exc
+
+    if not isinstance(starter_model, dict):
+        raise ValueError(
+            f"Starter model entry for {requested_model_id} must be an object."
+        )
+
+    for key in ("id", "url", "sha256", "target_filename", "install_subdir"):
+        if key not in starter_model:
+            raise ValueError(
+                f"Starter model entry for {requested_model_id} is missing required field: {key}"
+            )
+    return starter_model
 
 
 def apply_runtime_payload(
@@ -175,6 +191,8 @@ def _runtime_artifact_ready(
         metadata_path,
         artifact_id=runtime_artifact["id"],
         source_sha256=runtime_artifact["sha256"],
+        root=runtime_root,
+        required_files=runtime_artifact["required_files"],
     )
 
 
@@ -208,6 +226,8 @@ def _stage_runtime_artifact(
         extracted_root / "runtime-artifact.json",
         artifact_id=runtime_artifact["id"],
         source_sha256=runtime_artifact["sha256"],
+        root=extracted_root,
+        required_files=runtime_artifact["required_files"],
     )
     promote_tree(staging_root / "payload", install_root)
 
