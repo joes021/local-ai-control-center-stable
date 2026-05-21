@@ -79,6 +79,14 @@ def test_load_opencode_manifest_uses_packaged_pinned_contract():
     }
 
 
+def test_load_opencode_manifest_rejects_non_object_json_root(tmp_path: Path):
+    manifest_path = tmp_path / "windows-stable-opencode.json"
+    manifest_path.write_text("123", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="top-level object"):
+        load_opencode_manifest(manifest_path)
+
+
 def test_load_opencode_manifest_rejects_checksum_key_missing_from_required_files(
     tmp_path: Path,
 ):
