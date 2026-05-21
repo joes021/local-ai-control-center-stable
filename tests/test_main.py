@@ -15,7 +15,7 @@ def test_main_delegates_to_run_installer_and_returns_zero(monkeypatch: pytest.Mo
 
     def fake_run_installer():
         calls.append("run")
-        return {"bootstrap_status": "ready"}
+        return {"bootstrap_status": "ready", "runtime_payload_status": "ready"}
 
     monkeypatch.setattr(main_module, "run_installer", fake_run_installer)
 
@@ -42,7 +42,18 @@ def test_main_returns_non_zero_when_bootstrap_status_is_failed(
     monkeypatch: pytest.MonkeyPatch,
 ):
     def fake_run_installer():
-        return {"bootstrap_status": "failed"}
+        return {"bootstrap_status": "failed", "runtime_payload_status": "skipped"}
+
+    monkeypatch.setattr(main_module, "run_installer", fake_run_installer)
+
+    assert main_module.main() == 1
+
+
+def test_main_returns_non_zero_when_runtime_payload_status_is_failed(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    def fake_run_installer():
+        return {"bootstrap_status": "ready", "runtime_payload_status": "failed"}
 
     monkeypatch.setattr(main_module, "run_installer", fake_run_installer)
 
@@ -64,6 +75,7 @@ def test_run_installer_confirms_summary_before_dependency_scan():
         collect_answers=fake_collect,
         scan_dependencies=fake_scan,
         apply_phase=lambda session: session,
+        apply_runtime_payload=lambda session: session,
         write_reports=lambda session: None,
     )
 
@@ -93,6 +105,7 @@ def test_run_installer_stops_before_dependency_scan_when_confirmation_is_cancell
             collect_answers=fake_collect,
             scan_dependencies=fake_scan,
             apply_phase=fake_apply,
+            apply_runtime_payload=lambda session: session,
             write_reports=fake_write_reports,
         )
 
@@ -125,10 +138,11 @@ def test_run_installer_writes_reports_after_failed_bootstrap_apply():
         collect_answers=fake_collect,
         scan_dependencies=fake_scan,
         apply_phase=fake_apply,
+        apply_runtime_payload=lambda session: events.append("runtime") or session,
         write_reports=fake_write_reports,
     )
 
-    assert events == ["collect", "scan", "apply", "report"]
+    assert events == ["collect", "scan", "apply", "runtime", "report"]
     assert written_payloads == [
         {
             "bootstrap_status": "failed",
@@ -169,11 +183,47 @@ def test_run_installer_returns_final_session_payload():
         collect_answers=lambda session, **_: session,
         scan_dependencies=lambda session, **_: session,
         apply_phase=fake_apply,
+        apply_runtime_payload=lambda session, **_: session,
         write_reports=lambda session, **_: None,
     )
 
     assert result["bootstrap_status"] == "failed"
     assert result["failing_step"] == "dependency-bootstrap"
+
+
+def test_run_installer_calls_runtime_collaborator_after_bootstrap_and_before_reporting():
+    events: list[str] = []
+
+    def fake_collect(session: InstallerSession, **_):
+        events.append("collect")
+        return session
+
+    def fake_scan(session: InstallerSession, **_):
+        events.append("scan")
+        return session
+
+    def fake_apply(session: InstallerSession, **_):
+        events.append("apply")
+        session.bootstrap_status = "ready"
+        return session
+
+    def fake_runtime(session: InstallerSession, **_):
+        events.append("runtime")
+        session.runtime_payload_status = "ready"
+        return session
+
+    def fake_write_reports(session: InstallerSession, **_):
+        events.append("report")
+
+    run_installer(
+        collect_answers=fake_collect,
+        scan_dependencies=fake_scan,
+        apply_phase=fake_apply,
+        apply_runtime_payload=fake_runtime,
+        write_reports=fake_write_reports,
+    )
+
+    assert events == ["collect", "scan", "apply", "runtime", "report"]
 
 
 def test_probe_node_version_requires_both_node_and_npm(
@@ -327,6 +377,11 @@ def test_run_installer_uses_real_default_scan_apply_and_write_paths(
 
     monkeypatch.setattr(defaults_module, "collect_installer_answers", fake_collect_installer_answers)
     monkeypatch.setattr(defaults_module, "_default_temp_root", lambda: tmp_path / "temp-runs")
+    monkeypatch.setattr(
+        defaults_module,
+        "default_apply_runtime_payload",
+        lambda session: _mark_runtime_ready(session, tmp_path),
+    )
     availability = {
         "git": "C:\\Tools\\git.exe",
         "node": "C:\\Tools\\node.exe",
@@ -385,6 +440,23 @@ def test_run_installer_uses_real_default_scan_apply_and_write_paths(
     assert temp_report_path.exists()
     assert install_report_path.exists()
     assert temp_payload["bootstrap_status"] == "ready"
+    assert temp_payload["runtime_payload_status"] == "ready"
     assert temp_payload["dependencies"][2]["version"] == "v22.14.0; npm 10.9.2"
     assert temp_payload["dependencies"][3]["version"] == "gcc (GCC) 14.2.0; cmake version 3.31.6"
     assert install_payload["bootstrap_status"] == "ready"
+    assert install_payload["runtime_payload_status"] == "ready"
+
+
+def _mark_runtime_ready(session: InstallerSession, tmp_path) -> InstallerSession:
+    install_root = tmp_path / "install-root"
+    session.runtime_payload_status = "ready"
+    session.runtime_artifact_status = "ready"
+    session.starter_model_status = "ready"
+    session.active_model_config_status = "ready"
+    session.runtime_artifact_id = "runtime-win-x64"
+    session.starter_model = "qwen2.5-7b-instruct"
+    session.runtime_artifact_path = str(install_root / "runtime")
+    session.starter_model_path = str(install_root / "models" / "starter.gguf")
+    session.active_model_config_path = str(install_root / "config" / "active-model.json")
+    session.runtime_metadata_path = str(install_root / "runtime" / "runtime-artifact.json")
+    return session
