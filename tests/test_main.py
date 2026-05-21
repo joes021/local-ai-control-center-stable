@@ -80,6 +80,26 @@ def test_main_returns_non_zero_when_server_verification_status_is_failed(
     assert main_module.main() == 1
 
 
+def test_main_returns_zero_when_opencode_was_explicitly_skipped(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    def fake_run_installer():
+        return {
+            "bootstrap_status": "ready",
+            "runtime_payload_status": "ready",
+            "server_verification_status": "ready",
+            "install_opencode": False,
+            "opencode_artifact_status": "skipped",
+            "opencode_verification_status": "skipped",
+            "opencode_process_status": "skipped",
+            "opencode_connection_status": "skipped",
+        }
+
+    monkeypatch.setattr(main_module, "run_installer", fake_run_installer)
+
+    assert main_module.main() == 0
+
+
 def test_main_returns_non_zero_when_opencode_verification_status_is_failed(
     monkeypatch: pytest.MonkeyPatch,
 ):
@@ -88,6 +108,7 @@ def test_main_returns_non_zero_when_opencode_verification_status_is_failed(
             "bootstrap_status": "ready",
             "runtime_payload_status": "ready",
             "server_verification_status": "ready",
+            "install_opencode": True,
             "opencode_verification_status": "failed",
         }
 
