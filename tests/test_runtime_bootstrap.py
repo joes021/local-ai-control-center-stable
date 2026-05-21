@@ -1,5 +1,9 @@
 import json
+import os
 from pathlib import Path
+import subprocess
+import sys
+import zipfile
 
 import pytest
 
@@ -68,3 +72,24 @@ def test_load_runtime_manifest_uses_packaged_resource_by_default():
     assert "runtime_artifact" in manifest
     assert "starter_models" in manifest
     assert manifest["runtime_artifact"]["id"] == "windows-llama-cpp-runtime"
+
+
+def test_built_wheel_contains_runtime_manifest_json(tmp_path: Path):
+    repo_root = Path(__file__).resolve().parents[1]
+    wheel_dir = tmp_path / "wheelhouse"
+    env = os.environ.copy()
+    env["PIP_DISABLE_PIP_VERSION_CHECK"] = "1"
+
+    subprocess.run(
+        [sys.executable, "-m", "pip", "wheel", ".", "--no-deps", "-w", str(wheel_dir)],
+        check=True,
+        cwd=repo_root,
+        env=env,
+    )
+
+    wheel_path = next(wheel_dir.glob("*.whl"))
+    with zipfile.ZipFile(wheel_path) as wheel_archive:
+        assert (
+            "local_ai_control_center_installer/manifests/windows-stable-runtime.json"
+            in wheel_archive.namelist()
+        )
