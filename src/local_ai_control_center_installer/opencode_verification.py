@@ -61,7 +61,15 @@ def apply_opencode_verification(
     session.verified_opencode_command = " ".join(command)
 
     env = _build_verification_env(target)
-    working_directory = _make_working_directory(run_paths.run_dir)
+    try:
+        working_directory = _make_working_directory(run_paths.run_dir)
+    except OSError as exc:
+        session.opencode_verification_status = "failed"
+        session.opencode_process_status = "failed"
+        session.opencode_connection_status = "skipped"
+        session.failing_step = "opencode-process-start"
+        session.error_message = str(exc)
+        return session
 
     try:
         process = process_factory(
@@ -116,13 +124,31 @@ def apply_opencode_verification(
             session.opencode_connection_status = "failed"
             session.failing_step = "opencode-connection"
             session.error_message = "OpenCode verification handshake did not match the managed route."
+    except OSError as exc:
+        session.opencode_verification_status = "failed"
+        session.opencode_process_status = (
+            "failed" if process.returncode not in (None, 0) else "ready"
+        )
+        session.opencode_connection_status = (
+            "skipped" if process.returncode not in (None, 0) else "failed"
+        )
+        session.failing_step = (
+            "opencode-process-start"
+            if process.returncode not in (None, 0)
+            else "opencode-connection"
+        )
+        session.error_message = str(exc)
     except subprocess.TimeoutExpired as exc:
-        _write_log_text(run_paths.opencode_log_path, _coerce_output_text(exc.output))
+        log_write_error = _try_write_log_text(
+            run_paths.opencode_log_path, _coerce_output_text(exc.output)
+        )
         session.opencode_verification_status = "failed"
         session.opencode_process_status = "failed"
         session.opencode_connection_status = "failed"
         session.failing_step = "opencode-connection"
         session.error_message = "OpenCode verification timed out before proving the managed route."
+        if log_write_error is not None:
+            session.error_message = f"{session.error_message}; {log_write_error}"
     finally:
         cleanup_error = _cleanup_opencode_process(
             process,
@@ -176,9 +202,6 @@ def resolve_opencode_verification_target(
         session.opencode_artifact_path,
         "session.opencode_artifact_path is required",
     )
-    executable_path = artifact_root / "opencode.exe"
-    if not executable_path.is_file():
-        raise ValueError(f"opencode.exe was not found at {executable_path}")
 
     managed_config_path = _require_path(
         session.opencode_config_path,
@@ -187,7 +210,10 @@ def resolve_opencode_verification_target(
     if not managed_config_path.is_file():
         raise ValueError(f"managed OpenCode config does not exist: {managed_config_path}")
 
-    extra_env = _load_launch_extra_env()
+    launch_contract = _load_launch_contract()
+    executable_path = artifact_root / launch_contract["executable_relative_path"]
+    if not executable_path.is_file():
+        raise ValueError(f"opencode.exe was not found at {executable_path}")
 
     return OpenCodeVerificationTarget(
         executable_path=executable_path,
@@ -195,7 +221,7 @@ def resolve_opencode_verification_target(
         model_id=model_id,
         model_path=model_path,
         verified_server_url=verified_server_url,
-        extra_env=extra_env,
+        extra_env=launch_contract["extra_env"],
     )
 
 
@@ -322,7 +348,7 @@ def _coerce_output_text(output: object) -> str:
     return str(output)
 
 
-def _load_launch_extra_env() -> dict[str, str]:
+def _load_launch_contract() -> dict[str, object]:
     manifest = load_opencode_manifest()
     if not isinstance(manifest, dict):
         raise ValueError("OpenCode manifest must be a JSON object.")
@@ -334,6 +360,15 @@ def _load_launch_extra_env() -> dict[str, str]:
     launch = artifact.get("launch")
     if not isinstance(launch, dict):
         raise ValueError("OpenCode manifest launch contract is missing or invalid.")
+
+    executable_relative_path = launch.get("executable_relative_path")
+    if (
+        not isinstance(executable_relative_path, str)
+        or not executable_relative_path.strip()
+    ):
+        raise ValueError(
+            "OpenCode manifest executable_relative_path must be a non-empty string."
+        )
 
     verification_args = launch.get("verification_args")
     if verification_args != ["--pure", "models"]:
@@ -349,7 +384,18 @@ def _load_launch_extra_env() -> dict[str, str]:
         if not isinstance(key, str) or not isinstance(value, str):
             raise ValueError("OpenCode manifest extra_env entries must be strings.")
 
-    return extra_env
+    return {
+        "executable_relative_path": executable_relative_path.strip(),
+        "extra_env": extra_env,
+    }
+
+
+def _try_write_log_text(log_path: Path, text: str) -> str | None:
+    try:
+        _write_log_text(log_path, text)
+        return None
+    except OSError as exc:
+        return str(exc)
 
 
 def _is_successful_handshake(

@@ -10,12 +10,16 @@ from local_ai_control_center_installer.opencode_verification import (
 from local_ai_control_center_installer.session import InstallerSession
 
 
-def _build_manifest(*, extra_env: dict[str, str] | None = None) -> dict:
+def _build_manifest(
+    *,
+    extra_env: dict[str, str] | None = None,
+    executable_relative_path: str = "opencode.exe",
+) -> dict:
     return {
         "opencode_artifact": {
             "id": "windows-opencode",
             "launch": {
-                "executable_relative_path": "opencode.exe",
+                "executable_relative_path": executable_relative_path,
                 "verification_args": ["--pure", "models"],
                 "extra_env": extra_env or {},
             },
@@ -99,6 +103,16 @@ def _build_ready_session(tmp_path: Path) -> InstallerSession:
         failing_step="earlier-step",
         error_message="earlier error",
     )
+
+
+def _build_nested_executable_session(tmp_path: Path) -> InstallerSession:
+    session = _build_ready_session(tmp_path)
+    artifact_root = Path(session.opencode_artifact_path)
+    (artifact_root / "opencode.exe").unlink()
+    nested_executable = artifact_root / "bin" / "opencode.exe"
+    nested_executable.parent.mkdir(parents=True, exist_ok=True)
+    nested_executable.write_text("binary", encoding="utf-8")
+    return session
 
 
 class FakeProcess:
@@ -304,6 +318,91 @@ def test_apply_opencode_verification_uses_empty_temp_working_directory_and_expec
     assert (
         embedded_config["providers"]["local-lacc"]["options"]["baseURL"]
         == "http://127.0.0.1:8080/v1"
+    )
+
+
+def test_apply_opencode_verification_maps_working_directory_failure_to_process_start(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    session = _build_ready_session(tmp_path)
+
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.opencode_verification.load_opencode_manifest",
+        lambda: _build_manifest(),
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.opencode_verification._make_working_directory",
+        lambda run_dir: (_ for _ in ()).throw(OSError("temp root unavailable")),
+    )
+
+    updated = apply_opencode_verification(session, temp_root=tmp_path / "temp-runs")
+
+    assert updated.opencode_verification_status == "failed"
+    assert updated.opencode_process_status == "failed"
+    assert updated.opencode_connection_status == "skipped"
+    assert updated.failing_step == "opencode-process-start"
+    assert updated.error_message == "temp root unavailable"
+
+
+def test_apply_opencode_verification_maps_log_write_failure_without_crashing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    session = _build_ready_session(tmp_path)
+
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.opencode_verification.load_opencode_manifest",
+        lambda: _build_manifest(),
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.opencode_verification._write_log_text",
+        lambda log_path, text: (_ for _ in ()).throw(OSError("disk full")),
+    )
+
+    updated = apply_opencode_verification(
+        session,
+        temp_root=tmp_path / "temp-runs",
+        process_factory=lambda command, *, cwd, env, log_path: FakeProcess(
+            stdout="local-lacc/recommended-6gb\n",
+            returncode=0,
+        ),
+        stop_process=lambda launched_process: True,
+    )
+
+    assert updated.opencode_verification_status == "failed"
+    assert updated.opencode_process_status == "ready"
+    assert updated.opencode_connection_status == "failed"
+    assert updated.failing_step == "opencode-connection"
+    assert "disk full" in updated.error_message
+
+
+def test_apply_opencode_verification_resolves_manifest_nested_executable_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    session = _build_nested_executable_session(tmp_path)
+    captured: dict[str, object] = {}
+
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.opencode_verification.load_opencode_manifest",
+        lambda: _build_manifest(executable_relative_path="bin/opencode.exe"),
+    )
+
+    def process_factory(command, *, cwd, env, log_path):
+        captured["command"] = command
+        return FakeProcess(stdout="local-lacc/recommended-6gb\n", returncode=0)
+
+    updated = apply_opencode_verification(
+        session,
+        temp_root=tmp_path / "temp-runs",
+        process_factory=process_factory,
+        stop_process=lambda launched_process: True,
+    )
+
+    assert updated.opencode_verification_status == "ready"
+    assert captured["command"][0] == str(
+        Path(session.opencode_artifact_path) / "bin" / "opencode.exe"
     )
 
 
