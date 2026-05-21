@@ -20,7 +20,7 @@ This design covers only the next Windows runtime payload milestone:
 
 - run runtime bootstrap only after dependency bootstrap is `ready`
 - load a pinned runtime manifest from the installer package
-- download or verify `llama.cpp` runtime artifacts
+- download or verify a single pinned `llama.cpp` runtime artifact
 - download or verify the selected starter model
 - write active model configuration only after runtime artifact and model are verified
 - extend human log and JSON report with runtime payload statuses
@@ -89,6 +89,14 @@ Recommended location:
 
 - `src/local_ai_control_center_installer/manifests/windows-stable-runtime.json`
 
+If the manifest is missing, invalid, or does not contain the required Windows runtime artifact entry or the requested starter model entry:
+
+- stop the runtime phase
+- set `runtime_payload_status = failed`
+- set `runtime_artifact_status = failed` only when the runtime artifact definition itself is unavailable or invalid
+- otherwise set not-yet-attempted downstream runtime fields to `skipped`
+- report `failing_step = runtime-manifest`
+
 ### 3. Runtime artifact verification or download
 
 Check whether the expected `llama.cpp` payload is already present at the final install location.
@@ -96,7 +104,13 @@ Check whether the expected `llama.cpp` payload is already present at the final i
 If present:
 
 - verify required file layout
-- verify checksums where applicable
+- verify the pinned runtime artifact id matches the installed runtime metadata marker
+
+Checksum truth for `llama.cpp` must be explicit:
+
+- manifest `sha256` applies to the staged downloaded archive
+- already-promoted final runtime directories are not re-hashed as one directory blob in this slice
+- final in-place verification uses required file layout plus a persisted runtime metadata marker written at successful promotion time
 
 If not present or verification fails:
 
@@ -123,8 +137,8 @@ If not present or verification fails:
 
 Write active model configuration only after both of the following are true:
 
-- runtime artifact is verified and promoted
-- starter model is verified and promoted
+- runtime artifact is verified in place or verified and promoted
+- starter model is verified in place or verified and promoted
 
 Recommended location:
 
@@ -177,6 +191,8 @@ Each starter model entry should define:
 
 The installer should not guess download locations or filenames outside the manifest.
 
+For this slice, Windows runtime artifact selection is not dynamic. The manifest provides one pinned Windows runtime artifact contract, and reporting should describe it as the pinned runtime artifact rather than a user-selected artifact.
+
 ## Module Layout
 
 Extend the Python package with focused runtime modules.
@@ -185,6 +201,7 @@ Extend the Python package with focused runtime modules.
 
 - `src/local_ai_control_center_installer/session.py`
   - add runtime payload status fields and persisted paths
+  - keep existing `starter_model` field as the requested starter model id chosen during the questionnaire
 
 - `src/local_ai_control_center_installer/reporting.py`
   - include runtime payload results in human log and JSON report
@@ -200,7 +217,7 @@ Extend the Python package with focused runtime modules.
   - runtime status transitions
 
 - `src/local_ai_control_center_installer/downloads.py`
-  - download helpers
+  - slice-specific download helpers for runtime payload work only
   - checksum verification
   - archive extraction where needed
   - staging/promote helpers
@@ -234,9 +251,27 @@ The runtime slice should extend the session instead of replacing existing bootst
 
 - `runtime_artifact_id`
 - `runtime_artifact_path`
-- `starter_model_id`
 - `starter_model_path`
 - `active_model_config_path`
+- `runtime_metadata_path`
+
+### Requested vs resolved model fields
+
+Keep the existing session field:
+
+- `starter_model`
+
+Meaning in this slice:
+
+- requested starter model id selected during the questionnaire
+
+Add:
+
+- `starter_model_path`
+
+Meaning in this slice:
+
+- resolved final on-disk location of the requested starter model after verification or promotion
 
 ### Product installation truth
 
@@ -252,11 +287,25 @@ This keeps the installer honest. The slice prepares a runtime payload, but does 
 
 ## Success Model
 
-The runtime payload slice is successful only if all of the following are true:
+The runtime payload slice has two top-level truthful outcomes:
 
-- bootstrap was already `ready`
-- the expected `llama.cpp` artifact is verified and promoted
-- the selected starter model is verified and promoted
+### Runtime phase skipped
+
+If bootstrap was not ready, the runtime phase does not run.
+
+In that case:
+
+- `runtime_payload_status = skipped`
+- `runtime_artifact_status = skipped`
+- `starter_model_status = skipped`
+- `active_model_config_status = skipped`
+
+### Runtime phase executed
+
+If bootstrap was ready, the runtime payload slice is successful only if all of the following are true:
+
+- the pinned `llama.cpp` artifact is verified in place or verified and promoted
+- the selected starter model is verified in place or verified and promoted
 - active model configuration was written successfully
 
 Only then:
@@ -278,11 +327,12 @@ Runtime failure handling should be strict and truthful.
 If bootstrap is not ready:
 
 - do not start runtime download logic
-- set runtime statuses to `skipped`
+- set all runtime statuses to `skipped`
+- do not set `runtime_payload_status = failed` for this case
 
 ### Runtime artifact failure
 
-If `llama.cpp` download, checksum, extraction, or layout verification fails:
+If runtime manifest load for `llama.cpp` fails, or if `llama.cpp` download, checksum, extraction, metadata-marker verification, or layout verification fails:
 
 - `runtime_artifact_status = failed`
 - `starter_model_status = skipped`
@@ -322,7 +372,7 @@ Use the same truth-preserving approach as the bootstrap slice:
 
 Human log and JSON report should clearly expose:
 
-- selected runtime artifact id
+- pinned runtime artifact id
 - selected starter model id
 - runtime artifact outcome
 - starter model outcome
@@ -342,6 +392,8 @@ Use TDD and keep runtime behavior decomposed into small, testable units.
 - manifest exists
 - manifest parsing succeeds
 - missing required fields fail clearly
+- missing pinned runtime artifact entry fails clearly
+- missing requested starter model entry fails clearly
 
 #### Download and verification
 
@@ -349,6 +401,8 @@ Use TDD and keep runtime behavior decomposed into small, testable units.
 - checksum failure
 - required file layout success
 - required file layout failure
+- in-place runtime metadata-marker verification success
+- in-place runtime metadata-marker verification failure
 
 #### Staging and promotion
 
