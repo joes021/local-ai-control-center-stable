@@ -280,6 +280,36 @@ def test_apply_server_verification_fails_when_active_model_config_is_missing(tmp
     assert updated.failing_step == "server-verification-prerequisites"
 
 
+def test_apply_server_verification_fails_when_active_model_path_is_missing_from_config(
+    tmp_path: Path,
+):
+    install_root = tmp_path / "install-root"
+    runtime_root = install_root / "runtime" / "llama.cpp"
+    config_root = install_root / "config"
+    runtime_root.mkdir(parents=True)
+    config_root.mkdir(parents=True)
+    (runtime_root / "llama-server.exe").write_text("ok", encoding="utf-8")
+    active_model_path = config_root / "active-model.json"
+    active_model_path.write_text(
+        json.dumps({"model_id": "recommended-6gb", "model_path": ""}),
+        encoding="utf-8",
+    )
+    session = InstallerSession(
+        bootstrap_status="ready",
+        runtime_payload_status="ready",
+        install_root=str(install_root),
+        active_model_config_path=str(active_model_path),
+        runtime_artifact_path=str(runtime_root),
+    )
+
+    updated = apply_server_verification(session, temp_root=tmp_path / "temp-runs")
+
+    assert updated.server_verification_status == "failed"
+    assert updated.server_process_status == "skipped"
+    assert updated.server_health_status == "skipped"
+    assert updated.failing_step == "server-verification-prerequisites"
+
+
 def test_apply_server_verification_fails_when_llama_server_exe_is_missing(tmp_path: Path):
     install_root = tmp_path / "install-root"
     config_root = install_root / "config"
@@ -309,7 +339,7 @@ def test_apply_server_verification_fails_when_llama_server_exe_is_missing(tmp_pa
 
 - [ ] **Step 2: Run the targeted tests to verify they fail**
 
-Run: `python -m pytest tests/test_server_verification.py::test_apply_server_verification_skips_when_runtime_payload_is_not_ready tests/test_server_verification.py::test_apply_server_verification_fails_when_active_model_config_is_missing tests/test_server_verification.py::test_apply_server_verification_fails_when_llama_server_exe_is_missing -v`
+Run: `python -m pytest tests/test_server_verification.py::test_apply_server_verification_skips_when_runtime_payload_is_not_ready tests/test_server_verification.py::test_apply_server_verification_fails_when_active_model_config_is_missing tests/test_server_verification.py::test_apply_server_verification_fails_when_active_model_path_is_missing_from_config tests/test_server_verification.py::test_apply_server_verification_fails_when_llama_server_exe_is_missing -v`
 Expected: FAIL with `ImportError` because `server_verification.py` does not exist yet
 
 - [ ] **Step 3: Implement the minimal verification skeleton**
@@ -382,7 +412,7 @@ Leave process launch unimplemented for now by returning the session after target
 
 - [ ] **Step 4: Run the prerequisite tests again**
 
-Run: `python -m pytest tests/test_server_verification.py::test_apply_server_verification_skips_when_runtime_payload_is_not_ready tests/test_server_verification.py::test_apply_server_verification_fails_when_active_model_config_is_missing tests/test_server_verification.py::test_apply_server_verification_fails_when_llama_server_exe_is_missing -v`
+Run: `python -m pytest tests/test_server_verification.py::test_apply_server_verification_skips_when_runtime_payload_is_not_ready tests/test_server_verification.py::test_apply_server_verification_fails_when_active_model_config_is_missing tests/test_server_verification.py::test_apply_server_verification_fails_when_active_model_path_is_missing_from_config tests/test_server_verification.py::test_apply_server_verification_fails_when_llama_server_exe_is_missing -v`
 Expected: PASS
 
 - [ ] **Step 5: Commit**
@@ -628,7 +658,7 @@ Complete `apply_server_verification()` so it:
 
 - [ ] **Step 4: Run the targeted tests again**
 
-Run: `python -m pytest tests/test_server_verification.py::test_apply_server_verification_marks_ready_after_healthy_start_and_clean_stop tests/test_server_verification.py::test_apply_server_verification_continues_polling_through_loading_503_until_ready tests/test_server_verification.py::test_apply_server_verification_marks_process_start_failure_when_process_exits_early -v`
+Run: `python -m pytest tests/test_server_verification.py::test_apply_server_verification_marks_ready_after_healthy_start_and_clean_stop tests/test_server_verification.py::test_apply_server_verification_continues_polling_through_loading_503_until_ready tests/test_server_verification.py::test_apply_server_verification_marks_process_start_failure_when_process_exits_early tests/test_server_verification.py::test_apply_server_verification_maps_subprocess_start_exception_to_server_process_start -v`
 Expected: PASS
 
 - [ ] **Step 5: Commit**
