@@ -318,6 +318,30 @@ def test_apply_opencode_bootstrap_maps_manifest_load_error_to_opencode_manifest_
     assert updated.error_message == "bad manifest"
 
 
+def test_apply_opencode_bootstrap_maps_missing_manifest_to_opencode_manifest_failure(
+    tmp_path: Path,
+):
+    session = InstallerSession(
+        install_opencode=True,
+        server_verification_status="ready",
+        install_root=str(tmp_path / "install-root"),
+        error_message="stale error",
+    )
+
+    updated = apply_opencode_bootstrap(
+        session,
+        temp_root=tmp_path / "temp-runs",
+        load_manifest=lambda: (_ for _ in ()).throw(FileNotFoundError("missing manifest")),
+    )
+
+    assert updated.opencode_artifact_status == "failed"
+    assert updated.opencode_verification_status == "skipped"
+    assert updated.opencode_process_status == "skipped"
+    assert updated.opencode_connection_status == "skipped"
+    assert updated.failing_step == "opencode-manifest"
+    assert updated.error_message == "missing manifest"
+
+
 def test_apply_opencode_bootstrap_marks_artifact_ready_when_valid_artifact_exists_and_managed_config_can_be_generated(
     tmp_path: Path,
 ):
