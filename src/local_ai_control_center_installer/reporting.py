@@ -154,6 +154,11 @@ def _write_text(path: Path, contents: str) -> None:
     path.write_text(contents, encoding="utf-8")
 
 
+def _write_bytes(path: Path, contents: bytes) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(contents)
+
+
 def _require_install_root(session: InstallerSession) -> Path:
     install_root = (session.install_root or "").strip()
     if not install_root:
@@ -190,7 +195,7 @@ def _stage_optional_opencode_log(
 
     target_path = install_root / "logs" / "opencode-verification.log"
     staged_target_path = staging_root / target_path.relative_to(install_root)
-    _write_text(staged_target_path, source_path.read_text(encoding="utf-8"))
+    _write_bytes(staged_target_path, source_path.read_bytes())
     artifact_paths.append(target_path)
     staged_artifact_paths.append(staged_target_path)
     return target_path
