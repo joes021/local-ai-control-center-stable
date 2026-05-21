@@ -20,6 +20,18 @@ def test_build_run_paths_keeps_temp_artifacts_even_for_failed_runs(tmp_path: Pat
     assert paths.json_report_path == expected_run_dir / "install-report.json"
 
 
+def test_build_run_paths_exposes_server_log_path(tmp_path: Path):
+    paths = build_run_paths(tmp_path, "2026-05-21T10-00-00")
+    assert (
+        paths.server_log_path
+        == tmp_path
+        / "LocalAIControlCenterInstaller"
+        / "runs"
+        / "2026-05-21T10-00-00"
+        / "llama-server.log"
+    )
+
+
 def test_write_human_log_includes_install_root_dependency_outcomes_and_failing_step(
     tmp_path: Path,
 ):
@@ -51,6 +63,28 @@ def test_write_human_log_includes_install_root_dependency_outcomes_and_failing_s
     assert "python: ready" in contents
     assert "node: failed-install" in contents
     assert "dependency-bootstrap" in contents
+
+
+def test_write_human_log_includes_server_verification_lines(tmp_path: Path):
+    paths = build_run_paths(tmp_path, "2026-05-21T10-00-00")
+    session = InstallerSession(
+        server_verification_status="failed",
+        server_process_status="ready",
+        server_health_status="failed",
+        verified_server_port=8080,
+        verified_server_url="http://127.0.0.1:8080",
+        server_log_path=str(paths.server_log_path),
+    )
+
+    write_human_log(session, paths.log_path)
+
+    contents = paths.log_path.read_text(encoding="utf-8")
+    assert "Server verification status: failed" in contents
+    assert "Server process status: ready" in contents
+    assert "Server health status: failed" in contents
+    assert "Verified server port: 8080" in contents
+    assert "Verified server URL: http://127.0.0.1:8080" in contents
+    assert "Server log path:" in contents
 
 
 def test_write_json_report_serializes_bootstrap_summary(tmp_path: Path):
@@ -93,6 +127,32 @@ def test_write_json_report_serializes_bootstrap_summary(tmp_path: Path):
     assert payload["active_model_config_path"] == session.active_model_config_path
     assert payload["runtime_metadata_path"] == session.runtime_metadata_path
     assert payload["dependencies"] == [session.dependencies[0].to_dict()]
+
+
+def test_write_json_report_serializes_server_verification_summary(tmp_path: Path):
+    paths = build_run_paths(tmp_path, "2026-05-21T10-00-00")
+    session = InstallerSession(
+        bootstrap_status="ready",
+        runtime_payload_status="ready",
+        server_verification_status="failed",
+        server_process_status="ready",
+        server_health_status="failed",
+        verified_server_port=8080,
+        verified_server_url="http://127.0.0.1:8080",
+        server_log_path=str(paths.server_log_path),
+        failing_step="server-health",
+        install_root=str(tmp_path / "install-root"),
+    )
+
+    write_json_report(session, paths.json_report_path)
+
+    payload = json.loads(paths.json_report_path.read_text(encoding="utf-8"))
+    assert payload["server_verification_status"] == "failed"
+    assert payload["server_process_status"] == "ready"
+    assert payload["server_health_status"] == "failed"
+    assert payload["verified_server_port"] == 8080
+    assert payload["verified_server_url"] == "http://127.0.0.1:8080"
+    assert payload["server_log_path"] == str(paths.server_log_path)
 
 
 def test_persist_install_root_reports_rewrites_log_report_and_session_snapshot(

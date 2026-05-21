@@ -59,6 +59,9 @@ def test_installer_session_serializes_first_slice_state():
         "runtime_artifact_status": "skipped",
         "starter_model_status": "skipped",
         "active_model_config_status": "skipped",
+        "server_verification_status": "skipped",
+        "server_process_status": "skipped",
+        "server_health_status": "skipped",
         "platform": "windows",
         "started_at": "2026-05-20T22:45:00Z",
         "existing_install_detected": True,
@@ -70,6 +73,9 @@ def test_installer_session_serializes_first_slice_state():
         "starter_model_path": None,
         "active_model_config_path": None,
         "runtime_metadata_path": None,
+        "verified_server_port": None,
+        "verified_server_url": None,
+        "server_log_path": None,
         "install_opencode": True,
         "attempt_turboquant": True,
         "additional_model_paths": ["D:\\models", "E:\\archive"],
@@ -119,3 +125,23 @@ def test_installer_session_serializes_runtime_payload_fields():
     assert payload["starter_model_path"].endswith("recommended-6gb.gguf")
     assert payload["active_model_config_path"] == "C:\\LACC\\config\\active-model.json"
     assert payload["runtime_metadata_path"].endswith("runtime-artifact.json")
+
+
+def test_installer_session_serializes_server_verification_fields():
+    session = InstallerSession(
+        server_verification_status="ready",
+        server_process_status="ready",
+        server_health_status="ready",
+        verified_server_port=8080,
+        verified_server_url="http://127.0.0.1:8080",
+        server_log_path="C:\\LACC\\temp\\llama-server.log",
+    )
+
+    payload = session.to_dict()
+
+    assert payload["server_verification_status"] == "ready"
+    assert payload["server_process_status"] == "ready"
+    assert payload["server_health_status"] == "ready"
+    assert payload["verified_server_port"] == 8080
+    assert payload["verified_server_url"] == "http://127.0.0.1:8080"
+    assert payload["server_log_path"] == "C:\\LACC\\temp\\llama-server.log"

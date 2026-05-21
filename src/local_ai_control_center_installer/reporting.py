@@ -11,6 +11,7 @@ class RunPaths:
     run_dir: Path
     log_path: Path
     json_report_path: Path
+    server_log_path: Path
 
 
 def build_run_paths(temp_root: Path, run_id: str) -> RunPaths:
@@ -19,6 +20,7 @@ def build_run_paths(temp_root: Path, run_id: str) -> RunPaths:
         run_dir=run_dir,
         log_path=run_dir / "install.log",
         json_report_path=run_dir / "install-report.json",
+        server_log_path=run_dir / "llama-server.log",
     )
 
 
@@ -31,12 +33,18 @@ def write_human_log(session: InstallerSession, log_path: Path) -> Path:
         f"Runtime artifact status: {session.runtime_artifact_status}",
         f"Starter model status: {session.starter_model_status}",
         f"Active model config status: {session.active_model_config_status}",
+        f"Server verification status: {session.server_verification_status}",
+        f"Server process status: {session.server_process_status}",
+        f"Server health status: {session.server_health_status}",
         f"Pinned runtime artifact id: {session.runtime_artifact_id}",
         f"Selected starter model: {session.starter_model}",
         f"Runtime artifact path: {session.runtime_artifact_path}",
         f"Starter model path: {session.starter_model_path}",
         f"Active model config path: {session.active_model_config_path}",
         f"Runtime metadata path: {session.runtime_metadata_path}",
+        f"Verified server port: {session.verified_server_port}",
+        f"Verified server URL: {session.verified_server_url}",
+        f"Server log path: {session.server_log_path}",
         f"Failing step: {session.failing_step}",
         "Dependencies:",
     ]
@@ -56,6 +64,9 @@ def write_json_report(session: InstallerSession, report_path: Path) -> Path:
         "runtime_artifact_status": session.runtime_artifact_status,
         "starter_model_status": session.starter_model_status,
         "active_model_config_status": session.active_model_config_status,
+        "server_verification_status": session.server_verification_status,
+        "server_process_status": session.server_process_status,
+        "server_health_status": session.server_health_status,
         "failing_step": session.failing_step,
         "dependencies": [dependency.to_dict() for dependency in session.dependencies],
         "install_root": session.install_root,
@@ -65,6 +76,9 @@ def write_json_report(session: InstallerSession, report_path: Path) -> Path:
         "starter_model_path": session.starter_model_path,
         "active_model_config_path": session.active_model_config_path,
         "runtime_metadata_path": session.runtime_metadata_path,
+        "verified_server_port": session.verified_server_port,
+        "verified_server_url": session.verified_server_url,
+        "server_log_path": session.server_log_path,
         "error_message": session.error_message,
     }
     _write_text(report_path, json.dumps(payload, indent=2))
