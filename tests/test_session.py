@@ -62,6 +62,10 @@ def test_installer_session_serializes_first_slice_state():
         "server_verification_status": "skipped",
         "server_process_status": "skipped",
         "server_health_status": "skipped",
+        "opencode_artifact_status": "skipped",
+        "opencode_verification_status": "skipped",
+        "opencode_process_status": "skipped",
+        "opencode_connection_status": "skipped",
         "platform": "windows",
         "started_at": "2026-05-20T22:45:00Z",
         "existing_install_detected": True,
@@ -73,8 +77,14 @@ def test_installer_session_serializes_first_slice_state():
         "starter_model_path": None,
         "active_model_config_path": None,
         "runtime_metadata_path": None,
+        "opencode_artifact_id": None,
+        "opencode_artifact_path": None,
+        "opencode_metadata_path": None,
+        "opencode_config_path": None,
+        "verified_opencode_command": None,
         "verified_server_port": None,
         "verified_server_url": None,
+        "opencode_log_path": None,
         "server_log_path": None,
         "install_opencode": True,
         "attempt_turboquant": True,
@@ -145,3 +155,31 @@ def test_installer_session_serializes_server_verification_fields():
     assert payload["verified_server_port"] == 8080
     assert payload["verified_server_url"] == "http://127.0.0.1:8080"
     assert payload["server_log_path"] == "C:\\LACC\\temp\\llama-server.log"
+
+
+def test_installer_session_serializes_opencode_fields():
+    session = InstallerSession(
+        opencode_artifact_status="ready",
+        opencode_verification_status="failed",
+        opencode_process_status="ready",
+        opencode_connection_status="failed",
+        opencode_artifact_id="opencode-windows-x64",
+        opencode_artifact_path="C:\\LACC\\opencode",
+        opencode_metadata_path="C:\\LACC\\opencode\\opencode-artifact.json",
+        opencode_config_path="C:\\LACC\\config\\opencode.json",
+        verified_opencode_command="opencode --version",
+        opencode_log_path="C:\\LACC\\temp\\opencode-verification.log",
+    )
+
+    payload = session.to_dict()
+
+    assert payload["opencode_artifact_status"] == "ready"
+    assert payload["opencode_verification_status"] == "failed"
+    assert payload["opencode_process_status"] == "ready"
+    assert payload["opencode_connection_status"] == "failed"
+    assert payload["opencode_artifact_id"] == "opencode-windows-x64"
+    assert payload["opencode_artifact_path"] == "C:\\LACC\\opencode"
+    assert payload["opencode_metadata_path"].endswith("opencode-artifact.json")
+    assert payload["opencode_config_path"] == "C:\\LACC\\config\\opencode.json"
+    assert payload["verified_opencode_command"] == "opencode --version"
+    assert payload["opencode_log_path"] == "C:\\LACC\\temp\\opencode-verification.log"

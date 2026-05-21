@@ -29,6 +29,10 @@ class InstallerSession:
     server_verification_status: str = "skipped"
     server_process_status: str = "skipped"
     server_health_status: str = "skipped"
+    opencode_artifact_status: str = "skipped"
+    opencode_verification_status: str = "skipped"
+    opencode_process_status: str = "skipped"
+    opencode_connection_status: str = "skipped"
     platform: str | None = None
     started_at: str | None = None
     existing_install_detected: bool = False
@@ -40,8 +44,14 @@ class InstallerSession:
     starter_model_path: str | None = None
     active_model_config_path: str | None = None
     runtime_metadata_path: str | None = None
+    opencode_artifact_id: str | None = None
+    opencode_artifact_path: str | None = None
+    opencode_metadata_path: str | None = None
+    opencode_config_path: str | None = None
+    verified_opencode_command: str | None = None
     verified_server_port: int | None = None
     verified_server_url: str | None = None
+    opencode_log_path: str | None = None
     server_log_path: str | None = None
     install_opencode: bool = False
     attempt_turboquant: bool = False
