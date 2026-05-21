@@ -82,6 +82,24 @@ def test_verify_runtime_metadata_returns_false_for_corrupt_json(tmp_path: Path):
     ) is False
 
 
+def test_verify_runtime_metadata_returns_false_for_undecodable_utf8_bytes(
+    tmp_path: Path,
+):
+    metadata_path = tmp_path / "runtime-artifact.json"
+    runtime_root = tmp_path / "runtime"
+    runtime_root.mkdir()
+    (runtime_root / "llama-server.exe").write_text("ok", encoding="utf-8")
+    metadata_path.write_bytes(b"\xff\xfe\x00\x80")
+
+    assert verify_runtime_metadata(
+        metadata_path,
+        artifact_id="windows-llama-cpp-runtime",
+        source_sha256="abc123",
+        root=runtime_root,
+        required_files=["llama-server.exe"],
+    ) is False
+
+
 def test_extract_archive_raises_for_unsupported_archive_type(tmp_path: Path):
     archive_path = tmp_path / "runtime.tar"
     archive_path.write_bytes(b"not-a-zip")

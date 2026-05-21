@@ -52,7 +52,7 @@ def verify_runtime_metadata(
 
     try:
         payload = json.loads(metadata_path.read_text(encoding="utf-8"))
-    except (JSONDecodeError, OSError):
+    except (JSONDecodeError, OSError, UnicodeDecodeError):
         return False
 
     if not isinstance(payload, dict):
