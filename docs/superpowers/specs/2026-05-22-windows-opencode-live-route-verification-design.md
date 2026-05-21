@@ -207,21 +207,25 @@ Earlier primary failures must remain authoritative when cleanup also fails.
 
 Truth table for the new failure modes:
 
-| failing_step | opencode_process_status | opencode_connection_status | Meaning |
-|---|---|---|---|
-| `opencode-verification-prerequisites` | `skipped` | `skipped` | verifier could not start because owned prerequisites were not valid |
-| `opencode-runtime-server-start` | `skipped` | `skipped` | temporary verifier runtime never became available |
-| `opencode-relay-start` | `skipped` | `skipped` | relay never became available, so no `OpenCode` proof run happened |
-| `opencode-inference-smoke` | `failed` | `skipped` | `OpenCode` process did not complete the bounded smoke attempt |
-| `opencode-live-route-proof` | `ready` | `failed` | `OpenCode` ran, but live-route proof was missing or upstream proof failed |
-| `opencode-process-stop` | `ready` | `ready` | proof succeeded and only cleanup failed afterward |
+| failing_step | opencode_verification_status | opencode_process_status | opencode_connection_status | Meaning |
+|---|---|---|---|---|
+| `opencode-verification-prerequisites` | `failed` | `skipped` | `skipped` | verifier could not start because owned prerequisites were not valid |
+| `opencode-runtime-server-start` | `failed` | `skipped` | `skipped` | temporary verifier runtime never became available |
+| `opencode-relay-start` | `failed` | `skipped` | `skipped` | relay never became available, so no `OpenCode` proof run happened |
+| `opencode-inference-smoke` | `failed` | `failed` | `skipped` | `OpenCode` process did not complete the bounded smoke attempt before any live-route proof was established |
+| `opencode-inference-smoke` with preserved partial proof | `failed` | `failed` | `ready` | `OpenCode` process ultimately failed, but the relay had already seen the marker and upstream had already returned success |
+| `opencode-live-route-proof` | `failed` | `ready` | `failed` | `OpenCode` ran, but live-route proof was missing or upstream proof failed |
+| `opencode-process-stop` | `failed` | `ready` | `ready` | proof succeeded and only cleanup failed afterward |
 
-The `ready/failed/skipped` combination above is normative for planning, testing, and reporting.
+The `ready/failed/skipped` combinations above are normative for planning, testing, and reporting.
 
 Partial-smoke truth rule:
 
-- if the `OpenCode` process ultimately fails the smoke step, but the relay already saw the marker and upstream already returned success, `opencode_process_status` remains `failed` while `opencode_connection_status` remains `ready`
-- if the smoke step fails before relay proof is established, `opencode_connection_status` remains `skipped`
+- if the `OpenCode` process ultimately fails the smoke step, but the relay already saw the marker and upstream already returned success, preserve that partial proof:
+  - `opencode_verification_status = failed`
+  - `opencode_process_status = failed`
+  - `opencode_connection_status = ready`
+- if the smoke step fails before relay proof is established, `opencode_connection_status = skipped`
 
 This rule preserves the strongest truthful signal available without promoting the overall verification to success.
 
