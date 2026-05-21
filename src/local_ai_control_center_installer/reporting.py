@@ -12,6 +12,7 @@ class RunPaths:
     log_path: Path
     json_report_path: Path
     server_log_path: Path
+    opencode_log_path: Path
 
 
 def build_run_paths(temp_root: Path, run_id: str) -> RunPaths:
@@ -21,6 +22,7 @@ def build_run_paths(temp_root: Path, run_id: str) -> RunPaths:
         log_path=run_dir / "install.log",
         json_report_path=run_dir / "install-report.json",
         server_log_path=run_dir / "llama-server.log",
+        opencode_log_path=run_dir / "opencode-verification.log",
     )
 
 
@@ -36,14 +38,24 @@ def write_human_log(session: InstallerSession, log_path: Path) -> Path:
         f"Server verification status: {session.server_verification_status}",
         f"Server process status: {session.server_process_status}",
         f"Server health status: {session.server_health_status}",
+        f"OpenCode artifact status: {session.opencode_artifact_status}",
+        f"OpenCode verification status: {session.opencode_verification_status}",
+        f"OpenCode process status: {session.opencode_process_status}",
+        f"OpenCode connection status: {session.opencode_connection_status}",
         f"Pinned runtime artifact id: {session.runtime_artifact_id}",
         f"Selected starter model: {session.starter_model}",
         f"Runtime artifact path: {session.runtime_artifact_path}",
         f"Starter model path: {session.starter_model_path}",
         f"Active model config path: {session.active_model_config_path}",
         f"Runtime metadata path: {session.runtime_metadata_path}",
+        f"OpenCode artifact id: {session.opencode_artifact_id}",
+        f"OpenCode artifact path: {session.opencode_artifact_path}",
+        f"OpenCode metadata path: {session.opencode_metadata_path}",
+        f"OpenCode config path: {session.opencode_config_path}",
+        f"Verified OpenCode command: {session.verified_opencode_command}",
         f"Verified server port: {session.verified_server_port}",
         f"Verified server URL: {session.verified_server_url}",
+        f"OpenCode log path: {session.opencode_log_path}",
         f"Server log path: {session.server_log_path}",
         f"Failing step: {session.failing_step}",
         "Dependencies:",
@@ -67,6 +79,10 @@ def write_json_report(session: InstallerSession, report_path: Path) -> Path:
         "server_verification_status": session.server_verification_status,
         "server_process_status": session.server_process_status,
         "server_health_status": session.server_health_status,
+        "opencode_artifact_status": session.opencode_artifact_status,
+        "opencode_verification_status": session.opencode_verification_status,
+        "opencode_process_status": session.opencode_process_status,
+        "opencode_connection_status": session.opencode_connection_status,
         "failing_step": session.failing_step,
         "dependencies": [dependency.to_dict() for dependency in session.dependencies],
         "install_root": session.install_root,
@@ -76,8 +92,14 @@ def write_json_report(session: InstallerSession, report_path: Path) -> Path:
         "starter_model_path": session.starter_model_path,
         "active_model_config_path": session.active_model_config_path,
         "runtime_metadata_path": session.runtime_metadata_path,
+        "opencode_artifact_id": session.opencode_artifact_id,
+        "opencode_artifact_path": session.opencode_artifact_path,
+        "opencode_metadata_path": session.opencode_metadata_path,
+        "opencode_config_path": session.opencode_config_path,
+        "verified_opencode_command": session.verified_opencode_command,
         "verified_server_port": session.verified_server_port,
         "verified_server_url": session.verified_server_url,
+        "opencode_log_path": session.opencode_log_path,
         "server_log_path": session.server_log_path,
         "error_message": session.error_message,
     }
@@ -96,6 +118,7 @@ def persist_install_root_reports(session: InstallerSession) -> None:
     staging_root = install_root / f".staging-{uuid4().hex}"
     artifact_paths = _build_artifact_paths(install_root)
     staged_artifact_paths = _build_artifact_paths(staging_root)
+    _stage_optional_opencode_log(session, install_root, staging_root, artifact_paths, staged_artifact_paths)
 
     try:
         write_human_log(session, staged_artifact_paths[0])
@@ -138,6 +161,28 @@ def _build_artifact_paths(root: Path) -> list[Path]:
         logs_dir / "install-report.json",
         config_dir / "installer-session.json",
     ]
+
+
+def _stage_optional_opencode_log(
+    session: InstallerSession,
+    install_root: Path,
+    staging_root: Path,
+    artifact_paths: list[Path],
+    staged_artifact_paths: list[Path],
+) -> None:
+    opencode_log_path = (session.opencode_log_path or "").strip()
+    if not opencode_log_path:
+        return
+
+    source_path = Path(opencode_log_path)
+    if not source_path.exists() or not source_path.is_file():
+        return
+
+    target_path = install_root / "logs" / "opencode-verification.log"
+    staged_target_path = staging_root / target_path.relative_to(install_root)
+    _write_text(staged_target_path, source_path.read_text(encoding="utf-8"))
+    artifact_paths.append(target_path)
+    staged_artifact_paths.append(staged_target_path)
 
 
 def _promote_staged_artifacts(

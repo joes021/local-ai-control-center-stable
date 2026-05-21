@@ -32,6 +32,18 @@ def test_build_run_paths_exposes_server_log_path(tmp_path: Path):
     )
 
 
+def test_build_run_paths_exposes_opencode_log_path(tmp_path: Path):
+    paths = build_run_paths(tmp_path, "2026-05-21T10-00-00")
+    assert (
+        paths.opencode_log_path
+        == tmp_path
+        / "LocalAIControlCenterInstaller"
+        / "runs"
+        / "2026-05-21T10-00-00"
+        / "opencode-verification.log"
+    )
+
+
 def test_write_human_log_includes_install_root_dependency_outcomes_and_failing_step(
     tmp_path: Path,
 ):
@@ -85,6 +97,33 @@ def test_write_human_log_includes_server_verification_lines(tmp_path: Path):
     assert "Verified server port: 8080" in contents
     assert "Verified server URL: http://127.0.0.1:8080" in contents
     assert "Server log path:" in contents
+
+
+def test_write_human_log_includes_opencode_summary_lines(tmp_path: Path):
+    paths = build_run_paths(tmp_path, "2026-05-21T10-00-00")
+    session = InstallerSession(
+        opencode_artifact_status="ready",
+        opencode_verification_status="failed",
+        opencode_process_status="ready",
+        opencode_connection_status="failed",
+        opencode_artifact_id="opencode-windows-x64",
+        opencode_artifact_path=str(tmp_path / "install-root" / "opencode"),
+        opencode_metadata_path=str(tmp_path / "install-root" / "opencode" / "opencode-artifact.json"),
+        opencode_config_path=str(tmp_path / "install-root" / "config" / "opencode.json"),
+        verified_opencode_command="opencode --version",
+        opencode_log_path=str(paths.opencode_log_path),
+    )
+
+    write_human_log(session, paths.log_path)
+
+    contents = paths.log_path.read_text(encoding="utf-8")
+    assert "OpenCode artifact status: ready" in contents
+    assert "OpenCode verification status: failed" in contents
+    assert "OpenCode process status: ready" in contents
+    assert "OpenCode connection status: failed" in contents
+    assert "OpenCode artifact id: opencode-windows-x64" in contents
+    assert "Verified OpenCode command: opencode --version" in contents
+    assert "OpenCode log path:" in contents
 
 
 def test_write_json_report_serializes_bootstrap_summary(tmp_path: Path):
@@ -155,6 +194,38 @@ def test_write_json_report_serializes_server_verification_summary(tmp_path: Path
     assert payload["server_log_path"] == str(paths.server_log_path)
 
 
+def test_write_json_report_serializes_opencode_summary(tmp_path: Path):
+    paths = build_run_paths(tmp_path, "2026-05-21T10-00-00")
+    session = InstallerSession(
+        bootstrap_status="ready",
+        install_root=str(tmp_path / "install-root"),
+        opencode_artifact_status="ready",
+        opencode_verification_status="failed",
+        opencode_process_status="ready",
+        opencode_connection_status="failed",
+        opencode_artifact_id="opencode-windows-x64",
+        opencode_artifact_path=str(tmp_path / "install-root" / "opencode"),
+        opencode_metadata_path=str(tmp_path / "install-root" / "opencode" / "opencode-artifact.json"),
+        opencode_config_path=str(tmp_path / "install-root" / "config" / "opencode.json"),
+        verified_opencode_command="opencode --version",
+        opencode_log_path=str(paths.opencode_log_path),
+    )
+
+    write_json_report(session, paths.json_report_path)
+
+    payload = json.loads(paths.json_report_path.read_text(encoding="utf-8"))
+    assert payload["opencode_artifact_status"] == "ready"
+    assert payload["opencode_verification_status"] == "failed"
+    assert payload["opencode_process_status"] == "ready"
+    assert payload["opencode_connection_status"] == "failed"
+    assert payload["opencode_artifact_id"] == "opencode-windows-x64"
+    assert payload["opencode_artifact_path"] == session.opencode_artifact_path
+    assert payload["opencode_metadata_path"] == session.opencode_metadata_path
+    assert payload["opencode_config_path"] == session.opencode_config_path
+    assert payload["verified_opencode_command"] == "opencode --version"
+    assert payload["opencode_log_path"] == str(paths.opencode_log_path)
+
+
 def test_persist_install_root_reports_rewrites_log_report_and_session_snapshot(
     tmp_path: Path,
 ):
@@ -194,3 +265,20 @@ def test_persist_install_root_reports_rewrites_log_report_and_session_snapshot(
     assert session_payload["active_model_config_path"] == str(
         install_root / "config" / "active-model.json"
     )
+
+
+def test_persist_install_root_reports_copies_opencode_log(tmp_path: Path):
+    install_root = tmp_path / "install-root"
+    temp_opencode_log = tmp_path / "temp-run" / "opencode-verification.log"
+    temp_opencode_log.parent.mkdir(parents=True, exist_ok=True)
+    temp_opencode_log.write_text("OpenCode verification output\n", encoding="utf-8")
+
+    session = InstallerSession(
+        install_root=str(install_root),
+        opencode_log_path=str(temp_opencode_log),
+    )
+
+    persist_install_root_reports(session)
+
+    persisted_opencode_log = install_root / "logs" / "opencode-verification.log"
+    assert persisted_opencode_log.read_text(encoding="utf-8") == "OpenCode verification output\n"
