@@ -1,3 +1,4 @@
+import inspect
 import json
 import socket
 import subprocess
@@ -46,15 +47,20 @@ def launch_llama_server(
     return process
 
 
-def probe_server_health(base_url: str) -> str:
+def probe_server_health(
+    base_url: str,
+    timeout_seconds: float = 1.0,
+) -> str:
     try:
-        with urlopen(f"{base_url}/health") as response:
+        with urlopen(f"{base_url}/health", timeout=timeout_seconds) as response:
             payload = json.loads(response.read().decode("utf-8"))
     except HTTPError as exc:
         if exc.code == 503:
             return "loading"
         return "failed"
-    except (URLError, OSError, ValueError, json.JSONDecodeError):
+    except (URLError, TimeoutError, OSError):
+        return "loading"
+    except (ValueError, json.JSONDecodeError):
         return "failed"
 
     if payload.get("status") == "ok":
@@ -138,14 +144,24 @@ def apply_server_verification(
             session.failing_step = "server-health-check"
             return session
 
-        health_status = health_probe(session.verified_server_url)
+        remaining_health_window = max(0.0, health_deadline - now_fn())
+        health_status = _call_health_probe(
+            health_probe,
+            session.verified_server_url,
+            min(1.0, remaining_health_window),
+        )
         if health_status == "ready":
-            stop_process(process)
-            session.server_process_status = "ready"
             session.server_health_status = "ready"
-            session.server_verification_status = "ready"
-            session.failing_step = None
-            session.error_message = None
+            if stop_process(process):
+                session.server_process_status = "ready"
+                session.server_verification_status = "ready"
+                session.failing_step = None
+                session.error_message = None
+                return session
+            session.server_verification_status = "failed"
+            session.server_process_status = "failed"
+            session.failing_step = "server-process-stop"
+            session.error_message = "failed to stop verified server process"
             return session
         if health_status == "failed":
             session.server_verification_status = "failed"
@@ -239,3 +255,13 @@ def _stop_server_process(process: subprocess.Popen[str]) -> bool:
             return True
         except OSError:
             return False
+
+
+def _call_health_probe(
+    health_probe,
+    base_url: str,
+    timeout_seconds: float,
+) -> str:
+    if "timeout_seconds" in inspect.signature(health_probe).parameters:
+        return health_probe(base_url, timeout_seconds=timeout_seconds)
+    return health_probe(base_url)
