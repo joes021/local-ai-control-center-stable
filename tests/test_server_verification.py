@@ -22,6 +22,22 @@ def test_apply_server_verification_skips_when_runtime_payload_is_not_ready(
     assert updated.server_health_status == "skipped"
 
 
+def test_apply_server_verification_skips_when_bootstrap_is_not_ready(
+    tmp_path: Path,
+):
+    session = InstallerSession(
+        bootstrap_status="failed",
+        runtime_payload_status="ready",
+        install_root=str(tmp_path / "install-root"),
+    )
+
+    updated = apply_server_verification(session, temp_root=tmp_path / "temp-runs")
+
+    assert updated.server_verification_status == "skipped"
+    assert updated.server_process_status == "skipped"
+    assert updated.server_health_status == "skipped"
+
+
 def test_apply_server_verification_fails_when_active_model_config_is_missing(
     tmp_path: Path,
 ):
