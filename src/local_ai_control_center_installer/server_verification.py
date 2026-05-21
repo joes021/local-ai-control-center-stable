@@ -158,7 +158,7 @@ def apply_server_verification(
         return session
 
     startup_deadline = verification_started_at + 1.0
-    health_deadline = verification_started_at + 20.0
+    health_deadline = verification_started_at + 30.0
     reached_ready = False
 
     last_startup_time = verification_started_at
@@ -315,13 +315,22 @@ def stop_server_process(
     sleep_fn=time.sleep,
     timeout_seconds: float = 5.0,
 ) -> bool:
-    process.terminate()
+    try:
+        process.terminate()
+    except OSError:
+        return False
+
     deadline = now_fn() + timeout_seconds
     while now_fn() < deadline:
         if process.poll() is not None:
             return True
         sleep_fn(0.1)
-    process.kill()
+
+    try:
+        process.kill()
+    except OSError:
+        return False
+
     return False
 
 

@@ -5,6 +5,7 @@ from unittest.mock import patch
 from local_ai_control_center_installer.server_verification import (
     apply_server_verification,
     probe_server_health,
+    stop_server_process,
 )
 from local_ai_control_center_installer.session import InstallerSession
 
@@ -380,7 +381,7 @@ def test_apply_server_verification_marks_server_health_failure_after_timeout(
         process_factory=lambda command, log_path: process,
         health_probe=lambda base_url: "loading",
         stop_process=lambda proc: True,
-        now_fn=_fake_now([0.0, 0.1, 0.2, 0.3, 20.5]),
+        now_fn=_fake_now([0.0, 0.1, 0.2, 0.3, 30.5]),
         sleep_fn=lambda _: None,
     )
 
@@ -458,7 +459,42 @@ def test_apply_server_verification_preserves_earlier_failure_when_cleanup_also_f
     assert updated.server_process_status == "ready"
     assert updated.server_health_status == "failed"
     assert updated.failing_step == "server-health"
-    assert updated.error_message is not None
+    assert updated.error_message == "failed to stop server verification process"
+
+
+def test_stop_server_process_returns_false_when_terminate_fails():
+    class _TerminateFailsProcess:
+        def terminate(self) -> None:
+            raise OSError("terminate failed")
+
+        def poll(self) -> int | None:
+            return None
+
+        def kill(self) -> None:
+            raise AssertionError("kill should not be called after terminate failure")
+
+    assert stop_server_process(_TerminateFailsProcess(), now_fn=_fake_now([0.0])) is False
+
+
+def test_stop_server_process_returns_false_when_kill_fails_after_timeout():
+    class _KillFailsProcess:
+        def terminate(self) -> None:
+            return None
+
+        def poll(self) -> int | None:
+            return None
+
+        def kill(self) -> None:
+            raise OSError("kill failed")
+
+    assert (
+        stop_server_process(
+            _KillFailsProcess(),
+            now_fn=_fake_now([0.0, 0.1, 5.0, 5.1]),
+            sleep_fn=lambda _: None,
+        )
+        is False
+    )
 
 
 def _fake_now(values: list[float]):
