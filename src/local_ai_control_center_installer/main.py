@@ -26,6 +26,8 @@ def run_installer(
     apply_phase: SessionStep | None = None,
     apply_runtime_payload: SessionStep | None = None,
     apply_server_verification: SessionStep | None = None,
+    apply_opencode_bootstrap: SessionStep | None = None,
+    apply_opencode_verification: SessionStep | None = None,
     write_reports: ReportStep | None = None,
 ):
     collect_answers = collect_answers or defaults_module.default_collect_answers
@@ -38,6 +40,13 @@ def run_installer(
         apply_server_verification
         or defaults_module.default_apply_server_verification
     )
+    apply_opencode_bootstrap = (
+        apply_opencode_bootstrap or defaults_module.default_apply_opencode_bootstrap
+    )
+    apply_opencode_verification = (
+        apply_opencode_verification
+        or defaults_module.default_apply_opencode_verification
+    )
     write_reports = write_reports or defaults_module.default_write_reports
 
     session = build_default_session()
@@ -46,6 +55,8 @@ def run_installer(
     session = apply_phase(session)
     session = apply_runtime_payload(session)
     session = apply_server_verification(session)
+    session = apply_opencode_bootstrap(session)
+    session = apply_opencode_verification(session)
     write_reports(session)
     return session.to_dict()
 
@@ -60,6 +71,7 @@ def main() -> int:
         result.get("bootstrap_status") == "ready"
         and result.get("runtime_payload_status") == "ready"
         and result.get("server_verification_status") == "ready"
+        and result.get("opencode_verification_status") == "ready"
     ):
         return 0
     return 1
