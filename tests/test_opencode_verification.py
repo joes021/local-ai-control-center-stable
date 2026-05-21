@@ -404,6 +404,77 @@ def test_apply_opencode_verification_maps_invalid_utf8_managed_config_to_prerequ
     assert updated.failing_step == "opencode-verification-prerequisites"
 
 
+def test_apply_opencode_verification_rejects_near_match_model_token_in_output(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    session = _build_ready_session(tmp_path)
+
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.opencode_verification.load_opencode_manifest",
+        lambda: _build_manifest(),
+    )
+
+    updated = apply_opencode_verification(
+        session,
+        temp_root=tmp_path / "temp-runs",
+        process_factory=lambda command, *, cwd, env, log_path: FakeProcess(
+            stdout="local-lacc/recommended-6gb-q4\n",
+            returncode=0,
+        ),
+        stop_process=lambda launched_process: True,
+    )
+
+    assert updated.opencode_verification_status == "failed"
+    assert updated.opencode_process_status == "ready"
+    assert updated.opencode_connection_status == "failed"
+    assert updated.failing_step == "opencode-connection"
+
+
+def test_apply_opencode_verification_rejects_near_match_base_url_in_config(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    session = _build_ready_session(tmp_path)
+    _write_managed_config(
+        Path(session.opencode_config_path),
+        verified_server_url="http://127.0.0.1:8080/v10".removesuffix("/v10"),
+    )
+    Path(session.opencode_config_path).write_text(
+        json.dumps(
+            {
+                "providers": {
+                    "local-lacc": {
+                        "options": {"baseURL": "http://127.0.0.1:8080/v10"}
+                    }
+                }
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.opencode_verification.load_opencode_manifest",
+        lambda: _build_manifest(),
+    )
+
+    updated = apply_opencode_verification(
+        session,
+        temp_root=tmp_path / "temp-runs",
+        process_factory=lambda command, *, cwd, env, log_path: FakeProcess(
+            stdout="local-lacc/recommended-6gb\n",
+            returncode=0,
+        ),
+        stop_process=lambda launched_process: True,
+    )
+
+    assert updated.opencode_verification_status == "failed"
+    assert updated.opencode_process_status == "ready"
+    assert updated.opencode_connection_status == "failed"
+    assert updated.failing_step == "opencode-connection"
+
+
 def test_apply_opencode_verification_resolves_manifest_nested_executable_path(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -700,3 +771,37 @@ def test_apply_opencode_verification_default_cleanup_receives_injected_clock_con
     assert captured["now_fn"] is sentinel_now
     assert captured["sleep_fn"] is sentinel_sleep
     assert captured["timeout_seconds"] == 5.0
+
+
+def test_apply_opencode_verification_does_not_fallback_on_internal_typeerror_from_modern_cleanup(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    session = _build_ready_session(tmp_path)
+    calls: list[str] = []
+
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.opencode_verification.load_opencode_manifest",
+        lambda: _build_manifest(),
+    )
+
+    def stop_process(process, *, now_fn, sleep_fn, timeout_seconds):
+        calls.append("kwargs")
+        raise TypeError("internal cleanup bug")
+
+    updated = apply_opencode_verification(
+        session,
+        temp_root=tmp_path / "temp-runs",
+        process_factory=lambda command, *, cwd, env, log_path: FakeProcess(
+            stdout="local-lacc/recommended-6gb\n",
+            returncode=0,
+        ),
+        stop_process=stop_process,
+    )
+
+    assert calls == ["kwargs"]
+    assert updated.opencode_verification_status == "failed"
+    assert updated.opencode_process_status == "ready"
+    assert updated.opencode_connection_status == "ready"
+    assert updated.failing_step == "opencode-process-stop"
+    assert "internal cleanup bug" in updated.error_message
