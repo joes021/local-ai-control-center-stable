@@ -10,7 +10,7 @@ def verify_sha256(path: Path, expected_sha256: str) -> bool:
 
 
 def verify_required_files(root: Path, required_files: list[str]) -> bool:
-    return all((root / relative_path).exists() for relative_path in required_files)
+    return all((root / relative_path).is_file() for relative_path in required_files)
 
 
 def write_runtime_metadata(
