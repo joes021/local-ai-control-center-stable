@@ -109,6 +109,47 @@ def test_load_opencode_manifest_rejects_checksum_key_missing_from_required_files
         load_opencode_manifest(manifest_path)
 
 
+def test_load_opencode_manifest_allows_presence_only_required_file_without_checksum(
+    tmp_path: Path,
+):
+    manifest_path = tmp_path / "windows-stable-opencode.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "opencode_artifact": {
+                    "id": "windows-opencode",
+                    "url": "https://example.invalid/opencode.zip",
+                    "sha256": "abc123",
+                    "archive_type": "zip",
+                    "required_files": ["opencode.exe", "support.dll"],
+                    "required_file_sha256": {"opencode.exe": "def456"},
+                    "install_subdir": "tools/opencode",
+                    "launch": {
+                        "executable_relative_path": "opencode.exe",
+                        "verification_args": ["--pure", "models"],
+                        "extra_env": {},
+                    },
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    manifest = load_opencode_manifest(manifest_path)
+
+    assert manifest["opencode_artifact"]["required_files"] == [
+        "opencode.exe",
+        "support.dll",
+    ]
+    assert manifest["opencode_artifact"]["required_file_sha256"] == {
+        "opencode.exe": "def456"
+    }
+    assert (
+        manifest["opencode_artifact"]["launch"]["executable_relative_path"]
+        == "opencode.exe"
+    )
+
+
 def test_load_opencode_manifest_rejects_launch_executable_missing_from_required_files(
     tmp_path: Path,
 ):
