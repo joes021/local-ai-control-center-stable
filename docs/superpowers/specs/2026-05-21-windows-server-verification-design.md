@@ -109,7 +109,7 @@ Choose a local verification port for this run.
 
 The design should prefer:
 
-- a deterministic installer-owned local port selection helper
+- a simple installer-owned free-port selection helper
 - loopback-only behavior
 - explicit reporting of the chosen port and resulting base URL
 
@@ -143,10 +143,27 @@ If the process fails to stay alive long enough to complete startup:
 
 ### 6. Health polling
 
-While the process is alive, poll a local health endpoint until:
+While the process is alive, poll the local `GET /health` endpoint until:
 
 - it responds successfully, or
 - a timeout is reached
+
+For this slice, the health-ready gate is:
+
+- request: `GET http://127.0.0.1:<port>/health`
+- acceptable ready response:
+  - HTTP `200`
+  - JSON body containing `{"status": "ok"}`
+
+Expected non-ready transitional response while the model is still loading:
+
+- HTTP `503`
+- JSON error payload indicating the model is still loading
+
+For this slice:
+
+- HTTP `503` should be treated as a continue-polling signal until timeout
+- any other non-success response from a live process should be treated as health failure
 
 If health never responds but the process remained alive:
 
@@ -178,6 +195,18 @@ Only then:
 ### 8. Clean stop
 
 After either success or failure, attempt a clean stop of the verification process if it was started.
+
+For this slice, clean stop means:
+
+- first attempt a normal terminate/shutdown path
+- wait a bounded amount of time for process exit
+- if that times out, issue one forced kill attempt to avoid leaving an orphaned verifier process
+
+Status truth for cleanup:
+
+- if the graceful stop succeeds, cleanup is successful
+- if graceful stop fails and forced kill is required, the process may still be cleaned up locally, but the verification result must still be reported as failed with `failing_step = server-process-stop`
+- if even forced kill fails, report the same failure step and preserve the server log path for diagnosis
 
 If verification itself succeeded but the process could not be stopped cleanly:
 
@@ -254,6 +283,15 @@ If a verification port cannot be selected or used:
 - `server_health_status = skipped`
 - `server_verification_status = failed`
 - `failing_step = server-port-bind`
+
+This failure step is reserved for:
+
+- inability to choose a usable local verification port before process start
+- explicit pre-start port usability checks that fail
+
+If the process starts and then exits early due to a bind conflict or similar startup problem, report:
+
+- `failing_step = server-process-start`
 
 ### Process start failure
 
