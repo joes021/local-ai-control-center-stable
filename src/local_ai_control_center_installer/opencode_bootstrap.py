@@ -59,18 +59,20 @@ def apply_opencode_bootstrap(
         return session
 
     session.failing_step = None
+    session.error_message = None
 
     install_root = Path(session.install_root).expanduser().resolve()
     session.install_root = str(install_root)
 
     try:
         manifest = load_manifest()
-    except ValueError:
+    except ValueError as exc:
         session.opencode_artifact_status = "failed"
         session.opencode_verification_status = "skipped"
         session.opencode_process_status = "skipped"
         session.opencode_connection_status = "skipped"
         session.failing_step = "opencode-manifest"
+        session.error_message = str(exc)
         return session
 
     opencode_artifact = manifest["opencode_artifact"]
@@ -94,10 +96,13 @@ def apply_opencode_bootstrap(
     verified_server_url = (session.verified_server_url or "").strip()
     if not verified_server_url or model_id is None:
         session.opencode_artifact_status = "ready" if artifact_ready else "skipped"
+        if artifact_ready:
+            session.last_successful_step = "opencode-artifact"
         session.opencode_verification_status = "failed"
         session.opencode_process_status = "skipped"
         session.opencode_connection_status = "skipped"
         session.failing_step = "opencode-verification-prerequisites"
+        session.error_message = "OpenCode bootstrap prerequisites are missing or invalid."
         return session
 
     if not artifact_ready:
@@ -113,15 +118,17 @@ def apply_opencode_bootstrap(
                 verify_archive_sha256=verify_archive_sha256,
                 verify_required_file_checksums=verify_required_file_checksums,
             )
-        except Exception:
+        except Exception as exc:
             session.opencode_artifact_status = "failed"
             session.opencode_verification_status = "skipped"
             session.opencode_process_status = "skipped"
             session.opencode_connection_status = "skipped"
             session.failing_step = "opencode-artifact"
+            session.error_message = str(exc)
             return session
 
     session.opencode_artifact_status = "ready"
+    session.last_successful_step = "opencode-artifact"
     if write_managed_config is None:
         write_managed_config = _write_managed_config
 
@@ -131,17 +138,20 @@ def apply_opencode_bootstrap(
             model_id=model_id,
             verified_server_url=verified_server_url,
         )
-    except Exception:
+    except Exception as exc:
         session.opencode_artifact_status = "ready"
         session.opencode_verification_status = "failed"
         session.opencode_process_status = "skipped"
         session.opencode_connection_status = "skipped"
         session.failing_step = "opencode-config"
+        session.error_message = str(exc)
         return session
 
     session.opencode_verification_status = "skipped"
     session.opencode_process_status = "skipped"
     session.opencode_connection_status = "skipped"
+    session.last_successful_step = "opencode-config"
+    session.error_message = None
     return session
 
 
