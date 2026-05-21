@@ -9,6 +9,8 @@ def load_opencode_manifest(manifest_path=None) -> dict:
         )
 
     payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError("OpenCode manifest top-level object must be a JSON object.")
     if "opencode_artifact" not in payload:
         raise ValueError("OpenCode manifest is missing required top-level fields.")
 
