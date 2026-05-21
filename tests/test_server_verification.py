@@ -223,6 +223,30 @@ def test_apply_server_verification_continues_polling_through_loading_503_until_r
     assert updated.server_health_status == "ready"
 
 
+def test_apply_server_verification_tolerates_repeated_now_values_before_ready(
+    tmp_path: Path,
+):
+    session = _build_runtime_ready_session(tmp_path)
+    process = FakeProcess([None, None, None, None, None, None, None])
+    health_states = iter(["loading", "ready"])
+
+    updated = apply_server_verification(
+        session,
+        temp_root=tmp_path / "temp-runs",
+        select_port=lambda host="127.0.0.1": 8080,
+        process_factory=lambda command, log_path: process,
+        health_probe=lambda base_url: next(health_states),
+        stop_process=lambda proc: True,
+        now_fn=_fake_now([0.0, 0.2, 0.8, 1.1, 1.2, 1.2, 1.3]),
+        sleep_fn=lambda _: None,
+    )
+
+    assert updated.server_verification_status == "ready"
+    assert updated.server_process_status == "ready"
+    assert updated.server_health_status == "ready"
+    assert updated.failing_step is None
+
+
 def test_probe_server_health_treats_connection_refused_as_failed():
     assert (
         probe_server_health("http://127.0.0.1:1", timeout_seconds=0.01)
@@ -495,6 +519,33 @@ def test_stop_server_process_returns_false_when_kill_fails_after_timeout():
         )
         is False
     )
+
+
+def test_stop_server_process_returns_true_when_kill_succeeds_after_timeout():
+    class _KillSucceedsProcess:
+        def __init__(self):
+            self.kill_calls = 0
+
+        def terminate(self) -> None:
+            return None
+
+        def poll(self) -> int | None:
+            return None
+
+        def kill(self) -> None:
+            self.kill_calls += 1
+
+    process = _KillSucceedsProcess()
+
+    assert (
+        stop_server_process(
+            process,
+            now_fn=_fake_now([0.0, 0.1, 5.0, 5.1]),
+            sleep_fn=lambda _: None,
+        )
+        is True
+    )
+    assert process.kill_calls == 1
 
 
 def _fake_now(values: list[float]):
