@@ -135,6 +135,24 @@ class FakeProcess:
         return self.stdout, None
 
 
+class PollSequenceProcess(FakeProcess):
+    def __init__(self, poll_values: list[int | None], **kwargs) -> None:
+        super().__init__(**kwargs)
+        self.poll_values = poll_values
+        self.poll_calls = 0
+
+    def poll(self):
+        index = min(self.poll_calls, len(self.poll_values) - 1)
+        self.poll_calls += 1
+        return self.poll_values[index]
+
+    def terminate(self):
+        raise OSError("already exited")
+
+    def kill(self):
+        raise AssertionError("kill should not be needed when process already exited")
+
+
 def test_apply_opencode_verification_skips_when_artifact_not_ready(tmp_path: Path):
     session = InstallerSession(
         opencode_artifact_status="failed",
@@ -805,3 +823,64 @@ def test_apply_opencode_verification_does_not_fallback_on_internal_typeerror_fro
     assert updated.opencode_connection_status == "ready"
     assert updated.failing_step == "opencode-process-stop"
     assert "internal cleanup bug" in updated.error_message
+
+
+def test_apply_opencode_verification_treats_terminate_race_as_successful_cleanup(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    session = _build_ready_session(tmp_path)
+    process = PollSequenceProcess(
+        poll_values=[None, 0],
+        stdout="local-lacc/recommended-6gb\n",
+        returncode=0,
+    )
+
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.opencode_verification.load_opencode_manifest",
+        lambda: _build_manifest(),
+    )
+
+    updated = apply_opencode_verification(
+        session,
+        temp_root=tmp_path / "temp-runs",
+        process_factory=lambda command, *, cwd, env, log_path: process,
+    )
+
+    assert updated.opencode_verification_status == "ready"
+    assert updated.opencode_process_status == "ready"
+    assert updated.opencode_connection_status == "ready"
+    assert updated.failing_step is None
+
+
+def test_apply_opencode_verification_does_not_report_ready_process_when_output_collection_fails_with_unknown_exit(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    session = _build_ready_session(tmp_path)
+
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.opencode_verification.load_opencode_manifest",
+        lambda: _build_manifest(),
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.opencode_verification._collect_process_output",
+        lambda process, log_path, timeout_seconds: (_ for _ in ()).throw(
+            OSError("log stream failed")
+        ),
+    )
+
+    updated = apply_opencode_verification(
+        session,
+        temp_root=tmp_path / "temp-runs",
+        process_factory=lambda command, *, cwd, env, log_path: FakeProcess(
+            stdout="ignored\n",
+            returncode=None,
+        ),
+        stop_process=lambda launched_process: True,
+    )
+
+    assert updated.opencode_verification_status == "failed"
+    assert updated.opencode_process_status != "ready"
+    assert updated.opencode_connection_status == "failed"
+    assert updated.failing_step == "opencode-connection"

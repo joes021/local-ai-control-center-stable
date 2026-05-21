@@ -128,15 +128,15 @@ def apply_opencode_verification(
     except OSError as exc:
         session.opencode_verification_status = "failed"
         session.opencode_process_status = (
-            "failed" if process.returncode not in (None, 0) else "ready"
+            "ready" if process.returncode == 0 else "failed"
         )
         session.opencode_connection_status = (
-            "skipped" if process.returncode not in (None, 0) else "failed"
+            "failed" if process.returncode in (None, 0) else "skipped"
         )
         session.failing_step = (
-            "opencode-process-start"
-            if process.returncode not in (None, 0)
-            else "opencode-connection"
+            "opencode-connection"
+            if process.returncode in (None, 0)
+            else "opencode-process-start"
         )
         session.error_message = str(exc)
     except subprocess.TimeoutExpired as exc:
@@ -258,7 +258,7 @@ def stop_opencode_process(
     try:
         process.terminate()
     except OSError:
-        return False
+        return process.poll() is not None
 
     deadline = now_fn() + timeout_seconds
     while now_fn() < deadline:
@@ -269,7 +269,7 @@ def stop_opencode_process(
     try:
         process.kill()
     except OSError:
-        return False
+        return process.poll() is not None
 
     post_kill_deadline = now_fn() + timeout_seconds
     while now_fn() < post_kill_deadline:
