@@ -54,7 +54,11 @@ def apply_runtime_payload(
     extract_archive=extract_archive,
     verify_archive_sha256=verify_sha256,
     verify_model_file=verify_sha256,
+    write_active_model_config=None,
 ) -> InstallerSession:
+    session.failing_step = None
+    session.last_successful_step = None
+
     if session.bootstrap_status != "ready":
         session.runtime_payload_status = "skipped"
         session.runtime_artifact_status = "skipped"
@@ -66,7 +70,15 @@ def apply_runtime_payload(
     session.install_root = str(install_root)
     manifest = load_manifest()
     runtime_artifact = manifest["runtime_artifact"]
-    starter_model = resolve_requested_starter_model(manifest, session.starter_model)
+    try:
+        starter_model = resolve_requested_starter_model(manifest, session.starter_model)
+    except ValueError:
+        session.runtime_payload_status = "failed"
+        session.runtime_artifact_status = "skipped"
+        session.starter_model_status = "failed"
+        session.active_model_config_status = "skipped"
+        session.failing_step = "runtime-manifest"
+        return session
 
     runtime_root = install_root / runtime_artifact["install_subdir"]
     runtime_metadata_path = runtime_root / "runtime-artifact.json"
@@ -83,37 +95,63 @@ def apply_runtime_payload(
     if not _runtime_artifact_ready(runtime_root, runtime_metadata_path, runtime_artifact):
         if download_runtime_archive is None:
             download_runtime_archive = _download_file
-        _stage_runtime_artifact(
-            install_root=install_root,
-            temp_root=temp_root,
-            runtime_artifact=runtime_artifact,
-            download_runtime_archive=download_runtime_archive,
-            extract_archive=extract_archive,
-            verify_archive_sha256=verify_archive_sha256,
-        )
+        try:
+            _stage_runtime_artifact(
+                install_root=install_root,
+                temp_root=temp_root,
+                runtime_artifact=runtime_artifact,
+                download_runtime_archive=download_runtime_archive,
+                extract_archive=extract_archive,
+                verify_archive_sha256=verify_archive_sha256,
+            )
+        except Exception:
+            session.runtime_payload_status = "failed"
+            session.runtime_artifact_status = "failed"
+            session.starter_model_status = "skipped"
+            session.active_model_config_status = "skipped"
+            session.failing_step = "runtime-artifact"
+            return session
 
     session.runtime_artifact_status = "ready"
+    session.last_successful_step = "runtime-artifact"
 
     if not starter_model_path.exists() or not verify_model_file(
         starter_model_path, starter_model["sha256"]
     ):
         if download_model_file is None:
             download_model_file = _download_file
-        _stage_starter_model(
-            install_root=install_root,
-            temp_root=temp_root,
-            starter_model=starter_model,
-            download_model_file=download_model_file,
-            verify_model_file=verify_model_file,
-        )
+        try:
+            _stage_starter_model(
+                install_root=install_root,
+                temp_root=temp_root,
+                starter_model=starter_model,
+                download_model_file=download_model_file,
+                verify_model_file=verify_model_file,
+            )
+        except Exception:
+            session.runtime_payload_status = "failed"
+            session.starter_model_status = "failed"
+            session.active_model_config_status = "skipped"
+            session.failing_step = "starter-model"
+            return session
 
     session.starter_model_status = "ready"
-    _write_active_model_config(
-        active_model_config_path,
-        model_id=starter_model["id"],
-        model_path=starter_model_path,
-    )
+    session.last_successful_step = "starter-model"
+    if write_active_model_config is None:
+        write_active_model_config = _write_active_model_config
+    try:
+        write_active_model_config(
+            active_model_config_path,
+            model_id=starter_model["id"],
+            model_path=starter_model_path,
+        )
+    except Exception:
+        session.runtime_payload_status = "failed"
+        session.active_model_config_status = "failed"
+        session.failing_step = "active-model-config"
+        return session
     session.active_model_config_status = "ready"
+    session.last_successful_step = "active-model-config"
     session.runtime_payload_status = "ready"
     return session
 
