@@ -1,3 +1,4 @@
+import inspect
 import json
 import os
 import subprocess
@@ -407,10 +408,30 @@ def _is_successful_handshake(
     config_text: str,
     verified_server_url: str,
 ) -> bool:
+    expected_model_token = f"local-lacc/{model_id}"
+    expected_base_url = f"{verified_server_url}/v1"
+    if returncode != 0:
+        return False
+
+    stdout_tokens = stdout_text.split()
+    if expected_model_token not in stdout_tokens:
+        return False
+
+    try:
+        config_payload = json.loads(config_text)
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return False
+
+    actual_base_url = (
+        config_payload.get("providers", {})
+        .get("local-lacc", {})
+        .get("options", {})
+        .get("baseURL")
+    )
+
     return (
-        returncode == 0
-        and f"local-lacc/{model_id}" in stdout_text
-        and f"{verified_server_url}/v1" in config_text
+        isinstance(actual_base_url, str)
+        and actual_base_url == expected_base_url
     )
 
 
@@ -423,17 +444,32 @@ def _cleanup_opencode_process(
     timeout_seconds: float = 5.0,
 ) -> str | None:
     try:
-        if stop_process(
-            process,
-            now_fn=now_fn,
-            sleep_fn=sleep_fn,
-            timeout_seconds=timeout_seconds,
-        ):
-            return None
-        return "failed to stop OpenCode verification process"
-    except TypeError:
-        if stop_process(process):
+        if _cleanup_supports_kwargs(stop_process):
+            stopped = stop_process(
+                process,
+                now_fn=now_fn,
+                sleep_fn=sleep_fn,
+                timeout_seconds=timeout_seconds,
+            )
+        else:
+            stopped = stop_process(process)
+
+        if stopped:
             return None
         return "failed to stop OpenCode verification process"
     except Exception as exc:
         return f"failed to stop OpenCode verification process: {exc}"
+
+
+def _cleanup_supports_kwargs(stop_process) -> bool:
+    try:
+        parameters = inspect.signature(stop_process).parameters.values()
+    except (TypeError, ValueError):
+        return False
+
+    if any(parameter.kind == inspect.Parameter.VAR_KEYWORD for parameter in parameters):
+        return True
+
+    required_names = {"now_fn", "sleep_fn", "timeout_seconds"}
+    parameter_names = {parameter.name for parameter in parameters}
+    return required_names.issubset(parameter_names)
