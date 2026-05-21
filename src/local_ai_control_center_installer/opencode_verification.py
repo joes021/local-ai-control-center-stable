@@ -17,6 +17,7 @@ from local_ai_control_center_installer.session import InstallerSession
 class OpenCodeVerificationTarget:
     executable_path: Path
     managed_config_path: Path
+    managed_config_text: str
     model_id: str
     model_path: Path
     verified_server_url: str
@@ -103,12 +104,11 @@ def apply_opencode_verification(
                 f"OpenCode verification process exited with code {process.returncode}."
             )
             return session
-        config_text = target.managed_config_path.read_text(encoding="utf-8")
         handshake_succeeded = _is_successful_handshake(
             process.returncode,
             stdout_text,
             target.model_id,
-            config_text,
+            target.managed_config_text,
             target.verified_server_url,
         )
         if handshake_succeeded:
@@ -209,6 +209,7 @@ def resolve_opencode_verification_target(
     )
     if not managed_config_path.is_file():
         raise ValueError(f"managed OpenCode config does not exist: {managed_config_path}")
+    managed_config_text = managed_config_path.read_text(encoding="utf-8")
 
     launch_contract = _load_launch_contract()
     executable_path = artifact_root / launch_contract["executable_relative_path"]
@@ -218,6 +219,7 @@ def resolve_opencode_verification_target(
     return OpenCodeVerificationTarget(
         executable_path=executable_path,
         managed_config_path=managed_config_path,
+        managed_config_text=managed_config_text,
         model_id=model_id,
         model_path=model_path,
         verified_server_url=verified_server_url,
@@ -421,16 +423,16 @@ def _cleanup_opencode_process(
     timeout_seconds: float = 5.0,
 ) -> str | None:
     try:
-        if stop_process(process):
-            return None
-        return "failed to stop OpenCode verification process"
-    except TypeError:
         if stop_process(
             process,
             now_fn=now_fn,
             sleep_fn=sleep_fn,
             timeout_seconds=timeout_seconds,
         ):
+            return None
+        return "failed to stop OpenCode verification process"
+    except TypeError:
+        if stop_process(process):
             return None
         return "failed to stop OpenCode verification process"
     except Exception as exc:

@@ -377,6 +377,33 @@ def test_apply_opencode_verification_maps_log_write_failure_without_crashing(
     assert "disk full" in updated.error_message
 
 
+def test_apply_opencode_verification_maps_invalid_utf8_managed_config_to_prerequisites(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    session = _build_ready_session(tmp_path)
+    Path(session.opencode_config_path).write_bytes(b"\x80\x81broken")
+
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.opencode_verification.load_opencode_manifest",
+        lambda: _build_manifest(),
+    )
+
+    updated = apply_opencode_verification(
+        session,
+        temp_root=tmp_path / "temp-runs",
+        process_factory=lambda command, *, cwd, env, log_path: FakeProcess(
+            stdout="local-lacc/recommended-6gb\n",
+            returncode=0,
+        ),
+    )
+
+    assert updated.opencode_verification_status == "failed"
+    assert updated.opencode_process_status == "skipped"
+    assert updated.opencode_connection_status == "skipped"
+    assert updated.failing_step == "opencode-verification-prerequisites"
+
+
 def test_apply_opencode_verification_resolves_manifest_nested_executable_path(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -623,6 +650,48 @@ def test_apply_opencode_verification_passes_cleanup_timeout_contract(
             returncode=0,
         ),
         stop_process=stop_process,
+        now_fn=sentinel_now,
+        sleep_fn=sentinel_sleep,
+    )
+
+    assert updated.opencode_verification_status == "ready"
+    assert captured["now_fn"] is sentinel_now
+    assert captured["sleep_fn"] is sentinel_sleep
+    assert captured["timeout_seconds"] == 5.0
+
+
+def test_apply_opencode_verification_default_cleanup_receives_injected_clock_contract(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    session = _build_ready_session(tmp_path)
+    captured: dict[str, object] = {}
+    sentinel_now = object()
+    sentinel_sleep = object()
+
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.opencode_verification.load_opencode_manifest",
+        lambda: _build_manifest(),
+    )
+
+    def default_stop_process(process, *, now_fn, sleep_fn, timeout_seconds):
+        captured["now_fn"] = now_fn
+        captured["sleep_fn"] = sleep_fn
+        captured["timeout_seconds"] = timeout_seconds
+        return True
+
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.opencode_verification.stop_opencode_process",
+        default_stop_process,
+    )
+
+    updated = apply_opencode_verification(
+        session,
+        temp_root=tmp_path / "temp-runs",
+        process_factory=lambda command, *, cwd, env, log_path: FakeProcess(
+            stdout="local-lacc/recommended-6gb\n",
+            returncode=0,
+        ),
         now_fn=sentinel_now,
         sleep_fn=sentinel_sleep,
     )
