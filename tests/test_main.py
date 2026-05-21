@@ -100,6 +100,23 @@ def test_main_returns_zero_when_opencode_was_explicitly_skipped(
     assert main_module.main() == 0
 
 
+def test_main_returns_zero_when_opencode_was_requested_and_verified(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    def fake_run_installer():
+        return {
+            "bootstrap_status": "ready",
+            "runtime_payload_status": "ready",
+            "server_verification_status": "ready",
+            "install_opencode": True,
+            "opencode_verification_status": "ready",
+        }
+
+    monkeypatch.setattr(main_module, "run_installer", fake_run_installer)
+
+    assert main_module.main() == 0
+
+
 def test_main_returns_non_zero_when_opencode_verification_status_is_failed(
     monkeypatch: pytest.MonkeyPatch,
 ):
