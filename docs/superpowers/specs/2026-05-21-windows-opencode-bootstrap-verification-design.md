@@ -135,28 +135,53 @@ The new `OpenCode` manifest should follow the same truth model as runtime payloa
 ### Required `launch` fields
 
 - `executable_relative_path`
-- `working_directory_relative_path`
 - `verification_args`
-- `managed_config_env_var`
-- `managed_config_content_env_var`
 - `extra_env`
 
 Field intent:
 
 - `executable_relative_path`
   - relative path from artifact root to the Windows executable or launcher used by the installer
-- `working_directory_relative_path`
-  - working directory expected for stable launch behavior
 - `verification_args`
-  - fixed minimum non-interactive arguments used for the installer verification process
-- `managed_config_env_var`
-  - environment variable used to point `OpenCode` at the installer-managed config path
-- `managed_config_content_env_var`
-  - environment variable used for critical override injection during verification
+  - fixed static leading arguments for the single bounded installer verification command
 - `extra_env`
   - static environment additions required by the pinned artifact for deterministic startup
 
 The launch contract must be fully installer-owned and explicit. The verifier must not infer executable paths or launch flags by scanning the filesystem heuristically.
+
+For this slice, `verification_args` is the single source of truth for static verification arguments and must resolve to the equivalent of:
+
+- `["--pure", "models"]`
+
+The verifier then appends exactly one runtime-computed trailing argument:
+
+- `local-lacc`
+
+This means the effective verification command shape for this slice is:
+
+- `opencode --pure models local-lacc`
+
+The manifest may not change the verification subcommand semantics for this slice. It only carries the fixed static args and executable path required to build that one bounded verification command.
+
+The config environment variable names are normative slice constants, not manifest-controlled values:
+
+- `OPENCODE_CONFIG`
+- `OPENCODE_CONFIG_CONTENT`
+
+### Required JSON shapes
+
+To keep manifest validation identical in spirit to the runtime slice:
+
+- `required_files`
+  - JSON array of relative file paths as strings
+- `required_file_sha256`
+  - JSON object mapping relative file path string to lowercase hex SHA-256 digest string
+
+Rules:
+
+- every key in `required_file_sha256` must also appear in `required_files`
+- `required_files` may contain paths that are presence-only checks
+- checksum validation is mandatory for every path listed in `required_file_sha256`
 
 ## Installer-Owned Disk Contract
 
@@ -180,9 +205,12 @@ The installer-managed config must be intentionally narrow. It is not a general u
 It should capture only the minimum state required for truthful local-runtime routing:
 
 - installer-managed marker
+- fixed installer-managed provider id: `local-lacc`
 - expected local provider/runtime type
 - verified local runtime base URL
 - active model identity from installer-managed model config
+- top-level selected model string: `local-lacc/<active-model-id>`
+- `enabled_providers: ["local-lacc"]`
 - any `OpenCode` provider/model settings required to route toward the local runtime
 - `autoupdate: false` or equivalent installer-managed update suppression if supported
 
@@ -209,8 +237,9 @@ Verification must therefore isolate itself from:
 Recommended verification isolation:
 
 - launch from a temporary empty working directory
-- pass the installer-managed config path through the manifest-defined config environment variable
-- use the manifest-defined config-content environment variable for critical runtime/model overrides
+- pass the installer-managed config path through `OPENCODE_CONFIG`
+- use `OPENCODE_CONFIG_CONTENT` for critical runtime/model overrides
+- set `OPENCODE_DISABLE_MODELS_FETCH=true` during verification so the handshake does not depend on remote model directory refresh
 - include `--pure` in the verification launch path to suppress non-essential external extension layers
 
 The override content used for verification should at minimum force:
@@ -289,6 +318,8 @@ If any prerequisite is missing or unreadable:
 - set truthful `OpenCode` statuses
 - report `failing_step = opencode-verification-prerequisites`
 
+The active model file remains a prerequisite even though this slice does not run inference, because the installer-managed `OpenCode` route must not be considered valid if the selected local model target is already missing on disk.
+
 ### 6. Managed config generation
 
 Generate `config/opencode/managed-config.json` from installer-owned truth.
@@ -304,21 +335,26 @@ If config generation fails:
 Create a temporary empty verification working directory and start `OpenCode` using:
 
 - the manifest-defined executable
-- the manifest-defined working directory
 - the manifest-defined verification arguments
-- the installer-managed config path environment variable
-- the installer-managed config-content environment variable
+- the verifier-appended trailing provider argument `local-lacc`
+- `OPENCODE_CONFIG`
+- `OPENCODE_CONFIG_CONTENT`
 - any manifest-defined extra environment values
 - stdout and stderr redirected to `logs/opencode-verification.log`
 
-Process start is not considered successful only because `Popen(...)` returned. The verifier must still confirm the process stays alive long enough for the handshake checks.
+The subprocess `cwd` for verification is always the temporary empty verification directory, never the current repository and never an inferred user project directory.
+
+This is a single bounded verification subprocess. There is no separate long-lived `OpenCode` daemon process in this slice and no second handshake subprocess. The same command both starts and performs the routing handshake.
+
+Process start is not considered successful only because `Popen(...)` returned. The verifier must still confirm the process stays alive long enough to produce the handshake result and exits cleanly within the allowed timeout.
 
 ### 8. Startup liveness check
 
 During a bounded startup window:
 
 - poll whether the process is still alive
-- fail early if it exits before handshake checks can complete
+- fail early if it exits before handshake checks can complete successfully
+- fail if it hangs beyond the bounded verification timeout and cannot be stopped cleanly
 
 If it dies early:
 
@@ -331,16 +367,34 @@ If it dies early:
 
 This slice does not yet perform prompt inference. Instead, it proves routing truth.
 
-The preferred handshake is:
+The handshake contract must be explicit and fixed enough for implementation planning.
 
-- run the installer-managed verification launch under isolated env
-- use an `OpenCode` command path that resolves available models or providers for the configured local provider
-- confirm the resolved result matches:
-  - the expected installer-managed local provider/runtime
-  - the expected verified local base URL
-  - the expected active model identity
+The installer-managed config should create exactly one allowed local provider entry:
 
-This proof must come from the isolated installer-managed launch context, not from a global shell environment or user profile.
+- provider id: `local-lacc`
+- provider implementation package: `@ai-sdk/openai-compatible`
+- `options.baseURL = <verified_server_url>/v1`
+- `models` containing exactly the active installer-managed model id
+- top-level `model = local-lacc/<active-model-id>`
+
+The preferred verification command is:
+
+- `opencode --pure models local-lacc`
+
+Run it under the isolated installer-managed environment with:
+
+- `OPENCODE_CONFIG` pointing at `managed-config.json`
+- `OPENCODE_CONFIG_CONTENT` carrying any required runtime override content
+- `OPENCODE_DISABLE_MODELS_FETCH=true`
+- installer-managed disable-autoupdate behavior
+
+Accepted handshake proof for `opencode_connection_status = ready`:
+
+- the same bounded verification subprocess from Step 7 exits with code `0`
+- stdout contains the exact token `local-lacc/<active-model-id>`
+- the verifier has already validated that the generated managed config contains `options.baseURL = <verified_server_url>/v1`
+
+This proof comes from the isolated installer-managed launch context, not from a global shell environment or user profile.
 
 If routing cannot be proven:
 
@@ -368,11 +422,14 @@ Only then:
 
 ### 11. Clean stop
 
-After either success or failure, attempt a clean stop if the verification process was started.
+The preferred verification command is bounded and should normally exit on its own after printing the handshake result.
+
+After either success or failure, attempt cleanup only if the verification process is still running.
 
 For this slice:
 
-- first attempt a normal terminate path
+- first wait for bounded natural exit
+- if still running, attempt a normal terminate path
 - wait a bounded amount of time
 - if needed, force kill once to avoid leaving an orphaned verifier process
 
@@ -615,6 +672,14 @@ This does not yet mean:
 
 The report and README must continue to distinguish milestone success from final product completion.
 
+### Timeout ownership
+
+This spec requires bounded verification and bounded cleanup, but the exact timeout values remain implementation constants to be chosen during planning and codified in tests. The required behavior is:
+
+- verification may not wait indefinitely
+- cleanup may not wait indefinitely
+- timeout expiry must map to the documented failure rules
+
 ## Testing Strategy
 
 Use TDD and keep the `OpenCode` logic decomposed into small, injectable units.
@@ -642,12 +707,17 @@ Use TDD and keep the `OpenCode` logic decomposed into small, injectable units.
 - verification launch injects installer-managed config env correctly
 - verification launch uses an isolated working directory rather than the current project
 - verification launch includes the isolation arguments required by the manifest contract
+- verification launch uses `OPENCODE_CONFIG` and `OPENCODE_CONFIG_CONTENT` as the fixed env names for this slice
+- verification launch disables remote models fetch during the handshake
+- generated config contains `local-lacc` as the only enabled provider and `<verified_server_url>/v1` as the configured base URL
 
 #### Process behavior
 
 - fail when subprocess start raises
 - fail when the process exits before handshake completes
-- fail when routing proof does not match expected provider, base URL, or active model
+- the only accepted handshake command shape for this slice is `opencode --pure models local-lacc`
+- fail when `opencode models local-lacc` output does not contain `local-lacc/<active-model-id>`
+- fail when the verification process hangs and cannot be cleaned up
 
 #### Success path
 
