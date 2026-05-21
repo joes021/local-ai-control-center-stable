@@ -34,6 +34,16 @@ def test_verify_required_files_returns_false_when_expected_file_is_missing(tmp_p
     ) is False
 
 
+def test_verify_required_files_returns_false_when_expected_path_is_directory(
+    tmp_path: Path,
+):
+    install_root = tmp_path / "llama.cpp"
+    install_root.mkdir()
+    (install_root / "llama-server.exe").mkdir()
+
+    assert verify_required_files(install_root, ["llama-server.exe"]) is False
+
+
 def test_runtime_metadata_marker_round_trip(tmp_path: Path):
     metadata_path = tmp_path / "runtime-artifact.json"
     write_runtime_metadata(
