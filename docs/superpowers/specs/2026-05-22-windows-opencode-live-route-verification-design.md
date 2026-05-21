@@ -97,7 +97,7 @@ The `OpenCode` verification phase should run in this order:
 2. start a temporary verifier-owned `llama-server` on a loopback port
 3. start an installer-owned relay on a separate loopback port
 4. generate a unique installer-only marker for the verification attempt
-5. keep the persisted installer-managed `OpenCode` config pointed at the stable verified runtime URL
+5. keep the persisted installer-managed `OpenCode` config pointed at the already-persisted verified runtime URL
 6. inject a verification-only config override that points `OpenCode` at the relay base URL
 7. launch a bounded `OpenCode` process for a small non-interactive inference smoke
 8. capture combined `stdout` and `stderr` into the `OpenCode` verification log
@@ -108,7 +108,7 @@ The `OpenCode` verification phase should run in this order:
 
 Verification succeeds only if all proof conditions pass inside the same bounded run.
 
-The persisted install-root managed config must remain stable and must keep the real runtime URL:
+The persisted install-root managed config must remain stable and must keep the already-persisted runtime URL from the current installer state:
 
 - `providers.local-lacc.options.baseURL = <verified_server_url>/v1`
 
@@ -214,6 +214,7 @@ Truth table for the new failure modes:
 | `opencode-relay-start` | `failed` | `skipped` | `skipped` | relay never became available, so no `OpenCode` proof run happened |
 | `opencode-inference-smoke` | `failed` | `failed` | `skipped` | `OpenCode` process did not complete the bounded smoke attempt before any live-route proof was established |
 | `opencode-inference-smoke` with preserved partial proof | `failed` | `failed` | `ready` | `OpenCode` process ultimately failed, but the relay had already seen the marker and upstream had already returned success |
+| `opencode-live-route-proof` after mixed partial smoke | `failed` | `failed` | `failed` | the relay saw the marker, but upstream runtime returned failure or an invalid response, so live-route proof failed even though part of the smoke path was reached |
 | `opencode-live-route-proof` | `failed` | `ready` | `failed` | `OpenCode` ran, but live-route proof was missing or upstream proof failed |
 | `opencode-process-stop` | `failed` | `ready` | `ready` | proof succeeded and only cleanup failed afterward |
 
@@ -225,6 +226,11 @@ Partial-smoke truth rule:
   - `opencode_verification_status = failed`
   - `opencode_process_status = failed`
   - `opencode_connection_status = ready`
+- if the `OpenCode` process ultimately fails and the relay saw the marker, but upstream runtime failed or returned an invalid response:
+  - `failing_step = opencode-live-route-proof`
+  - `opencode_verification_status = failed`
+  - `opencode_process_status = failed`
+  - `opencode_connection_status = failed`
 - if the smoke step fails before relay proof is established, `opencode_connection_status = skipped`
 
 This rule preserves the strongest truthful signal available without promoting the overall verification to success.
