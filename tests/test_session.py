@@ -29,7 +29,7 @@ def test_installer_session_serializes_first_slice_state():
         existing_install_detected=True,
         install_mode="upgrade",
         install_root="C:\\AI",
-        starter_model="qwen2.5-coder",
+        starter_model="recommended-12gb",
         install_opencode=True,
         attempt_turboquant=True,
         additional_model_paths=["D:\\models", "E:\\archive"],
@@ -66,7 +66,7 @@ def test_installer_session_serializes_first_slice_state():
         "install_root": "C:\\AI",
         "runtime_artifact_id": None,
         "runtime_artifact_path": None,
-        "starter_model": "qwen2.5-coder",
+        "starter_model": "recommended-12gb",
         "starter_model_path": None,
         "active_model_config_path": None,
         "runtime_metadata_path": None,
@@ -112,5 +112,10 @@ def test_installer_session_serializes_runtime_payload_fields():
     assert payload["runtime_payload_status"] == "ready"
     assert payload["runtime_artifact_status"] == "ready"
     assert payload["starter_model"] == "recommended-6gb"
+    assert payload["starter_model_status"] == "ready"
+    assert payload["active_model_config_status"] == "ready"
+    assert payload["runtime_artifact_id"] == "windows-llama-cpp-runtime"
+    assert payload["runtime_artifact_path"] == "C:\\LACC\\runtime\\llama.cpp"
     assert payload["starter_model_path"].endswith("recommended-6gb.gguf")
+    assert payload["active_model_config_path"] == "C:\\LACC\\config\\active-model.json"
     assert payload["runtime_metadata_path"].endswith("runtime-artifact.json")
