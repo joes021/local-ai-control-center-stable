@@ -1,6 +1,9 @@
 import json
 from pathlib import Path
 
+import pytest
+
+import local_ai_control_center_installer.reporting as reporting_module
 from local_ai_control_center_installer.reporting import (
     build_run_paths,
     persist_install_root_reports,
@@ -290,3 +293,29 @@ def test_persist_install_root_reports_copies_opencode_log(tmp_path: Path):
     assert f"OpenCode log path: {persisted_opencode_log}" in install_log_contents
     assert report_payload["opencode_log_path"] == str(persisted_opencode_log)
     assert session_payload["opencode_log_path"] == str(persisted_opencode_log)
+
+
+def test_persist_install_root_reports_restores_temp_opencode_log_path_on_promotion_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    install_root = tmp_path / "install-root"
+    temp_opencode_log = tmp_path / "temp-run" / "opencode-verification.log"
+    temp_opencode_log.parent.mkdir(parents=True, exist_ok=True)
+    temp_opencode_log.write_text("OpenCode verification output\n", encoding="utf-8")
+
+    session = InstallerSession(
+        install_root=str(install_root),
+        opencode_log_path=str(temp_opencode_log),
+    )
+
+    def fail_promotion(*args, **kwargs):
+        raise OSError("simulated promotion failure")
+
+    monkeypatch.setattr(reporting_module, "_promote_staged_artifacts", fail_promotion)
+
+    with pytest.raises(OSError, match="simulated promotion failure"):
+        persist_install_root_reports(session)
+
+    assert session.opencode_log_path == str(temp_opencode_log)
+    assert not (install_root / "logs" / "opencode-verification.log").exists()
