@@ -94,7 +94,8 @@ If the manifest is missing, invalid, or does not contain the required Windows ru
 - stop the runtime phase
 - set `runtime_payload_status = failed`
 - set `runtime_artifact_status = failed` only when the runtime artifact definition itself is unavailable or invalid
-- otherwise set not-yet-attempted downstream runtime fields to `skipped`
+- set `starter_model_status = failed` when the requested starter model entry is unavailable or invalid
+- set downstream runtime fields that were not attempted to `skipped`
 - report `failing_step = runtime-manifest`
 
 ### 3. Runtime artifact verification or download
