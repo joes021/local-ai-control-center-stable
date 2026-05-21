@@ -531,12 +531,21 @@ assert updated.opencode_process_status == "ready"
 assert updated.opencode_connection_status == "ready"
 ```
 
+- cleanup failure must not overwrite an older primary failure:
+
+```python
+assert updated.failing_step == "opencode-live-route-proof"
+assert "failed to stop" in updated.error_message
+```
+
 - [ ] **Step 5: Add a relay-focused integration-style unit test with a real loopback server**
 
 Keep this one narrow and standard-library only. Start the real relay helper on `127.0.0.1`, send it a synthetic `/v1/chat/completions` payload containing the marker, and back it with a fake upstream HTTP responder so the test proves:
 
 - marker extraction looks under `messages`
 - only `/v1/chat/completions` is accepted
+- non-`POST` requests are rejected
+- non-JSON request bodies are rejected
 - invalid JSON or missing assistant content sets `upstream_success = False`
 
 Run: `python -m pytest tests/test_opencode_verification.py -v`
