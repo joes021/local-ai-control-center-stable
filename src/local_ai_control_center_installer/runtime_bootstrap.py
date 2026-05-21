@@ -56,9 +56,6 @@ def apply_runtime_payload(
     verify_model_file=verify_sha256,
     write_active_model_config=None,
 ) -> InstallerSession:
-    session.failing_step = None
-    session.last_successful_step = None
-
     if session.bootstrap_status != "ready":
         session.runtime_payload_status = "skipped"
         session.runtime_artifact_status = "skipped"
@@ -66,9 +63,20 @@ def apply_runtime_payload(
         session.active_model_config_status = "skipped"
         return session
 
+    session.failing_step = None
+    session.last_successful_step = None
+
     install_root = Path(session.install_root).expanduser().resolve()
     session.install_root = str(install_root)
-    manifest = load_manifest()
+    try:
+        manifest = load_manifest()
+    except ValueError:
+        session.runtime_payload_status = "failed"
+        session.runtime_artifact_status = "failed"
+        session.starter_model_status = "failed"
+        session.active_model_config_status = "skipped"
+        session.failing_step = "runtime-manifest"
+        return session
     runtime_artifact = manifest["runtime_artifact"]
     try:
         starter_model = resolve_requested_starter_model(manifest, session.starter_model)
