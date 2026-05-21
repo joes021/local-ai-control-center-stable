@@ -53,7 +53,7 @@ def extract_archive(
     archive_path: Path,
     destination_root: Path,
     *,
-    archive_type: str,
+    archive_type: str = "zip",
 ) -> Path:
     if archive_type != "zip":
         raise ValueError(f"Unsupported archive type: {archive_type}")
@@ -67,6 +67,7 @@ def extract_archive(
 def promote_tree(staging_root: Path, final_root: Path) -> None:
     promotion_records: list[dict[str, Path | bool]] = []
     created_directories: list[Path] = []
+    created_directory_paths: set[Path] = set()
     staged_files = sorted(path for path in staging_root.rglob("*") if path.is_file())
 
     try:
@@ -76,8 +77,16 @@ def promote_tree(staging_root: Path, final_root: Path) -> None:
             parent_directory = final_path.parent
 
             if not parent_directory.exists():
+                missing_directories: list[Path] = []
+                current_directory = parent_directory
+                while not current_directory.exists():
+                    missing_directories.append(current_directory)
+                    current_directory = current_directory.parent
                 parent_directory.mkdir(parents=True, exist_ok=True)
-                created_directories.append(parent_directory)
+                for directory in reversed(missing_directories):
+                    if directory not in created_directory_paths:
+                        created_directory_paths.add(directory)
+                        created_directories.append(directory)
 
             backup_path = staging_root / ".backups" / relative_path
             record: dict[str, Path | bool] = {
