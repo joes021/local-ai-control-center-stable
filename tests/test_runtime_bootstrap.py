@@ -175,9 +175,12 @@ def test_apply_runtime_payload_downloads_extracts_and_promotes_runtime_payload_w
     tmp_path: Path,
 ):
     install_root = tmp_path / "install-root"
+    temp_root = tmp_path / "temp-runs"
+    verify_archive_calls: list[tuple[Path, str]] = []
+    verify_model_calls: list[tuple[Path, str]] = []
     session = InstallerSession(
         bootstrap_status="ready",
-        install_root=str(install_root),
+        install_root=str(install_root / ".." / install_root.name),
         starter_model="recommended-6gb",
     )
     manifest = {
@@ -219,18 +222,41 @@ def test_apply_runtime_payload_downloads_extracts_and_promotes_runtime_payload_w
         destination.write_text("model", encoding="utf-8")
         return destination
 
+    def fake_verify_archive_sha256(path: Path, expected: str) -> bool:
+        verify_archive_calls.append((path, expected))
+        return True
+
+    def fake_verify_model_file(path: Path, expected: str) -> bool:
+        verify_model_calls.append((path, expected))
+        return True
+
     updated = apply_runtime_payload(
         session,
-        temp_root=tmp_path / "temp-runs",
+        temp_root=temp_root,
         load_manifest=lambda: manifest,
         download_runtime_archive=fake_download_runtime_archive,
         download_model_file=fake_download_model_file,
         extract_archive=fake_extract_archive,
-        verify_archive_sha256=lambda path, expected: True,
-        verify_model_file=lambda path, expected: True,
+        verify_archive_sha256=fake_verify_archive_sha256,
+        verify_model_file=fake_verify_model_file,
     )
 
     assert updated.runtime_payload_status == "ready"
+    assert updated.runtime_artifact_status == "ready"
+    assert updated.starter_model_status == "ready"
+    assert updated.active_model_config_status == "ready"
+    assert updated.install_root == str(install_root.resolve())
     assert Path(updated.runtime_artifact_path, "llama-server.exe").exists()
     assert Path(updated.runtime_metadata_path).exists()
     assert Path(updated.starter_model_path).exists()
+    assert Path(updated.active_model_config_path).exists()
+    assert Path(install_root, "config", "active-model.json").exists()
+    assert len(verify_archive_calls) == 1
+    assert verify_archive_calls[0][0].parent.name == "downloads"
+    assert verify_archive_calls[0][0].name == "runtime-artifact.archive"
+    assert verify_archive_calls[0][0].is_relative_to(temp_root)
+    assert verify_archive_calls[0][1] == "runtime-sha"
+    assert len(verify_model_calls) == 1
+    assert verify_model_calls[0][0].name == "recommended-6gb.gguf"
+    assert verify_model_calls[0][0].is_relative_to(temp_root)
+    assert verify_model_calls[0][1] == "model-sha"

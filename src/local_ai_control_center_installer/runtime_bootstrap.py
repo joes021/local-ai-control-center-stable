@@ -63,6 +63,7 @@ def apply_runtime_payload(
         return session
 
     install_root = Path(session.install_root).expanduser().resolve()
+    session.install_root = str(install_root)
     manifest = load_manifest()
     runtime_artifact = manifest["runtime_artifact"]
     starter_model = resolve_requested_starter_model(manifest, session.starter_model)
