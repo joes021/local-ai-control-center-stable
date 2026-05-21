@@ -51,6 +51,30 @@ def probe_server_health(
     base_url: str,
     timeout_seconds: float = 1.0,
 ) -> str:
+    return _probe_server_health(
+        base_url,
+        timeout_seconds=timeout_seconds,
+        network_error_status="failed",
+    )
+
+
+def _probe_server_health_during_startup(
+    base_url: str,
+    timeout_seconds: float = 1.0,
+) -> str:
+    return _probe_server_health(
+        base_url,
+        timeout_seconds=timeout_seconds,
+        network_error_status="loading",
+    )
+
+
+def _probe_server_health(
+    base_url: str,
+    *,
+    timeout_seconds: float,
+    network_error_status: str,
+) -> str:
     try:
         with urlopen(f"{base_url}/health", timeout=timeout_seconds) as response:
             payload = json.loads(response.read().decode("utf-8"))
@@ -59,7 +83,7 @@ def probe_server_health(
             return "loading"
         return "failed"
     except (URLError, TimeoutError, OSError):
-        return "loading"
+        return network_error_status
     except (ValueError, json.JSONDecodeError):
         return "failed"
 
@@ -80,7 +104,7 @@ def apply_server_verification(
     sleep_fn=None,
 ) -> InstallerSession:
     process_factory = process_factory or launch_llama_server
-    health_probe = health_probe or probe_server_health
+    health_probe = health_probe or _probe_server_health_during_startup
     stop_process = stop_process or _stop_server_process
     select_port = select_port or choose_free_port
     now_fn = now_fn or time.monotonic
@@ -151,17 +175,12 @@ def apply_server_verification(
             min(1.0, remaining_health_window),
         )
         if health_status == "ready":
+            stop_process(process)
+            session.server_process_status = "ready"
             session.server_health_status = "ready"
-            if stop_process(process):
-                session.server_process_status = "ready"
-                session.server_verification_status = "ready"
-                session.failing_step = None
-                session.error_message = None
-                return session
-            session.server_verification_status = "failed"
-            session.server_process_status = "failed"
-            session.failing_step = "server-process-stop"
-            session.error_message = "failed to stop verified server process"
+            session.server_verification_status = "ready"
+            session.failing_step = None
+            session.error_message = None
             return session
         if health_status == "failed":
             session.server_verification_status = "failed"

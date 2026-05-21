@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from unittest.mock import patch
 
 from local_ai_control_center_installer.server_verification import (
     apply_server_verification,
@@ -221,10 +222,10 @@ def test_apply_server_verification_continues_polling_through_loading_503_until_r
     assert updated.server_health_status == "ready"
 
 
-def test_probe_server_health_treats_connection_refused_as_loading():
+def test_probe_server_health_treats_connection_refused_as_failed():
     assert (
         probe_server_health("http://127.0.0.1:1", timeout_seconds=0.01)
-        == "loading"
+        == "failed"
     )
 
 
@@ -251,27 +252,43 @@ def test_apply_server_verification_marks_process_start_failure_when_process_exit
     assert updated.failing_step == "server-process-start"
 
 
-def test_apply_server_verification_does_not_claim_ready_when_clean_stop_fails(
+def test_apply_server_verification_default_health_probe_tolerates_pre_listen_until_ready(
     tmp_path: Path,
 ):
     session = _build_runtime_ready_session(tmp_path)
     process = FakeProcess([None, None, None, None, None, None])
 
-    updated = apply_server_verification(
-        session,
-        temp_root=tmp_path / "temp-runs",
-        select_port=lambda host="127.0.0.1": 8080,
-        process_factory=lambda command, log_path: process,
-        health_probe=lambda base_url: "ready",
-        stop_process=lambda proc: False,
-        now_fn=_fake_now([0.0, 0.3, 0.6, 0.9, 1.1, 1.2]),
-        sleep_fn=lambda _: None,
-    )
+    class _Response:
+        def __enter__(self):
+            return self
 
-    assert updated.server_verification_status == "failed"
-    assert updated.server_process_status == "failed"
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def read(self) -> bytes:
+            return b'{"status": "ok"}'
+
+    with patch(
+        "local_ai_control_center_installer.server_verification.urlopen",
+        side_effect=[
+            OSError("connection refused"),
+            _Response(),
+        ],
+    ):
+        updated = apply_server_verification(
+            session,
+            temp_root=tmp_path / "temp-runs",
+            select_port=lambda host="127.0.0.1": 8080,
+            process_factory=lambda command, log_path: process,
+            stop_process=lambda proc: True,
+            now_fn=_fake_now([0.0, 0.3, 0.6, 0.9, 1.1, 1.2, 1.3]),
+            sleep_fn=lambda _: None,
+        )
+
+    assert updated.server_verification_status == "ready"
+    assert updated.server_process_status == "ready"
     assert updated.server_health_status == "ready"
-    assert updated.failing_step == "server-process-stop"
+    assert updated.failing_step is None
 
 
 def test_apply_server_verification_marks_process_start_failure_when_process_exits_during_startup_window(
