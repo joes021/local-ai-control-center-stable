@@ -208,6 +208,12 @@ Status truth for cleanup:
 - if graceful stop fails and forced kill is required, the process may still be cleaned up locally, but the verification result must still be reported as failed with `failing_step = server-process-stop`
 - if even forced kill fails, report the same failure step and preserve the server log path for diagnosis
 
+Failure-step priority rule:
+
+- if all prior verification gates passed and cleanup is the first failure, `failing_step` becomes `server-process-stop`
+- if an earlier verification step already failed, that earlier `failing_step` remains authoritative
+- cleanup failure after an earlier verification failure should still be recorded in log output and `error_message`, but should not overwrite the earlier failure step
+
 If verification itself succeeded but the process could not be stopped cleanly:
 
 - `server_verification_status = failed`
@@ -320,6 +326,11 @@ If verification succeeded but cleanup stop fails:
 - `server_verification_status = failed`
 - `failing_step = server-process-stop`
 
+If verification already failed earlier and cleanup also fails:
+
+- keep the earlier verification `failing_step`
+- preserve cleanup failure details in diagnostics without changing the primary failure step
+
 ## Module Layout
 
 Keep the extension focused and aligned with the existing installer architecture.
@@ -395,6 +406,7 @@ Use TDD and keep the verification logic decomposed into small, injectable units.
 
 - fail when subprocess start raises
 - fail when process exits before health becomes ready
+- continue polling when a live process returns `HTTP 503` model-loading responses
 - fail when health times out
 - fail when chosen port cannot be used
 
@@ -406,6 +418,7 @@ Use TDD and keep the verification logic decomposed into small, injectable units.
 #### Cleanup truth
 
 - if stop fails after successful health, final status becomes failed with `server-process-stop`
+- if health failed first and cleanup also fails, the earlier health failure remains the primary `failing_step`
 
 #### Reporting and orchestration
 
