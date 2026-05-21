@@ -266,6 +266,21 @@ Use that helper in:
 
 So reports remain truthful even if a stale in-memory path is present from an earlier code path or from a manually loaded session snapshot.
 
+Also make the truth canonical before any staged writes:
+
+```python
+normalized_log_path = _normalize_optional_existing_file(session.opencode_log_path)
+session.opencode_log_path = normalized_log_path
+```
+
+Apply that canonicalization before:
+
+- `write_human_log()`
+- `write_json_report()`
+- `write_session_snapshot()`
+
+so `installer-session.json`, the in-memory session object, and the persisted report all agree on `None` for nonexistent logs.
+
 - [ ] **Step 4: Add one more regression for early process-launch failure**
 
 Add a focused test that `process_factory` raising before output collection leaves no dead temp log path behind:
@@ -432,6 +447,13 @@ Required runtime behavior:
 
 - build `OPENCODE_CONFIG_CONTENT` so the verifier run points at the relay URL, while the persisted config file on disk stays pointed at `session.verified_server_url`
 - keep `OPENCODE_DISABLE_MODELS_FETCH = "true"` authoritative even if manifest `extra_env` attempts to override it
+- do not treat a successful `Popen` alone as runtime readiness; the temporary runtime must become healthy before the smoke starts
+- reuse the startup discipline from `server_verification.py`:
+  - choose a loopback port
+  - launch `llama-server.exe --host 127.0.0.1 --port <port> --model <model_path>`
+  - poll `/health` on the temporary runtime with a bounded timeout window
+  - map `spawn succeeded but runtime never became healthy` to `opencode-runtime-server-start`
+  - only start the relay and `OpenCode` smoke after runtime health is confirmed
 - capture combined stdout/stderr into the temp `opencode-verification.log`
 - succeed only when:
   - the `OpenCode` process exits `0`
@@ -450,6 +472,15 @@ Add targeted tests for:
 assert updated.failing_step == "opencode-runtime-server-start"
 assert updated.opencode_process_status == "skipped"
 assert updated.opencode_connection_status == "skipped"
+```
+
+- temporary runtime spawned but never passed health readiness:
+
+```python
+assert updated.failing_step == "opencode-runtime-server-start"
+assert updated.opencode_process_status == "skipped"
+assert updated.opencode_connection_status == "skipped"
+assert "health" in updated.error_message
 ```
 
 - relay start failure:
