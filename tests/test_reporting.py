@@ -295,6 +295,25 @@ def test_persist_install_root_reports_copies_opencode_log(tmp_path: Path):
     assert session_payload["opencode_log_path"] == str(persisted_opencode_log)
 
 
+def test_persist_install_root_reports_copies_opencode_log_bytes_verbatim(tmp_path: Path):
+    install_root = tmp_path / "install-root"
+    temp_opencode_log = tmp_path / "temp-run" / "opencode-verification.log"
+    raw_bytes = b"\xff\xfeOpenCode\x00log\r\n\x80\x81"
+    temp_opencode_log.parent.mkdir(parents=True, exist_ok=True)
+    temp_opencode_log.write_bytes(raw_bytes)
+
+    session = InstallerSession(
+        install_root=str(install_root),
+        opencode_log_path=str(temp_opencode_log),
+    )
+
+    persist_install_root_reports(session)
+
+    persisted_opencode_log = install_root / "logs" / "opencode-verification.log"
+    assert persisted_opencode_log.read_bytes() == raw_bytes
+    assert session.opencode_log_path == str(persisted_opencode_log)
+
+
 def test_persist_install_root_reports_restores_temp_opencode_log_path_on_promotion_failure(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -319,3 +338,55 @@ def test_persist_install_root_reports_restores_temp_opencode_log_path_on_promoti
 
     assert session.opencode_log_path == str(temp_opencode_log)
     assert not (install_root / "logs" / "opencode-verification.log").exists()
+
+
+def test_persist_install_root_reports_rolls_back_partial_promotion_with_opencode_log(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    install_root = tmp_path / "install-root"
+    log_path = install_root / "logs" / "install.log"
+    report_path = install_root / "logs" / "install-report.json"
+    session_path = install_root / "config" / "installer-session.json"
+    opencode_log_path = install_root / "logs" / "opencode-verification.log"
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    session_path.parent.mkdir(parents=True, exist_ok=True)
+    log_path.write_text("stale log\n", encoding="utf-8")
+    report_path.write_text("{\"stale\": \"report\"}\n", encoding="utf-8")
+    session_path.write_text("{\"stale\": \"session\"}\n", encoding="utf-8")
+    opencode_log_path.write_bytes(b"old-opencode-log\n")
+
+    temp_opencode_log = tmp_path / "temp-run" / "opencode-verification.log"
+    temp_opencode_log.parent.mkdir(parents=True, exist_ok=True)
+    temp_opencode_log.write_bytes(b"new-opencode-log\n")
+
+    session = InstallerSession(
+        install_root=str(install_root),
+        bootstrap_status="ready",
+        opencode_log_path=str(temp_opencode_log),
+    )
+
+    original_replace = Path.replace
+    failure_injected = False
+
+    def fail_after_partial_promotions(self: Path, target: Path):
+        nonlocal failure_injected
+        if (
+            not failure_injected
+            and self.name == "opencode-verification.log"
+            and target == opencode_log_path
+        ):
+            failure_injected = True
+            raise OSError("simulated partial promotion failure")
+        return original_replace(self, target)
+
+    monkeypatch.setattr(Path, "replace", fail_after_partial_promotions)
+
+    with pytest.raises(OSError, match="simulated partial promotion failure"):
+        persist_install_root_reports(session)
+
+    assert session.opencode_log_path == str(temp_opencode_log)
+    assert log_path.read_text(encoding="utf-8") == "stale log\n"
+    assert report_path.read_text(encoding="utf-8") == "{\"stale\": \"report\"}\n"
+    assert session_path.read_text(encoding="utf-8") == "{\"stale\": \"session\"}\n"
+    assert opencode_log_path.read_bytes() == b"old-opencode-log\n"
