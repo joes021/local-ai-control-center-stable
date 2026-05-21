@@ -38,6 +38,17 @@ def test_main_returns_non_zero_when_prompt_is_cancelled(
     assert captured.err == "Installer questionnaire cancelled.\n"
 
 
+def test_main_returns_non_zero_when_bootstrap_status_is_failed(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    def fake_run_installer():
+        return {"bootstrap_status": "failed"}
+
+    monkeypatch.setattr(main_module, "run_installer", fake_run_installer)
+
+    assert main_module.main() == 1
+
+
 def test_run_installer_confirms_summary_before_dependency_scan():
     events: list[str] = []
 

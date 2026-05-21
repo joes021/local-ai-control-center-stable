@@ -41,11 +41,13 @@ def run_installer(
 
 def main() -> int:
     try:
-        run_installer()
+        result = run_installer()
     except PromptCancelledError as error:
         print(str(error), file=sys.stderr)
         return 1
-    return 0
+    if result.get("bootstrap_status") == "ready":
+        return 0
+    return 1
 
 
 if __name__ == "__main__":
