@@ -1,4 +1,5 @@
 from pathlib import Path
+import zipfile
 
 import pytest
 
@@ -56,6 +57,23 @@ def test_extract_archive_raises_for_unsupported_archive_type(tmp_path: Path):
         extract_archive(archive_path, tmp_path / "output", archive_type="tar")
 
 
+def test_extract_archive_defaults_to_zip(tmp_path: Path):
+    archive_path = tmp_path / "runtime.zip"
+    destination_root = tmp_path / "output"
+    source_file = tmp_path / "llama-server.exe"
+    source_file.write_text("ready", encoding="utf-8")
+
+    with zipfile.ZipFile(archive_path, "w") as archive:
+        archive.write(source_file, arcname="runtime/llama-server.exe")
+
+    extracted_root = extract_archive(archive_path, destination_root)
+
+    assert extracted_root == destination_root
+    assert (destination_root / "runtime" / "llama-server.exe").read_text(
+        encoding="utf-8"
+    ) == "ready"
+
+
 def test_promote_tree_restores_preexisting_file_when_second_replace_fails(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -82,3 +100,27 @@ def test_promote_tree_restores_preexisting_file_when_second_replace_fails(
         promote_tree(staging_root, final_root)
 
     assert (final_root / "logs" / "install.log").read_text(encoding="utf-8") == "old"
+
+
+def test_promote_tree_removes_nested_created_directories_when_first_replace_fails(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    staging_root = tmp_path / "staging"
+    final_root = tmp_path / "final"
+    (staging_root / "runtime" / "llama.cpp").mkdir(parents=True)
+    (staging_root / "runtime" / "llama.cpp" / "llama-server.exe").write_text(
+        "new",
+        encoding="utf-8",
+    )
+
+    def fail_on_first_promote(self: Path, target: Path) -> Path:
+        raise OSError("replace failed")
+
+    monkeypatch.setattr(Path, "replace", fail_on_first_promote)
+
+    with pytest.raises(OSError):
+        promote_tree(staging_root, final_root)
+
+    assert not (final_root / "runtime").exists()
+    assert not final_root.exists()
