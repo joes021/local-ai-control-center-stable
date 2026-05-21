@@ -6,6 +6,7 @@ import pytest
 from local_ai_control_center_installer.downloads import (
     extract_archive,
     promote_tree,
+    verify_required_file_checksums,
     verify_required_files,
     verify_runtime_metadata,
     verify_sha256,
@@ -44,6 +45,34 @@ def test_verify_required_files_returns_false_when_expected_path_is_directory(
     assert verify_required_files(install_root, ["llama-server.exe"]) is False
 
 
+def test_verify_required_file_checksums_accepts_matching_manifest_pinned_hashes(
+    tmp_path: Path,
+):
+    install_root = tmp_path / "llama.cpp"
+    install_root.mkdir()
+    (install_root / "llama-server.exe").write_text("ok", encoding="utf-8")
+
+    assert verify_required_file_checksums(
+        install_root,
+        {
+            "llama-server.exe": "2689367b205c16ce32ed4200942b8b8b1e262dfc70d9bc9fbc77c49699a4f1df"
+        },
+    ) is True
+
+
+def test_verify_required_file_checksums_returns_false_for_hash_mismatch(tmp_path: Path):
+    install_root = tmp_path / "llama.cpp"
+    install_root.mkdir()
+    (install_root / "llama-server.exe").write_text("tampered", encoding="utf-8")
+
+    assert verify_required_file_checksums(
+        install_root,
+        {
+            "llama-server.exe": "2689367b205c16ce32ed4200942b8b8b1e262dfc70d9bc9fbc77c49699a4f1df"
+        },
+    ) is False
+
+
 def test_runtime_metadata_marker_round_trip(tmp_path: Path):
     metadata_path = tmp_path / "runtime-artifact.json"
     runtime_root = tmp_path / "runtime"
@@ -53,16 +82,12 @@ def test_runtime_metadata_marker_round_trip(tmp_path: Path):
         metadata_path,
         artifact_id="windows-llama-cpp-runtime",
         source_sha256="abc123",
-        root=runtime_root,
-        required_files=["llama-server.exe"],
     )
 
     assert verify_runtime_metadata(
         metadata_path,
         artifact_id="windows-llama-cpp-runtime",
         source_sha256="abc123",
-        root=runtime_root,
-        required_files=["llama-server.exe"],
     ) is True
 
 
@@ -77,8 +102,6 @@ def test_verify_runtime_metadata_returns_false_for_corrupt_json(tmp_path: Path):
         metadata_path,
         artifact_id="windows-llama-cpp-runtime",
         source_sha256="abc123",
-        root=runtime_root,
-        required_files=["llama-server.exe"],
     ) is False
 
 
@@ -95,8 +118,6 @@ def test_verify_runtime_metadata_returns_false_for_undecodable_utf8_bytes(
         metadata_path,
         artifact_id="windows-llama-cpp-runtime",
         source_sha256="abc123",
-        root=runtime_root,
-        required_files=["llama-server.exe"],
     ) is False
 
 

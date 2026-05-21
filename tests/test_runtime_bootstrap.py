@@ -15,6 +15,14 @@ from local_ai_control_center_installer.runtime_bootstrap import (
 from local_ai_control_center_installer.session import InstallerSession
 
 
+PINNED_OK_RUNTIME_SHA256 = (
+    "2689367b205c16ce32ed4200942b8b8b1e262dfc70d9bc9fbc77c49699a4f1df"
+)
+PINNED_TAMPERED_RUNTIME_SHA256 = (
+    "d121be3103007b41edf96f8262925f8c7d61894afe9a041843b631f69445bc57"
+)
+
+
 def test_load_runtime_manifest_reads_pinned_runtime_contract(tmp_path: Path):
     manifest_path = tmp_path / "windows-stable-runtime.json"
     manifest_path.write_text(
@@ -26,6 +34,9 @@ def test_load_runtime_manifest_reads_pinned_runtime_contract(tmp_path: Path):
                     "sha256": "abc123",
                     "archive_type": "zip",
                     "required_files": ["llama-server.exe"],
+                    "required_file_sha256": {
+                        "llama-server.exe": PINNED_OK_RUNTIME_SHA256
+                    },
                     "install_subdir": "runtime/llama.cpp",
                 },
                 "starter_models": {
@@ -59,6 +70,7 @@ def test_resolve_requested_starter_model_fails_for_missing_manifest_entry():
             "sha256": "abc123",
             "archive_type": "zip",
             "required_files": ["llama-server.exe"],
+            "required_file_sha256": {"llama-server.exe": PINNED_OK_RUNTIME_SHA256},
             "install_subdir": "runtime/llama.cpp",
         },
         "starter_models": {},
@@ -132,9 +144,6 @@ def test_apply_runtime_payload_marks_ready_when_runtime_and_model_are_verified_i
             {
                 "artifact_id": "windows-llama-cpp-runtime",
                 "source_sha256": "abc123",
-                "required_file_sha256": {
-                    "llama-server.exe": "2689367b205c16ce32ed4200942b8b8b1e262dfc70d9bc9fbc77c49699a4f1df"
-                },
             }
         ),
         encoding="utf-8",
@@ -151,6 +160,7 @@ def test_apply_runtime_payload_marks_ready_when_runtime_and_model_are_verified_i
             "sha256": "abc123",
             "archive_type": "zip",
             "required_files": ["llama-server.exe"],
+            "required_file_sha256": {"llama-server.exe": PINNED_OK_RUNTIME_SHA256},
             "install_subdir": "runtime/llama.cpp",
         },
         "starter_models": {
@@ -197,6 +207,7 @@ def test_apply_runtime_payload_downloads_extracts_and_promotes_runtime_payload_w
             "sha256": "runtime-sha",
             "archive_type": "zip",
             "required_files": ["llama-server.exe"],
+            "required_file_sha256": {"llama-server.exe": PINNED_OK_RUNTIME_SHA256},
             "install_subdir": "runtime/llama.cpp",
         },
         "starter_models": {
@@ -284,7 +295,7 @@ def test_apply_runtime_payload_redownloads_when_installed_required_runtime_file_
                 "artifact_id": "windows-llama-cpp-runtime",
                 "source_sha256": "abc123",
                 "required_file_sha256": {
-                    "llama-server.exe": "2689367b205c16ce32ed4200942b8b8b1e262dfc70d9bc9fbc77c49699a4f1df"
+                    "llama-server.exe": PINNED_TAMPERED_RUNTIME_SHA256
                 },
             }
         ),
@@ -303,6 +314,7 @@ def test_apply_runtime_payload_redownloads_when_installed_required_runtime_file_
             "sha256": "abc123",
             "archive_type": "zip",
             "required_files": ["llama-server.exe"],
+            "required_file_sha256": {"llama-server.exe": PINNED_OK_RUNTIME_SHA256},
             "install_subdir": "runtime/llama.cpp",
         },
         "starter_models": {
@@ -330,7 +342,7 @@ def test_apply_runtime_payload_redownloads_when_installed_required_runtime_file_
         archive_type: str,
     ) -> Path:
         destination_root.mkdir(parents=True, exist_ok=True)
-        (destination_root / "llama-server.exe").write_text("restaged", encoding="utf-8")
+        (destination_root / "llama-server.exe").write_text("ok", encoding="utf-8")
         return destination_root
 
     updated = apply_runtime_payload(
@@ -347,7 +359,7 @@ def test_apply_runtime_payload_redownloads_when_installed_required_runtime_file_
     assert updated.runtime_artifact_status == "ready"
     assert len(download_calls) == 1
     assert download_calls[0][0] == "https://example.invalid/runtime.zip"
-    assert (runtime_root / "llama-server.exe").read_text(encoding="utf-8") == "restaged"
+    assert (runtime_root / "llama-server.exe").read_text(encoding="utf-8") == "ok"
 
 
 def test_apply_runtime_payload_fails_when_requested_model_manifest_entry_is_missing(
@@ -365,6 +377,7 @@ def test_apply_runtime_payload_fails_when_requested_model_manifest_entry_is_miss
             "sha256": "abc123",
             "archive_type": "zip",
             "required_files": ["llama-server.exe"],
+            "required_file_sha256": {"llama-server.exe": PINNED_OK_RUNTIME_SHA256},
             "install_subdir": "runtime/llama.cpp",
         },
         "starter_models": {},
@@ -398,6 +411,7 @@ def test_apply_runtime_payload_maps_invalid_requested_model_manifest_entry_to_ru
             "sha256": "abc123",
             "archive_type": "zip",
             "required_files": ["llama-server.exe"],
+            "required_file_sha256": {"llama-server.exe": PINNED_OK_RUNTIME_SHA256},
             "install_subdir": "runtime/llama.cpp",
         },
         "starter_models": {
@@ -406,6 +420,48 @@ def test_apply_runtime_payload_maps_invalid_requested_model_manifest_entry_to_ru
                 "url": "https://example.invalid/model.gguf",
                 "sha256": "def456",
                 "target_filename": "recommended-6gb.gguf",
+            }
+        },
+    }
+
+    updated = apply_runtime_payload(
+        session,
+        temp_root=tmp_path / "temp-runs",
+        load_manifest=lambda: manifest,
+    )
+
+    assert updated.runtime_payload_status == "failed"
+    assert updated.runtime_artifact_status == "skipped"
+    assert updated.starter_model_status == "failed"
+    assert updated.active_model_config_status == "skipped"
+    assert updated.failing_step == "runtime-manifest"
+
+
+def test_apply_runtime_payload_maps_wrong_type_requested_model_manifest_entry_to_runtime_manifest_failure(
+    tmp_path: Path,
+):
+    session = InstallerSession(
+        bootstrap_status="ready",
+        install_root=str(tmp_path / "install-root"),
+        starter_model="recommended-6gb",
+    )
+    manifest = {
+        "runtime_artifact": {
+            "id": "windows-llama-cpp-runtime",
+            "url": "https://example.invalid/runtime.zip",
+            "sha256": "abc123",
+            "archive_type": "zip",
+            "required_files": ["llama-server.exe"],
+            "required_file_sha256": {"llama-server.exe": PINNED_OK_RUNTIME_SHA256},
+            "install_subdir": "runtime/llama.cpp",
+        },
+        "starter_models": {
+            "recommended-6gb": {
+                "id": "recommended-6gb",
+                "url": "https://example.invalid/model.gguf",
+                "sha256": "def456",
+                "target_filename": "recommended-6gb.gguf",
+                "install_subdir": None,
             }
         },
     }
@@ -460,6 +516,7 @@ def test_apply_runtime_payload_marks_runtime_artifact_failure_and_skips_later_st
             "sha256": "abc123",
             "archive_type": "zip",
             "required_files": ["llama-server.exe"],
+            "required_file_sha256": {"llama-server.exe": PINNED_OK_RUNTIME_SHA256},
             "install_subdir": "runtime/llama.cpp",
         },
         "starter_models": {
@@ -509,6 +566,7 @@ def test_apply_runtime_payload_maps_corrupt_runtime_metadata_to_runtime_artifact
             "sha256": "abc123",
             "archive_type": "zip",
             "required_files": ["llama-server.exe"],
+            "required_file_sha256": {"llama-server.exe": PINNED_OK_RUNTIME_SHA256},
             "install_subdir": "runtime/llama.cpp",
         },
         "starter_models": {
@@ -558,6 +616,7 @@ def test_apply_runtime_payload_maps_undecodable_runtime_metadata_to_runtime_arti
             "sha256": "abc123",
             "archive_type": "zip",
             "required_files": ["llama-server.exe"],
+            "required_file_sha256": {"llama-server.exe": PINNED_OK_RUNTIME_SHA256},
             "install_subdir": "runtime/llama.cpp",
         },
         "starter_models": {
@@ -599,9 +658,6 @@ def test_apply_runtime_payload_marks_starter_model_failure_after_runtime_is_read
             {
                 "artifact_id": "windows-llama-cpp-runtime",
                 "source_sha256": "abc123",
-                "required_file_sha256": {
-                    "llama-server.exe": "2689367b205c16ce32ed4200942b8b8b1e262dfc70d9bc9fbc77c49699a4f1df"
-                },
             }
         ),
         encoding="utf-8",
@@ -618,6 +674,7 @@ def test_apply_runtime_payload_marks_starter_model_failure_after_runtime_is_read
             "sha256": "abc123",
             "archive_type": "zip",
             "required_files": ["llama-server.exe"],
+            "required_file_sha256": {"llama-server.exe": PINNED_OK_RUNTIME_SHA256},
             "install_subdir": "runtime/llama.cpp",
         },
         "starter_models": {
@@ -663,9 +720,6 @@ def test_apply_runtime_payload_marks_active_model_config_failure_after_model_is_
             {
                 "artifact_id": "windows-llama-cpp-runtime",
                 "source_sha256": "abc123",
-                "required_file_sha256": {
-                    "llama-server.exe": "2689367b205c16ce32ed4200942b8b8b1e262dfc70d9bc9fbc77c49699a4f1df"
-                },
             }
         ),
         encoding="utf-8",
@@ -683,6 +737,7 @@ def test_apply_runtime_payload_marks_active_model_config_failure_after_model_is_
             "sha256": "abc123",
             "archive_type": "zip",
             "required_files": ["llama-server.exe"],
+            "required_file_sha256": {"llama-server.exe": PINNED_OK_RUNTIME_SHA256},
             "install_subdir": "runtime/llama.cpp",
         },
         "starter_models": {

@@ -13,6 +13,20 @@ def verify_required_files(root: Path, required_files: list[str]) -> bool:
     return all((root / relative_path).is_file() for relative_path in required_files)
 
 
+def verify_required_file_checksums(
+    root: Path,
+    required_file_sha256: dict[str, str],
+) -> bool:
+    try:
+        return all(
+            isinstance(expected_sha256, str)
+            and _sha256_digest(root / relative_path) == expected_sha256.lower()
+            for relative_path, expected_sha256 in required_file_sha256.items()
+        )
+    except OSError:
+        return False
+
+
 def write_runtime_metadata(
     metadata_path: Path,
     *,
@@ -25,11 +39,6 @@ def write_runtime_metadata(
         "artifact_id": artifact_id,
         "source_sha256": source_sha256,
     }
-    if root is not None and required_files is not None:
-        payload["required_file_sha256"] = {
-            relative_path: _sha256_digest(root / relative_path)
-            for relative_path in required_files
-        }
 
     metadata_path.parent.mkdir(parents=True, exist_ok=True)
     metadata_path.write_text(
@@ -64,22 +73,7 @@ def verify_runtime_metadata(
     ):
         return False
 
-    if root is None or required_files is None:
-        return True
-
-    required_file_sha256 = payload.get("required_file_sha256")
-    if not isinstance(required_file_sha256, dict):
-        return False
-
-    try:
-        return all(
-            isinstance(required_file_sha256.get(relative_path), str)
-            and _sha256_digest(root / relative_path)
-            == required_file_sha256[relative_path].lower()
-            for relative_path in required_files
-        )
-    except OSError:
-        return False
+    return True
 
 
 def _sha256_digest(path: Path) -> str:
