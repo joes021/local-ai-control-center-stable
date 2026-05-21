@@ -118,9 +118,17 @@ def persist_install_root_reports(session: InstallerSession) -> None:
     staging_root = install_root / f".staging-{uuid4().hex}"
     artifact_paths = _build_artifact_paths(install_root)
     staged_artifact_paths = _build_artifact_paths(staging_root)
-    _stage_optional_opencode_log(session, install_root, staging_root, artifact_paths, staged_artifact_paths)
 
     try:
+        staged_opencode_log_path = _stage_optional_opencode_log(
+            session,
+            install_root,
+            staging_root,
+            artifact_paths,
+            staged_artifact_paths,
+        )
+        if staged_opencode_log_path is not None:
+            session.opencode_log_path = str(staged_opencode_log_path)
         write_human_log(session, staged_artifact_paths[0])
         write_json_report(session, staged_artifact_paths[1])
         write_session_snapshot(session, staged_artifact_paths[2])
@@ -169,20 +177,21 @@ def _stage_optional_opencode_log(
     staging_root: Path,
     artifact_paths: list[Path],
     staged_artifact_paths: list[Path],
-) -> None:
+) -> Path | None:
     opencode_log_path = (session.opencode_log_path or "").strip()
     if not opencode_log_path:
-        return
+        return None
 
     source_path = Path(opencode_log_path)
     if not source_path.exists() or not source_path.is_file():
-        return
+        return None
 
     target_path = install_root / "logs" / "opencode-verification.log"
     staged_target_path = staging_root / target_path.relative_to(install_root)
     _write_text(staged_target_path, source_path.read_text(encoding="utf-8"))
     artifact_paths.append(target_path)
     staged_artifact_paths.append(staged_target_path)
+    return target_path
 
 
 def _promote_staged_artifacts(
