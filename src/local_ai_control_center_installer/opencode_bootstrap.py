@@ -61,6 +61,11 @@ def _validate_opencode_artifact(opencode_artifact: dict) -> None:
         "executable_relative_path",
         context="OpenCode artifact launch entry",
     )
+    executable_relative_path = launch["executable_relative_path"]
+    if executable_relative_path not in required_files:
+        raise ValueError(
+            "OpenCode artifact launch entry executable_relative_path must be listed in required_files."
+        )
 
     verification_args = launch.get("verification_args")
     if verification_args != ["--pure", "models"]:

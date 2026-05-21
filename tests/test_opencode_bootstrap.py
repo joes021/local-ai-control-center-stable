@@ -58,6 +58,27 @@ def test_load_opencode_manifest_reads_pinned_contract(tmp_path: Path):
     }
 
 
+def test_load_opencode_manifest_uses_packaged_pinned_contract():
+    manifest = load_opencode_manifest()
+
+    assert manifest["opencode_artifact"] == {
+        "id": "windows-opencode",
+        "url": "https://github.com/anomalyco/opencode/releases/download/v1.15.7/opencode-windows-x64.zip",
+        "sha256": "8ac96b52692a3daeb84a20295cc7ed43aa3c698078e802926a47aef83748eab2",
+        "archive_type": "zip",
+        "required_files": ["opencode.exe"],
+        "required_file_sha256": {
+            "opencode.exe": "c18594c5368598f242387a2b6f505039a82b628c282101e99cb4452bd7622ed1"
+        },
+        "install_subdir": "tools/opencode",
+        "launch": {
+            "executable_relative_path": "opencode.exe",
+            "verification_args": ["--pure", "models"],
+            "extra_env": {},
+        },
+    }
+
+
 def test_load_opencode_manifest_rejects_checksum_key_missing_from_required_files(
     tmp_path: Path,
 ):
@@ -85,6 +106,36 @@ def test_load_opencode_manifest_rejects_checksum_key_missing_from_required_files
     )
 
     with pytest.raises(ValueError, match="required_file_sha256"):
+        load_opencode_manifest(manifest_path)
+
+
+def test_load_opencode_manifest_rejects_launch_executable_missing_from_required_files(
+    tmp_path: Path,
+):
+    manifest_path = tmp_path / "windows-stable-opencode.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "opencode_artifact": {
+                    "id": "windows-opencode",
+                    "url": "https://example.invalid/opencode.zip",
+                    "sha256": "abc123",
+                    "archive_type": "zip",
+                    "required_files": ["support.dll"],
+                    "required_file_sha256": {},
+                    "install_subdir": "tools/opencode",
+                    "launch": {
+                        "executable_relative_path": "opencode.exe",
+                        "verification_args": ["--pure", "models"],
+                        "extra_env": {},
+                    },
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="executable_relative_path"):
         load_opencode_manifest(manifest_path)
 
 
