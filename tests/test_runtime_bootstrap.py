@@ -132,6 +132,9 @@ def test_apply_runtime_payload_marks_ready_when_runtime_and_model_are_verified_i
             {
                 "artifact_id": "windows-llama-cpp-runtime",
                 "source_sha256": "abc123",
+                "required_file_sha256": {
+                    "llama-server.exe": "2689367b205c16ce32ed4200942b8b8b1e262dfc70d9bc9fbc77c49699a4f1df"
+                },
             }
         ),
         encoding="utf-8",
@@ -266,6 +269,87 @@ def test_apply_runtime_payload_downloads_extracts_and_promotes_runtime_payload_w
     assert verify_model_calls[0][1] == "model-sha"
 
 
+def test_apply_runtime_payload_redownloads_when_installed_required_runtime_file_was_tampered(
+    tmp_path: Path,
+):
+    install_root = tmp_path / "install-root"
+    runtime_root = install_root / "runtime" / "llama.cpp"
+    model_root = install_root / "models" / "recommended-6gb"
+    runtime_root.mkdir(parents=True)
+    model_root.mkdir(parents=True)
+    (runtime_root / "llama-server.exe").write_text("tampered", encoding="utf-8")
+    (runtime_root / "runtime-artifact.json").write_text(
+        json.dumps(
+            {
+                "artifact_id": "windows-llama-cpp-runtime",
+                "source_sha256": "abc123",
+                "required_file_sha256": {
+                    "llama-server.exe": "2689367b205c16ce32ed4200942b8b8b1e262dfc70d9bc9fbc77c49699a4f1df"
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    (model_root / "recommended-6gb.gguf").write_text("ok", encoding="utf-8")
+    session = InstallerSession(
+        bootstrap_status="ready",
+        install_root=str(install_root),
+        starter_model="recommended-6gb",
+    )
+    manifest = {
+        "runtime_artifact": {
+            "id": "windows-llama-cpp-runtime",
+            "url": "https://example.invalid/runtime.zip",
+            "sha256": "abc123",
+            "archive_type": "zip",
+            "required_files": ["llama-server.exe"],
+            "install_subdir": "runtime/llama.cpp",
+        },
+        "starter_models": {
+            "recommended-6gb": {
+                "id": "recommended-6gb",
+                "url": "https://example.invalid/model.gguf",
+                "sha256": "def456",
+                "target_filename": "recommended-6gb.gguf",
+                "install_subdir": "models/recommended-6gb",
+            }
+        },
+    }
+    download_calls: list[tuple[str, Path]] = []
+
+    def fake_download_runtime_archive(url: str, destination: Path) -> Path:
+        download_calls.append((url, destination))
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(b"runtime-archive")
+        return destination
+
+    def fake_extract_archive(
+        archive_path: Path,
+        destination_root: Path,
+        *,
+        archive_type: str,
+    ) -> Path:
+        destination_root.mkdir(parents=True, exist_ok=True)
+        (destination_root / "llama-server.exe").write_text("restaged", encoding="utf-8")
+        return destination_root
+
+    updated = apply_runtime_payload(
+        session,
+        temp_root=tmp_path / "temp-runs",
+        load_manifest=lambda: manifest,
+        download_runtime_archive=fake_download_runtime_archive,
+        extract_archive=fake_extract_archive,
+        verify_archive_sha256=lambda path, expected_sha256: True,
+        verify_model_file=lambda path, expected_sha256: True,
+    )
+
+    assert updated.runtime_payload_status == "ready"
+    assert updated.runtime_artifact_status == "ready"
+    assert len(download_calls) == 1
+    assert download_calls[0][0] == "https://example.invalid/runtime.zip"
+    assert (runtime_root / "llama-server.exe").read_text(encoding="utf-8") == "restaged"
+
+
 def test_apply_runtime_payload_fails_when_requested_model_manifest_entry_is_missing(
     tmp_path: Path,
 ):
@@ -284,6 +368,46 @@ def test_apply_runtime_payload_fails_when_requested_model_manifest_entry_is_miss
             "install_subdir": "runtime/llama.cpp",
         },
         "starter_models": {},
+    }
+
+    updated = apply_runtime_payload(
+        session,
+        temp_root=tmp_path / "temp-runs",
+        load_manifest=lambda: manifest,
+    )
+
+    assert updated.runtime_payload_status == "failed"
+    assert updated.runtime_artifact_status == "skipped"
+    assert updated.starter_model_status == "failed"
+    assert updated.active_model_config_status == "skipped"
+    assert updated.failing_step == "runtime-manifest"
+
+
+def test_apply_runtime_payload_maps_invalid_requested_model_manifest_entry_to_runtime_manifest_failure(
+    tmp_path: Path,
+):
+    session = InstallerSession(
+        bootstrap_status="ready",
+        install_root=str(tmp_path / "install-root"),
+        starter_model="recommended-6gb",
+    )
+    manifest = {
+        "runtime_artifact": {
+            "id": "windows-llama-cpp-runtime",
+            "url": "https://example.invalid/runtime.zip",
+            "sha256": "abc123",
+            "archive_type": "zip",
+            "required_files": ["llama-server.exe"],
+            "install_subdir": "runtime/llama.cpp",
+        },
+        "starter_models": {
+            "recommended-6gb": {
+                "id": "recommended-6gb",
+                "url": "https://example.invalid/model.gguf",
+                "sha256": "def456",
+                "target_filename": "recommended-6gb.gguf",
+            }
+        },
     }
 
     updated = apply_runtime_payload(
@@ -365,6 +489,55 @@ def test_apply_runtime_payload_marks_runtime_artifact_failure_and_skips_later_st
     assert updated.failing_step == "runtime-artifact"
 
 
+def test_apply_runtime_payload_maps_corrupt_runtime_metadata_to_runtime_artifact_failure(
+    tmp_path: Path,
+):
+    install_root = tmp_path / "install-root"
+    runtime_root = install_root / "runtime" / "llama.cpp"
+    runtime_root.mkdir(parents=True)
+    (runtime_root / "llama-server.exe").write_text("ok", encoding="utf-8")
+    (runtime_root / "runtime-artifact.json").write_text("{not-json", encoding="utf-8")
+    session = InstallerSession(
+        bootstrap_status="ready",
+        install_root=str(install_root),
+        starter_model="recommended-6gb",
+    )
+    manifest = {
+        "runtime_artifact": {
+            "id": "windows-llama-cpp-runtime",
+            "url": "https://example.invalid/runtime.zip",
+            "sha256": "abc123",
+            "archive_type": "zip",
+            "required_files": ["llama-server.exe"],
+            "install_subdir": "runtime/llama.cpp",
+        },
+        "starter_models": {
+            "recommended-6gb": {
+                "id": "recommended-6gb",
+                "url": "https://example.invalid/model.gguf",
+                "sha256": "def456",
+                "target_filename": "recommended-6gb.gguf",
+                "install_subdir": "models/recommended-6gb",
+            }
+        },
+    }
+
+    updated = apply_runtime_payload(
+        session,
+        temp_root=tmp_path / "temp-runs",
+        load_manifest=lambda: manifest,
+        download_runtime_archive=lambda *args, **kwargs: (_ for _ in ()).throw(
+            OSError("download failed")
+        ),
+    )
+
+    assert updated.runtime_payload_status == "failed"
+    assert updated.runtime_artifact_status == "failed"
+    assert updated.starter_model_status == "skipped"
+    assert updated.active_model_config_status == "skipped"
+    assert updated.failing_step == "runtime-artifact"
+
+
 def test_apply_runtime_payload_marks_starter_model_failure_after_runtime_is_ready(
     tmp_path: Path,
 ):
@@ -377,6 +550,9 @@ def test_apply_runtime_payload_marks_starter_model_failure_after_runtime_is_read
             {
                 "artifact_id": "windows-llama-cpp-runtime",
                 "source_sha256": "abc123",
+                "required_file_sha256": {
+                    "llama-server.exe": "2689367b205c16ce32ed4200942b8b8b1e262dfc70d9bc9fbc77c49699a4f1df"
+                },
             }
         ),
         encoding="utf-8",
@@ -438,6 +614,9 @@ def test_apply_runtime_payload_marks_active_model_config_failure_after_model_is_
             {
                 "artifact_id": "windows-llama-cpp-runtime",
                 "source_sha256": "abc123",
+                "required_file_sha256": {
+                    "llama-server.exe": "2689367b205c16ce32ed4200942b8b8b1e262dfc70d9bc9fbc77c49699a4f1df"
+                },
             }
         ),
         encoding="utf-8",

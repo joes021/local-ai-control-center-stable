@@ -1,12 +1,12 @@
 import hashlib
 import json
+from json import JSONDecodeError
 from pathlib import Path
 import zipfile
 
 
 def verify_sha256(path: Path, expected_sha256: str) -> bool:
-    digest = hashlib.sha256(path.read_bytes()).hexdigest()
-    return digest == expected_sha256.lower()
+    return _sha256_digest(path) == expected_sha256.lower()
 
 
 def verify_required_files(root: Path, required_files: list[str]) -> bool:
@@ -18,16 +18,22 @@ def write_runtime_metadata(
     *,
     artifact_id: str,
     source_sha256: str,
+    root: Path | None = None,
+    required_files: list[str] | None = None,
 ) -> Path:
+    payload = {
+        "artifact_id": artifact_id,
+        "source_sha256": source_sha256,
+    }
+    if root is not None and required_files is not None:
+        payload["required_file_sha256"] = {
+            relative_path: _sha256_digest(root / relative_path)
+            for relative_path in required_files
+        }
+
     metadata_path.parent.mkdir(parents=True, exist_ok=True)
     metadata_path.write_text(
-        json.dumps(
-            {
-                "artifact_id": artifact_id,
-                "source_sha256": source_sha256,
-            },
-            indent=2,
-        ),
+        json.dumps(payload, indent=2),
         encoding="utf-8",
     )
     return metadata_path
@@ -38,15 +44,46 @@ def verify_runtime_metadata(
     *,
     artifact_id: str,
     source_sha256: str,
+    root: Path | None = None,
+    required_files: list[str] | None = None,
 ) -> bool:
     if not metadata_path.exists():
         return False
 
-    payload = json.loads(metadata_path.read_text(encoding="utf-8"))
-    return (
-        payload.get("artifact_id") == artifact_id
-        and payload.get("source_sha256") == source_sha256
-    )
+    try:
+        payload = json.loads(metadata_path.read_text(encoding="utf-8"))
+    except (JSONDecodeError, OSError):
+        return False
+
+    if not isinstance(payload, dict):
+        return False
+
+    if (
+        payload.get("artifact_id") != artifact_id
+        or payload.get("source_sha256") != source_sha256
+    ):
+        return False
+
+    if root is None or required_files is None:
+        return True
+
+    required_file_sha256 = payload.get("required_file_sha256")
+    if not isinstance(required_file_sha256, dict):
+        return False
+
+    try:
+        return all(
+            isinstance(required_file_sha256.get(relative_path), str)
+            and _sha256_digest(root / relative_path)
+            == required_file_sha256[relative_path].lower()
+            for relative_path in required_files
+        )
+    except OSError:
+        return False
+
+
+def _sha256_digest(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def extract_archive(
