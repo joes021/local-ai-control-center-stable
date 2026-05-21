@@ -326,16 +326,29 @@ def stop_server_process(
     except OSError:
         return False
 
-    return True
+    post_kill_deadline = now_fn() + timeout_seconds
+    while now_fn() < post_kill_deadline:
+        if process.poll() is not None:
+            return True
+        sleep_fn(0.1)
+
+    return process.poll() is not None
 
 
 def _cleanup_server_process(process, stop_process) -> str | None:
+    log_handle = getattr(process, "_server_log_handle", None)
     try:
         if stop_process(process):
             return None
         return "failed to stop server verification process"
     except Exception as exc:
         return f"failed to stop server verification process: {exc}"
+    finally:
+        if log_handle is not None:
+            try:
+                log_handle.close()
+            except Exception:
+                pass
 
 
 def _call_health_probe(
