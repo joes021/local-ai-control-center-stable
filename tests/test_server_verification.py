@@ -345,6 +345,122 @@ def test_apply_server_verification_maps_general_start_exception_to_server_proces
     assert updated.failing_step == "server-process-start"
 
 
+def test_apply_server_verification_maps_port_selection_failure_to_server_port_bind(
+    tmp_path: Path,
+):
+    session = _build_runtime_ready_session(tmp_path)
+
+    updated = apply_server_verification(
+        session,
+        temp_root=tmp_path / "temp-runs",
+        select_port=lambda host="127.0.0.1": (_ for _ in ()).throw(OSError("busy")),
+        process_factory=lambda command, log_path: None,
+        health_probe=lambda base_url: "ready",
+        stop_process=lambda proc: True,
+        now_fn=_fake_now([0.0]),
+        sleep_fn=lambda _: None,
+    )
+
+    assert updated.server_verification_status == "failed"
+    assert updated.server_process_status == "skipped"
+    assert updated.server_health_status == "skipped"
+    assert updated.failing_step == "server-port-bind"
+
+
+def test_apply_server_verification_marks_server_health_failure_after_timeout(
+    tmp_path: Path,
+):
+    session = _build_runtime_ready_session(tmp_path)
+    process = FakeProcess([None, None, None, None])
+
+    updated = apply_server_verification(
+        session,
+        temp_root=tmp_path / "temp-runs",
+        select_port=lambda host="127.0.0.1": 8080,
+        process_factory=lambda command, log_path: process,
+        health_probe=lambda base_url: "loading",
+        stop_process=lambda proc: True,
+        now_fn=_fake_now([0.0, 0.1, 0.2, 0.3, 20.5]),
+        sleep_fn=lambda _: None,
+    )
+
+    assert updated.server_verification_status == "failed"
+    assert updated.server_process_status == "ready"
+    assert updated.server_health_status == "failed"
+    assert updated.failing_step == "server-health"
+
+
+def test_apply_server_verification_maps_process_death_during_health_polling_to_server_process_start(
+    tmp_path: Path,
+):
+    session = _build_runtime_ready_session(tmp_path)
+    process = FakeProcess([None, 1])
+
+    updated = apply_server_verification(
+        session,
+        temp_root=tmp_path / "temp-runs",
+        select_port=lambda host="127.0.0.1": 8080,
+        process_factory=lambda command, log_path: process,
+        health_probe=lambda base_url: "loading",
+        stop_process=lambda proc: True,
+        now_fn=_fake_now([0.0, 0.1, 0.2]),
+        sleep_fn=lambda _: None,
+    )
+
+    assert updated.server_verification_status == "failed"
+    assert updated.server_process_status == "failed"
+    assert updated.server_health_status == "skipped"
+    assert updated.failing_step == "server-process-start"
+
+
+def test_apply_server_verification_maps_stop_failure_after_success_to_server_process_stop(
+    tmp_path: Path,
+):
+    session = _build_runtime_ready_session(tmp_path)
+    process = FakeProcess([None, None, None])
+    health_states = iter(["ready"])
+
+    updated = apply_server_verification(
+        session,
+        temp_root=tmp_path / "temp-runs",
+        select_port=lambda host="127.0.0.1": 8080,
+        process_factory=lambda command, log_path: process,
+        health_probe=lambda base_url: next(health_states),
+        stop_process=lambda proc: False,
+        now_fn=_fake_now([0.0, 0.1, 0.2]),
+        sleep_fn=lambda _: None,
+    )
+
+    assert updated.server_verification_status == "failed"
+    assert updated.server_process_status == "ready"
+    assert updated.server_health_status == "ready"
+    assert updated.failing_step == "server-process-stop"
+
+
+def test_apply_server_verification_preserves_earlier_failure_when_cleanup_also_fails(
+    tmp_path: Path,
+):
+    session = _build_runtime_ready_session(tmp_path)
+    process = FakeProcess([None, None, None, None])
+
+    updated = apply_server_verification(
+        session,
+        temp_root=tmp_path / "temp-runs",
+        select_port=lambda host="127.0.0.1": 8080,
+        process_factory=lambda command, log_path: process,
+        health_probe=lambda base_url: "failed",
+        stop_process=lambda proc: False,
+        now_fn=_fake_now([0.0, 0.1, 0.2, 0.3]),
+        sleep_fn=lambda _: None,
+    )
+
+    assert updated.server_verification_status == "failed"
+    assert updated.server_process_status == "ready"
+    assert updated.server_health_status == "failed"
+    assert updated.failing_step == "server-health"
+    assert updated.error_message is not None
+
+
 def _fake_now(values: list[float]):
     iterator = iter(values)
     last_value = values[-1]

@@ -105,7 +105,7 @@ def apply_server_verification(
 ) -> InstallerSession:
     process_factory = process_factory or launch_llama_server
     health_probe = health_probe or _probe_server_health_during_startup
-    stop_process = stop_process or _stop_server_process
+    stop_process = stop_process or stop_server_process
     select_port = select_port or choose_free_port
     now_fn = now_fn or time.monotonic
     sleep_fn = sleep_fn or time.sleep
@@ -133,9 +133,19 @@ def apply_server_verification(
         session.error_message = str(exc)
         return session
 
-    session.verified_server_port = select_port("127.0.0.1")
+    try:
+        session.verified_server_port = select_port("127.0.0.1")
+    except OSError as exc:
+        session.server_verification_status = "failed"
+        session.server_process_status = "skipped"
+        session.server_health_status = "skipped"
+        session.failing_step = "server-port-bind"
+        session.error_message = str(exc)
+        return session
+
     session.verified_server_url = f"http://127.0.0.1:{session.verified_server_port}"
     command = _build_server_command(target, session.verified_server_port)
+    verification_started_at = now_fn()
 
     try:
         process = process_factory(command, run_paths.server_log_path)
@@ -147,53 +157,87 @@ def apply_server_verification(
         session.error_message = str(exc)
         return session
 
-    startup_deadline = now_fn() + 1.0
-    while True:
-        if process.poll() is not None:
-            session.server_verification_status = "failed"
-            session.server_process_status = "failed"
-            session.server_health_status = "skipped"
-            session.failing_step = "server-process-start"
-            return session
-        if now_fn() >= startup_deadline:
-            break
-        sleep_fn(0.1)
+    startup_deadline = verification_started_at + 1.0
+    health_deadline = verification_started_at + 20.0
+    reached_ready = False
 
-    health_deadline = now_fn() + 30.0
-    while now_fn() <= health_deadline:
-        if process.poll() is not None:
-            session.server_verification_status = "failed"
-            session.server_process_status = "failed"
-            session.server_health_status = "failed"
-            session.failing_step = "server-health-check"
-            return session
+    last_startup_time = verification_started_at
 
-        remaining_health_window = max(0.0, health_deadline - now_fn())
-        health_status = _call_health_probe(
-            health_probe,
-            session.verified_server_url,
-            min(1.0, remaining_health_window),
-        )
-        if health_status == "ready":
-            stop_process(process)
-            session.server_process_status = "ready"
-            session.server_health_status = "ready"
-            session.server_verification_status = "ready"
-            session.failing_step = None
-            session.error_message = None
-            return session
-        if health_status == "failed":
-            session.server_verification_status = "failed"
-            session.server_process_status = "ready"
-            session.server_health_status = "failed"
-            session.failing_step = "server-health-check"
-            return session
-        sleep_fn(0.1)
+    try:
+        while True:
+            current_time = now_fn()
+            if current_time >= startup_deadline or current_time <= last_startup_time:
+                break
+
+            if process.poll() is not None:
+                session.server_verification_status = "failed"
+                session.server_process_status = "failed"
+                session.server_health_status = "skipped"
+                session.failing_step = "server-process-start"
+                return session
+
+            last_startup_time = current_time
+            sleep_fn(0.1)
+
+        last_health_time = verification_started_at
+        while True:
+            current_time = now_fn()
+            if current_time > health_deadline or current_time <= last_health_time:
+                session.server_verification_status = "failed"
+                session.server_process_status = "ready"
+                session.server_health_status = "failed"
+                session.failing_step = "server-health"
+                return session
+
+            if process.poll() is not None:
+                session.server_verification_status = "failed"
+                session.server_process_status = "failed"
+                session.server_health_status = "skipped"
+                session.failing_step = "server-process-start"
+                return session
+
+            remaining_health_window = max(0.0, health_deadline - current_time)
+            health_status = _call_health_probe(
+                health_probe,
+                session.verified_server_url,
+                min(1.0, remaining_health_window),
+            )
+            if health_status == "ready":
+                session.server_process_status = "ready"
+                session.server_health_status = "ready"
+                session.server_verification_status = "ready"
+                session.failing_step = None
+                session.error_message = None
+                reached_ready = True
+                return session
+
+            if health_status == "failed":
+                session.server_verification_status = "failed"
+                session.server_process_status = "ready"
+                session.server_health_status = "failed"
+                session.failing_step = "server-health"
+                return session
+
+            last_health_time = current_time
+            sleep_fn(0.1)
+    finally:
+        cleanup_error = _cleanup_server_process(process, stop_process)
+        if cleanup_error is not None:
+            if session.error_message:
+                session.error_message = f"{session.error_message}; {cleanup_error}"
+            else:
+                session.error_message = cleanup_error
+
+            if reached_ready and session.failing_step is None:
+                session.server_verification_status = "failed"
+                session.server_process_status = "ready"
+                session.server_health_status = "ready"
+                session.failing_step = "server-process-stop"
 
     session.server_verification_status = "failed"
     session.server_process_status = "ready"
     session.server_health_status = "failed"
-    session.failing_step = "server-health-check"
+    session.failing_step = "server-health"
     return session
 
 
@@ -264,16 +308,30 @@ def _build_server_command(
     ]
 
 
-def _stop_server_process(process: subprocess.Popen[str]) -> bool:
-    try:
-        process.terminate()
-        return True
-    except OSError:
-        try:
-            process.kill()
+def stop_server_process(
+    process,
+    *,
+    now_fn=time.monotonic,
+    sleep_fn=time.sleep,
+    timeout_seconds: float = 5.0,
+) -> bool:
+    process.terminate()
+    deadline = now_fn() + timeout_seconds
+    while now_fn() < deadline:
+        if process.poll() is not None:
             return True
-        except OSError:
-            return False
+        sleep_fn(0.1)
+    process.kill()
+    return False
+
+
+def _cleanup_server_process(process, stop_process) -> str | None:
+    try:
+        if stop_process(process):
+            return None
+        return "failed to stop server verification process"
+    except Exception as exc:
+        return f"failed to stop server verification process: {exc}"
 
 
 def _call_health_probe(
