@@ -141,7 +141,7 @@ The smoke is successful only when:
 - the relay saw the expected marker
 - the upstream verifier runtime returned success
 
-The smoke remains internal installer proof. It is not yet the public “first-run user smoke” milestone.
+The smoke remains internal installer proof. It is not yet the public "first-run user smoke" milestone.
 
 ## Failure Truth
 
