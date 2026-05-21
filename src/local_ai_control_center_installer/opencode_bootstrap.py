@@ -207,9 +207,10 @@ def _validate_opencode_artifact(opencode_artifact: dict) -> None:
         )
 
     verification_args = launch.get("verification_args")
-    if verification_args != ["--pure", "models"]:
+    if verification_args != ["--pure", "run", "--format", "json", "--model"]:
         raise ValueError(
-            "OpenCode artifact launch entry verification_args must equal ['--pure', 'models']."
+            "OpenCode artifact launch entry verification_args must equal "
+            "['--pure', 'run', '--format', 'json', '--model']."
         )
 
     extra_env = launch.get("extra_env")

@@ -43,7 +43,7 @@ def _build_opencode_manifest(
             "install_subdir": install_subdir,
             "launch": {
                 "executable_relative_path": "opencode.exe",
-                "verification_args": ["--pure", "models"],
+                "verification_args": ["--pure", "run", "--format", "json", "--model"],
                 "extra_env": {},
             },
         }
@@ -73,7 +73,13 @@ def test_load_opencode_manifest_reads_pinned_contract(tmp_path: Path):
                     "install_subdir": "tools/opencode",
                     "launch": {
                         "executable_relative_path": "opencode.exe",
-                        "verification_args": ["--pure", "models"],
+                        "verification_args": [
+                            "--pure",
+                            "run",
+                            "--format",
+                            "json",
+                            "--model",
+                        ],
                         "extra_env": {},
                     },
                 }
@@ -96,7 +102,13 @@ def test_load_opencode_manifest_reads_pinned_contract(tmp_path: Path):
         "install_subdir": "tools/opencode",
         "launch": {
             "executable_relative_path": "opencode.exe",
-            "verification_args": ["--pure", "models"],
+            "verification_args": [
+                "--pure",
+                "run",
+                "--format",
+                "json",
+                "--model",
+            ],
             "extra_env": {},
         },
     }
@@ -117,10 +129,44 @@ def test_load_opencode_manifest_uses_packaged_pinned_contract():
         "install_subdir": "tools/opencode",
         "launch": {
             "executable_relative_path": "opencode.exe",
-            "verification_args": ["--pure", "models"],
+            "verification_args": [
+                "--pure",
+                "run",
+                "--format",
+                "json",
+                "--model",
+            ],
             "extra_env": {},
         },
     }
+
+
+def test_load_opencode_manifest_rejects_legacy_verification_args(tmp_path: Path):
+    manifest_path = tmp_path / "windows-stable-opencode.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "opencode_artifact": {
+                    "id": "windows-opencode",
+                    "url": "https://example.invalid/opencode.zip",
+                    "sha256": "abc123",
+                    "archive_type": "zip",
+                    "required_files": ["opencode.exe"],
+                    "required_file_sha256": {"opencode.exe": "def456"},
+                    "install_subdir": "tools/opencode",
+                    "launch": {
+                        "executable_relative_path": "opencode.exe",
+                        "verification_args": ["--pure", "models"],
+                        "extra_env": {},
+                    },
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="verification_args"):
+        load_opencode_manifest(manifest_path)
 
 
 def test_load_opencode_manifest_rejects_non_object_json_root(tmp_path: Path):
@@ -148,7 +194,13 @@ def test_load_opencode_manifest_rejects_checksum_key_missing_from_required_files
                     "install_subdir": "tools/opencode",
                     "launch": {
                         "executable_relative_path": "opencode.exe",
-                        "verification_args": ["--pure", "models"],
+                        "verification_args": [
+                            "--pure",
+                            "run",
+                            "--format",
+                            "json",
+                            "--model",
+                        ],
                         "extra_env": {},
                     },
                 }
@@ -178,7 +230,13 @@ def test_load_opencode_manifest_allows_presence_only_required_file_without_check
                     "install_subdir": "tools/opencode",
                     "launch": {
                         "executable_relative_path": "opencode.exe",
-                        "verification_args": ["--pure", "models"],
+                        "verification_args": [
+                            "--pure",
+                            "run",
+                            "--format",
+                            "json",
+                            "--model",
+                        ],
                         "extra_env": {},
                     },
                 }

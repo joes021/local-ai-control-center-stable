@@ -15,7 +15,10 @@
       "executable_relative_path": "opencode.exe",
       "verification_args": [
         "--pure",
-        "models"
+        "run",
+        "--format",
+        "json",
+        "--model"
       ],
       "extra_env": {}
     }
