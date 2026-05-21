@@ -66,7 +66,7 @@ def apply_opencode_bootstrap(
 
     try:
         manifest = load_manifest()
-    except ValueError as exc:
+    except (OSError, ValueError) as exc:
         session.opencode_artifact_status = "failed"
         session.opencode_verification_status = "skipped"
         session.opencode_process_status = "skipped"
