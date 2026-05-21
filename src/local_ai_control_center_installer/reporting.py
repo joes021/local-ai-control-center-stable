@@ -118,6 +118,7 @@ def persist_install_root_reports(session: InstallerSession) -> None:
     staging_root = install_root / f".staging-{uuid4().hex}"
     artifact_paths = _build_artifact_paths(install_root)
     staged_artifact_paths = _build_artifact_paths(staging_root)
+    original_opencode_log_path = session.opencode_log_path
 
     try:
         staged_opencode_log_path = _stage_optional_opencode_log(
@@ -139,6 +140,7 @@ def persist_install_root_reports(session: InstallerSession) -> None:
             artifact_paths,
         )
     except OSError:
+        session.opencode_log_path = original_opencode_log_path
         _cleanup_staging_root(staging_root)
         if not install_root_preexisting:
             _remove_empty_directory(install_root)
