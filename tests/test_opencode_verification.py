@@ -1,0 +1,369 @@
+import json
+from pathlib import Path
+from subprocess import TimeoutExpired
+
+import pytest
+
+from local_ai_control_center_installer.opencode_verification import (
+    apply_opencode_verification,
+)
+from local_ai_control_center_installer.session import InstallerSession
+
+
+def _build_manifest(*, extra_env: dict[str, str] | None = None) -> dict:
+    return {
+        "opencode_artifact": {
+            "id": "windows-opencode",
+            "launch": {
+                "executable_relative_path": "opencode.exe",
+                "verification_args": ["--pure", "models"],
+                "extra_env": extra_env or {},
+            },
+        }
+    }
+
+
+def _write_active_model_config(
+    path: Path,
+    *,
+    model_id: str = "recommended-6gb",
+    model_path: Path | None = None,
+) -> Path:
+    if model_path is None:
+        model_path = path.parent / "models" / f"{model_id}.gguf"
+    model_path.parent.mkdir(parents=True, exist_ok=True)
+    model_path.write_text("model", encoding="utf-8")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(
+            {
+                "model_id": model_id,
+                "model_path": str(model_path),
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    return path
+
+
+def _write_managed_config(path: Path, *, verified_server_url: str) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(
+            {
+                "providers": {
+                    "local-lacc": {
+                        "options": {"baseURL": f"{verified_server_url}/v1"}
+                    }
+                }
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    return path
+
+
+def _build_ready_session(tmp_path: Path) -> InstallerSession:
+    install_root = tmp_path / "install-root"
+    active_model_config_path = _write_active_model_config(
+        install_root / "config" / "active-model.json"
+    )
+    opencode_root = install_root / "tools" / "opencode"
+    opencode_root.mkdir(parents=True, exist_ok=True)
+    (opencode_root / "opencode.exe").write_text("binary", encoding="utf-8")
+    managed_config_path = _write_managed_config(
+        install_root / "config" / "opencode" / "managed-config.json",
+        verified_server_url="http://127.0.0.1:8080",
+    )
+    return InstallerSession(
+        started_at="2026-05-22T10:11:12",
+        opencode_artifact_status="ready",
+        opencode_verification_status="failed",
+        opencode_process_status="failed",
+        opencode_connection_status="failed",
+        verified_server_url="http://127.0.0.1:8080",
+        active_model_config_path=str(active_model_config_path),
+        opencode_artifact_path=str(opencode_root),
+        opencode_config_path=str(managed_config_path),
+        failing_step="earlier-step",
+        error_message="earlier error",
+    )
+
+
+class FakeProcess:
+    def __init__(
+        self,
+        *,
+        stdout: str = "",
+        returncode: int = 0,
+        timeout: bool = False,
+    ) -> None:
+        self.stdout = stdout
+        self.returncode = returncode
+        self.timeout = timeout
+        self.communicate_timeouts: list[float | None] = []
+
+    def communicate(self, timeout=None):
+        self.communicate_timeouts.append(timeout)
+        if self.timeout:
+            raise TimeoutExpired("opencode", timeout, output=self.stdout)
+        return self.stdout, None
+
+
+def test_apply_opencode_verification_skips_when_artifact_not_ready(tmp_path: Path):
+    session = InstallerSession(
+        opencode_artifact_status="failed",
+        opencode_verification_status="failed",
+        opencode_process_status="failed",
+        opencode_connection_status="failed",
+        failing_step="opencode-artifact",
+        error_message="artifact missing",
+    )
+
+    updated = apply_opencode_verification(session, temp_root=tmp_path / "temp-runs")
+
+    assert updated.opencode_verification_status == "skipped"
+    assert updated.opencode_process_status == "skipped"
+    assert updated.opencode_connection_status == "skipped"
+    assert updated.failing_step == "opencode-artifact"
+    assert updated.error_message == "artifact missing"
+
+
+@pytest.mark.parametrize(
+    ("case_name", "mutate_session", "manifest_loader"),
+    [
+        (
+            "missing verified server url",
+            lambda session: setattr(session, "verified_server_url", None),
+            lambda: _build_manifest(),
+        ),
+        (
+            "unreadable active model config",
+            lambda session: Path(session.active_model_config_path).write_text(
+                "{", encoding="utf-8"
+            ),
+            lambda: _build_manifest(),
+        ),
+        (
+            "missing active model file",
+            lambda session: Path(
+                json.loads(
+                    Path(session.active_model_config_path).read_text(
+                        encoding="utf-8"
+                    )
+                )["model_path"]
+            ).unlink(),
+            lambda: _build_manifest(),
+        ),
+        (
+            "missing opencode executable",
+            lambda session: Path(session.opencode_artifact_path, "opencode.exe").unlink(),
+            lambda: _build_manifest(),
+        ),
+        (
+            "missing managed config",
+            lambda session: Path(session.opencode_config_path).unlink(),
+            lambda: _build_manifest(),
+        ),
+        (
+            "manifest reload failure",
+            lambda session: None,
+            lambda: (_ for _ in ()).throw(ValueError("bad manifest")),
+        ),
+    ],
+)
+def test_apply_opencode_verification_fails_prerequisites(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    case_name: str,
+    mutate_session,
+    manifest_loader,
+):
+    session = _build_ready_session(tmp_path)
+    mutate_session(session)
+
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.opencode_verification.load_opencode_manifest",
+        manifest_loader,
+    )
+
+    updated = apply_opencode_verification(session, temp_root=tmp_path / "temp-runs")
+
+    assert case_name
+    assert updated.opencode_verification_status == "failed"
+    assert updated.opencode_process_status == "skipped"
+    assert updated.opencode_connection_status == "skipped"
+    assert updated.failing_step == "opencode-verification-prerequisites"
+
+
+def test_apply_opencode_verification_success_path_and_log_capture(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    session = _build_ready_session(tmp_path)
+    process = FakeProcess(stdout="booting\nlocal-lacc/recommended-6gb\n", returncode=0)
+
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.opencode_verification.load_opencode_manifest",
+        lambda: _build_manifest(),
+    )
+
+    updated = apply_opencode_verification(
+        session,
+        temp_root=tmp_path / "temp-runs",
+        process_factory=lambda command, *, cwd, env: process,
+        stop_process=lambda launched_process: True,
+    )
+
+    assert updated.opencode_verification_status == "ready"
+    assert updated.opencode_process_status == "ready"
+    assert updated.opencode_connection_status == "ready"
+    assert updated.failing_step is None
+    assert updated.error_message is None
+    assert (
+        updated.verified_opencode_command
+        == f"{Path(session.opencode_artifact_path) / 'opencode.exe'} --pure models local-lacc"
+    )
+    assert updated.opencode_log_path is not None
+    assert (
+        Path(updated.opencode_log_path).read_text(encoding="utf-8")
+        == "booting\nlocal-lacc/recommended-6gb\n"
+    )
+    assert "2026-05-22T10-11-12" in updated.opencode_log_path
+
+
+def test_apply_opencode_verification_uses_empty_temp_working_directory_and_expected_env(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    session = _build_ready_session(tmp_path)
+    captured: dict[str, object] = {}
+
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.opencode_verification.load_opencode_manifest",
+        lambda: _build_manifest(
+            extra_env={
+                "CUSTOM_FLAG": "enabled",
+                "OPENCODE_CONFIG": "manifest-overridden",
+                "OPENCODE_DISABLE_MODELS_FETCH": "false",
+            }
+        ),
+    )
+
+    def process_factory(command, *, cwd, env):
+        captured["command"] = command
+        captured["cwd"] = cwd
+        captured["env"] = env
+        return FakeProcess(stdout="local-lacc/recommended-6gb\n", returncode=0)
+
+    updated = apply_opencode_verification(
+        session,
+        temp_root=tmp_path / "temp-runs",
+        process_factory=process_factory,
+        stop_process=lambda launched_process: True,
+    )
+
+    assert updated.opencode_verification_status == "ready"
+    assert captured["command"] == [
+        str(Path(session.opencode_artifact_path) / "opencode.exe"),
+        "--pure",
+        "models",
+        "local-lacc",
+    ]
+    working_directory = Path(captured["cwd"])
+    assert working_directory.exists()
+    assert list(working_directory.iterdir()) == []
+
+    env = captured["env"]
+    assert env["CUSTOM_FLAG"] == "enabled"
+    assert env["OPENCODE_CONFIG"] == session.opencode_config_path
+    assert env["OPENCODE_DISABLE_MODELS_FETCH"] == "true"
+
+    embedded_config = json.loads(env["OPENCODE_CONFIG_CONTENT"])
+    assert embedded_config["model"] == "local-lacc/recommended-6gb"
+    assert (
+        embedded_config["providers"]["local-lacc"]["options"]["baseURL"]
+        == "http://127.0.0.1:8080/v1"
+    )
+
+
+def test_apply_opencode_verification_fails_on_connection_mismatch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    session = _build_ready_session(tmp_path)
+
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.opencode_verification.load_opencode_manifest",
+        lambda: _build_manifest(),
+    )
+
+    updated = apply_opencode_verification(
+        session,
+        temp_root=tmp_path / "temp-runs",
+        process_factory=lambda command, *, cwd, env: FakeProcess(
+            stdout="other-provider/not-it\n",
+            returncode=0,
+        ),
+        stop_process=lambda launched_process: True,
+    )
+
+    assert updated.opencode_verification_status == "failed"
+    assert updated.opencode_process_status == "ready"
+    assert updated.opencode_connection_status == "failed"
+    assert updated.failing_step == "opencode-connection"
+
+
+def test_apply_opencode_verification_preserves_primary_failure_when_timeout_cleanup_also_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    session = _build_ready_session(tmp_path)
+
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.opencode_verification.load_opencode_manifest",
+        lambda: _build_manifest(),
+    )
+
+    updated = apply_opencode_verification(
+        session,
+        temp_root=tmp_path / "temp-runs",
+        process_factory=lambda command, *, cwd, env: FakeProcess(
+            stdout="partial output\n",
+            timeout=True,
+        ),
+        stop_process=lambda launched_process: False,
+    )
+
+    assert updated.opencode_verification_status == "failed"
+    assert updated.opencode_connection_status == "failed"
+    assert updated.failing_step == "opencode-connection"
+
+
+def test_apply_opencode_verification_maps_cleanup_failure_after_successful_handshake(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    session = _build_ready_session(tmp_path)
+
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.opencode_verification.load_opencode_manifest",
+        lambda: _build_manifest(),
+    )
+
+    updated = apply_opencode_verification(
+        session,
+        temp_root=tmp_path / "temp-runs",
+        process_factory=lambda command, *, cwd, env: FakeProcess(
+            stdout="local-lacc/recommended-6gb\n",
+            returncode=0,
+        ),
+        stop_process=lambda launched_process: False,
+    )
+
+    assert updated.opencode_verification_status == "failed"
+    assert updated.opencode_process_status == "ready"
+    assert updated.opencode_connection_status == "ready"
+    assert updated.failing_step == "opencode-process-stop"
