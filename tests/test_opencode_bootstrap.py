@@ -301,6 +301,7 @@ def test_apply_opencode_bootstrap_maps_manifest_load_error_to_opencode_manifest_
         install_opencode=True,
         server_verification_status="ready",
         install_root=str(tmp_path / "install-root"),
+        error_message="stale error",
     )
 
     updated = apply_opencode_bootstrap(
@@ -314,6 +315,7 @@ def test_apply_opencode_bootstrap_maps_manifest_load_error_to_opencode_manifest_
     assert updated.opencode_process_status == "skipped"
     assert updated.opencode_connection_status == "skipped"
     assert updated.failing_step == "opencode-manifest"
+    assert updated.error_message == "bad manifest"
 
 
 def test_apply_opencode_bootstrap_marks_artifact_ready_when_valid_artifact_exists_and_managed_config_can_be_generated(
@@ -341,6 +343,7 @@ def test_apply_opencode_bootstrap_marks_artifact_ready_when_valid_artifact_exist
         install_root=str(install_root),
         verified_server_url="http://127.0.0.1:8080",
         active_model_config_path=str(active_model_config_path),
+        error_message="stale error",
     )
     manifest = _build_opencode_manifest()
 
@@ -358,6 +361,8 @@ def test_apply_opencode_bootstrap_marks_artifact_ready_when_valid_artifact_exist
     assert updated.opencode_process_status == "skipped"
     assert updated.opencode_connection_status == "skipped"
     assert updated.opencode_artifact_id == "windows-opencode"
+    assert updated.last_successful_step == "opencode-config"
+    assert updated.error_message is None
     assert Path(updated.opencode_artifact_path) == artifact_root
     assert Path(updated.opencode_metadata_path) == artifact_root / "opencode-artifact.json"
     assert managed_config["installer_managed"] is True
@@ -378,6 +383,7 @@ def test_apply_opencode_bootstrap_fails_prerequisites_when_active_model_id_canno
         install_root=str(install_root),
         verified_server_url="http://127.0.0.1:8080",
         active_model_config_path=str(active_model_config_path),
+        error_message="stale error",
     )
     manifest = _build_opencode_manifest()
 
@@ -392,6 +398,7 @@ def test_apply_opencode_bootstrap_fails_prerequisites_when_active_model_id_canno
     assert updated.opencode_process_status == "skipped"
     assert updated.opencode_connection_status == "skipped"
     assert updated.failing_step == "opencode-verification-prerequisites"
+    assert updated.error_message == "OpenCode bootstrap prerequisites are missing or invalid."
 
 
 def test_apply_opencode_bootstrap_maps_archive_verification_failure_to_opencode_artifact(
@@ -406,6 +413,7 @@ def test_apply_opencode_bootstrap_maps_archive_verification_failure_to_opencode_
         active_model_config_path=str(
             _write_active_model_config(install_root / "config" / "active-model.json")
         ),
+        error_message="stale error",
     )
     manifest = _build_opencode_manifest()
 
@@ -427,6 +435,7 @@ def test_apply_opencode_bootstrap_maps_archive_verification_failure_to_opencode_
     assert updated.opencode_process_status == "skipped"
     assert updated.opencode_connection_status == "skipped"
     assert updated.failing_step == "opencode-artifact"
+    assert updated.error_message == "OpenCode archive checksum verification failed."
 
 
 def test_apply_opencode_bootstrap_marks_opencode_config_failure_after_artifact_is_ready(
@@ -453,6 +462,7 @@ def test_apply_opencode_bootstrap_marks_opencode_config_failure_after_artifact_i
         active_model_config_path=str(
             _write_active_model_config(install_root / "config" / "active-model.json")
         ),
+        error_message="stale error",
     )
     manifest = _build_opencode_manifest()
 
@@ -469,7 +479,9 @@ def test_apply_opencode_bootstrap_marks_opencode_config_failure_after_artifact_i
     assert updated.opencode_verification_status == "failed"
     assert updated.opencode_process_status == "skipped"
     assert updated.opencode_connection_status == "skipped"
+    assert updated.last_successful_step == "opencode-artifact"
     assert updated.failing_step == "opencode-config"
+    assert updated.error_message == "config failed"
 
 
 def test_apply_opencode_bootstrap_generated_config_contains_local_lacc_provider_and_verified_server_url(
@@ -521,3 +533,72 @@ def test_apply_opencode_bootstrap_generated_config_contains_local_lacc_provider_
     assert managed_config["providers"]["local-lacc"]["provider"] == "@ai-sdk/openai-compatible"
     assert managed_config["providers"]["local-lacc"]["options"]["baseURL"] == "http://127.0.0.1:8080/v1"
     assert managed_config["providers"]["local-lacc"]["models"] == {"my-model-q4": {}}
+
+
+def test_apply_opencode_bootstrap_second_pass_reuses_staged_artifact_without_redownloading(
+    tmp_path: Path,
+):
+    install_root = tmp_path / "install-root"
+    session = InstallerSession(
+        install_opencode=True,
+        server_verification_status="ready",
+        install_root=str(install_root),
+        verified_server_url="http://127.0.0.1:8080",
+        active_model_config_path=str(
+            _write_active_model_config(
+                install_root / "config" / "active-model.json",
+                model_id="my-model-q4",
+            )
+        ),
+    )
+    manifest = _build_opencode_manifest()
+    download_calls: list[tuple[str, Path]] = []
+
+    def fake_download_archive(url: str, destination: Path) -> Path:
+        download_calls.append((url, destination))
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(b"archive")
+        return destination
+
+    def fake_extract_archive(
+        archive_path: Path,
+        destination_root: Path,
+        *,
+        archive_type: str,
+    ) -> Path:
+        destination_root.mkdir(parents=True, exist_ok=True)
+        (destination_root / "opencode.exe").write_text("ok", encoding="utf-8")
+        return destination_root
+
+    first_pass = apply_opencode_bootstrap(
+        session,
+        temp_root=tmp_path / "temp-runs",
+        load_manifest=lambda: manifest,
+        download_archive=fake_download_archive,
+        extract_archive=fake_extract_archive,
+        verify_archive_sha256=lambda path, expected: True,
+    )
+
+    assert first_pass.opencode_artifact_status == "ready"
+    assert Path(first_pass.opencode_metadata_path).exists()
+    assert len(download_calls) == 1
+
+    second_pass = apply_opencode_bootstrap(
+        InstallerSession(
+            install_opencode=True,
+            server_verification_status="ready",
+            install_root=str(install_root),
+            verified_server_url="http://127.0.0.1:8080",
+            active_model_config_path=str(
+                install_root / "config" / "active-model.json"
+            ),
+        ),
+        temp_root=tmp_path / "temp-runs",
+        load_manifest=lambda: manifest,
+        download_archive=lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("should not redownload ready artifact")
+        ),
+    )
+
+    assert second_pass.opencode_artifact_status == "ready"
+    assert second_pass.last_successful_step == "opencode-config"
