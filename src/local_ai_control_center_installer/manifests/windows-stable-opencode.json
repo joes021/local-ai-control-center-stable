@@ -1,0 +1,23 @@
+{
+  "opencode_artifact": {
+    "id": "windows-opencode",
+    "url": "https://github.com/anomalyco/opencode/releases/download/v1.15.7/opencode-windows-x64.zip",
+    "sha256": "8ac96b52692a3daeb84a20295cc7ed43aa3c698078e802926a47aef83748eab2",
+    "archive_type": "zip",
+    "required_files": [
+      "opencode.exe"
+    ],
+    "required_file_sha256": {
+      "opencode.exe": "c18594c5368598f242387a2b6f505039a82b628c282101e99cb4452bd7622ed1"
+    },
+    "install_subdir": "tools/opencode",
+    "launch": {
+      "executable_relative_path": "opencode.exe",
+      "verification_args": [
+        "--pure",
+        "models"
+      ],
+      "extra_env": {}
+    }
+  }
+}
