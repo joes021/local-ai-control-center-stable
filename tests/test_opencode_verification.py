@@ -23,6 +23,15 @@ def _build_manifest(*, extra_env: dict[str, str] | None = None) -> dict:
     }
 
 
+def _build_malformed_manifest(launch) -> dict:
+    return {
+        "opencode_artifact": {
+            "id": "windows-opencode",
+            "launch": launch,
+        }
+    }
+
+
 def _write_active_model_config(
     path: Path,
     *,
@@ -210,10 +219,16 @@ def test_apply_opencode_verification_success_path_and_log_capture(
         lambda: _build_manifest(),
     )
 
+    captured: dict[str, object] = {}
+
+    def process_factory(command, *, cwd, env, log_path):
+        captured["log_path"] = log_path
+        return process
+
     updated = apply_opencode_verification(
         session,
         temp_root=tmp_path / "temp-runs",
-        process_factory=lambda command, *, cwd, env: process,
+        process_factory=process_factory,
         stop_process=lambda launched_process: True,
     )
 
@@ -231,6 +246,7 @@ def test_apply_opencode_verification_success_path_and_log_capture(
         Path(updated.opencode_log_path).read_text(encoding="utf-8")
         == "booting\nlocal-lacc/recommended-6gb\n"
     )
+    assert captured["log_path"] == Path(updated.opencode_log_path)
     assert "2026-05-22T10-11-12" in updated.opencode_log_path
 
 
@@ -252,10 +268,11 @@ def test_apply_opencode_verification_uses_empty_temp_working_directory_and_expec
         ),
     )
 
-    def process_factory(command, *, cwd, env):
+    def process_factory(command, *, cwd, env, log_path):
         captured["command"] = command
         captured["cwd"] = cwd
         captured["env"] = env
+        captured["log_path"] = log_path
         return FakeProcess(stdout="local-lacc/recommended-6gb\n", returncode=0)
 
     updated = apply_opencode_verification(
@@ -272,6 +289,7 @@ def test_apply_opencode_verification_uses_empty_temp_working_directory_and_expec
         "models",
         "local-lacc",
     ]
+    assert captured["log_path"] == Path(updated.opencode_log_path)
     working_directory = Path(captured["cwd"])
     assert working_directory.exists()
     assert list(working_directory.iterdir()) == []
@@ -289,6 +307,86 @@ def test_apply_opencode_verification_uses_empty_temp_working_directory_and_expec
     )
 
 
+def test_apply_opencode_verification_manifest_extra_env_cannot_override_config_content(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    session = _build_ready_session(tmp_path)
+    captured: dict[str, object] = {}
+
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.opencode_verification.load_opencode_manifest",
+        lambda: _build_manifest(
+            extra_env={
+                "OPENCODE_CONFIG_CONTENT": json.dumps({"model": "wrong/provider"})
+            }
+        ),
+    )
+
+    def process_factory(command, *, cwd, env, log_path):
+        captured["env"] = env
+        return FakeProcess(stdout="local-lacc/recommended-6gb\n", returncode=0)
+
+    updated = apply_opencode_verification(
+        session,
+        temp_root=tmp_path / "temp-runs",
+        process_factory=process_factory,
+        stop_process=lambda launched_process: True,
+    )
+
+    assert updated.opencode_verification_status == "ready"
+    embedded_config = json.loads(captured["env"]["OPENCODE_CONFIG_CONTENT"])
+    assert embedded_config["model"] == "local-lacc/recommended-6gb"
+
+
+@pytest.mark.parametrize(
+    "manifest_loader",
+    [
+        lambda: _build_manifest(extra_env={}) | {
+            "opencode_artifact": {"id": "windows-opencode"}
+        },
+        lambda: _build_malformed_manifest(None),
+        lambda: _build_malformed_manifest({}),
+        lambda: _build_malformed_manifest(
+            {
+                "verification_args": ["models"],
+                "extra_env": {},
+            }
+        ),
+        lambda: _build_malformed_manifest(
+            {
+                "verification_args": ["--pure", "models", "local-lacc"],
+                "extra_env": {},
+            }
+        ),
+        lambda: _build_malformed_manifest(
+            {
+                "verification_args": ["--pure", "models"],
+                "extra_env": [],
+            }
+        ),
+    ],
+)
+def test_apply_opencode_verification_maps_malformed_manifest_launch_contract_to_prerequisites(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    manifest_loader,
+):
+    session = _build_ready_session(tmp_path)
+
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.opencode_verification.load_opencode_manifest",
+        manifest_loader,
+    )
+
+    updated = apply_opencode_verification(session, temp_root=tmp_path / "temp-runs")
+
+    assert updated.opencode_verification_status == "failed"
+    assert updated.opencode_process_status == "skipped"
+    assert updated.opencode_connection_status == "skipped"
+    assert updated.failing_step == "opencode-verification-prerequisites"
+
+
 def test_apply_opencode_verification_fails_on_connection_mismatch(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -303,7 +401,7 @@ def test_apply_opencode_verification_fails_on_connection_mismatch(
     updated = apply_opencode_verification(
         session,
         temp_root=tmp_path / "temp-runs",
-        process_factory=lambda command, *, cwd, env: FakeProcess(
+        process_factory=lambda command, *, cwd, env, log_path: FakeProcess(
             stdout="other-provider/not-it\n",
             returncode=0,
         ),
@@ -314,6 +412,35 @@ def test_apply_opencode_verification_fails_on_connection_mismatch(
     assert updated.opencode_process_status == "ready"
     assert updated.opencode_connection_status == "failed"
     assert updated.failing_step == "opencode-connection"
+
+
+def test_apply_opencode_verification_maps_non_zero_exit_to_process_start(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    session = _build_ready_session(tmp_path)
+
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.opencode_verification.load_opencode_manifest",
+        lambda: _build_manifest(
+            extra_env={"IGNORED": "1"}
+        ),
+    )
+
+    updated = apply_opencode_verification(
+        session,
+        temp_root=tmp_path / "temp-runs",
+        process_factory=lambda command, *, cwd, env, log_path: FakeProcess(
+            stdout="boot failed\n",
+            returncode=7,
+        ),
+        stop_process=lambda launched_process: True,
+    )
+
+    assert updated.opencode_verification_status == "failed"
+    assert updated.opencode_process_status == "failed"
+    assert updated.opencode_connection_status == "skipped"
+    assert updated.failing_step == "opencode-process-start"
 
 
 def test_apply_opencode_verification_preserves_primary_failure_when_timeout_cleanup_also_fails(
@@ -330,7 +457,7 @@ def test_apply_opencode_verification_preserves_primary_failure_when_timeout_clea
     updated = apply_opencode_verification(
         session,
         temp_root=tmp_path / "temp-runs",
-        process_factory=lambda command, *, cwd, env: FakeProcess(
+        process_factory=lambda command, *, cwd, env, log_path: FakeProcess(
             stdout="partial output\n",
             timeout=True,
         ),
@@ -356,7 +483,7 @@ def test_apply_opencode_verification_maps_cleanup_failure_after_successful_hands
     updated = apply_opencode_verification(
         session,
         temp_root=tmp_path / "temp-runs",
-        process_factory=lambda command, *, cwd, env: FakeProcess(
+        process_factory=lambda command, *, cwd, env, log_path: FakeProcess(
             stdout="local-lacc/recommended-6gb\n",
             returncode=0,
         ),
