@@ -492,6 +492,30 @@ def test_apply_server_verification_marks_process_start_failure_when_process_exit
     assert updated.server_process_status == "failed"
     assert updated.server_health_status == "skipped"
     assert updated.failing_step == "server-process-start"
+
+
+def test_apply_server_verification_maps_subprocess_start_exception_to_server_process_start(
+    tmp_path: Path,
+):
+    session = _build_runtime_ready_session(tmp_path)
+
+    updated = apply_server_verification(
+        session,
+        temp_root=tmp_path / "temp-runs",
+        select_port=lambda host="127.0.0.1": 8080,
+        process_factory=lambda command, log_path: (_ for _ in ()).throw(
+            OSError("spawn failed")
+        ),
+        health_probe=lambda base_url: "ready",
+        stop_process=lambda proc: True,
+        now_fn=_fake_now([0.0]),
+        sleep_fn=lambda _: None,
+    )
+
+    assert updated.server_verification_status == "failed"
+    assert updated.server_process_status == "failed"
+    assert updated.server_health_status == "skipped"
+    assert updated.failing_step == "server-process-start"
 ```
 
 Add test helpers:
@@ -539,7 +563,7 @@ def _build_runtime_ready_session(tmp_path: Path) -> InstallerSession:
 
 - [ ] **Step 2: Run the targeted tests to verify they fail**
 
-Run: `python -m pytest tests/test_server_verification.py::test_apply_server_verification_marks_ready_after_healthy_start_and_clean_stop tests/test_server_verification.py::test_apply_server_verification_continues_polling_through_loading_503_until_ready tests/test_server_verification.py::test_apply_server_verification_marks_process_start_failure_when_process_exits_early -v`
+Run: `python -m pytest tests/test_server_verification.py::test_apply_server_verification_marks_ready_after_healthy_start_and_clean_stop tests/test_server_verification.py::test_apply_server_verification_continues_polling_through_loading_503_until_ready tests/test_server_verification.py::test_apply_server_verification_marks_process_start_failure_when_process_exits_early tests/test_server_verification.py::test_apply_server_verification_maps_subprocess_start_exception_to_server_process_start -v`
 Expected: FAIL because process startup, health polling, and ready-state truth are not implemented yet
 
 - [ ] **Step 3: Implement the minimal success path**
@@ -594,6 +618,7 @@ Complete `apply_server_verification()` so it:
 - selects a port
 - records `verified_server_port` and `verified_server_url`
 - launches a process
+- maps `process_factory` exceptions to `server-process-start`
 - waits through a bounded startup window for the process to remain alive
 - polls health until `ready`, `failed`, or timeout
 - on success:
@@ -669,6 +694,29 @@ def test_apply_server_verification_marks_server_health_failure_after_timeout(
     assert updated.failing_step == "server-health"
 
 
+def test_apply_server_verification_maps_process_death_during_health_polling_to_server_process_start(
+    tmp_path: Path,
+):
+    session = _build_runtime_ready_session(tmp_path)
+    process = FakeProcess([None, 1])
+
+    updated = apply_server_verification(
+        session,
+        temp_root=tmp_path / "temp-runs",
+        select_port=lambda host="127.0.0.1": 8080,
+        process_factory=lambda command, log_path: process,
+        health_probe=lambda base_url: "loading",
+        stop_process=lambda proc: True,
+        now_fn=_fake_now([0.0, 0.1, 0.2]),
+        sleep_fn=lambda _: None,
+    )
+
+    assert updated.server_verification_status == "failed"
+    assert updated.server_process_status == "failed"
+    assert updated.server_health_status == "skipped"
+    assert updated.failing_step == "server-process-start"
+
+
 def test_apply_server_verification_maps_stop_failure_after_success_to_server_process_stop(
     tmp_path: Path,
 ):
@@ -719,7 +767,7 @@ def test_apply_server_verification_preserves_earlier_failure_when_cleanup_also_f
 
 - [ ] **Step 2: Run the targeted tests to verify they fail**
 
-Run: `python -m pytest tests/test_server_verification.py::test_apply_server_verification_maps_port_selection_failure_to_server_port_bind tests/test_server_verification.py::test_apply_server_verification_marks_server_health_failure_after_timeout tests/test_server_verification.py::test_apply_server_verification_maps_stop_failure_after_success_to_server_process_stop tests/test_server_verification.py::test_apply_server_verification_preserves_earlier_failure_when_cleanup_also_fails -v`
+Run: `python -m pytest tests/test_server_verification.py::test_apply_server_verification_maps_port_selection_failure_to_server_port_bind tests/test_server_verification.py::test_apply_server_verification_marks_server_health_failure_after_timeout tests/test_server_verification.py::test_apply_server_verification_maps_process_death_during_health_polling_to_server_process_start tests/test_server_verification.py::test_apply_server_verification_maps_stop_failure_after_success_to_server_process_stop tests/test_server_verification.py::test_apply_server_verification_preserves_earlier_failure_when_cleanup_also_fails -v`
 Expected: FAIL because the failure matrix and cleanup priority rules are not complete yet
 
 - [ ] **Step 3: Implement the remaining failure rules**
@@ -727,6 +775,7 @@ Expected: FAIL because the failure matrix and cleanup priority rules are not com
 Complete `apply_server_verification()` with:
 
 - `server-port-bind` mapping when port selection fails before process start
+- `server-process-start` mapping when the process dies during health polling before readiness is reached
 - `server-health` mapping when health never becomes ready before timeout
 - cleanup handling through an injected/default `stop_process`
 - failure-step priority:
@@ -828,6 +877,16 @@ def test_main_returns_non_zero_when_server_verification_status_is_failed(
     assert main_module.main() == 1
 ```
 
+Also update the existing success-path test already in `tests/test_main.py`:
+
+- `test_main_delegates_to_run_installer_and_returns_zero`
+
+Its stubbed `run_installer()` payload must now include:
+
+```python
+"server_verification_status": "ready",
+```
+
 - [ ] **Step 2: Run the targeted tests to verify they fail**
 
 Run: `python -m pytest tests/test_main.py::test_run_installer_calls_server_verification_after_runtime_and_before_reporting tests/test_main.py::test_main_returns_non_zero_when_server_verification_status_is_failed -v`
@@ -870,7 +929,7 @@ Update `main()` so exit `0` now requires:
 - `runtime_payload_status == "ready"`
 - `server_verification_status == "ready"`
 
-- [ ] **Step 4: Update the injected smoke test**
+- [ ] **Step 4: Update the injected smoke test and the existing real-default-path tests**
 
 Modify `tests/test_package_smoke.py`:
 
@@ -882,6 +941,42 @@ result = run_installer(
     apply_runtime_payload=lambda session: session,
     apply_server_verification=lambda session: session,
     write_reports=lambda session: None,
+)
+```
+
+In `tests/test_main.py`, add a helper next to `_mark_runtime_ready(...)`:
+
+```python
+def _mark_server_verification_ready(session: InstallerSession, tmp_path) -> InstallerSession:
+    log_path = (
+        tmp_path
+        / "temp-runs"
+        / "LocalAIControlCenterInstaller"
+        / "runs"
+        / session.started_at.replace(":", "-")
+        / "llama-server.log"
+    )
+    session.server_verification_status = "ready"
+    session.server_process_status = "ready"
+    session.server_health_status = "ready"
+    session.verified_server_port = 8080
+    session.verified_server_url = "http://127.0.0.1:8080"
+    session.server_log_path = str(log_path)
+    return session
+```
+
+Update these existing tests so they do not accidentally invoke the real verifier after `run_installer()` gains the new default phase:
+
+- `test_run_installer_uses_real_default_scan_apply_and_write_paths`
+- `test_run_installer_real_default_path_converts_install_root_report_persistence_error_to_failed_result`
+
+In both tests, monkeypatch:
+
+```python
+monkeypatch.setattr(
+    defaults_module,
+    "default_apply_server_verification",
+    lambda session: _mark_server_verification_ready(session, tmp_path),
 )
 ```
 
