@@ -19,6 +19,7 @@ def test_main_delegates_to_run_installer_and_returns_zero(monkeypatch: pytest.Mo
             "bootstrap_status": "ready",
             "runtime_payload_status": "ready",
             "server_verification_status": "ready",
+            "opencode_verification_status": "ready",
         }
 
     monkeypatch.setattr(main_module, "run_installer", fake_run_installer)
@@ -72,6 +73,22 @@ def test_main_returns_non_zero_when_server_verification_status_is_failed(
             "bootstrap_status": "ready",
             "runtime_payload_status": "ready",
             "server_verification_status": "failed",
+        }
+
+    monkeypatch.setattr(main_module, "run_installer", fake_run_installer)
+
+    assert main_module.main() == 1
+
+
+def test_main_returns_non_zero_when_opencode_verification_status_is_failed(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    def fake_run_installer():
+        return {
+            "bootstrap_status": "ready",
+            "runtime_payload_status": "ready",
+            "server_verification_status": "ready",
+            "opencode_verification_status": "failed",
         }
 
     monkeypatch.setattr(main_module, "run_installer", fake_run_installer)
@@ -173,6 +190,10 @@ def test_run_installer_writes_reports_after_failed_bootstrap_apply():
             "server_verification_status": "skipped",
             "server_process_status": "skipped",
             "server_health_status": "skipped",
+            "opencode_artifact_status": "skipped",
+            "opencode_verification_status": "skipped",
+            "opencode_process_status": "skipped",
+            "opencode_connection_status": "skipped",
             "platform": written_payloads[0]["platform"],
             "started_at": written_payloads[0]["started_at"],
             "existing_install_detected": False,
@@ -184,8 +205,14 @@ def test_run_installer_writes_reports_after_failed_bootstrap_apply():
             "starter_model_path": None,
             "active_model_config_path": None,
             "runtime_metadata_path": None,
+            "opencode_artifact_id": None,
+            "opencode_artifact_path": None,
+            "opencode_metadata_path": None,
+            "opencode_config_path": None,
+            "verified_opencode_command": None,
             "verified_server_port": None,
             "verified_server_url": None,
+            "opencode_log_path": None,
             "server_log_path": None,
             "install_opencode": False,
             "attempt_turboquant": False,
@@ -282,6 +309,96 @@ def test_run_installer_calls_server_verification_after_runtime_and_before_report
     )
 
     assert events == ["bootstrap", "runtime", "server", "report"]
+
+
+def test_run_installer_calls_opencode_steps_after_server_and_before_reporting():
+    events: list[str] = []
+
+    def fake_bootstrap(session: InstallerSession, **_):
+        events.append("bootstrap")
+        session.bootstrap_status = "ready"
+        return session
+
+    def fake_runtime(session: InstallerSession, **_):
+        events.append("runtime")
+        session.runtime_payload_status = "ready"
+        return session
+
+    def fake_server_verification(session: InstallerSession, **_):
+        events.append("server")
+        session.server_verification_status = "ready"
+        return session
+
+    def fake_opencode_bootstrap(session: InstallerSession, **_):
+        events.append("opencode-bootstrap")
+        session.opencode_artifact_status = "ready"
+        return session
+
+    def fake_opencode_verification(session: InstallerSession, **_):
+        events.append("opencode-verification")
+        session.opencode_verification_status = "ready"
+        return session
+
+    def fake_write_reports(session: InstallerSession, **_):
+        events.append("report")
+
+    run_installer(
+        collect_answers=lambda session, **_: session,
+        scan_dependencies=lambda session, **_: session,
+        apply_phase=fake_bootstrap,
+        apply_runtime_payload=fake_runtime,
+        apply_server_verification=fake_server_verification,
+        apply_opencode_bootstrap=fake_opencode_bootstrap,
+        apply_opencode_verification=fake_opencode_verification,
+        write_reports=fake_write_reports,
+    )
+
+    assert events == [
+        "bootstrap",
+        "runtime",
+        "server",
+        "opencode-bootstrap",
+        "opencode-verification",
+        "report",
+    ]
+
+
+def test_run_installer_keeps_product_installation_incomplete_after_opencode_success():
+    def fake_bootstrap(session: InstallerSession, **_):
+        session.bootstrap_status = "ready"
+        return session
+
+    def fake_runtime(session: InstallerSession, **_):
+        session.runtime_payload_status = "ready"
+        return session
+
+    def fake_server_verification(session: InstallerSession, **_):
+        session.server_verification_status = "ready"
+        return session
+
+    def fake_opencode_bootstrap(session: InstallerSession, **_):
+        session.opencode_artifact_status = "ready"
+        return session
+
+    def fake_opencode_verification(session: InstallerSession, **_):
+        session.opencode_verification_status = "ready"
+        session.opencode_process_status = "ready"
+        session.opencode_connection_status = "ready"
+        return session
+
+    result = run_installer(
+        collect_answers=lambda session, **_: session,
+        scan_dependencies=lambda session, **_: session,
+        apply_phase=fake_bootstrap,
+        apply_runtime_payload=fake_runtime,
+        apply_server_verification=fake_server_verification,
+        apply_opencode_bootstrap=fake_opencode_bootstrap,
+        apply_opencode_verification=fake_opencode_verification,
+        write_reports=lambda session, **_: None,
+    )
+
+    assert result["product_installation_status"] == "incomplete"
+    assert result["opencode_verification_status"] == "ready"
 
 
 def test_probe_node_version_requires_both_node_and_npm(
@@ -445,6 +562,16 @@ def test_run_installer_uses_real_default_scan_apply_and_write_paths(
         "default_apply_server_verification",
         lambda session: _mark_server_verification_ready(session, tmp_path),
     )
+    monkeypatch.setattr(
+        defaults_module,
+        "default_apply_opencode_bootstrap",
+        lambda session: _mark_opencode_bootstrap_ready(session, tmp_path),
+    )
+    monkeypatch.setattr(
+        defaults_module,
+        "default_apply_opencode_verification",
+        lambda session: _mark_opencode_verification_ready(session, tmp_path),
+    )
     availability = {
         "git": "C:\\Tools\\git.exe",
         "node": "C:\\Tools\\node.exe",
@@ -505,11 +632,15 @@ def test_run_installer_uses_real_default_scan_apply_and_write_paths(
     assert temp_payload["bootstrap_status"] == "ready"
     assert temp_payload["runtime_payload_status"] == "ready"
     assert temp_payload["server_verification_status"] == "ready"
+    assert temp_payload["opencode_artifact_status"] == "ready"
+    assert temp_payload["opencode_verification_status"] == "ready"
     assert temp_payload["dependencies"][2]["version"] == "v22.14.0; npm 10.9.2"
     assert temp_payload["dependencies"][3]["version"] == "gcc (GCC) 14.2.0; cmake version 3.31.6"
     assert install_payload["bootstrap_status"] == "ready"
     assert install_payload["runtime_payload_status"] == "ready"
     assert install_payload["server_verification_status"] == "ready"
+    assert install_payload["opencode_artifact_status"] == "ready"
+    assert install_payload["opencode_verification_status"] == "ready"
 
 
 def test_run_installer_real_default_path_converts_install_root_report_persistence_error_to_failed_result(
@@ -532,6 +663,16 @@ def test_run_installer_real_default_path_converts_install_root_report_persistenc
         defaults_module,
         "default_apply_server_verification",
         lambda session: _mark_server_verification_ready(session, tmp_path),
+    )
+    monkeypatch.setattr(
+        defaults_module,
+        "default_apply_opencode_bootstrap",
+        lambda session: _mark_opencode_bootstrap_ready(session, tmp_path),
+    )
+    monkeypatch.setattr(
+        defaults_module,
+        "default_apply_opencode_verification",
+        lambda session: _mark_opencode_verification_ready(session, tmp_path),
     )
     monkeypatch.setattr(
         defaults_module,
@@ -624,4 +765,41 @@ def _mark_server_verification_ready(
     session.verified_server_port = 8080
     session.verified_server_url = "http://127.0.0.1:8080"
     session.server_log_path = str(log_path)
+    return session
+
+
+def _mark_opencode_bootstrap_ready(
+    session: InstallerSession,
+    tmp_path,
+) -> InstallerSession:
+    install_root = tmp_path / "install-root"
+    session.opencode_artifact_status = "ready"
+    session.opencode_artifact_id = "opencode-windows-x64"
+    session.opencode_artifact_path = str(install_root / "tools" / "opencode")
+    session.opencode_metadata_path = str(
+        install_root / "tools" / "opencode" / "opencode-artifact.json"
+    )
+    session.opencode_config_path = str(
+        install_root / "config" / "opencode" / "managed-config.json"
+    )
+    return session
+
+
+def _mark_opencode_verification_ready(
+    session: InstallerSession,
+    tmp_path,
+) -> InstallerSession:
+    log_path = (
+        tmp_path
+        / "temp-runs"
+        / "LocalAIControlCenterInstaller"
+        / "runs"
+        / session.started_at.replace(":", "-")
+        / "opencode-verification.log"
+    )
+    session.opencode_verification_status = "ready"
+    session.opencode_process_status = "ready"
+    session.opencode_connection_status = "ready"
+    session.verified_opencode_command = "opencode --pure models local-lacc"
+    session.opencode_log_path = str(log_path)
     return session

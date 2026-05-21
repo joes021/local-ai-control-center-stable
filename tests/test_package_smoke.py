@@ -8,6 +8,8 @@ def test_run_installer_smoke_with_injected_collaborators():
         apply_phase=lambda session: session,
         apply_runtime_payload=lambda session: session,
         apply_server_verification=lambda session: session,
+        apply_opencode_bootstrap=lambda session: session,
+        apply_opencode_verification=lambda session: session,
         write_reports=lambda session: None,
     )
 

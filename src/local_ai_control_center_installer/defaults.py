@@ -13,6 +13,12 @@ from local_ai_control_center_installer.reporting import (
     write_human_log,
     write_json_report,
 )
+from local_ai_control_center_installer.opencode_bootstrap import (
+    apply_opencode_bootstrap,
+)
+from local_ai_control_center_installer.opencode_verification import (
+    apply_opencode_verification,
+)
 from local_ai_control_center_installer.runtime_bootstrap import apply_runtime_payload
 from local_ai_control_center_installer.server_verification import (
     apply_server_verification,
@@ -46,6 +52,14 @@ def default_apply_runtime_payload(session: InstallerSession) -> InstallerSession
 
 def default_apply_server_verification(session: InstallerSession) -> InstallerSession:
     return apply_server_verification(session, temp_root=_default_temp_root())
+
+
+def default_apply_opencode_bootstrap(session: InstallerSession) -> InstallerSession:
+    return apply_opencode_bootstrap(session, temp_root=_default_temp_root())
+
+
+def default_apply_opencode_verification(session: InstallerSession) -> InstallerSession:
+    return apply_opencode_verification(session, temp_root=_default_temp_root())
 
 
 def default_write_reports(session: InstallerSession) -> None:
