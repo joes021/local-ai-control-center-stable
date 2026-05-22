@@ -1,4 +1,5 @@
 import json
+import subprocess
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -260,12 +261,6 @@ def test_apply_opencode_verification_success_path_uses_bounded_smoke_and_relay_e
     assert updated.opencode_connection_status == "ready"
     assert updated.failing_step is None
     assert updated.error_message is None
-    assert updated.verified_opencode_command == (
-        f"{Path(session.opencode_artifact_path) / 'opencode.exe'} "
-        "--pure run --format json --model "
-        "local-lacc/recommended-6gb "
-        f"Repeat this exact token once: {marker}"
-    )
     assert captured["command"] == [
         str(Path(session.opencode_artifact_path) / "opencode.exe"),
         "--pure",
@@ -276,6 +271,10 @@ def test_apply_opencode_verification_success_path_uses_bounded_smoke_and_relay_e
         "local-lacc/recommended-6gb",
         f"Repeat this exact token once: {marker}",
     ]
+    assert updated.verified_opencode_command == subprocess.list2cmdline(
+        captured["command"]
+    )
+    assert f'"Repeat this exact token once: {marker}"' in updated.verified_opencode_command
     assert captured["relay_upstream_base_url"] == runtime_handle.base_url
     assert captured["relay_marker"] == marker
     assert captured["log_path"] == Path(updated.opencode_log_path)
@@ -647,6 +646,125 @@ def test_apply_opencode_verification_cleanup_failure_does_not_overwrite_primary_
     assert updated.opencode_connection_status == "skipped"
     assert updated.failing_step == "opencode-inference-smoke"
     assert "failed to stop OpenCode verification process" in updated.error_message
+
+
+def test_apply_opencode_verification_log_write_failure_after_successful_proof_keeps_truthful_statuses(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    session = _build_ready_session(tmp_path)
+    proof_state = _proof_state(
+        marker_seen=True,
+        upstream_success=True,
+        response_has_assistant_content=True,
+    )
+
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.opencode_verification.load_opencode_manifest",
+        lambda: _build_manifest(),
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.opencode_verification._write_log_text",
+        lambda log_path, text: (_ for _ in ()).throw(OSError("disk full")),
+    )
+
+    updated = ov.apply_opencode_verification(
+        session,
+        temp_root=tmp_path / "temp-runs",
+        process_factory=lambda command, *, cwd, env, log_path: FakeProcess(
+            stdout='{"ok":true}\n',
+            returncode=0,
+        ),
+        runtime_server_factory=lambda target, *, run_paths, now_fn, sleep_fn: _runtime_handle(
+            tmp_path
+        ),
+        relay_factory=lambda **kwargs: _relay_handle(proof_state=proof_state),
+        stop_process=lambda launched_process: True,
+        stop_runtime=lambda handle: True,
+        stop_relay=lambda handle: True,
+        marker_factory=lambda: "LACC_VERIFY_MARKER:disk-full",
+    )
+
+    assert updated.opencode_verification_status == "failed"
+    assert updated.opencode_process_status == "ready"
+    assert updated.opencode_connection_status == "ready"
+    assert updated.failing_step == "opencode-inference-smoke"
+    assert updated.error_message == "disk full"
+
+
+def test_apply_opencode_verification_timeout_before_any_proof_skips_connection(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    session = _build_ready_session(tmp_path)
+
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.opencode_verification.load_opencode_manifest",
+        lambda: _build_manifest(),
+    )
+
+    updated = ov.apply_opencode_verification(
+        session,
+        temp_root=tmp_path / "temp-runs",
+        process_factory=lambda command, *, cwd, env, log_path: FakeProcess(
+            stdout="partial output\n",
+            timeout=True,
+        ),
+        runtime_server_factory=lambda target, *, run_paths, now_fn, sleep_fn: _runtime_handle(
+            tmp_path
+        ),
+        relay_factory=lambda **kwargs: _relay_handle(proof_state=_proof_state()),
+        stop_process=lambda launched_process: True,
+        stop_runtime=lambda handle: True,
+        stop_relay=lambda handle: True,
+        marker_factory=lambda: "LACC_VERIFY_MARKER:timeout-before-proof",
+    )
+
+    assert updated.opencode_verification_status == "failed"
+    assert updated.opencode_process_status == "failed"
+    assert updated.opencode_connection_status == "skipped"
+    assert updated.failing_step == "opencode-inference-smoke"
+    assert updated.error_message == "OpenCode inference smoke timed out."
+
+
+def test_apply_opencode_verification_timeout_after_successful_proof_preserves_connection_ready(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    session = _build_ready_session(tmp_path)
+    proof_state = _proof_state(
+        marker_seen=True,
+        upstream_success=True,
+        response_has_assistant_content=True,
+    )
+
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.opencode_verification.load_opencode_manifest",
+        lambda: _build_manifest(),
+    )
+
+    updated = ov.apply_opencode_verification(
+        session,
+        temp_root=tmp_path / "temp-runs",
+        process_factory=lambda command, *, cwd, env, log_path: FakeProcess(
+            stdout='{"ok":true}\n',
+            timeout=True,
+        ),
+        runtime_server_factory=lambda target, *, run_paths, now_fn, sleep_fn: _runtime_handle(
+            tmp_path
+        ),
+        relay_factory=lambda **kwargs: _relay_handle(proof_state=proof_state),
+        stop_process=lambda launched_process: True,
+        stop_runtime=lambda handle: True,
+        stop_relay=lambda handle: True,
+        marker_factory=lambda: "LACC_VERIFY_MARKER:timeout-after-proof",
+    )
+
+    assert updated.opencode_verification_status == "failed"
+    assert updated.opencode_process_status == "failed"
+    assert updated.opencode_connection_status == "ready"
+    assert updated.failing_step == "opencode-inference-smoke"
+    assert updated.error_message == "OpenCode inference smoke timed out."
 
 
 def _start_loopback_server(handler_type: type[BaseHTTPRequestHandler]):
