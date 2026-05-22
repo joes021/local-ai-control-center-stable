@@ -1,9 +1,11 @@
+from dataclasses import dataclass, field
 from pathlib import Path
 import shutil
 import subprocess
 import sys
 import tempfile
 import inspect
+import time
 
 from local_ai_control_center_installer.apply_phase import apply_bootstrap_phase
 from local_ai_control_center_installer.dependencies import (
@@ -36,15 +38,31 @@ from local_ai_control_center_installer.server_verification import (
 from local_ai_control_center_installer.session import InstallerSession
 from local_ai_control_center_installer.turboquant import apply_turboquant
 
+INSTALL_PHASE_TOTAL_STEPS = 10
+
+
+@dataclass
+class InstallProgressTracker:
+    start_monotonic: float
+    total_steps: int = INSTALL_PHASE_TOTAL_STEPS
+    completed_durations: list[float] = field(default_factory=list)
+    active_step_index: int | None = None
+    active_step_started_at: float | None = None
+
+
+_install_progress_tracker: InstallProgressTracker | None = None
+
 
 def default_collect_answers(session: InstallerSession) -> InstallerSession:
     return collect_installer_answers(session)
 
 
 def default_scan_dependencies(session: InstallerSession) -> InstallerSession:
+    _reset_install_progress_tracker()
     probes = {
         "python": _probe_python_version,
     }
+    _print_phase_message(1, "Checking installation prerequisites...")
     session = scan_all_dependencies(
         session,
         probes=probes,
@@ -54,26 +72,56 @@ def default_scan_dependencies(session: InstallerSession) -> InstallerSession:
         probes=probes,
         install_strategies=_build_dependency_install_strategies(),
     )
+    status = "ready" if all(
+        dependency.status == "ready"
+        for dependency in session.dependencies
+        if dependency.required
+    ) else "failed"
+    _print_phase_message(1, f"Installation prerequisites status: {status}", complete=True)
     return session
 
 
 def default_apply_phase(session: InstallerSession) -> InstallerSession:
-    return apply_bootstrap_phase(session, temp_root=_default_temp_root())
+    return _run_phase_with_status(
+        session,
+        step_index=2,
+        start_message="Applying bootstrap decisions...",
+        status_label="Bootstrap status",
+        step_fn=lambda current_session: apply_bootstrap_phase(
+            current_session, temp_root=_default_temp_root()
+        ),
+        status_getter=lambda current_session: current_session.bootstrap_status,
+    )
 
 
 def default_prepare_download_plan(session: InstallerSession) -> InstallerSession:
-    if session.download_plan is not None or session.bootstrap_status != "ready":
+    if session.download_plan is not None:
+        _print_phase_message(3, "Preparing download plan...")
+        item_count = _count_download_plan_items(session.download_plan)
+        if item_count is None:
+            _print_phase_message(3, "Download plan already prepared.", complete=True)
+        else:
+            _print_phase_message(
+                3,
+                f"Download plan already prepared: {item_count} item(s).",
+                complete=True,
+            )
         return session
-    print("Preparing download plan...")
+
+    if session.bootstrap_status != "ready":
+        _print_phase_message(3, "Preparing download plan...")
+        _print_phase_message(3, "Download plan skipped.", complete=True)
+        return session
+    _print_phase_message(3, "Preparing download plan...")
     try:
         session.download_plan = build_download_plan(session)
     except (OSError, ValueError):
         session.download_plan = None
     item_count = _count_download_plan_items(session.download_plan)
     if item_count is None:
-        print("Download plan unavailable.")
+        _print_phase_message(3, "Download plan unavailable.", complete=True)
     else:
-        print(f"Download plan ready: {item_count} item(s).")
+        _print_phase_message(3, f"Download plan ready: {item_count} item(s).", complete=True)
     return session
 
 
@@ -81,6 +129,7 @@ def default_apply_runtime_payload(session: InstallerSession) -> InstallerSession
     progress_callback = _build_download_progress_callback()
     return _run_phase_with_status(
         session,
+        step_index=4,
         start_message="Checking local runtime payload...",
         status_label="Runtime payload status",
         step_fn=lambda current_session: apply_runtime_payload(
@@ -106,6 +155,7 @@ def default_apply_runtime_payload(session: InstallerSession) -> InstallerSession
 def default_apply_server_verification(session: InstallerSession) -> InstallerSession:
     return _run_phase_with_status(
         session,
+        step_index=5,
         start_message="Verifying local llama.cpp server...",
         status_label="llama.cpp server verification status",
         step_fn=lambda current_session: apply_server_verification(
@@ -120,6 +170,7 @@ def default_apply_opencode_bootstrap(session: InstallerSession) -> InstallerSess
     progress_callback = _build_download_progress_callback()
     return _run_phase_with_status(
         session,
+        step_index=6,
         start_message="Checking OpenCode artifact...",
         status_label="OpenCode artifact status",
         step_fn=lambda current_session: apply_opencode_bootstrap(
@@ -139,6 +190,7 @@ def default_apply_opencode_bootstrap(session: InstallerSession) -> InstallerSess
 def default_apply_opencode_verification(session: InstallerSession) -> InstallerSession:
     return _run_phase_with_status(
         session,
+        step_index=7,
         start_message="Verifying OpenCode live route...",
         status_label="OpenCode live-route verification status",
         step_fn=lambda current_session: apply_opencode_verification(
@@ -152,6 +204,7 @@ def default_apply_opencode_verification(session: InstallerSession) -> InstallerS
 def default_apply_first_run_validation(session: InstallerSession) -> InstallerSession:
     return _run_phase_with_status(
         session,
+        step_index=9,
         start_message="Running first-run OpenCode smoke...",
         status_label="First-run smoke status",
         step_fn=lambda current_session: apply_first_run_validation(
@@ -166,6 +219,7 @@ def default_apply_turboquant(session: InstallerSession) -> InstallerSession:
     progress_callback = _build_download_progress_callback()
     return _run_phase_with_status(
         session,
+        step_index=8,
         start_message="Checking TurboQuant...",
         status_label="TurboQuant status",
         step_fn=lambda current_session: _invoke_step_with_optional_kwargs(
@@ -186,6 +240,7 @@ def default_apply_turboquant(session: InstallerSession) -> InstallerSession:
 def default_apply_product_gate(session: InstallerSession) -> InstallerSession:
     return _run_phase_with_status(
         session,
+        step_index=10,
         start_message="Finalizing installation status...",
         status_label="Product installation status",
         step_fn=apply_product_gate,
@@ -210,6 +265,7 @@ def default_write_reports(session: InstallerSession) -> None:
             write_human_log(session, run_paths.log_path)
             write_json_report(session, run_paths.json_report_path)
     _print_final_outcome(session, run_paths)
+    _clear_install_progress_tracker()
 
 
 def _default_temp_root() -> Path:
@@ -219,14 +275,19 @@ def _default_temp_root() -> Path:
 def _run_phase_with_status(
     session: InstallerSession,
     *,
+    step_index: int,
     start_message: str,
     status_label: str,
     step_fn,
     status_getter,
 ) -> InstallerSession:
-    print(start_message)
+    _print_phase_message(step_index, start_message)
     session = step_fn(session)
-    print(f"{status_label}: {status_getter(session)}")
+    _print_phase_message(
+        step_index,
+        f"{status_label}: {status_getter(session)}",
+        complete=True,
+    )
     return session
 
 
@@ -435,6 +496,7 @@ def _probe_build_tools_version() -> str | None:
 
 def _build_download_progress_callback():
     def on_progress(progress) -> None:
+        phase_prefix = _format_phase_prefix(active_step=True)
         position = ""
         if progress.current_index is not None and progress.total_items is not None:
             position = f"[{progress.current_index}/{progress.total_items}] "
@@ -445,9 +507,117 @@ def _build_download_progress_callback():
         eta_summary = ""
         if progress.eta_seconds is not None:
             eta_summary = f", ETA {progress.eta_seconds:.1f}s"
-        print(f"{position}{label}: {bytes_summary}{eta_summary}")
+        line = f"{position}{label}: {bytes_summary}{eta_summary}"
+        if phase_prefix:
+            print(f"{phase_prefix} {line}")
+        else:
+            print(line)
 
     return on_progress
+
+
+def _reset_install_progress_tracker() -> None:
+    global _install_progress_tracker
+    _install_progress_tracker = InstallProgressTracker(start_monotonic=time.monotonic())
+
+
+def _clear_install_progress_tracker() -> None:
+    global _install_progress_tracker
+    _install_progress_tracker = None
+
+
+def _require_install_progress_tracker() -> InstallProgressTracker:
+    global _install_progress_tracker
+    if _install_progress_tracker is None:
+        _install_progress_tracker = InstallProgressTracker(start_monotonic=time.monotonic())
+    return _install_progress_tracker
+
+
+def _print_phase_message(step_index: int, message: str, *, complete: bool = False) -> None:
+    tracker = _require_install_progress_tracker()
+    if complete:
+        _mark_step_completed(tracker, step_index)
+    else:
+        _mark_step_started(tracker, step_index)
+    print(f"{_format_phase_prefix_for_tracker(tracker, step_index, complete=complete)} {message}")
+
+
+def _mark_step_started(tracker: InstallProgressTracker, step_index: int) -> None:
+    tracker.active_step_index = step_index
+    tracker.active_step_started_at = time.monotonic()
+
+
+def _mark_step_completed(tracker: InstallProgressTracker, step_index: int) -> None:
+    now = time.monotonic()
+    if (
+        tracker.active_step_index == step_index
+        and tracker.active_step_started_at is not None
+    ):
+        tracker.completed_durations.append(now - tracker.active_step_started_at)
+    tracker.active_step_index = None
+    tracker.active_step_started_at = None
+
+
+def _format_phase_prefix(active_step: bool = False) -> str:
+    tracker = _install_progress_tracker
+    if tracker is None:
+        return ""
+    step_index = tracker.active_step_index
+    if step_index is None:
+        return ""
+    return _format_phase_prefix_for_tracker(tracker, step_index, complete=False)
+
+
+def _format_phase_prefix_for_tracker(
+    tracker: InstallProgressTracker,
+    step_index: int,
+    *,
+    complete: bool,
+) -> str:
+    now = time.monotonic()
+    elapsed_seconds = max(now - tracker.start_monotonic, 0.0)
+    eta_seconds = _estimate_install_eta_seconds(
+        tracker,
+        step_index=step_index,
+        complete=complete,
+    )
+    return (
+        f"[{step_index}/{tracker.total_steps} | "
+        f"elapsed {_format_elapsed_seconds(elapsed_seconds)} | "
+        f"ETA {_format_eta_seconds(eta_seconds)}]"
+    )
+
+
+def _estimate_install_eta_seconds(
+    tracker: InstallProgressTracker,
+    *,
+    step_index: int,
+    complete: bool,
+) -> float | None:
+    if not tracker.completed_durations:
+        return None
+    average_duration = sum(tracker.completed_durations) / len(tracker.completed_durations)
+    completed_steps = len(tracker.completed_durations)
+    if complete:
+        remaining_steps = max(tracker.total_steps - completed_steps, 0)
+    else:
+        remaining_steps = max(tracker.total_steps - completed_steps, 0)
+    return average_duration * remaining_steps
+
+
+def _format_elapsed_seconds(seconds: float) -> str:
+    total_seconds = max(int(seconds), 0)
+    hours, remainder = divmod(total_seconds, 3600)
+    minutes, secs = divmod(remainder, 60)
+    if hours:
+        return f"{hours:02d}:{minutes:02d}:{secs:02d}"
+    return f"{minutes:02d}:{secs:02d}"
+
+
+def _format_eta_seconds(seconds: float | None) -> str:
+    if seconds is None:
+        return "--:--"
+    return _format_elapsed_seconds(seconds)
 
 
 def _capture_first_available_output(*command: list[str]) -> str | None:

@@ -51,12 +51,39 @@ def friendly_number_error(allowed: list[str]) -> str:
     return f"Please enter {prefix}, or {allowed[-1]}."
 
 
-def build_numbered_prompt(title: str, options: list[tuple[str, str]], default: str) -> str:
-    lines = [title]
+def count_questionnaire_steps(existing_install_detected: bool) -> int:
+    return 7 if existing_install_detected else 6
+
+
+def build_step_title(step_index: int, total_steps: int, title: str) -> str:
+    return f"[{step_index}/{total_steps}] {title}"
+
+
+def build_numbered_prompt(
+    title: str,
+    options: list[tuple[str, str]],
+    default: str,
+    *,
+    step_index: int | None = None,
+    total_steps: int | None = None,
+) -> str:
+    resolved_title = title
+    if step_index is not None and total_steps is not None:
+        resolved_title = build_step_title(step_index, total_steps, title)
+    lines = [resolved_title]
     for number, label in options:
         lines.append(f"{number}) {label}")
     lines.append(f"Select a number (default: {default}): ")
     return "\n".join(lines)
+
+
+def build_text_prompt(
+    title: str,
+    *,
+    step_index: int,
+    total_steps: int,
+) -> str:
+    return f"{build_step_title(step_index, total_steps, title)}: "
 
 
 def build_starter_model_prompt_options() -> tuple[list[tuple[str, str]], dict[str, str], str]:
@@ -134,6 +161,8 @@ def _render_selected_starter_model_label(starter_model_id: str | None) -> str:
 
 def collect_installer_answers(session, input_fn=input, output_fn=print):
     draft_session = deepcopy(session)
+    total_steps = count_questionnaire_steps(draft_session.existing_install_detected)
+    step_index = 1
 
     if draft_session.existing_install_detected:
         install_mode = prompt_for_number(
@@ -141,6 +170,8 @@ def collect_installer_answers(session, input_fn=input, output_fn=print):
                 "Install mode",
                 [("1", "Upgrade"), ("2", "Fresh install")],
                 "1",
+                step_index=step_index,
+                total_steps=total_steps,
             ),
             "1",
             {"1", "2"},
@@ -148,14 +179,24 @@ def collect_installer_answers(session, input_fn=input, output_fn=print):
             output_fn=output_fn,
         )
         draft_session.install_mode = "upgrade" if install_mode == "1" else "fresh"
+        step_index += 1
     else:
         draft_session.install_mode = "fresh"
 
     default_install_root = draft_session.install_root or DEFAULT_INSTALL_ROOT
     draft_session.install_root = (
-        normalize_prompt_input(input_fn(f"Install root (default: {default_install_root}): "))
+        normalize_prompt_input(
+            input_fn(
+                build_text_prompt(
+                    f"Install root (default: {default_install_root})",
+                    step_index=step_index,
+                    total_steps=total_steps,
+                )
+            )
+        )
         or default_install_root
     )
+    step_index += 1
 
     starter_model_options, starter_model_choices, starter_model_default = (
         build_starter_model_prompt_options()
@@ -165,6 +206,8 @@ def collect_installer_answers(session, input_fn=input, output_fn=print):
             "Starter model",
             starter_model_options,
             starter_model_default,
+            step_index=step_index,
+            total_steps=total_steps,
         ),
         starter_model_default,
         set(starter_model_choices),
@@ -172,12 +215,15 @@ def collect_installer_answers(session, input_fn=input, output_fn=print):
         output_fn=output_fn,
     )
     draft_session.starter_model = starter_model_choices[model_choice]
+    step_index += 1
     draft_session.install_opencode = (
         prompt_for_number(
             build_numbered_prompt(
                 "Install OpenCode (required for a successful installation)",
                 [("1", "Yes"), ("2", "No")],
                 "1",
+                step_index=step_index,
+                total_steps=total_steps,
             ),
             "1",
             {"1", "2"},
@@ -186,12 +232,15 @@ def collect_installer_answers(session, input_fn=input, output_fn=print):
         )
         == "1"
     )
+    step_index += 1
     draft_session.attempt_turboquant = (
         prompt_for_number(
             build_numbered_prompt(
                 "Attempt TurboQuant",
                 [("1", "Yes"), ("2", "No")],
                 "1",
+                step_index=step_index,
+                total_steps=total_steps,
             ),
             "1",
             {"1", "2"},
@@ -200,9 +249,17 @@ def collect_installer_answers(session, input_fn=input, output_fn=print):
         )
         == "1"
     )
+    step_index += 1
     draft_session.additional_model_paths = parse_model_paths(
-        input_fn("Additional model paths (semicolon-separated, optional): ")
+        input_fn(
+            build_text_prompt(
+                "Additional model paths (semicolon-separated, optional)",
+                step_index=step_index,
+                total_steps=total_steps,
+            )
+        )
     )
+    step_index += 1
 
     output_fn(render_confirmation_summary(draft_session))
     confirmation = prompt_for_number(
@@ -210,6 +267,8 @@ def collect_installer_answers(session, input_fn=input, output_fn=print):
             "Confirm choices",
             [("1", "Confirm"), ("2", "Cancel")],
             "1",
+            step_index=step_index,
+            total_steps=total_steps,
         ),
         "1",
         {"1", "2"},
