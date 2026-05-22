@@ -40,6 +40,7 @@ class InstallerSession:
     first_run_status: str = "skipped"
     first_run_process_status: str = "skipped"
     first_run_connection_status: str = "skipped"
+    turboquant_status: str = "skipped"
     platform: str | None = None
     started_at: str | None = None
     existing_install_detected: bool = False
@@ -64,6 +65,7 @@ class InstallerSession:
     opencode_log_path: str | None = None
     first_run_log_path: str | None = None
     server_log_path: str | None = None
+    turboquant_error: str | None = None
     install_opencode: bool = False
     attempt_turboquant: bool = False
     additional_model_paths: list[str] = field(default_factory=list)

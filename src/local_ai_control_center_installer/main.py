@@ -32,7 +32,9 @@ def run_installer(
     apply_server_verification: SessionStep | None = None,
     apply_opencode_bootstrap: SessionStep | None = None,
     apply_opencode_verification: SessionStep | None = None,
+    apply_turboquant: SessionStep | None = None,
     apply_first_run_validation: SessionStep | None = None,
+    apply_product_gate: SessionStep | None = None,
     write_reports: ReportStep | None = None,
 ):
     collect_answers = collect_answers or defaults_module.default_collect_answers
@@ -55,10 +57,12 @@ def run_installer(
         apply_opencode_verification
         or defaults_module.default_apply_opencode_verification
     )
+    apply_turboquant = apply_turboquant or defaults_module.default_apply_turboquant
     apply_first_run_validation = (
         apply_first_run_validation
         or defaults_module.default_apply_first_run_validation
     )
+    apply_product_gate = apply_product_gate or defaults_module.default_apply_product_gate
     write_reports = write_reports or defaults_module.default_write_reports
 
     session = build_default_session()
@@ -70,7 +74,9 @@ def run_installer(
     session = apply_server_verification(session)
     session = apply_opencode_bootstrap(session)
     session = apply_opencode_verification(session)
+    session = apply_turboquant(session)
     session = apply_first_run_validation(session)
+    session = apply_product_gate(session)
     write_reports(session)
     return session.to_dict()
 
@@ -81,15 +87,7 @@ def main() -> int:
     except (PromptCancelledError, StarterModelCatalogError) as error:
         print(str(error), file=sys.stderr)
         return 1
-    opencode_requested = result.get("install_opencode") is True
-    opencode_ready = result.get("opencode_verification_status") == "ready"
-    first_run_ready = result.get("first_run_status") == "ready"
-    if (
-        result.get("bootstrap_status") == "ready"
-        and result.get("runtime_payload_status") == "ready"
-        and result.get("server_verification_status") == "ready"
-        and (not opencode_requested or (opencode_ready and first_run_ready))
-    ):
+    if result.get("product_installation_status") == "complete":
         return 0
     return 1
 

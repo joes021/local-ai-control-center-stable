@@ -77,6 +77,8 @@ def test_installer_session_serializes_first_slice_state():
         "first_run_status": "skipped",
         "first_run_process_status": "skipped",
         "first_run_connection_status": "skipped",
+        "turboquant_status": "skipped",
+        "turboquant_error": None,
         "platform": "windows",
         "started_at": "2026-05-20T22:45:00Z",
         "existing_install_detected": True,
@@ -248,3 +250,18 @@ def test_installer_session_serializes_first_run_fields():
     assert payload["first_run_process_status"] == "ready"
     assert payload["first_run_connection_status"] == "ready"
     assert payload["first_run_log_path"] == "C:\\LACC\\temp\\first-run-validation.log"
+
+
+def test_installer_session_serializes_turboquant_fields():
+    session = InstallerSession(
+        turboquant_status="failed",
+        turboquant_error="No supported Windows TurboQuant install path is currently packaged.",
+    )
+
+    payload = session.to_dict()
+
+    assert payload["turboquant_status"] == "failed"
+    assert (
+        payload["turboquant_error"]
+        == "No supported Windows TurboQuant install path is currently packaged."
+    )

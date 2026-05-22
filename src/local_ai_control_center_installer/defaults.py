@@ -11,6 +11,7 @@ from local_ai_control_center_installer.downloads import download_file
 from local_ai_control_center_installer.first_run_validation import (
     apply_first_run_validation,
 )
+from local_ai_control_center_installer.product_gate import apply_product_gate
 from local_ai_control_center_installer.prompts import collect_installer_answers
 from local_ai_control_center_installer.reporting import (
     build_run_paths,
@@ -29,6 +30,7 @@ from local_ai_control_center_installer.server_verification import (
     apply_server_verification,
 )
 from local_ai_control_center_installer.session import InstallerSession
+from local_ai_control_center_installer.turboquant import apply_turboquant
 
 
 def default_collect_answers(session: InstallerSession) -> InstallerSession:
@@ -107,6 +109,14 @@ def default_apply_first_run_validation(session: InstallerSession) -> InstallerSe
     return apply_first_run_validation(session, temp_root=_default_temp_root())
 
 
+def default_apply_turboquant(session: InstallerSession) -> InstallerSession:
+    return apply_turboquant(session)
+
+
+def default_apply_product_gate(session: InstallerSession) -> InstallerSession:
+    return apply_product_gate(session)
+
+
 def default_write_reports(session: InstallerSession) -> None:
     run_paths = build_run_paths(_default_temp_root(), _build_run_id(session))
     write_human_log(session, run_paths.log_path)
@@ -118,6 +128,7 @@ def default_write_reports(session: InstallerSession) -> None:
             session.error_message = str(exc)
             if session.runtime_payload_status == "ready":
                 session.runtime_payload_status = "failed"
+            session.product_installation_status = "failed"
             if session.failing_step is None:
                 session.failing_step = "install-root-persistence"
             write_human_log(session, run_paths.log_path)
