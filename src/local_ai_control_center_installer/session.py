@@ -26,6 +26,8 @@ class InstallerSession:
     runtime_artifact_status: str = "skipped"
     starter_model_status: str = "skipped"
     active_model_config_status: str = "skipped"
+    model_locations_config_status: str = "skipped"
+    runtime_endpoint_config_status: str = "skipped"
     server_verification_status: str = "skipped"
     server_process_status: str = "skipped"
     server_health_status: str = "skipped"
@@ -43,12 +45,15 @@ class InstallerSession:
     starter_model: str | None = None
     starter_model_path: str | None = None
     active_model_config_path: str | None = None
+    model_locations_config_path: str | None = None
     runtime_metadata_path: str | None = None
+    runtime_endpoint_config_path: str | None = None
     opencode_artifact_id: str | None = None
     opencode_artifact_path: str | None = None
     opencode_metadata_path: str | None = None
     opencode_config_path: str | None = None
     verified_opencode_command: str | None = None
+    managed_runtime_port: int | None = None
     verified_server_port: int | None = None
     verified_server_url: str | None = None
     opencode_log_path: str | None = None

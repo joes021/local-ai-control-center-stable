@@ -65,6 +65,8 @@ def test_installer_session_serializes_first_slice_state():
         "runtime_artifact_status": "skipped",
         "starter_model_status": "skipped",
         "active_model_config_status": "skipped",
+        "model_locations_config_status": "skipped",
+        "runtime_endpoint_config_status": "skipped",
         "server_verification_status": "skipped",
         "server_process_status": "skipped",
         "server_health_status": "skipped",
@@ -82,12 +84,15 @@ def test_installer_session_serializes_first_slice_state():
         "starter_model": "recommended-12gb",
         "starter_model_path": None,
         "active_model_config_path": None,
+        "model_locations_config_path": None,
         "runtime_metadata_path": None,
+        "runtime_endpoint_config_path": None,
         "opencode_artifact_id": None,
         "opencode_artifact_path": None,
         "opencode_metadata_path": None,
         "opencode_config_path": None,
         "verified_opencode_command": None,
+        "managed_runtime_port": None,
         "verified_server_port": None,
         "verified_server_url": None,
         "opencode_log_path": None,
@@ -122,11 +127,16 @@ def test_installer_session_serializes_runtime_payload_fields():
         starter_model="recommended-6gb",
         starter_model_status="ready",
         active_model_config_status="ready",
+        model_locations_config_status="ready",
+        runtime_endpoint_config_status="ready",
         runtime_artifact_id="windows-llama-cpp-runtime",
         runtime_artifact_path="C:\\LACC\\runtime\\llama.cpp",
         starter_model_path="C:\\LACC\\models\\recommended-6gb\\recommended-6gb.gguf",
         active_model_config_path="C:\\LACC\\config\\active-model.json",
+        model_locations_config_path="C:\\LACC\\config\\model-locations.json",
         runtime_metadata_path="C:\\LACC\\runtime\\llama.cpp\\runtime-artifact.json",
+        runtime_endpoint_config_path="C:\\LACC\\config\\runtime-endpoint.json",
+        managed_runtime_port=39281,
     )
 
     payload = session.to_dict()
@@ -136,11 +146,16 @@ def test_installer_session_serializes_runtime_payload_fields():
     assert payload["starter_model"] == "recommended-6gb"
     assert payload["starter_model_status"] == "ready"
     assert payload["active_model_config_status"] == "ready"
+    assert payload["model_locations_config_status"] == "ready"
+    assert payload["runtime_endpoint_config_status"] == "ready"
     assert payload["runtime_artifact_id"] == "windows-llama-cpp-runtime"
     assert payload["runtime_artifact_path"] == "C:\\LACC\\runtime\\llama.cpp"
     assert payload["starter_model_path"].endswith("recommended-6gb.gguf")
     assert payload["active_model_config_path"] == "C:\\LACC\\config\\active-model.json"
+    assert payload["model_locations_config_path"] == "C:\\LACC\\config\\model-locations.json"
     assert payload["runtime_metadata_path"].endswith("runtime-artifact.json")
+    assert payload["runtime_endpoint_config_path"] == "C:\\LACC\\config\\runtime-endpoint.json"
+    assert payload["managed_runtime_port"] == 39281
 
 
 def test_installer_session_serializes_server_verification_fields():
