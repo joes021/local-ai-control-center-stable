@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 
 from local_ai_control_center_installer import first_run_validation as frv
+from local_ai_control_center_installer import opencode_verification as ov
 from local_ai_control_center_installer.runtime_bootstrap import (
     _write_runtime_endpoint_config,
 )
@@ -183,9 +184,10 @@ def test_apply_first_run_validation_marks_ready_after_real_opencode_response(
     assert Path(updated.first_run_log_path).read_text(encoding="utf-8").strip().startswith("{")
     assert captured["command"][-1] == frv.FIRST_RUN_PROMPT
     assert captured["command"][-2] == "local-lacc/recommended-6gb"
-    assert captured["process"].communicate_timeouts == [frv.FIRST_RUN_SMOKE_TIMEOUT_SECONDS]
+    assert captured["process"].communicate_timeouts == [ov.OPENCODE_SMOKE_TIMEOUT_SECONDS]
     assert captured["env"]["OPENCODE_CONFIG"] == session.opencode_config_path
     assert "OPENCODE_CONFIG_CONTENT" not in captured["env"]
+    assert captured["env"]["OPENCODE_DISABLE_MODELS_FETCH"] == "true"
     assert captured["env"]["NO_COLOR"] == "1"
 
 
