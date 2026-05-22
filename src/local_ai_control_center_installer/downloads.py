@@ -7,6 +7,8 @@ import time
 from urllib.request import urlopen
 import zipfile
 
+DOWNLOAD_REQUEST_TIMEOUT_SECONDS = 120.0
+
 
 @dataclass(frozen=True)
 class DownloadProgress:
@@ -193,7 +195,15 @@ def download_file(
     start_time = time.monotonic()
     bytes_downloaded = 0
 
-    with urlopen(url) as response:
+    _emit_download_progress(
+        progress_callback,
+        plan_item,
+        bytes_downloaded=0,
+        total_bytes=total_bytes,
+        start_time=start_time,
+    )
+
+    with urlopen(url, timeout=DOWNLOAD_REQUEST_TIMEOUT_SECONDS) as response:
         header_length = response.headers.get("Content-Length")
         if total_bytes is None and isinstance(header_length, str) and header_length.isdigit():
             total_bytes = int(header_length)
