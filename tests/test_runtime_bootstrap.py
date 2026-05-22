@@ -26,6 +26,47 @@ PINNED_TAMPERED_RUNTIME_SHA256 = (
 )
 
 
+def _runtime_download_plan(
+    *,
+    model_id: str = "recommended-6gb",
+    include_runtime: bool = True,
+    include_model: bool = True,
+) -> dict:
+    items: list[dict[str, object]] = []
+    if include_runtime:
+        items.append(
+            {
+                "key": "runtime-artifact",
+                "label": "llama.cpp runtime",
+                "url": "https://example.invalid/runtime.zip",
+                "destination_hint": "runtime/llama.cpp",
+                "size_bytes": None,
+            }
+        )
+    if include_model:
+        items.append(
+            {
+                "key": f"starter-model:{model_id}",
+                "label": f"starter model {model_id}",
+                "url": "https://example.invalid/model.gguf",
+                "destination_hint": f"models/{model_id}/{model_id}.gguf",
+                "size_bytes": 123,
+            }
+        )
+
+    total = len(items)
+    return {
+        "items": [
+            {
+                **item,
+                "queue_index": index,
+                "queue_total": total,
+            }
+            for index, item in enumerate(items, start=1)
+        ]
+    }
+
+
 def test_load_runtime_manifest_reads_pinned_runtime_contract(tmp_path: Path):
     manifest_path = tmp_path / "windows-stable-runtime.json"
     manifest_path.write_text(
@@ -675,6 +716,7 @@ def test_apply_runtime_payload_downloads_extracts_and_promotes_runtime_payload_w
         bootstrap_status="ready",
         install_root=str(install_root / ".." / install_root.name),
         starter_model="recommended-6gb",
+        download_plan=_runtime_download_plan(),
     )
     manifest = {
         "runtime_artifact": {
@@ -783,6 +825,7 @@ def test_apply_runtime_payload_redownloads_when_installed_required_runtime_file_
         bootstrap_status="ready",
         install_root=str(install_root),
         starter_model="recommended-6gb",
+        download_plan=_runtime_download_plan(include_runtime=True, include_model=False),
     )
     manifest = {
         "runtime_artifact": {
@@ -840,6 +883,79 @@ def test_apply_runtime_payload_redownloads_when_installed_required_runtime_file_
     assert (runtime_root / "llama-server.exe").read_text(encoding="utf-8") == "ok"
 
 
+def test_apply_runtime_payload_uses_session_download_plan_for_default_queue_items(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    install_root = tmp_path / "install-root"
+    session = InstallerSession(
+        bootstrap_status="ready",
+        install_root=str(install_root),
+        starter_model="recommended-6gb",
+        download_plan={
+            **_runtime_download_plan()
+        },
+    )
+    manifest = {
+        "runtime_artifact": {
+            "id": "windows-llama-cpp-runtime",
+            "url": "https://example.invalid/runtime.zip",
+            "sha256": "runtime-sha",
+            "archive_type": "zip",
+            "required_files": ["llama-server.exe"],
+            "required_file_sha256": {"llama-server.exe": PINNED_OK_RUNTIME_SHA256},
+            "install_subdir": "runtime/llama.cpp",
+        },
+        "starter_models": {
+            "recommended-6gb": {
+                "id": "recommended-6gb",
+                "url": "https://example.invalid/model.gguf",
+                "sha256": "model-sha",
+                "target_filename": "recommended-6gb.gguf",
+                "install_subdir": "models/recommended-6gb",
+                "size_bytes": 123,
+            }
+        },
+    }
+    planned_items: list[object] = []
+
+    def fake_shared_download(url: str, destination: Path, **kwargs) -> Path:
+        planned_items.append(kwargs["plan_item"])
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(b"archive")
+        return destination
+
+    def fake_extract_archive(
+        archive_path: Path,
+        destination_root: Path,
+        *,
+        archive_type: str,
+    ) -> Path:
+        destination_root.mkdir(parents=True, exist_ok=True)
+        (destination_root / "llama-server.exe").write_text("ok", encoding="utf-8")
+        return destination_root
+
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.runtime_bootstrap._download_file",
+        fake_shared_download,
+    )
+
+    updated = apply_runtime_payload(
+        session,
+        temp_root=tmp_path / "temp-runs",
+        load_manifest=lambda: manifest,
+        extract_archive=fake_extract_archive,
+        verify_archive_sha256=lambda path, expected_sha256: True,
+        verify_model_file=lambda path, expected_sha256: True,
+    )
+
+    assert updated.runtime_payload_status == "ready"
+    assert [item.label for item in planned_items] == [
+        "llama.cpp runtime",
+        "starter model recommended-6gb",
+    ]
+
+
 def test_apply_runtime_payload_fails_when_requested_model_manifest_entry_is_missing(
     tmp_path: Path,
 ):
@@ -882,6 +998,7 @@ def test_apply_runtime_payload_maps_invalid_requested_model_manifest_entry_to_ru
         bootstrap_status="ready",
         install_root=str(tmp_path / "install-root"),
         starter_model="recommended-6gb",
+        download_plan=_runtime_download_plan(include_runtime=True, include_model=False),
     )
     manifest = {
         "runtime_artifact": {
@@ -925,6 +1042,7 @@ def test_apply_runtime_payload_maps_wrong_type_requested_model_manifest_entry_to
         bootstrap_status="ready",
         install_root=str(tmp_path / "install-root"),
         starter_model="recommended-6gb",
+        download_plan=_runtime_download_plan(include_runtime=True, include_model=False),
     )
     manifest = {
         "runtime_artifact": {
@@ -969,6 +1087,7 @@ def test_apply_runtime_payload_maps_manifest_load_error_to_runtime_manifest_fail
         bootstrap_status="ready",
         install_root=str(tmp_path / "install-root"),
         starter_model="recommended-6gb",
+        download_plan=_runtime_download_plan(include_runtime=True, include_model=False),
     )
 
     updated = apply_runtime_payload(
@@ -992,6 +1111,7 @@ def test_apply_runtime_payload_marks_runtime_artifact_failure_and_skips_later_st
         bootstrap_status="ready",
         install_root=str(tmp_path / "install-root"),
         starter_model="recommended-6gb",
+        download_plan=_runtime_download_plan(include_runtime=True, include_model=False),
     )
     manifest = {
         "runtime_artifact": {
@@ -1044,6 +1164,7 @@ def test_apply_runtime_payload_maps_corrupt_runtime_metadata_to_runtime_artifact
         bootstrap_status="ready",
         install_root=str(install_root),
         starter_model="recommended-6gb",
+        download_plan=_runtime_download_plan(include_runtime=True, include_model=False),
     )
     manifest = {
         "runtime_artifact": {
@@ -1096,6 +1217,7 @@ def test_apply_runtime_payload_maps_undecodable_runtime_metadata_to_runtime_arti
         bootstrap_status="ready",
         install_root=str(install_root),
         starter_model="recommended-6gb",
+        download_plan=_runtime_download_plan(include_runtime=True, include_model=False),
     )
     manifest = {
         "runtime_artifact": {
@@ -1156,6 +1278,7 @@ def test_apply_runtime_payload_marks_starter_model_failure_after_runtime_is_read
         bootstrap_status="ready",
         install_root=str(install_root),
         starter_model="recommended-6gb",
+        download_plan=_runtime_download_plan(include_runtime=False, include_model=True),
     )
     manifest = {
         "runtime_artifact": {

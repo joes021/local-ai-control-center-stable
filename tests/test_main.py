@@ -6,6 +6,7 @@ import pytest
 import local_ai_control_center_installer.defaults as defaults_module
 import local_ai_control_center_installer.main as main_module
 import local_ai_control_center_installer.prompts as prompts_module
+from local_ai_control_center_installer.download_plan import DownloadPlan, DownloadPlanItem
 from local_ai_control_center_installer.main import run_installer
 from local_ai_control_center_installer.prompts import (
     PromptCancelledError,
@@ -288,6 +289,8 @@ def test_run_installer_writes_reports_after_failed_bootstrap_apply():
             "runtime_artifact_status": "skipped",
             "starter_model_status": "skipped",
             "active_model_config_status": "skipped",
+            "model_locations_config_status": "skipped",
+            "runtime_endpoint_config_status": "skipped",
             "server_verification_status": "skipped",
             "server_process_status": "skipped",
             "server_health_status": "skipped",
@@ -305,12 +308,15 @@ def test_run_installer_writes_reports_after_failed_bootstrap_apply():
             "starter_model": None,
             "starter_model_path": None,
             "active_model_config_path": None,
+            "model_locations_config_path": None,
             "runtime_metadata_path": None,
+            "runtime_endpoint_config_path": None,
             "opencode_artifact_id": None,
             "opencode_artifact_path": None,
             "opencode_metadata_path": None,
             "opencode_config_path": None,
             "verified_opencode_command": None,
+            "managed_runtime_port": None,
             "verified_server_port": None,
             "verified_server_url": None,
             "opencode_log_path": None,
@@ -318,6 +324,7 @@ def test_run_installer_writes_reports_after_failed_bootstrap_apply():
             "install_opencode": False,
             "attempt_turboquant": False,
             "additional_model_paths": [],
+            "download_plan": None,
             "last_successful_step": None,
             "failing_step": "dependency-bootstrap",
             "error_message": None,
@@ -372,11 +379,12 @@ def test_run_installer_calls_runtime_collaborator_after_bootstrap_and_before_rep
         collect_answers=fake_collect,
         scan_dependencies=fake_scan,
         apply_phase=fake_apply,
+        prepare_download_plan=lambda session: events.append("plan") or session,
         apply_runtime_payload=fake_runtime,
         write_reports=fake_write_reports,
     )
 
-    assert events == ["collect", "scan", "apply", "runtime", "report"]
+    assert events == ["collect", "scan", "apply", "plan", "runtime", "report"]
 
 
 def test_run_installer_calls_server_verification_after_runtime_and_before_reporting():
@@ -404,12 +412,13 @@ def test_run_installer_calls_server_verification_after_runtime_and_before_report
         collect_answers=lambda session, **_: session,
         scan_dependencies=lambda session, **_: session,
         apply_phase=fake_apply,
+        prepare_download_plan=lambda session: events.append("plan") or session,
         apply_runtime_payload=fake_runtime,
         apply_server_verification=fake_server_verification,
         write_reports=fake_write_reports,
     )
 
-    assert events == ["bootstrap", "runtime", "server", "report"]
+    assert events == ["bootstrap", "plan", "runtime", "server", "report"]
 
 
 def test_run_installer_calls_opencode_steps_after_server_and_before_reporting():
@@ -447,6 +456,7 @@ def test_run_installer_calls_opencode_steps_after_server_and_before_reporting():
         collect_answers=lambda session, **_: session,
         scan_dependencies=lambda session, **_: session,
         apply_phase=fake_bootstrap,
+        prepare_download_plan=lambda session: events.append("plan") or session,
         apply_runtime_payload=fake_runtime,
         apply_server_verification=fake_server_verification,
         apply_opencode_bootstrap=fake_opencode_bootstrap,
@@ -456,12 +466,80 @@ def test_run_installer_calls_opencode_steps_after_server_and_before_reporting():
 
     assert events == [
         "bootstrap",
+        "plan",
         "runtime",
         "server",
         "opencode-bootstrap",
         "opencode-verification",
         "report",
     ]
+
+
+def test_default_prepare_download_plan_builds_and_persists_single_queue_truth(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    session = InstallerSession(
+        bootstrap_status="ready",
+        install_root="C:\\install-root",
+        starter_model="recommended-12gb",
+    )
+    planned_items = DownloadPlan(
+        items=(
+            DownloadPlanItem(
+                key="runtime-artifact",
+                label="llama.cpp runtime",
+                url="https://example.invalid/runtime.zip",
+                destination_hint="runtime/llama.cpp",
+                size_bytes=None,
+                queue_index=1,
+                queue_total=2,
+            ),
+            DownloadPlanItem(
+                key="starter-model:recommended-12gb",
+                label="starter model recommended-12gb",
+                url="https://example.invalid/model.gguf",
+                destination_hint="models/recommended-12gb/recommended-12gb.gguf",
+                size_bytes=123,
+                queue_index=2,
+                queue_total=2,
+            ),
+        )
+    )
+    calls = {"count": 0}
+
+    def fake_build_download_plan(current_session: InstallerSession) -> DownloadPlan:
+        calls["count"] += 1
+        assert current_session is session
+        return planned_items
+
+    monkeypatch.setattr(defaults_module, "build_download_plan", fake_build_download_plan)
+
+    updated = defaults_module.default_prepare_download_plan(session)
+    second_pass = defaults_module.default_prepare_download_plan(updated)
+
+    assert updated.download_plan == planned_items
+    assert second_pass.download_plan == planned_items
+    assert calls["count"] == 1
+
+
+def test_default_prepare_download_plan_skips_build_when_bootstrap_not_ready(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    session = InstallerSession(
+        bootstrap_status="failed",
+        install_root="C:\\install-root",
+        starter_model="recommended-12gb",
+    )
+
+    monkeypatch.setattr(
+        defaults_module,
+        "build_download_plan",
+        lambda current_session: (_ for _ in ()).throw(AssertionError("should not build")),
+    )
+
+    updated = defaults_module.default_prepare_download_plan(session)
+
+    assert updated.download_plan is None
 
 
 def test_run_installer_keeps_product_installation_incomplete_after_opencode_success():

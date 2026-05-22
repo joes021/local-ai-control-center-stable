@@ -2,9 +2,10 @@ import json
 import os
 from pathlib import Path
 from tempfile import mkdtemp, mkstemp
-from urllib.request import urlopen
+import inspect
 
 from .downloads import (
+    download_file as shared_download_file,
     extract_archive,
     promote_tree,
     verify_required_file_checksums,
@@ -12,6 +13,11 @@ from .downloads import (
     verify_runtime_metadata,
     verify_sha256,
     write_runtime_metadata,
+)
+from .download_plan import (
+    RUNTIME_ARTIFACT_DOWNLOAD_KEY,
+    find_download_plan_item,
+    starter_model_download_key,
 )
 from .runtime_manifest import load_runtime_manifest, resolve_requested_starter_model
 from .session import InstallerSession
@@ -112,6 +118,10 @@ def apply_runtime_payload(
     session.managed_runtime_port = validated_managed_runtime_port
 
     if not _runtime_artifact_ready(runtime_root, runtime_metadata_path, runtime_artifact):
+        runtime_plan_item = _require_download_plan_item(
+            session,
+            RUNTIME_ARTIFACT_DOWNLOAD_KEY,
+        )
         if download_runtime_archive is None:
             download_runtime_archive = _download_file
         try:
@@ -122,6 +132,7 @@ def apply_runtime_payload(
                 download_runtime_archive=download_runtime_archive,
                 extract_archive=extract_archive,
                 verify_archive_sha256=verify_archive_sha256,
+                plan_item=runtime_plan_item,
             )
         except Exception as exc:
             session.runtime_payload_status = "failed"
@@ -140,6 +151,10 @@ def apply_runtime_payload(
     if not starter_model_path.exists() or not verify_model_file(
         starter_model_path, starter_model["sha256"]
     ):
+        model_plan_item = _require_download_plan_item(
+            session,
+            starter_model_download_key(starter_model["id"]),
+        )
         if download_model_file is None:
             download_model_file = _download_file
         try:
@@ -149,6 +164,7 @@ def apply_runtime_payload(
                 starter_model=starter_model,
                 download_model_file=download_model_file,
                 verify_model_file=verify_model_file,
+                plan_item=model_plan_item,
             )
         except Exception as exc:
             session.runtime_payload_status = "failed"
@@ -242,13 +258,19 @@ def _stage_runtime_artifact(
     download_runtime_archive,
     extract_archive,
     verify_archive_sha256,
+    plan_item,
 ) -> None:
     staging_root = _make_staging_root(temp_root)
     archive_path = staging_root / "downloads" / "runtime-artifact.archive"
     extracted_root = staging_root / "payload" / runtime_artifact["install_subdir"]
 
     archive_path.parent.mkdir(parents=True, exist_ok=True)
-    download_runtime_archive(runtime_artifact["url"], archive_path)
+    _invoke_download(
+        download_runtime_archive,
+        runtime_artifact["url"],
+        archive_path,
+        plan_item=plan_item,
+    )
     if not verify_archive_sha256(archive_path, runtime_artifact["sha256"]):
         raise ValueError("Runtime archive checksum verification failed.")
 
@@ -279,6 +301,7 @@ def _stage_starter_model(
     starter_model: dict,
     download_model_file,
     verify_model_file,
+    plan_item,
 ) -> None:
     staging_root = _make_staging_root(temp_root)
     staged_model_path = (
@@ -289,7 +312,12 @@ def _stage_starter_model(
     )
 
     staged_model_path.parent.mkdir(parents=True, exist_ok=True)
-    download_model_file(starter_model["url"], staged_model_path)
+    _invoke_download(
+        download_model_file,
+        starter_model["url"],
+        staged_model_path,
+        plan_item=plan_item,
+    )
     if not verify_model_file(staged_model_path, starter_model["sha256"]):
         raise ValueError("Starter model checksum verification failed.")
 
@@ -398,8 +426,32 @@ def _make_staging_root(temp_root: Path) -> Path:
     return Path(mkdtemp(prefix="runtime-payload-", dir=str(temp_root)))
 
 
-def _download_file(url: str, destination: Path) -> Path:
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    with urlopen(url) as response:
-        destination.write_bytes(response.read())
-    return destination
+def _download_file(
+    url: str,
+    destination: Path,
+    *,
+    progress_callback=None,
+    plan_item=None,
+) -> Path:
+    return shared_download_file(
+        url,
+        destination,
+        progress_callback=progress_callback,
+        plan_item=plan_item,
+    )
+
+
+def _require_download_plan_item(session: InstallerSession, key: str):
+    plan_item = find_download_plan_item(session.download_plan, key)
+    if plan_item is None:
+        raise ValueError(f"Installer session download plan is missing item: {key}")
+    return plan_item
+
+
+def _invoke_download(download_func, url: str, destination: Path, *, plan_item) -> Path:
+    parameters = inspect.signature(download_func).parameters.values()
+    if any(parameter.kind is inspect.Parameter.VAR_KEYWORD for parameter in parameters):
+        return download_func(url, destination, plan_item=plan_item)
+    if "plan_item" in inspect.signature(download_func).parameters:
+        return download_func(url, destination, plan_item=plan_item)
+    return download_func(url, destination)

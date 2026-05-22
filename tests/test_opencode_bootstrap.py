@@ -56,6 +56,22 @@ def _write_active_model_config(path: Path, *, model_id: str = "recommended-6gb")
     return path
 
 
+def _opencode_download_plan() -> dict:
+    return {
+        "items": [
+            {
+                "key": "opencode-artifact",
+                "label": "OpenCode",
+                "url": "https://example.invalid/opencode.zip",
+                "destination_hint": "tools/opencode",
+                "size_bytes": None,
+                "queue_index": 1,
+                "queue_total": 1,
+            }
+        ]
+    }
+
+
 def test_load_opencode_manifest_reads_pinned_contract(tmp_path: Path):
     manifest_path = tmp_path / "windows-stable-opencode.json"
     manifest_path.write_text(
@@ -496,6 +512,7 @@ def test_apply_opencode_bootstrap_maps_archive_verification_failure_to_opencode_
             _write_active_model_config(install_root / "config" / "active-model.json")
         ),
         error_message="stale error",
+        download_plan=_opencode_download_plan(),
     )
     manifest = _build_opencode_manifest()
 
@@ -581,6 +598,7 @@ def test_apply_opencode_bootstrap_generated_config_contains_local_lacc_provider_
                 model_id="my-model-q4",
             )
         ),
+        download_plan=_opencode_download_plan(),
     )
     manifest = _build_opencode_manifest()
 
@@ -632,6 +650,7 @@ def test_apply_opencode_bootstrap_second_pass_reuses_staged_artifact_without_red
                 model_id="my-model-q4",
             )
         ),
+        download_plan=_opencode_download_plan(),
     )
     manifest = _build_opencode_manifest()
     download_calls: list[tuple[str, Path]] = []
@@ -684,3 +703,69 @@ def test_apply_opencode_bootstrap_second_pass_reuses_staged_artifact_without_red
 
     assert second_pass.opencode_artifact_status == "ready"
     assert second_pass.last_successful_step == "opencode-config"
+
+
+def test_apply_opencode_bootstrap_uses_session_download_plan_for_default_queue_item(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    install_root = tmp_path / "install-root"
+    session = InstallerSession(
+        install_opencode=True,
+        server_verification_status="ready",
+        install_root=str(install_root),
+        verified_server_url="http://127.0.0.1:8080",
+        active_model_config_path=str(
+            _write_active_model_config(
+                install_root / "config" / "active-model.json",
+                model_id="my-model-q4",
+            )
+        ),
+        download_plan={
+            "items": [
+                {
+                    "key": "opencode-artifact",
+                    "label": "OpenCode",
+                    "url": "https://example.invalid/opencode.zip",
+                    "destination_hint": "tools/opencode",
+                    "size_bytes": None,
+                    "queue_index": 1,
+                    "queue_total": 1,
+                }
+            ]
+        },
+    )
+    manifest = _build_opencode_manifest()
+    planned_items: list[object] = []
+
+    def fake_shared_download(url: str, destination: Path, **kwargs) -> Path:
+        planned_items.append(kwargs["plan_item"])
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(b"archive")
+        return destination
+
+    def fake_extract_archive(
+        archive_path: Path,
+        destination_root: Path,
+        *,
+        archive_type: str,
+    ) -> Path:
+        destination_root.mkdir(parents=True, exist_ok=True)
+        (destination_root / "opencode.exe").write_text("ok", encoding="utf-8")
+        return destination_root
+
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.opencode_bootstrap._download_file",
+        fake_shared_download,
+    )
+
+    updated = apply_opencode_bootstrap(
+        session,
+        temp_root=tmp_path / "temp-runs",
+        load_manifest=lambda: manifest,
+        extract_archive=fake_extract_archive,
+        verify_archive_sha256=lambda path, expected: True,
+    )
+
+    assert updated.opencode_artifact_status == "ready"
+    assert [item.label for item in planned_items] == ["OpenCode"]
