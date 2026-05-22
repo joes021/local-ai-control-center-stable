@@ -461,8 +461,26 @@ def test_persist_install_root_reports_keeps_atomic_writes_with_real_opencode_log
         opencode_log_path=str(temp_opencode_log),
     )
 
+    original_write_human_log = reporting_module.write_human_log
     original_write_json_report = reporting_module.write_json_report
+    original_write_session_snapshot = reporting_module.write_session_snapshot
+    final_log_path = install_root / "logs" / "install.log"
     final_report_path = install_root / "logs" / "install-report.json"
+    final_session_path = install_root / "config" / "installer-session.json"
+
+    def fail_if_rewriting_final_log(
+        current_session,
+        log_path,
+        *,
+        allowed_opencode_log_path=None,
+    ):
+        if log_path == final_log_path:
+            raise OSError("unexpected direct final install.log rewrite")
+        return original_write_human_log(
+            current_session,
+            log_path,
+            allowed_opencode_log_path=allowed_opencode_log_path,
+        )
 
     def fail_if_rewriting_final_report(
         current_session,
@@ -478,10 +496,34 @@ def test_persist_install_root_reports_keeps_atomic_writes_with_real_opencode_log
             allowed_opencode_log_path=allowed_opencode_log_path,
         )
 
+    def fail_if_rewriting_final_session(
+        current_session,
+        session_path,
+        *,
+        allowed_opencode_log_path=None,
+    ):
+        if session_path == final_session_path:
+            raise OSError("unexpected direct final installer-session rewrite")
+        return original_write_session_snapshot(
+            current_session,
+            session_path,
+            allowed_opencode_log_path=allowed_opencode_log_path,
+        )
+
+    monkeypatch.setattr(
+        reporting_module,
+        "write_human_log",
+        fail_if_rewriting_final_log,
+    )
     monkeypatch.setattr(
         reporting_module,
         "write_json_report",
         fail_if_rewriting_final_report,
+    )
+    monkeypatch.setattr(
+        reporting_module,
+        "write_session_snapshot",
+        fail_if_rewriting_final_session,
     )
 
     persist_install_root_reports(session)
