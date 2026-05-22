@@ -444,3 +444,58 @@ def test_persist_install_root_reports_rolls_back_partial_promotion_with_opencode
     assert report_path.read_text(encoding="utf-8") == "{\"stale\": \"report\"}\n"
     assert session_path.read_text(encoding="utf-8") == "{\"stale\": \"session\"}\n"
     assert opencode_log_path.read_bytes() == b"old-opencode-log\n"
+
+
+def test_persist_install_root_reports_keeps_atomic_writes_with_real_opencode_log(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    install_root = tmp_path / "install-root"
+    temp_opencode_log = tmp_path / "temp-run" / "opencode-verification.log"
+    temp_opencode_log.parent.mkdir(parents=True, exist_ok=True)
+    temp_opencode_log.write_text("OpenCode verification output\n", encoding="utf-8")
+
+    session = InstallerSession(
+        install_root=str(install_root),
+        bootstrap_status="ready",
+        opencode_log_path=str(temp_opencode_log),
+    )
+
+    original_write_json_report = reporting_module.write_json_report
+    final_report_path = install_root / "logs" / "install-report.json"
+
+    def fail_if_rewriting_final_report(
+        current_session,
+        report_path,
+        *,
+        allowed_opencode_log_path=None,
+    ):
+        if report_path == final_report_path:
+            raise OSError("unexpected direct final rewrite")
+        return original_write_json_report(
+            current_session,
+            report_path,
+            allowed_opencode_log_path=allowed_opencode_log_path,
+        )
+
+    monkeypatch.setattr(
+        reporting_module,
+        "write_json_report",
+        fail_if_rewriting_final_report,
+    )
+
+    persist_install_root_reports(session)
+
+    persisted_opencode_log = install_root / "logs" / "opencode-verification.log"
+    install_log_contents = (install_root / "logs" / "install.log").read_text(
+        encoding="utf-8"
+    )
+    report_payload = json.loads(final_report_path.read_text(encoding="utf-8"))
+    session_payload = json.loads(
+        (install_root / "config" / "installer-session.json").read_text(encoding="utf-8")
+    )
+
+    assert session.opencode_log_path == str(persisted_opencode_log)
+    assert f"OpenCode log path: {persisted_opencode_log}" in install_log_contents
+    assert report_payload["opencode_log_path"] == str(persisted_opencode_log)
+    assert session_payload["opencode_log_path"] == str(persisted_opencode_log)

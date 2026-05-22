@@ -26,8 +26,16 @@ def build_run_paths(temp_root: Path, run_id: str) -> RunPaths:
     )
 
 
-def write_human_log(session: InstallerSession, log_path: Path) -> Path:
-    _normalize_session_opencode_log_path(session)
+def write_human_log(
+    session: InstallerSession,
+    log_path: Path,
+    *,
+    allowed_opencode_log_path: Path | None = None,
+) -> Path:
+    _normalize_session_opencode_log_path(
+        session,
+        allowed_path=allowed_opencode_log_path,
+    )
     lines = [
         f"Install root: {session.install_root}",
         f"Bootstrap status: {session.bootstrap_status}",
@@ -69,8 +77,16 @@ def write_human_log(session: InstallerSession, log_path: Path) -> Path:
     return log_path
 
 
-def write_json_report(session: InstallerSession, report_path: Path) -> Path:
-    _normalize_session_opencode_log_path(session)
+def write_json_report(
+    session: InstallerSession,
+    report_path: Path,
+    *,
+    allowed_opencode_log_path: Path | None = None,
+) -> Path:
+    _normalize_session_opencode_log_path(
+        session,
+        allowed_path=allowed_opencode_log_path,
+    )
     payload = {
         "bootstrap_status": session.bootstrap_status,
         "product_installation_status": session.product_installation_status,
@@ -109,8 +125,16 @@ def write_json_report(session: InstallerSession, report_path: Path) -> Path:
     return report_path
 
 
-def write_session_snapshot(session: InstallerSession, session_path: Path) -> Path:
-    _normalize_session_opencode_log_path(session)
+def write_session_snapshot(
+    session: InstallerSession,
+    session_path: Path,
+    *,
+    allowed_opencode_log_path: Path | None = None,
+) -> Path:
+    _normalize_session_opencode_log_path(
+        session,
+        allowed_path=allowed_opencode_log_path,
+    )
     _write_text(session_path, json.dumps(session.to_dict(), indent=2))
     return session_path
 
@@ -132,20 +156,29 @@ def persist_install_root_reports(session: InstallerSession) -> None:
             artifact_paths,
             staged_artifact_paths,
         )
-        write_human_log(session, staged_artifact_paths[0])
-        write_json_report(session, staged_artifact_paths[1])
-        write_session_snapshot(session, staged_artifact_paths[2])
+        if persisted_opencode_log_path is not None:
+            session.opencode_log_path = str(persisted_opencode_log_path)
+        write_human_log(
+            session,
+            staged_artifact_paths[0],
+            allowed_opencode_log_path=persisted_opencode_log_path,
+        )
+        write_json_report(
+            session,
+            staged_artifact_paths[1],
+            allowed_opencode_log_path=persisted_opencode_log_path,
+        )
+        write_session_snapshot(
+            session,
+            staged_artifact_paths[2],
+            allowed_opencode_log_path=persisted_opencode_log_path,
+        )
         _promote_staged_artifacts(
             install_root,
             staging_root,
             staged_artifact_paths,
             artifact_paths,
         )
-        if persisted_opencode_log_path is not None:
-            session.opencode_log_path = str(persisted_opencode_log_path)
-            write_human_log(session, artifact_paths[0])
-            write_json_report(session, artifact_paths[1])
-            write_session_snapshot(session, artifact_paths[2])
     except OSError:
         session.opencode_log_path = original_opencode_log_path
         _cleanup_staging_root(staging_root)
@@ -175,21 +208,32 @@ def _require_install_root(session: InstallerSession) -> Path:
     return normalized_install_root
 
 
-def _normalize_optional_existing_file(raw_path: str | None) -> str | None:
+def _normalize_optional_existing_file(
+    raw_path: str | None,
+    *,
+    allowed_path: Path | None = None,
+) -> str | None:
     normalized = (raw_path or "").strip()
     if not normalized:
         return None
 
     candidate_path = Path(normalized)
+    if allowed_path is not None and candidate_path == allowed_path:
+        return str(candidate_path)
     if not candidate_path.exists() or not candidate_path.is_file():
         return None
 
     return str(candidate_path)
 
 
-def _normalize_session_opencode_log_path(session: InstallerSession) -> None:
+def _normalize_session_opencode_log_path(
+    session: InstallerSession,
+    *,
+    allowed_path: Path | None = None,
+) -> None:
     session.opencode_log_path = _normalize_optional_existing_file(
-        session.opencode_log_path
+        session.opencode_log_path,
+        allowed_path=allowed_path,
     )
 
 
