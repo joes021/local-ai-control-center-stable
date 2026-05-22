@@ -63,6 +63,7 @@ def write_human_log(
         f"First-run status: {session.first_run_status}",
         f"First-run process status: {session.first_run_process_status}",
         f"First-run connection status: {session.first_run_connection_status}",
+        f"TurboQuant status: {session.turboquant_status}",
         f"Pinned runtime artifact id: {session.runtime_artifact_id}",
         f"Selected starter model: {session.starter_model}",
         f"Runtime artifact path: {session.runtime_artifact_path}",
@@ -82,6 +83,7 @@ def write_human_log(
         f"OpenCode log path: {session.opencode_log_path}",
         f"First-run log path: {session.first_run_log_path}",
         f"Server log path: {session.server_log_path}",
+        f"TurboQuant error: {session.turboquant_error}",
         f"Failing step: {session.failing_step}",
         f"Error message: {session.error_message}",
         "Dependencies:",
@@ -128,6 +130,7 @@ def write_json_report(
         "first_run_status": session.first_run_status,
         "first_run_process_status": session.first_run_process_status,
         "first_run_connection_status": session.first_run_connection_status,
+        "turboquant_status": session.turboquant_status,
         "failing_step": session.failing_step,
         "dependencies": [dependency.to_dict() for dependency in session.dependencies],
         "install_root": session.install_root,
@@ -150,6 +153,7 @@ def write_json_report(
         "opencode_log_path": session.opencode_log_path,
         "first_run_log_path": session.first_run_log_path,
         "server_log_path": session.server_log_path,
+        "turboquant_error": session.turboquant_error,
         "error_message": session.error_message,
     }
     _write_text(report_path, json.dumps(payload, indent=2))

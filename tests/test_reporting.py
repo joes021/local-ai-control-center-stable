@@ -168,6 +168,20 @@ def test_write_human_log_includes_first_run_summary_lines(tmp_path: Path):
     assert "First-run log path:" in contents
 
 
+def test_write_human_log_includes_turboquant_summary_lines(tmp_path: Path):
+    paths = build_run_paths(tmp_path, "2026-05-22T10-00-00")
+    session = InstallerSession(
+        turboquant_status="failed",
+        turboquant_error="No supported Windows TurboQuant install path is currently packaged.",
+    )
+
+    write_human_log(session, paths.log_path)
+
+    contents = paths.log_path.read_text(encoding="utf-8")
+    assert "TurboQuant status: failed" in contents
+    assert "TurboQuant error: No supported Windows TurboQuant install path is currently packaged." in contents
+
+
 def test_write_json_report_serializes_bootstrap_summary(tmp_path: Path):
     paths = build_run_paths(tmp_path, "2026-05-20T10-00-00")
     session = InstallerSession(
@@ -341,6 +355,23 @@ def test_write_json_report_serializes_first_run_summary(tmp_path: Path):
     assert payload["first_run_process_status"] == "ready"
     assert payload["first_run_connection_status"] == "ready"
     assert payload["first_run_log_path"] == str(paths.first_run_log_path)
+
+
+def test_write_json_report_serializes_turboquant_summary(tmp_path: Path):
+    paths = build_run_paths(tmp_path, "2026-05-22T10-00-00")
+    session = InstallerSession(
+        turboquant_status="failed",
+        turboquant_error="No supported Windows TurboQuant install path is currently packaged.",
+    )
+
+    write_json_report(session, paths.json_report_path)
+
+    payload = json.loads(paths.json_report_path.read_text(encoding="utf-8"))
+    assert payload["turboquant_status"] == "failed"
+    assert (
+        payload["turboquant_error"]
+        == "No supported Windows TurboQuant install path is currently packaged."
+    )
 
 
 def test_write_report_artifacts_normalize_missing_opencode_log_path_to_none(
