@@ -144,11 +144,20 @@ def apply_opencode_verification(
         )
         proof_state = relay_handle.proof_state
     except Exception as exc:
+        cleanup_error = _cleanup_with_optional_clock(
+            runtime_handle,
+            stop_runtime,
+            failure_label="failed to stop OpenCode temporary runtime",
+            now_fn=now_fn,
+            sleep_fn=sleep_fn,
+        )
         session.opencode_verification_status = "failed"
         session.opencode_process_status = "skipped"
         session.opencode_connection_status = "skipped"
         session.failing_step = "opencode-relay-start"
         session.error_message = str(exc)
+        if cleanup_error is not None:
+            session.error_message = f"{session.error_message}; {cleanup_error}"
         return session
 
     command = _build_verification_command(
@@ -693,7 +702,7 @@ def _response_has_assistant_content(payload: object) -> bool:
         message = choice.get("message")
         if not isinstance(message, dict):
             continue
-        if message.get("role") not in (None, "assistant"):
+        if message.get("role") != "assistant":
             continue
         if _assistant_content_present(message.get("content")):
             return True
