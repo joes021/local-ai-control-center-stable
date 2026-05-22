@@ -223,6 +223,8 @@ def test_download_file_emits_streaming_progress_with_queue_position_and_eta(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ):
+    captured: dict[str, object] = {}
+
     class FakeResponse:
         def __init__(self):
             self.headers = {"Content-Length": "6"}
@@ -244,7 +246,8 @@ def test_download_file_emits_streaming_progress_with_queue_position_and_eta(
 
     monkeypatch.setattr(
         "local_ai_control_center_installer.downloads.urlopen",
-        lambda url: FakeResponse(),
+        lambda url, timeout: captured.update({"url": url, "timeout": timeout})
+        or FakeResponse(),
     )
     monkeypatch.setattr(
         "local_ai_control_center_installer.downloads.time.monotonic",
@@ -260,11 +263,21 @@ def test_download_file_emits_streaming_progress_with_queue_position_and_eta(
             "label": "llama.cpp runtime",
             "queue_index": 1,
             "queue_total": 3,
+            "size_bytes": 6,
         },
     )
 
     assert destination.read_bytes() == b"abcdef"
     assert events
+    assert events[0] == DownloadProgress(
+        key="runtime-artifact",
+        label="llama.cpp runtime",
+        current_index=1,
+        total_items=3,
+        bytes_downloaded=0,
+        total_bytes=6,
+        eta_seconds=None,
+    )
     assert events[-1] == DownloadProgress(
         key="runtime-artifact",
         label="llama.cpp runtime",
@@ -274,3 +287,5 @@ def test_download_file_emits_streaming_progress_with_queue_position_and_eta(
         total_bytes=6,
         eta_seconds=0.0,
     )
+    assert captured["url"] == "https://example.invalid/runtime.zip"
+    assert captured["timeout"] == 120.0
