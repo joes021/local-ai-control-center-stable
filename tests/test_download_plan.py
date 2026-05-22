@@ -56,6 +56,24 @@ def _opencode_manifest() -> dict:
     }
 
 
+def _turboquant_strategy() -> dict:
+    return {
+        "artifact": {
+            "id": "windows-turboquant-cuda12.4",
+            "url": "https://example.invalid/turboquant.zip",
+            "sha256": "turboquant-sha",
+            "archive_type": "zip",
+            "required_files": ["llama-server.exe"],
+            "required_file_sha256": {
+                "llama-server.exe": PINNED_OK_RUNTIME_SHA256,
+            },
+            "install_subdir": "tools/turboquant/windows-x64-cuda12.4",
+            "size_bytes": 456,
+        },
+        "executable_relative_path": "llama-server.exe",
+    }
+
+
 def test_build_download_plan_lists_runtime_model_and_opencode_before_downloads(
     tmp_path: Path,
 ):
@@ -91,6 +109,55 @@ def test_build_download_plan_skips_opencode_when_not_requested(tmp_path: Path):
         session,
         load_runtime_manifest=lambda: _runtime_manifest(),
         load_opencode_manifest=lambda: _opencode_manifest(),
+    )
+
+    assert [item.label for item in plan.items] == [
+        "llama.cpp runtime",
+        "starter model 12 GB",
+    ]
+
+
+def test_build_download_plan_includes_turboquant_when_requested_and_supported(
+    tmp_path: Path,
+):
+    session = InstallerSession(
+        bootstrap_status="ready",
+        install_root=str(tmp_path / "install-root"),
+        starter_model="recommended-12gb",
+        install_opencode=False,
+        attempt_turboquant=True,
+    )
+
+    plan = build_download_plan(
+        session,
+        load_runtime_manifest=lambda: _runtime_manifest(),
+        load_opencode_manifest=lambda: _opencode_manifest(),
+        resolve_turboquant_strategy=lambda: _turboquant_strategy(),
+    )
+
+    assert [item.label for item in plan.items] == [
+        "llama.cpp runtime",
+        "starter model 12 GB",
+        "TurboQuant",
+    ]
+
+
+def test_build_download_plan_skips_turboquant_when_requested_but_unsupported(
+    tmp_path: Path,
+):
+    session = InstallerSession(
+        bootstrap_status="ready",
+        install_root=str(tmp_path / "install-root"),
+        starter_model="recommended-12gb",
+        install_opencode=False,
+        attempt_turboquant=True,
+    )
+
+    plan = build_download_plan(
+        session,
+        load_runtime_manifest=lambda: _runtime_manifest(),
+        load_opencode_manifest=lambda: _opencode_manifest(),
+        resolve_turboquant_strategy=lambda: None,
     )
 
     assert [item.label for item in plan.items] == [

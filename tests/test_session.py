@@ -78,6 +78,10 @@ def test_installer_session_serializes_first_slice_state():
         "first_run_process_status": "skipped",
         "first_run_connection_status": "skipped",
         "turboquant_status": "skipped",
+        "turboquant_artifact_id": None,
+        "turboquant_artifact_path": None,
+        "turboquant_metadata_path": None,
+        "turboquant_executable_path": None,
         "turboquant_error": None,
         "platform": "windows",
         "started_at": "2026-05-20T22:45:00Z",
@@ -256,14 +260,23 @@ def test_installer_session_serializes_first_run_fields():
 
 def test_installer_session_serializes_turboquant_fields():
     session = InstallerSession(
-        turboquant_status="failed",
-        turboquant_error="No supported Windows TurboQuant install path is currently packaged.",
+        turboquant_status="ready",
+        turboquant_artifact_id="windows-turboquant-cuda12.4",
+        turboquant_artifact_path="C:\\LACC\\tools\\turboquant\\windows-x64-cuda12.4",
+        turboquant_metadata_path=(
+            "C:\\LACC\\tools\\turboquant\\windows-x64-cuda12.4\\turboquant-artifact.json"
+        ),
+        turboquant_executable_path=(
+            "C:\\LACC\\tools\\turboquant\\windows-x64-cuda12.4\\llama-server.exe"
+        ),
+        turboquant_error=None,
     )
 
     payload = session.to_dict()
 
-    assert payload["turboquant_status"] == "failed"
-    assert (
-        payload["turboquant_error"]
-        == "No supported Windows TurboQuant install path is currently packaged."
-    )
+    assert payload["turboquant_status"] == "ready"
+    assert payload["turboquant_artifact_id"] == "windows-turboquant-cuda12.4"
+    assert payload["turboquant_artifact_path"].endswith("windows-x64-cuda12.4")
+    assert payload["turboquant_metadata_path"].endswith("turboquant-artifact.json")
+    assert payload["turboquant_executable_path"].endswith("llama-server.exe")
+    assert payload["turboquant_error"] is None
