@@ -185,6 +185,7 @@ def test_apply_opencode_verification_skips_when_artifact_not_ready(tmp_path: Pat
         opencode_verification_status="failed",
         opencode_process_status="failed",
         opencode_connection_status="failed",
+        verified_opencode_command="stale command",
         failing_step="opencode-artifact",
         error_message="artifact missing",
     )
@@ -194,8 +195,31 @@ def test_apply_opencode_verification_skips_when_artifact_not_ready(tmp_path: Pat
     assert updated.opencode_verification_status == "skipped"
     assert updated.opencode_process_status == "skipped"
     assert updated.opencode_connection_status == "skipped"
+    assert updated.verified_opencode_command is None
     assert updated.failing_step == "opencode-artifact"
     assert updated.error_message == "artifact missing"
+
+
+def test_apply_opencode_verification_clears_stale_command_before_prerequisite_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    session = _build_ready_session(tmp_path)
+    session.verified_opencode_command = "stale command"
+    session.verified_server_url = None
+
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.opencode_verification.load_opencode_manifest",
+        lambda: _build_manifest(),
+    )
+
+    updated = ov.apply_opencode_verification(session, temp_root=tmp_path / "temp-runs")
+
+    assert updated.opencode_verification_status == "failed"
+    assert updated.opencode_process_status == "skipped"
+    assert updated.opencode_connection_status == "skipped"
+    assert updated.failing_step == "opencode-verification-prerequisites"
+    assert updated.verified_opencode_command is None
 
 
 def test_apply_opencode_verification_success_path_uses_bounded_smoke_and_relay_env(
@@ -767,6 +791,54 @@ def test_apply_opencode_verification_timeout_after_successful_proof_preserves_co
     assert updated.error_message == "OpenCode inference smoke timed out."
 
 
+def test_start_temporary_runtime_server_uses_dedicated_log_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    target = ov.OpenCodeVerificationTarget(
+        executable_path=tmp_path / "opencode.exe",
+        runtime_executable_path=tmp_path / "llama-server.exe",
+        managed_config_path=tmp_path / "managed-config.json",
+        managed_config_text="{}",
+        model_id="recommended-6gb",
+        model_path=tmp_path / "model.gguf",
+        verified_server_url="http://127.0.0.1:8080",
+        extra_env={},
+        verification_args=["--pure", "run", "--format", "json", "--model"],
+    )
+    run_paths = SimpleNamespace(
+        run_dir=tmp_path / "temp-runs",
+        server_log_path=tmp_path / "temp-runs" / "llama-server.log",
+    )
+    captured: dict[str, object] = {}
+
+    monkeypatch.setattr(ov, "choose_free_port", lambda host="127.0.0.1": 9555)
+    monkeypatch.setattr(
+        ov,
+        "_launch_temporary_runtime_process",
+        lambda command, log_path: captured.update(
+            {"command": command, "log_path": log_path}
+        )
+        or NeverHealthyRuntimeProcess(),
+    )
+    monkeypatch.setattr(
+        ov,
+        "_probe_runtime_health_during_startup",
+        lambda base_url, timeout_seconds=1.0: "ready",
+    )
+
+    handle = ov.start_temporary_runtime_server(
+        target,
+        run_paths=run_paths,
+        now_fn=lambda: 0.0,
+        sleep_fn=lambda seconds: None,
+    )
+
+    assert captured["log_path"] != run_paths.server_log_path
+    assert Path(captured["log_path"]).name == "opencode-runtime-server.log"
+    assert handle.log_path == captured["log_path"]
+
+
 def _start_loopback_server(handler_type: type[BaseHTTPRequestHandler]):
     server = ThreadingHTTPServer(("127.0.0.1", 0), handler_type)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -896,6 +968,85 @@ def test_verification_relay_loopback_rejects_invalid_routes_methods_and_non_json
                 },
             }
         ]
+    finally:
+        if relay_handle is not None:
+            ov.stop_verification_relay(relay_handle)
+        _stop_loopback_server(upstream_server, upstream_thread)
+
+
+def test_verification_relay_latches_valid_proof_against_later_failing_requests():
+    marker = "LACC_VERIFY_MARKER:latched-proof"
+    request_count = {"count": 0}
+
+    class UpstreamHandler(BaseHTTPRequestHandler):
+        def do_POST(self):
+            request_count["count"] += 1
+            if request_count["count"] == 1:
+                response_bytes = json.dumps(
+                    {
+                        "choices": [
+                            {
+                                "message": {
+                                    "role": "assistant",
+                                    "content": f"confirmed {marker}",
+                                }
+                            }
+                        ]
+                    }
+                ).encode("utf-8")
+            else:
+                response_bytes = b"{invalid json"
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(response_bytes)))
+            self.end_headers()
+            self.wfile.write(response_bytes)
+
+        def log_message(self, format, *args):
+            return
+
+    upstream_server, upstream_base_url, upstream_thread = _start_loopback_server(
+        UpstreamHandler
+    )
+    relay_handle = None
+
+    try:
+        proof_state = ov.RelayProofState()
+        relay_handle = ov.start_verification_relay(
+            upstream_base_url=upstream_base_url,
+            marker=marker,
+            proof_state=proof_state,
+        )
+
+        first_status, _ = _post_json(
+            f"{relay_handle.base_url}/v1/chat/completions",
+            {
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": f"Repeat this exact token once: {marker}",
+                    }
+                ]
+            },
+        )
+        second_status, _ = _post_json(
+            f"{relay_handle.base_url}/v1/chat/completions",
+            {
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": f"Repeat this exact token once: {marker}",
+                    }
+                ]
+            },
+        )
+
+        assert first_status == 200
+        assert second_status == 200
+        assert proof_state.marker_seen is True
+        assert proof_state.upstream_success is True
+        assert proof_state.response_has_assistant_content is True
+        assert proof_state.upstream_error is None
     finally:
         if relay_handle is not None:
             ov.stop_verification_relay(relay_handle)

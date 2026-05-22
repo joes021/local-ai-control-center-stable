@@ -82,6 +82,8 @@ def apply_opencode_verification(
     now_fn = now_fn or time.monotonic
     sleep_fn = sleep_fn or time.sleep
 
+    session.verified_opencode_command = None
+
     if session.opencode_artifact_status != "ready":
         session.opencode_verification_status = "skipped"
         session.opencode_process_status = "skipped"
@@ -325,11 +327,12 @@ def start_temporary_runtime_server(
         "--model",
         str(target.model_path),
     ]
-    process = _launch_temporary_runtime_process(command, run_paths.server_log_path)
+    runtime_log_path = _temporary_runtime_log_path(run_paths.run_dir)
+    process = _launch_temporary_runtime_process(command, runtime_log_path)
     handle = TemporaryRuntimeHandle(
         process=process,
         base_url=base_url,
-        log_path=run_paths.server_log_path,
+        log_path=runtime_log_path,
     )
 
     started_at = now_fn()
@@ -624,6 +627,9 @@ def _apply_upstream_proof(
     upstream_status: int,
     upstream_body: bytes,
 ) -> None:
+    if _has_valid_live_route_proof(proof_state):
+        return
+
     proof_state.upstream_success = False
     proof_state.response_has_assistant_content = False
 
@@ -784,11 +790,7 @@ def _apply_process_and_proof_result(
 
 
 def _derive_connection_status(proof_state: RelayProofState) -> str:
-    if (
-        proof_state.marker_seen
-        and proof_state.upstream_success
-        and proof_state.response_has_assistant_content
-    ):
+    if _has_valid_live_route_proof(proof_state):
         return "ready"
     if proof_state.marker_seen:
         return "failed"
@@ -802,12 +804,8 @@ def _derive_timeout_step(proof_state: RelayProofState) -> str:
 
 
 def _derive_runtime_failure_step(process, proof_state: RelayProofState) -> str:
-    if (
-        process is not None
-        and process.returncode == 0
-        and proof_state.marker_seen
-        and proof_state.upstream_success
-        and proof_state.response_has_assistant_content
+    if process is not None and process.returncode == 0 and _has_valid_live_route_proof(
+        proof_state
     ):
         return "opencode-inference-smoke"
     if proof_state.marker_seen and not proof_state.upstream_success:
@@ -880,6 +878,10 @@ def _make_working_directory(run_dir: Path) -> Path:
     return Path(mkdtemp(prefix="opencode-verification-", dir=str(run_dir)))
 
 
+def _temporary_runtime_log_path(run_dir: Path) -> Path:
+    return run_dir / "opencode-runtime-server.log"
+
+
 def _collect_process_output(
     process,
     log_path: Path,
@@ -915,6 +917,14 @@ def _set_opencode_log_path_if_present(
 ) -> None:
     if log_path.exists() and log_path.is_file():
         session.opencode_log_path = str(log_path)
+
+
+def _has_valid_live_route_proof(proof_state: RelayProofState) -> bool:
+    return (
+        proof_state.marker_seen
+        and proof_state.upstream_success
+        and proof_state.response_has_assistant_content
+    )
 
 
 def _load_launch_contract() -> dict[str, object]:
