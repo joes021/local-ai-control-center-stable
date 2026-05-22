@@ -5,6 +5,7 @@ from local_ai_control_center_installer.prompts import (
     collect_installer_answers,
     render_confirmation_summary,
 )
+from local_ai_control_center_installer.runtime_manifest import StarterModelOption
 from local_ai_control_center_installer.session import InstallerSession
 
 
@@ -162,6 +163,7 @@ def test_collect_installer_answers_shows_numbered_options_and_defaults():
     assert "Install OpenCode" in prompts[3]
     assert "1) Yes" in prompts[3]
     assert "2) No" in prompts[3]
+    assert "required for a successful installation" in prompts[3]
     assert "default: 1" in prompts[3]
     assert "Attempt TurboQuant" in prompts[4]
     assert "1) Yes" in prompts[4]
@@ -186,3 +188,42 @@ def test_collect_installer_answers_retries_invalid_confirmation_then_confirms():
 
     assert updated.starter_model == "recommended-6gb"
     assert any("Please enter 1 or 2." in line for line in outputs)
+
+
+def test_collect_installer_answers_uses_manifest_default_prompt_choice(monkeypatch):
+    answers = iter(["", "", "1", "2", "", "1"])
+
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.prompts.load_runtime_manifest",
+        lambda: {"starter_models": {}},
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.prompts.list_prompt_starter_models",
+        lambda manifest: [
+            StarterModelOption(
+                model_id="recommended-6gb",
+                prompt_label="recommended-6gb",
+                prompt_order=1,
+                recommended_default=False,
+            ),
+            StarterModelOption(
+                model_id="recommended-12gb",
+                prompt_label="recommended-12gb",
+                prompt_order=2,
+                recommended_default=True,
+            ),
+            StarterModelOption(
+                model_id="recommended-24gb",
+                prompt_label="recommended-24gb",
+                prompt_order=3,
+                recommended_default=False,
+            ),
+        ],
+    )
+
+    updated = collect_installer_answers(
+        InstallerSession(),
+        input_fn=lambda _: next(answers),
+    )
+
+    assert updated.starter_model == "recommended-12gb"

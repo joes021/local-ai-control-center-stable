@@ -188,6 +188,86 @@ def test_apply_runtime_payload_marks_ready_when_runtime_and_model_are_verified_i
     assert Path(updated.active_model_config_path).exists()
 
 
+@pytest.mark.parametrize(
+    ("starter_model_id", "target_filename", "install_subdir"),
+    [
+        (
+            "recommended-12gb",
+            "recommended-12gb.gguf",
+            "models/recommended-12gb",
+        ),
+        (
+            "recommended-24gb",
+            "recommended-24gb.gguf",
+            "models/recommended-24gb",
+        ),
+    ],
+)
+def test_apply_runtime_payload_supports_shared_manifest_starter_model_tiers(
+    tmp_path: Path,
+    starter_model_id: str,
+    target_filename: str,
+    install_subdir: str,
+):
+    install_root = tmp_path / "install-root"
+    runtime_root = install_root / "runtime" / "llama.cpp"
+    model_root = install_root / install_subdir
+    metadata_path = runtime_root / "runtime-artifact.json"
+    runtime_root.mkdir(parents=True)
+    model_root.mkdir(parents=True)
+    (runtime_root / "llama-server.exe").write_text("ok", encoding="utf-8")
+    (model_root / target_filename).write_text("ok", encoding="utf-8")
+    metadata_path.write_text(
+        json.dumps(
+            {
+                "artifact_id": "windows-llama-cpp-runtime",
+                "source_sha256": "abc123",
+            }
+        ),
+        encoding="utf-8",
+    )
+    session = InstallerSession(
+        bootstrap_status="ready",
+        install_root=str(install_root),
+        starter_model=starter_model_id,
+    )
+    manifest = {
+        "runtime_artifact": {
+            "id": "windows-llama-cpp-runtime",
+            "url": "https://example.invalid/runtime.zip",
+            "sha256": "abc123",
+            "archive_type": "zip",
+            "required_files": ["llama-server.exe"],
+            "required_file_sha256": {"llama-server.exe": PINNED_OK_RUNTIME_SHA256},
+            "install_subdir": "runtime/llama.cpp",
+        },
+        "starter_models": {
+            starter_model_id: {
+                "id": starter_model_id,
+                "url": f"https://example.invalid/{target_filename}",
+                "sha256": "def456",
+                "target_filename": target_filename,
+                "install_subdir": install_subdir,
+                "size_bytes": 123,
+                "prompt_order": 2,
+                "prompt_label": starter_model_id,
+                "recommended_default": False,
+            }
+        },
+    }
+
+    updated = apply_runtime_payload(
+        session,
+        temp_root=tmp_path / "temp-runs",
+        load_manifest=lambda: manifest,
+        verify_model_file=lambda path, expected_sha256: True,
+    )
+
+    assert updated.runtime_payload_status == "ready"
+    assert updated.starter_model_status == "ready"
+    assert Path(updated.starter_model_path).name == target_filename
+
+
 def test_apply_runtime_payload_downloads_extracts_and_promotes_runtime_payload_when_missing(
     tmp_path: Path,
 ):

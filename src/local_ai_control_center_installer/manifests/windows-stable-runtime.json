@@ -16,9 +16,35 @@
     "recommended-6gb": {
       "id": "recommended-6gb",
       "url": "https://huggingface.co/Qwen/Qwen2.5-Coder-7B-Instruct-GGUF/resolve/13fb94bfda8c8cf22497dc57b78f391a9acb426a/qwen2.5-coder-7b-instruct-q4_k_m.gguf",
-      "sha256": "509287f78cb4d4cf6b3843734733b914b2c158e43e22a7f4bf5e963800894d3c",
+      "sha256": "fa9e1815472201e7dea978475c1f3ca7bc7df773eaeb3b3a383258c25b052f6f",
       "target_filename": "recommended-6gb.gguf",
-      "install_subdir": "models/recommended-6gb"
+      "install_subdir": "models/recommended-6gb",
+      "size_bytes": 4683073536,
+      "prompt_order": 1,
+      "prompt_label": "recommended-6gb",
+      "recommended_default": true
+    },
+    "recommended-12gb": {
+      "id": "recommended-12gb",
+      "url": "https://huggingface.co/Qwen/Qwen2.5-Coder-14B-Instruct-GGUF/resolve/d0a692ef765eefbf2fabb130b3cb2e8917e3d225/qwen2.5-coder-14b-instruct-q4_k_m.gguf",
+      "sha256": "f87bfd654aed5318df1819cc17b5204270b69d05d905c0fa6960d84e4843ba18",
+      "target_filename": "recommended-12gb.gguf",
+      "install_subdir": "models/recommended-12gb",
+      "size_bytes": 8988110272,
+      "prompt_order": 2,
+      "prompt_label": "recommended-12gb",
+      "recommended_default": false
+    },
+    "recommended-24gb": {
+      "id": "recommended-24gb",
+      "url": "https://huggingface.co/Qwen/Qwen2.5-Coder-32B-Instruct-GGUF/resolve/9d3053fce650fe1cdbdb75998c2a87add9d178ef/qwen2.5-coder-32b-instruct-q4_k_m.gguf",
+      "sha256": "2687a00b84e7e35c652ea0024cb8747070b090e9f311ab9b6461b8a71c2bc50f",
+      "target_filename": "recommended-24gb.gguf",
+      "install_subdir": "models/recommended-24gb",
+      "size_bytes": 19851335872,
+      "prompt_order": 3,
+      "prompt_label": "recommended-24gb",
+      "recommended_default": false
     }
   }
 }

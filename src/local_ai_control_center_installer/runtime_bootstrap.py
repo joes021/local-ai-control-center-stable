@@ -1,5 +1,4 @@
 import json
-from importlib.resources import files
 from pathlib import Path
 from tempfile import mkdtemp
 from urllib.request import urlopen
@@ -13,48 +12,8 @@ from .downloads import (
     verify_sha256,
     write_runtime_metadata,
 )
+from .runtime_manifest import load_runtime_manifest, resolve_requested_starter_model
 from .session import InstallerSession
-
-
-def load_runtime_manifest(manifest_path=None) -> dict:
-    if manifest_path is None:
-        manifest_path = files("local_ai_control_center_installer.manifests").joinpath(
-            "windows-stable-runtime.json"
-        )
-    payload = json.loads(manifest_path.read_text(encoding="utf-8"))
-    if "runtime_artifact" not in payload or "starter_models" not in payload:
-        raise ValueError("Runtime manifest is missing required top-level fields.")
-    _validate_runtime_artifact(payload["runtime_artifact"])
-    return payload
-
-
-def resolve_requested_starter_model(manifest: dict, requested_model_id: str) -> dict:
-    starter_models = manifest.get("starter_models")
-    if not isinstance(starter_models, dict):
-        raise ValueError("Runtime manifest starter_models entry must be an object.")
-
-    try:
-        starter_model = starter_models[requested_model_id]
-    except KeyError as exc:
-        raise ValueError(f"Missing starter model entry for {requested_model_id}") from exc
-
-    if not isinstance(starter_model, dict):
-        raise ValueError(
-            f"Starter model entry for {requested_model_id} must be an object."
-        )
-
-    _validate_manifest_string_field(
-        starter_model,
-        "id",
-        context=f"Starter model entry for {requested_model_id}",
-    )
-    for key in ("url", "sha256", "target_filename", "install_subdir"):
-        _validate_manifest_string_field(
-            starter_model,
-            key,
-            context=f"Starter model entry for {requested_model_id}",
-        )
-    return starter_model
 
 
 def apply_runtime_payload(
@@ -285,55 +244,3 @@ def _download_file(url: str, destination: Path) -> Path:
     with urlopen(url) as response:
         destination.write_bytes(response.read())
     return destination
-
-
-def _validate_runtime_artifact(runtime_artifact: dict) -> None:
-    if not isinstance(runtime_artifact, dict):
-        raise ValueError("Runtime artifact entry must be an object.")
-
-    for key in ("id", "url", "sha256", "archive_type", "install_subdir"):
-        _validate_manifest_string_field(
-            runtime_artifact,
-            key,
-            context="Runtime artifact entry",
-        )
-
-    required_files = runtime_artifact.get("required_files")
-    if not isinstance(required_files, list) or not required_files:
-        raise ValueError("Runtime artifact entry required_files must be a non-empty list.")
-    for relative_path in required_files:
-        if not isinstance(relative_path, str) or not relative_path.strip():
-            raise ValueError(
-                "Runtime artifact entry required_files must contain non-empty string paths."
-            )
-
-    required_file_sha256 = runtime_artifact.get("required_file_sha256")
-    if not isinstance(required_file_sha256, dict):
-        raise ValueError(
-            "Runtime artifact entry required_file_sha256 must be an object."
-        )
-    for relative_path in required_files:
-        if relative_path not in required_file_sha256:
-            raise ValueError(
-                f"Runtime artifact entry required_file_sha256 is missing required field: {relative_path}"
-            )
-        if (
-            not isinstance(required_file_sha256[relative_path], str)
-            or not required_file_sha256[relative_path].strip()
-        ):
-            raise ValueError(
-                f"Runtime artifact entry required_file_sha256 has invalid value for: {relative_path}"
-            )
-
-
-def _validate_manifest_string_field(
-    payload: dict,
-    key: str,
-    *,
-    context: str,
-) -> None:
-    if key not in payload:
-        raise ValueError(f"{context} is missing required field: {key}")
-    value = payload[key]
-    if not isinstance(value, str) or not value.strip():
-        raise ValueError(f"{context} field must be a non-empty string: {key}")
