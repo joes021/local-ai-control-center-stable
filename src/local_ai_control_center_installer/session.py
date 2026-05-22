@@ -37,6 +37,9 @@ class InstallerSession:
     opencode_verification_status: str = "skipped"
     opencode_process_status: str = "skipped"
     opencode_connection_status: str = "skipped"
+    first_run_status: str = "skipped"
+    first_run_process_status: str = "skipped"
+    first_run_connection_status: str = "skipped"
     platform: str | None = None
     started_at: str | None = None
     existing_install_detected: bool = False
@@ -59,6 +62,7 @@ class InstallerSession:
     verified_server_port: int | None = None
     verified_server_url: str | None = None
     opencode_log_path: str | None = None
+    first_run_log_path: str | None = None
     server_log_path: str | None = None
     install_opencode: bool = False
     attempt_turboquant: bool = False

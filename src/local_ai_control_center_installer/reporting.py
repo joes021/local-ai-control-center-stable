@@ -13,6 +13,7 @@ class RunPaths:
     json_report_path: Path
     server_log_path: Path
     opencode_log_path: Path
+    first_run_log_path: Path
 
 
 def build_run_paths(temp_root: Path, run_id: str) -> RunPaths:
@@ -23,6 +24,7 @@ def build_run_paths(temp_root: Path, run_id: str) -> RunPaths:
         json_report_path=run_dir / "install-report.json",
         server_log_path=run_dir / "llama-server.log",
         opencode_log_path=run_dir / "opencode-verification.log",
+        first_run_log_path=run_dir / "first-run-validation.log",
     )
 
 
@@ -31,10 +33,15 @@ def write_human_log(
     log_path: Path,
     *,
     allowed_opencode_log_path: Path | None = None,
+    allowed_first_run_log_path: Path | None = None,
 ) -> Path:
     _normalize_session_opencode_log_path(
         session,
         allowed_path=allowed_opencode_log_path,
+    )
+    _normalize_session_first_run_log_path(
+        session,
+        allowed_path=allowed_first_run_log_path,
     )
     lines = [
         f"Install root: {session.install_root}",
@@ -53,6 +60,9 @@ def write_human_log(
         f"OpenCode verification status: {session.opencode_verification_status}",
         f"OpenCode process status: {session.opencode_process_status}",
         f"OpenCode live-route status: {session.opencode_connection_status}",
+        f"First-run status: {session.first_run_status}",
+        f"First-run process status: {session.first_run_process_status}",
+        f"First-run connection status: {session.first_run_connection_status}",
         f"Pinned runtime artifact id: {session.runtime_artifact_id}",
         f"Selected starter model: {session.starter_model}",
         f"Runtime artifact path: {session.runtime_artifact_path}",
@@ -70,6 +80,7 @@ def write_human_log(
         f"Verified server port: {session.verified_server_port}",
         f"Verified server URL: {session.verified_server_url}",
         f"OpenCode log path: {session.opencode_log_path}",
+        f"First-run log path: {session.first_run_log_path}",
         f"Server log path: {session.server_log_path}",
         f"Failing step: {session.failing_step}",
         f"Error message: {session.error_message}",
@@ -88,10 +99,15 @@ def write_json_report(
     report_path: Path,
     *,
     allowed_opencode_log_path: Path | None = None,
+    allowed_first_run_log_path: Path | None = None,
 ) -> Path:
     _normalize_session_opencode_log_path(
         session,
         allowed_path=allowed_opencode_log_path,
+    )
+    _normalize_session_first_run_log_path(
+        session,
+        allowed_path=allowed_first_run_log_path,
     )
     payload = {
         "bootstrap_status": session.bootstrap_status,
@@ -109,6 +125,9 @@ def write_json_report(
         "opencode_verification_status": session.opencode_verification_status,
         "opencode_process_status": session.opencode_process_status,
         "opencode_connection_status": session.opencode_connection_status,
+        "first_run_status": session.first_run_status,
+        "first_run_process_status": session.first_run_process_status,
+        "first_run_connection_status": session.first_run_connection_status,
         "failing_step": session.failing_step,
         "dependencies": [dependency.to_dict() for dependency in session.dependencies],
         "install_root": session.install_root,
@@ -129,6 +148,7 @@ def write_json_report(
         "verified_server_port": session.verified_server_port,
         "verified_server_url": session.verified_server_url,
         "opencode_log_path": session.opencode_log_path,
+        "first_run_log_path": session.first_run_log_path,
         "server_log_path": session.server_log_path,
         "error_message": session.error_message,
     }
@@ -141,10 +161,15 @@ def write_session_snapshot(
     session_path: Path,
     *,
     allowed_opencode_log_path: Path | None = None,
+    allowed_first_run_log_path: Path | None = None,
 ) -> Path:
     _normalize_session_opencode_log_path(
         session,
         allowed_path=allowed_opencode_log_path,
+    )
+    _normalize_session_first_run_log_path(
+        session,
+        allowed_path=allowed_first_run_log_path,
     )
     _write_text(session_path, json.dumps(session.to_dict(), indent=2))
     return session_path
@@ -153,11 +178,13 @@ def write_session_snapshot(
 def persist_install_root_reports(session: InstallerSession) -> None:
     install_root = _require_install_root(session)
     _normalize_session_opencode_log_path(session)
+    _normalize_session_first_run_log_path(session)
     install_root_preexisting = install_root.exists()
     staging_root = install_root / f".staging-{uuid4().hex}"
     artifact_paths = _build_artifact_paths(install_root)
     staged_artifact_paths = _build_artifact_paths(staging_root)
     original_opencode_log_path = session.opencode_log_path
+    original_first_run_log_path = session.first_run_log_path
 
     try:
         persisted_opencode_log_path = _stage_optional_opencode_log(
@@ -167,22 +194,34 @@ def persist_install_root_reports(session: InstallerSession) -> None:
             artifact_paths,
             staged_artifact_paths,
         )
+        persisted_first_run_log_path = _stage_optional_first_run_log(
+            session,
+            install_root,
+            staging_root,
+            artifact_paths,
+            staged_artifact_paths,
+        )
         if persisted_opencode_log_path is not None:
             session.opencode_log_path = str(persisted_opencode_log_path)
+        if persisted_first_run_log_path is not None:
+            session.first_run_log_path = str(persisted_first_run_log_path)
         write_human_log(
             session,
             staged_artifact_paths[0],
             allowed_opencode_log_path=persisted_opencode_log_path,
+            allowed_first_run_log_path=persisted_first_run_log_path,
         )
         write_json_report(
             session,
             staged_artifact_paths[1],
             allowed_opencode_log_path=persisted_opencode_log_path,
+            allowed_first_run_log_path=persisted_first_run_log_path,
         )
         write_session_snapshot(
             session,
             staged_artifact_paths[2],
             allowed_opencode_log_path=persisted_opencode_log_path,
+            allowed_first_run_log_path=persisted_first_run_log_path,
         )
         _promote_staged_artifacts(
             install_root,
@@ -192,6 +231,7 @@ def persist_install_root_reports(session: InstallerSession) -> None:
         )
     except OSError:
         session.opencode_log_path = original_opencode_log_path
+        session.first_run_log_path = original_first_run_log_path
         _cleanup_staging_root(staging_root)
         if not install_root_preexisting:
             _remove_empty_directory(install_root)
@@ -248,6 +288,17 @@ def _normalize_session_opencode_log_path(
     )
 
 
+def _normalize_session_first_run_log_path(
+    session: InstallerSession,
+    *,
+    allowed_path: Path | None = None,
+) -> None:
+    session.first_run_log_path = _normalize_optional_existing_file(
+        session.first_run_log_path,
+        allowed_path=allowed_path,
+    )
+
+
 def _build_artifact_paths(root: Path) -> list[Path]:
     logs_dir = root / "logs"
     config_dir = root / "config"
@@ -274,6 +325,29 @@ def _stage_optional_opencode_log(
         return None
 
     target_path = install_root / "logs" / "opencode-verification.log"
+    staged_target_path = staging_root / target_path.relative_to(install_root)
+    _write_bytes(staged_target_path, source_path.read_bytes())
+    artifact_paths.append(target_path)
+    staged_artifact_paths.append(staged_target_path)
+    return target_path
+
+
+def _stage_optional_first_run_log(
+    session: InstallerSession,
+    install_root: Path,
+    staging_root: Path,
+    artifact_paths: list[Path],
+    staged_artifact_paths: list[Path],
+) -> Path | None:
+    first_run_log_path = (session.first_run_log_path or "").strip()
+    if not first_run_log_path:
+        return None
+
+    source_path = Path(first_run_log_path)
+    if not source_path.exists() or not source_path.is_file():
+        return None
+
+    target_path = install_root / "logs" / "first-run-validation.log"
     staged_target_path = staging_root / target_path.relative_to(install_root)
     _write_bytes(staged_target_path, source_path.read_bytes())
     artifact_paths.append(target_path)
