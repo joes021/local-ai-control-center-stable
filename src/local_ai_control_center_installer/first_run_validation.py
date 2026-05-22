@@ -10,6 +10,9 @@ from urllib.error import HTTPError, URLError
 from urllib.request import urlopen
 
 from local_ai_control_center_installer.opencode_bootstrap import load_opencode_manifest
+from local_ai_control_center_installer.opencode_verification import (
+    OPENCODE_SMOKE_TIMEOUT_SECONDS,
+)
 from local_ai_control_center_installer.reporting import build_run_paths
 from local_ai_control_center_installer.runtime_bootstrap import load_runtime_endpoint_config
 from local_ai_control_center_installer.server_verification import (
@@ -23,7 +26,7 @@ from local_ai_control_center_installer.session import InstallerSession
 
 
 FIRST_RUN_PROMPT = "Reply with the single word READY."
-FIRST_RUN_SMOKE_TIMEOUT_SECONDS = 180.0
+FIRST_RUN_SMOKE_TIMEOUT_SECONDS = OPENCODE_SMOKE_TIMEOUT_SECONDS
 
 
 @dataclass(frozen=True)
@@ -466,6 +469,7 @@ def _build_first_run_env(target: FirstRunValidationTarget) -> dict[str, str]:
     env = os.environ.copy()
     env.update(target.extra_env)
     env["OPENCODE_CONFIG"] = str(target.managed_config_path)
+    env["OPENCODE_DISABLE_MODELS_FETCH"] = "true"
     return env
 
 
