@@ -178,9 +178,9 @@ def collect_installer_answers(session, input_fn=input, output_fn=print):
             build_numbered_prompt(
                 "Attempt TurboQuant",
                 [("1", "Yes"), ("2", "No")],
-                "2",
+                "1",
             ),
-            "2",
+            "1",
             {"1", "2"},
             input_fn=input_fn,
             output_fn=output_fn,

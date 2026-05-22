@@ -175,7 +175,7 @@ def test_collect_installer_answers_shows_numbered_options_and_defaults():
     assert "Attempt TurboQuant" in prompts[4]
     assert "1) Yes" in prompts[4]
     assert "2) No" in prompts[4]
-    assert "default: 2" in prompts[4]
+    assert "default: 1" in prompts[4]
     assert "Additional model paths" in prompts[5]
     assert "Confirm choices" in prompts[6]
     assert "1) Confirm" in prompts[6]
@@ -194,6 +194,7 @@ def test_collect_installer_answers_retries_invalid_confirmation_then_confirms():
     )
 
     assert updated.starter_model == "recommended-6gb"
+    assert updated.attempt_turboquant is True
     assert any("Please enter 1 or 2." in line for line in outputs)
 
 
