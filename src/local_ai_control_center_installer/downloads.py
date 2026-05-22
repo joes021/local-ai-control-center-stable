@@ -19,8 +19,19 @@ class DownloadProgress:
     eta_seconds: float | None
 
 
+def calculate_sha256(path: Path, *, chunk_size: int = 1024 * 1024) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        while True:
+            chunk = handle.read(chunk_size)
+            if not chunk:
+                break
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 def verify_sha256(path: Path, expected_sha256: str) -> bool:
-    return _sha256_digest(path) == expected_sha256.lower()
+    return calculate_sha256(path) == expected_sha256.lower()
 
 
 def verify_required_files(root: Path, required_files: list[str]) -> bool:
@@ -34,7 +45,7 @@ def verify_required_file_checksums(
     try:
         return all(
             isinstance(expected_sha256, str)
-            and _sha256_digest(root / relative_path) == expected_sha256.lower()
+            and calculate_sha256(root / relative_path) == expected_sha256.lower()
             for relative_path, expected_sha256 in required_file_sha256.items()
         )
     except OSError:
@@ -88,10 +99,6 @@ def verify_runtime_metadata(
         return False
 
     return True
-
-
-def _sha256_digest(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def extract_archive(

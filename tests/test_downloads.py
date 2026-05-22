@@ -26,6 +26,25 @@ def test_verify_sha256_accepts_matching_digest(tmp_path: Path):
     ) is True
 
 
+def test_verify_sha256_streams_file_instead_of_reading_all_bytes(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    artifact_path = tmp_path / "runtime.zip"
+    artifact_path.write_bytes(b"runtime-payload")
+
+    monkeypatch.setattr(
+        Path,
+        "read_bytes",
+        lambda self: (_ for _ in ()).throw(AssertionError("read_bytes should not be used")),
+    )
+
+    assert verify_sha256(
+        artifact_path,
+        "84dd393eb57d462b8b3ba6c2c76b6b79a77f38fddc79399a8271650b9241d48d",
+    ) is True
+
+
 def test_verify_required_files_returns_false_when_expected_file_is_missing(tmp_path: Path):
     install_root = tmp_path / "llama.cpp"
     install_root.mkdir()

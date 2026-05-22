@@ -6,6 +6,7 @@ from tempfile import mkdtemp, mkstemp
 import inspect
 
 from .downloads import (
+    calculate_sha256,
     download_file as shared_download_file,
     extract_archive,
     promote_tree,
@@ -24,6 +25,7 @@ from .runtime_manifest import load_runtime_manifest, resolve_requested_starter_m
 from .session import InstallerSession
 
 DEFAULT_MANAGED_RUNTIME_PORT = 39281
+STARTER_MODEL_DOWNLOAD_ATTEMPTS = 2
 
 
 @dataclass(frozen=True)
@@ -320,16 +322,32 @@ def _stage_starter_model(
     )
 
     staged_model_path.parent.mkdir(parents=True, exist_ok=True)
-    _invoke_download(
-        download_model_file,
-        starter_model["url"],
-        staged_model_path,
-        plan_item=plan_item,
-    )
-    if not verify_model_file(staged_model_path, starter_model["sha256"]):
-        raise ValueError("Starter model checksum verification failed.")
+    last_actual_sha256 = "unavailable"
+    for attempt_number in range(1, STARTER_MODEL_DOWNLOAD_ATTEMPTS + 1):
+        _invoke_download(
+            download_model_file,
+            starter_model["url"],
+            staged_model_path,
+            plan_item=plan_item,
+        )
+        if verify_model_file(staged_model_path, starter_model["sha256"]):
+            promote_tree(staging_root / "payload", install_root)
+            return
+        try:
+            last_actual_sha256 = calculate_sha256(staged_model_path)
+        except OSError:
+            last_actual_sha256 = "unavailable"
+        if attempt_number < STARTER_MODEL_DOWNLOAD_ATTEMPTS:
+            try:
+                staged_model_path.unlink()
+            except OSError:
+                pass
 
-    promote_tree(staging_root / "payload", install_root)
+    raise ValueError(
+        "Starter model checksum verification failed after "
+        f"{STARTER_MODEL_DOWNLOAD_ATTEMPTS} attempts. "
+        f"Expected {starter_model['sha256']}, got {last_actual_sha256}."
+    )
 
 
 def _write_active_model_config(

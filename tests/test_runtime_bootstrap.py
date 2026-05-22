@@ -1337,6 +1337,148 @@ def test_apply_runtime_payload_marks_starter_model_failure_after_runtime_is_read
     assert updated.error_message == "model failed"
 
 
+def test_apply_runtime_payload_retries_starter_model_download_once_after_checksum_mismatch(
+    tmp_path: Path,
+):
+    install_root = tmp_path / "install-root"
+    runtime_root = install_root / "runtime" / "llama.cpp"
+    runtime_root.mkdir(parents=True)
+    (runtime_root / "llama-server.exe").write_text("ok", encoding="utf-8")
+    (runtime_root / "runtime-artifact.json").write_text(
+        json.dumps(
+            {
+                "artifact_id": "windows-llama-cpp-runtime",
+                "source_sha256": "abc123",
+            }
+        ),
+        encoding="utf-8",
+    )
+    session = InstallerSession(
+        bootstrap_status="ready",
+        install_root=str(install_root),
+        starter_model="recommended-6gb",
+        download_plan=_runtime_download_plan(include_runtime=False, include_model=True),
+    )
+    manifest = {
+        "runtime_artifact": {
+            "id": "windows-llama-cpp-runtime",
+            "url": "https://example.invalid/runtime.zip",
+            "sha256": "abc123",
+            "archive_type": "zip",
+            "required_files": ["llama-server.exe"],
+            "required_file_sha256": {"llama-server.exe": PINNED_OK_RUNTIME_SHA256},
+            "install_subdir": "runtime/llama.cpp",
+        },
+        "starter_models": {
+            "recommended-6gb": {
+                "id": "recommended-6gb",
+                "url": "https://example.invalid/model.gguf",
+                "sha256": "def456",
+                "target_filename": "recommended-6gb.gguf",
+                "install_subdir": "models/recommended-6gb",
+                "size_bytes": 123,
+            }
+        },
+    }
+    download_attempts: list[int] = []
+    verify_attempts = {"count": 0}
+
+    def fake_download_model_file(url: str, destination: Path, *, plan_item=None) -> Path:
+        del url, plan_item
+        download_attempts.append(len(download_attempts) + 1)
+        payload = b"bad-model" if len(download_attempts) == 1 else b"good-model"
+        destination.write_bytes(payload)
+        return destination
+
+    def fake_verify_model_file(path: Path, expected_sha256: str) -> bool:
+        del expected_sha256
+        verify_attempts["count"] += 1
+        return path.read_bytes() == b"good-model"
+
+    updated = apply_runtime_payload(
+        session,
+        temp_root=tmp_path / "temp-runs",
+        load_manifest=lambda: manifest,
+        download_model_file=fake_download_model_file,
+        verify_model_file=fake_verify_model_file,
+    )
+
+    assert updated.runtime_payload_status == "ready"
+    assert updated.starter_model_status == "ready"
+    assert download_attempts == [1, 2]
+    assert verify_attempts["count"] == 2
+    assert Path(updated.starter_model_path).read_bytes() == b"good-model"
+
+
+def test_apply_runtime_payload_reports_actual_starter_model_checksum_after_retry_exhaustion(
+    tmp_path: Path,
+):
+    install_root = tmp_path / "install-root"
+    runtime_root = install_root / "runtime" / "llama.cpp"
+    runtime_root.mkdir(parents=True)
+    (runtime_root / "llama-server.exe").write_text("ok", encoding="utf-8")
+    (runtime_root / "runtime-artifact.json").write_text(
+        json.dumps(
+            {
+                "artifact_id": "windows-llama-cpp-runtime",
+                "source_sha256": "abc123",
+            }
+        ),
+        encoding="utf-8",
+    )
+    session = InstallerSession(
+        bootstrap_status="ready",
+        install_root=str(install_root),
+        starter_model="recommended-6gb",
+        download_plan=_runtime_download_plan(include_runtime=False, include_model=True),
+    )
+    manifest = {
+        "runtime_artifact": {
+            "id": "windows-llama-cpp-runtime",
+            "url": "https://example.invalid/runtime.zip",
+            "sha256": "abc123",
+            "archive_type": "zip",
+            "required_files": ["llama-server.exe"],
+            "required_file_sha256": {"llama-server.exe": PINNED_OK_RUNTIME_SHA256},
+            "install_subdir": "runtime/llama.cpp",
+        },
+        "starter_models": {
+            "recommended-6gb": {
+                "id": "recommended-6gb",
+                "url": "https://example.invalid/model.gguf",
+                "sha256": "expected-sha256",
+                "target_filename": "recommended-6gb.gguf",
+                "install_subdir": "models/recommended-6gb",
+                "size_bytes": 123,
+            }
+        },
+    }
+    download_attempts: list[int] = []
+
+    def fake_download_model_file(url: str, destination: Path, *, plan_item=None) -> Path:
+        del url, plan_item
+        download_attempts.append(len(download_attempts) + 1)
+        destination.write_bytes(b"still-bad-model")
+        return destination
+
+    updated = apply_runtime_payload(
+        session,
+        temp_root=tmp_path / "temp-runs",
+        load_manifest=lambda: manifest,
+        download_model_file=fake_download_model_file,
+        verify_model_file=lambda path, expected_sha256: False,
+    )
+
+    assert updated.runtime_payload_status == "failed"
+    assert updated.starter_model_status == "failed"
+    assert updated.failing_step == "starter-model"
+    assert download_attempts == [1, 2]
+    assert "Starter model checksum verification failed after 2 attempts." in (
+        updated.error_message or ""
+    )
+    assert "Expected expected-sha256" in (updated.error_message or "")
+
+
 def test_apply_runtime_payload_marks_active_model_config_failure_after_model_is_ready(
     tmp_path: Path,
 ):
