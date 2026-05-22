@@ -166,7 +166,7 @@ def apply_opencode_verification(
         model_id=target.model_id,
         marker=marker,
     )
-    session.verified_opencode_command = " ".join(command)
+    session.verified_opencode_command = _format_windows_command(command)
     env = _build_verification_env(target, relay_base_url=relay_handle.base_url)
 
     try:
@@ -802,6 +802,14 @@ def _derive_timeout_step(proof_state: RelayProofState) -> str:
 
 
 def _derive_runtime_failure_step(process, proof_state: RelayProofState) -> str:
+    if (
+        process is not None
+        and process.returncode == 0
+        and proof_state.marker_seen
+        and proof_state.upstream_success
+        and proof_state.response_has_assistant_content
+    ):
+        return "opencode-inference-smoke"
     if proof_state.marker_seen and not proof_state.upstream_success:
         return "opencode-live-route-proof"
     if process is None or process.returncode != 0:
@@ -895,6 +903,10 @@ def _coerce_output_text(output: object) -> str:
     if isinstance(output, bytes):
         return output.decode("utf-8", errors="replace")
     return str(output)
+
+
+def _format_windows_command(command: list[str]) -> str:
+    return subprocess.list2cmdline(command)
 
 
 def _set_opencode_log_path_if_present(
