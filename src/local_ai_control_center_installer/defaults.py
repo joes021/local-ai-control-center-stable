@@ -43,9 +43,6 @@ def default_collect_answers(session: InstallerSession) -> InstallerSession:
 def default_scan_dependencies(session: InstallerSession) -> InstallerSession:
     probes = {
         "python": _probe_python_version,
-        "git": _probe_git_version,
-        "node": _probe_node_version,
-        "build-tools": _probe_build_tools_version,
     }
     session = scan_all_dependencies(
         session,

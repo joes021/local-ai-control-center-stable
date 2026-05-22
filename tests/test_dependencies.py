@@ -77,13 +77,7 @@ def test_scan_all_dependencies_populates_required_dependency_records():
     assert updated is session
     assert [record.name for record in updated.dependencies] == [
         "python",
-        "git",
-        "node",
-        "build-tools",
     ]
     assert [record.status for record in updated.dependencies] == [
         "ready",
-        "ready",
-        "missing-installable",
-        "missing-installable",
     ]
