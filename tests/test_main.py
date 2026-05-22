@@ -5,8 +5,12 @@ import pytest
 
 import local_ai_control_center_installer.defaults as defaults_module
 import local_ai_control_center_installer.main as main_module
+import local_ai_control_center_installer.prompts as prompts_module
 from local_ai_control_center_installer.main import run_installer
-from local_ai_control_center_installer.prompts import PromptCancelledError
+from local_ai_control_center_installer.prompts import (
+    PromptCancelledError,
+    StarterModelCatalogError,
+)
 from local_ai_control_center_installer.session import InstallerSession
 
 TEST_MARKER = "LACC_VERIFY_MARKER:test-marker"
@@ -47,6 +51,59 @@ def test_main_returns_non_zero_when_prompt_is_cancelled(
     captured = capsys.readouterr()
     assert captured.out == ""
     assert captured.err == "Installer questionnaire cancelled.\n"
+
+
+def test_main_returns_non_zero_when_starter_model_catalog_setup_fails(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
+    def fake_run_installer():
+        raise StarterModelCatalogError("Starter model catalog is unavailable.")
+
+    monkeypatch.setattr(main_module, "run_installer", fake_run_installer)
+
+    assert main_module.main() == 1
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == "Starter model catalog is unavailable.\n"
+    assert "Traceback" not in captured.err
+
+
+@pytest.mark.parametrize(
+    ("side_effect", "expected_message"),
+    [
+        (FileNotFoundError("missing runtime manifest"), "missing runtime manifest"),
+        (ValueError("malformed runtime manifest"), "malformed runtime manifest"),
+        (
+            ValueError("Duplicate starter model prompt_order: 1"),
+            "Duplicate starter model prompt_order: 1",
+        ),
+    ],
+)
+def test_main_exits_cleanly_when_prompt_path_cannot_load_starter_model_catalog(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    side_effect,
+    expected_message,
+):
+    def raise_catalog_error():
+        raise side_effect
+
+    monkeypatch.setattr(prompts_module, "load_runtime_manifest", raise_catalog_error)
+    monkeypatch.setattr(
+        defaults_module,
+        "collect_installer_answers",
+        lambda session: prompts_module.collect_installer_answers(
+            session,
+            input_fn=lambda _: "",
+        ),
+    )
+
+    assert main_module.main() == 1
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert expected_message in captured.err
+    assert "Traceback" not in captured.err
 
 
 def test_main_returns_non_zero_when_bootstrap_status_is_failed(

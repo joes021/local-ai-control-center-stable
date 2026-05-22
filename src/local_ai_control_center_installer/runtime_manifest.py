@@ -23,6 +23,7 @@ def load_runtime_manifest(manifest_path=None) -> dict:
 
     _validate_runtime_artifact(payload["runtime_artifact"])
     _validate_starter_models_container(payload["starter_models"])
+    list_prompt_starter_models(payload)
     return payload
 
 
@@ -32,6 +33,7 @@ def list_prompt_starter_models(manifest: dict) -> list[StarterModelOption]:
 
     options: list[StarterModelOption] = []
     default_count = 0
+    seen_prompt_orders: set[int] = set()
     for requested_model_id, starter_model in starter_models.items():
         validated_model_id = _validate_starter_model_entry(
             starter_model,
@@ -47,6 +49,9 @@ def list_prompt_starter_models(manifest: dict) -> list[StarterModelOption]:
             raise ValueError(
                 f"Starter model entry for {requested_model_id} field must be a positive integer: prompt_order"
             )
+        if prompt_order in seen_prompt_orders:
+            raise ValueError(f"Duplicate starter model prompt_order: {prompt_order}")
+        seen_prompt_orders.add(prompt_order)
         recommended_default = starter_model.get("recommended_default")
         if not isinstance(recommended_default, bool):
             raise ValueError(

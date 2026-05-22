@@ -2,6 +2,7 @@ import pytest
 
 from local_ai_control_center_installer.prompts import (
     PromptCancelledError,
+    StarterModelCatalogError,
     collect_installer_answers,
     render_confirmation_summary,
 )
@@ -227,3 +228,31 @@ def test_collect_installer_answers_uses_manifest_default_prompt_choice(monkeypat
     )
 
     assert updated.starter_model == "recommended-12gb"
+
+
+@pytest.mark.parametrize(
+    ("side_effect", "expected_message"),
+    [
+        (FileNotFoundError("missing runtime manifest"), "missing runtime manifest"),
+        (ValueError("malformed runtime manifest"), "malformed runtime manifest"),
+        (
+            ValueError("Duplicate starter model prompt_order: 1"),
+            "Duplicate starter model prompt_order: 1",
+        ),
+    ],
+)
+def test_collect_installer_answers_wraps_starter_model_catalog_failures(
+    monkeypatch,
+    side_effect,
+    expected_message,
+):
+    def raise_catalog_error():
+        raise side_effect
+
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.prompts.load_runtime_manifest",
+        raise_catalog_error,
+    )
+
+    with pytest.raises(StarterModelCatalogError, match=expected_message):
+        collect_installer_answers(InstallerSession(), input_fn=lambda _: "")
