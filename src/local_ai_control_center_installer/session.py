@@ -65,6 +65,10 @@ class InstallerSession:
     opencode_log_path: str | None = None
     first_run_log_path: str | None = None
     server_log_path: str | None = None
+    turboquant_artifact_id: str | None = None
+    turboquant_artifact_path: str | None = None
+    turboquant_metadata_path: str | None = None
+    turboquant_executable_path: str | None = None
     turboquant_error: str | None = None
     install_opencode: bool = False
     attempt_turboquant: bool = False

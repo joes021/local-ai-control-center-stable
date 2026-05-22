@@ -3,6 +3,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import inspect
 
 from local_ai_control_center_installer.apply_phase import apply_bootstrap_phase
 from local_ai_control_center_installer.dependencies import (
@@ -162,11 +163,22 @@ def default_apply_first_run_validation(session: InstallerSession) -> InstallerSe
 
 
 def default_apply_turboquant(session: InstallerSession) -> InstallerSession:
+    progress_callback = _build_download_progress_callback()
     return _run_phase_with_status(
         session,
         start_message="Checking TurboQuant...",
         status_label="TurboQuant status",
-        step_fn=apply_turboquant,
+        step_fn=lambda current_session: _invoke_step_with_optional_kwargs(
+            apply_turboquant,
+            current_session,
+            temp_root=_default_temp_root(),
+            download_archive=lambda url, destination, *, plan_item=None: download_file(
+                url,
+                destination,
+                progress_callback=progress_callback,
+                plan_item=plan_item,
+            ),
+        ),
         status_getter=lambda current_session: current_session.turboquant_status,
     )
 
@@ -216,6 +228,19 @@ def _run_phase_with_status(
     session = step_fn(session)
     print(f"{status_label}: {status_getter(session)}")
     return session
+
+
+def _invoke_step_with_optional_kwargs(step_fn, session: InstallerSession, **kwargs):
+    parameters = inspect.signature(step_fn).parameters.values()
+    if any(parameter.kind is inspect.Parameter.VAR_KEYWORD for parameter in parameters):
+        return step_fn(session, **kwargs)
+
+    accepted_kwargs = {
+        key: value for key, value in kwargs.items() if key in inspect.signature(step_fn).parameters
+    }
+    if accepted_kwargs:
+        return step_fn(session, **accepted_kwargs)
+    return step_fn(session)
 
 
 def _count_download_plan_items(download_plan) -> int | None:

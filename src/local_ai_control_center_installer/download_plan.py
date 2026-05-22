@@ -16,6 +16,7 @@ from .session import InstallerSession
 
 RUNTIME_ARTIFACT_DOWNLOAD_KEY = "runtime-artifact"
 OPENCODE_ARTIFACT_DOWNLOAD_KEY = "opencode-artifact"
+TURBOQUANT_ARTIFACT_DOWNLOAD_KEY = "turboquant-artifact"
 
 
 @dataclass(frozen=True)
@@ -39,12 +40,19 @@ def build_download_plan(
     *,
     load_runtime_manifest=load_runtime_manifest,
     load_opencode_manifest=None,
+    resolve_turboquant_strategy=None,
     verify_model_file=verify_sha256,
 ) -> DownloadPlan:
     if load_opencode_manifest is None:
         from .opencode_bootstrap import load_opencode_manifest as _load_opencode_manifest
 
         load_opencode_manifest = _load_opencode_manifest
+    if resolve_turboquant_strategy is None:
+        from .turboquant import (
+            resolve_packaged_windows_strategy as _resolve_packaged_windows_strategy,
+        )
+
+        resolve_turboquant_strategy = _resolve_packaged_windows_strategy
 
     if not isinstance(session.install_root, str) or not session.install_root.strip():
         return DownloadPlan(items=())
@@ -114,6 +122,35 @@ def build_download_plan(
                     size_bytes=None,
                 )
             )
+
+    if session.attempt_turboquant:
+        try:
+            turboquant_strategy = resolve_turboquant_strategy()
+        except (OSError, ValueError):
+            turboquant_strategy = None
+        if isinstance(turboquant_strategy, Mapping):
+            turboquant_artifact = turboquant_strategy.get("artifact")
+            if isinstance(turboquant_artifact, dict):
+                turboquant_root = install_root / turboquant_artifact["install_subdir"]
+                turboquant_metadata_path = (
+                    turboquant_root / "turboquant-artifact.json"
+                )
+                if not _turboquant_artifact_ready(
+                    turboquant_root,
+                    turboquant_metadata_path,
+                    turboquant_artifact,
+                ):
+                    items.append(
+                        DownloadPlanItem(
+                            key=TURBOQUANT_ARTIFACT_DOWNLOAD_KEY,
+                            label="TurboQuant",
+                            url=turboquant_artifact["url"],
+                            destination_hint=turboquant_artifact["install_subdir"],
+                            size_bytes=_coerce_optional_int(
+                                turboquant_artifact.get("size_bytes")
+                            ),
+                        )
+                    )
 
     total = len(items)
     normalized_items = tuple(
@@ -218,4 +255,20 @@ def _opencode_artifact_ready(
         metadata_path,
         artifact_id=opencode_artifact["id"],
         source_sha256=opencode_artifact["sha256"],
+    )
+
+
+def _turboquant_artifact_ready(
+    turboquant_root: Path,
+    metadata_path: Path,
+    turboquant_artifact: dict,
+) -> bool:
+    return verify_required_files(
+        turboquant_root, turboquant_artifact["required_files"]
+    ) and verify_required_file_checksums(
+        turboquant_root, turboquant_artifact["required_file_sha256"]
+    ) and verify_runtime_metadata(
+        metadata_path,
+        artifact_id=turboquant_artifact["id"],
+        source_sha256=turboquant_artifact["sha256"],
     )

@@ -171,15 +171,39 @@ def test_write_human_log_includes_first_run_summary_lines(tmp_path: Path):
 def test_write_human_log_includes_turboquant_summary_lines(tmp_path: Path):
     paths = build_run_paths(tmp_path, "2026-05-22T10-00-00")
     session = InstallerSession(
-        turboquant_status="failed",
-        turboquant_error="No supported Windows TurboQuant install path is currently packaged.",
+        turboquant_status="ready",
+        turboquant_error=None,
+        turboquant_artifact_id="windows-turboquant-cuda12.4",
+        turboquant_artifact_path=str(
+            tmp_path / "install-root" / "tools" / "turboquant" / "windows-x64-cuda12.4"
+        ),
+        turboquant_metadata_path=str(
+            tmp_path
+            / "install-root"
+            / "tools"
+            / "turboquant"
+            / "windows-x64-cuda12.4"
+            / "turboquant-artifact.json"
+        ),
+        turboquant_executable_path=str(
+            tmp_path
+            / "install-root"
+            / "tools"
+            / "turboquant"
+            / "windows-x64-cuda12.4"
+            / "llama-server.exe"
+        ),
     )
 
     write_human_log(session, paths.log_path)
 
     contents = paths.log_path.read_text(encoding="utf-8")
-    assert "TurboQuant status: failed" in contents
-    assert "TurboQuant error: No supported Windows TurboQuant install path is currently packaged." in contents
+    assert "TurboQuant status: ready" in contents
+    assert "TurboQuant artifact id: windows-turboquant-cuda12.4" in contents
+    assert "TurboQuant artifact path:" in contents
+    assert "TurboQuant metadata path:" in contents
+    assert "TurboQuant executable path:" in contents
+    assert "TurboQuant error: None" in contents
 
 
 def test_write_json_report_serializes_bootstrap_summary(tmp_path: Path):
@@ -360,18 +384,39 @@ def test_write_json_report_serializes_first_run_summary(tmp_path: Path):
 def test_write_json_report_serializes_turboquant_summary(tmp_path: Path):
     paths = build_run_paths(tmp_path, "2026-05-22T10-00-00")
     session = InstallerSession(
-        turboquant_status="failed",
-        turboquant_error="No supported Windows TurboQuant install path is currently packaged.",
+        turboquant_status="ready",
+        turboquant_error=None,
+        turboquant_artifact_id="windows-turboquant-cuda12.4",
+        turboquant_artifact_path=str(
+            tmp_path / "install-root" / "tools" / "turboquant" / "windows-x64-cuda12.4"
+        ),
+        turboquant_metadata_path=str(
+            tmp_path
+            / "install-root"
+            / "tools"
+            / "turboquant"
+            / "windows-x64-cuda12.4"
+            / "turboquant-artifact.json"
+        ),
+        turboquant_executable_path=str(
+            tmp_path
+            / "install-root"
+            / "tools"
+            / "turboquant"
+            / "windows-x64-cuda12.4"
+            / "llama-server.exe"
+        ),
     )
 
     write_json_report(session, paths.json_report_path)
 
     payload = json.loads(paths.json_report_path.read_text(encoding="utf-8"))
-    assert payload["turboquant_status"] == "failed"
-    assert (
-        payload["turboquant_error"]
-        == "No supported Windows TurboQuant install path is currently packaged."
-    )
+    assert payload["turboquant_status"] == "ready"
+    assert payload["turboquant_error"] is None
+    assert payload["turboquant_artifact_id"] == "windows-turboquant-cuda12.4"
+    assert payload["turboquant_artifact_path"] == session.turboquant_artifact_path
+    assert payload["turboquant_metadata_path"] == session.turboquant_metadata_path
+    assert payload["turboquant_executable_path"] == session.turboquant_executable_path
 
 
 def test_write_report_artifacts_normalize_missing_opencode_log_path_to_none(

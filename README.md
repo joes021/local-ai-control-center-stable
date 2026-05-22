@@ -95,7 +95,7 @@ This repository now delivers:
 - installer-managed `OpenCode` artifact preparation
 - installer-managed `OpenCode` live-route verification against the active local runtime/model route
 - bounded first-run end-user `OpenCode` smoke against the persisted managed configuration
-- truthful `TurboQuant` status reporting for Windows
+- installer-managed packaged Windows `TurboQuant` installation for supported NVIDIA x64 systems, with truthful non-hard-fail status reporting
 - final installer/runtime completion gating through `product_installation_status`
 - human-readable logging and JSON reporting
 
@@ -106,4 +106,3 @@ This repository still does not claim:
 - portal or browser UI flows
 - update UX or catalog UX
 - Linux parity
-- a packaged Windows `TurboQuant` installation path when none is currently supported
