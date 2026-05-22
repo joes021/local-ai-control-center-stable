@@ -199,6 +199,8 @@ def test_write_json_report_serializes_server_verification_summary(tmp_path: Path
 
 def test_write_json_report_serializes_opencode_summary(tmp_path: Path):
     paths = build_run_paths(tmp_path, "2026-05-21T10-00-00")
+    paths.opencode_log_path.parent.mkdir(parents=True, exist_ok=True)
+    paths.opencode_log_path.write_text("OpenCode verification output\n", encoding="utf-8")
     session = InstallerSession(
         bootstrap_status="ready",
         install_root=str(tmp_path / "install-root"),
@@ -227,6 +229,31 @@ def test_write_json_report_serializes_opencode_summary(tmp_path: Path):
     assert payload["opencode_config_path"] == session.opencode_config_path
     assert payload["verified_opencode_command"] == "opencode --pure models local-lacc"
     assert payload["opencode_log_path"] == str(paths.opencode_log_path)
+
+
+def test_write_report_artifacts_normalize_missing_opencode_log_path_to_none(
+    tmp_path: Path,
+):
+    paths = build_run_paths(tmp_path, "2026-05-21T10-00-00")
+    missing_log_path = paths.opencode_log_path
+    session = InstallerSession(
+        install_root=str(tmp_path / "install-root"),
+        opencode_log_path=str(missing_log_path),
+    )
+
+    write_human_log(session, paths.log_path)
+    write_json_report(session, paths.json_report_path)
+    session_snapshot_path = tmp_path / "session.json"
+    reporting_module.write_session_snapshot(session, session_snapshot_path)
+
+    human_log_contents = paths.log_path.read_text(encoding="utf-8")
+    report_payload = json.loads(paths.json_report_path.read_text(encoding="utf-8"))
+    session_payload = json.loads(session_snapshot_path.read_text(encoding="utf-8"))
+
+    assert "OpenCode log path: None" in human_log_contents
+    assert report_payload["opencode_log_path"] is None
+    assert session_payload["opencode_log_path"] is None
+    assert session.opencode_log_path is None
 
 
 def test_persist_install_root_reports_rewrites_log_report_and_session_snapshot(
@@ -312,6 +339,33 @@ def test_persist_install_root_reports_copies_opencode_log_bytes_verbatim(tmp_pat
     persisted_opencode_log = install_root / "logs" / "opencode-verification.log"
     assert persisted_opencode_log.read_bytes() == raw_bytes
     assert session.opencode_log_path == str(persisted_opencode_log)
+
+
+def test_persist_install_root_reports_drops_stale_missing_opencode_log_path(
+    tmp_path: Path,
+):
+    install_root = tmp_path / "install-root"
+    stale_opencode_log = tmp_path / "temp-run" / "opencode-verification.log"
+    session = InstallerSession(
+        install_root=str(install_root),
+        opencode_log_path=str(stale_opencode_log),
+    )
+
+    persist_install_root_reports(session)
+
+    install_log_contents = (install_root / "logs" / "install.log").read_text(encoding="utf-8")
+    report_payload = json.loads(
+        (install_root / "logs" / "install-report.json").read_text(encoding="utf-8")
+    )
+    session_payload = json.loads(
+        (install_root / "config" / "installer-session.json").read_text(encoding="utf-8")
+    )
+
+    assert "OpenCode log path: None" in install_log_contents
+    assert report_payload["opencode_log_path"] is None
+    assert session_payload["opencode_log_path"] is None
+    assert session.opencode_log_path is None
+    assert not (install_root / "logs" / "opencode-verification.log").exists()
 
 
 def test_persist_install_root_reports_restores_temp_opencode_log_path_on_promotion_failure(

@@ -47,7 +47,6 @@ def apply_opencode_verification(
 
     run_id = (session.started_at or "manual-run").replace(":", "-")
     run_paths = build_run_paths(temp_root, run_id)
-    session.opencode_log_path = str(run_paths.opencode_log_path)
 
     try:
         target = resolve_opencode_verification_target(session)
@@ -96,6 +95,7 @@ def apply_opencode_verification(
             run_paths.opencode_log_path,
             timeout_seconds=30.0,
         )
+        _set_opencode_log_path_if_present(session, run_paths.opencode_log_path)
         if process.returncode != 0:
             session.opencode_verification_status = "failed"
             session.opencode_process_status = "failed"
@@ -143,6 +143,8 @@ def apply_opencode_verification(
         log_write_error = _try_write_log_text(
             run_paths.opencode_log_path, _coerce_output_text(exc.output)
         )
+        if log_write_error is None:
+            _set_opencode_log_path_if_present(session, run_paths.opencode_log_path)
         session.opencode_verification_status = "failed"
         session.opencode_process_status = "failed"
         session.opencode_connection_status = "failed"
@@ -349,6 +351,14 @@ def _coerce_output_text(output: object) -> str:
     if isinstance(output, bytes):
         return output.decode("utf-8", errors="replace")
     return str(output)
+
+
+def _set_opencode_log_path_if_present(
+    session: InstallerSession,
+    log_path: Path,
+) -> None:
+    if log_path.exists() and log_path.is_file():
+        session.opencode_log_path = str(log_path)
 
 
 def _load_launch_contract() -> dict[str, object]:

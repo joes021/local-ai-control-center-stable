@@ -237,6 +237,7 @@ def test_apply_opencode_verification_fails_prerequisites(
     assert updated.opencode_process_status == "skipped"
     assert updated.opencode_connection_status == "skipped"
     assert updated.failing_step == "opencode-verification-prerequisites"
+    assert updated.opencode_log_path is None
 
 
 def test_apply_opencode_verification_success_path_and_log_capture(
@@ -361,6 +362,34 @@ def test_apply_opencode_verification_maps_working_directory_failure_to_process_s
     assert updated.opencode_connection_status == "skipped"
     assert updated.failing_step == "opencode-process-start"
     assert updated.error_message == "temp root unavailable"
+    assert updated.opencode_log_path is None
+
+
+def test_apply_opencode_verification_process_launch_failure_leaves_log_path_unset(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    session = _build_ready_session(tmp_path)
+
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.opencode_verification.load_opencode_manifest",
+        lambda: _build_manifest(),
+    )
+
+    updated = apply_opencode_verification(
+        session,
+        temp_root=tmp_path / "temp-runs",
+        process_factory=lambda command, *, cwd, env, log_path: (_ for _ in ()).throw(
+            OSError("launch failed")
+        ),
+    )
+
+    assert updated.opencode_verification_status == "failed"
+    assert updated.opencode_process_status == "failed"
+    assert updated.opencode_connection_status == "skipped"
+    assert updated.failing_step == "opencode-process-start"
+    assert updated.error_message == "launch failed"
+    assert updated.opencode_log_path is None
 
 
 def test_apply_opencode_verification_maps_log_write_failure_without_crashing(
