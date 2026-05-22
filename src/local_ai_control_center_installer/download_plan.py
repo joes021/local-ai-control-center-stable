@@ -79,10 +79,13 @@ def build_download_plan(
     if not starter_model_path.exists() or not verify_model_file(
         starter_model_path, starter_model["sha256"]
     ):
+        prompt_label = starter_model.get("prompt_label")
+        if not isinstance(prompt_label, str) or not prompt_label.strip():
+            prompt_label = starter_model["id"]
         items.append(
             DownloadPlanItem(
                 key=starter_model_download_key(starter_model["id"]),
-                label=f"starter model {starter_model['id']}",
+                label=f"starter model {prompt_label.strip()}",
                 url=starter_model["url"],
                 destination_hint=(
                     f"{starter_model['install_subdir']}/"

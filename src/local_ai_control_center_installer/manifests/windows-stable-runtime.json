@@ -15,13 +15,13 @@
   "starter_models": {
     "recommended-6gb": {
       "id": "recommended-6gb",
-      "url": "https://huggingface.co/Qwen/Qwen2.5-Coder-7B-Instruct-GGUF/resolve/13fb94bfda8c8cf22497dc57b78f391a9acb426a/qwen2.5-coder-7b-instruct-q4_k_m.gguf",
-      "sha256": "fa9e1815472201e7dea978475c1f3ca7bc7df773eaeb3b3a383258c25b052f6f",
-      "target_filename": "recommended-6gb.gguf",
+      "url": "https://huggingface.co/StageMind/gemma-4-e4b/resolve/142068e90ddd9c28566f6a16af9921351a5cd61d/gemma-4-E4B-it-Q4_K_M.gguf",
+      "sha256": "ced37f54b80068fe65e95c6dd79ac88cddc227e179fd1040b8f751b1e5bdf849",
+      "target_filename": "gemma-4-E4B-it-Q4_K_M.gguf",
       "install_subdir": "models/recommended-6gb",
-      "size_bytes": 4683073536,
+      "size_bytes": 4977164416,
       "prompt_order": 1,
-      "prompt_label": "Qwen2.5 Coder 7B Instruct Q4_K_M (recommended-6gb)",
+      "prompt_label": "gemma-4-E4B-it-Q4_K_M.gguf (recommended-6gb)",
       "recommended_default": true
     },
     "recommended-12gb": {
