@@ -71,9 +71,11 @@ Smoke checklist:
 
 For end users on Windows, the preferred artifact is a single executable installer:
 
-- `LocalAIControlCenterSetup.exe`
+- `LocalAIControlCenterSetup-v<version>.exe`
 
 That executable is intended to be launched with a double-click and should run the full installer flow without requiring ZIP extraction or a manual PowerShell command.
+
+The installer window should remain open at the end of the run so the user can read the final success or failure output and press Enter to close it.
 
 ## Current Slice Status
 
