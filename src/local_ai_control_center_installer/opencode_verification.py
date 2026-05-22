@@ -23,7 +23,8 @@ from local_ai_control_center_installer.server_verification import (
 from local_ai_control_center_installer.session import InstallerSession
 
 
-OPENCODE_SMOKE_TIMEOUT_SECONDS = 180.0
+OPENCODE_SMOKE_TIMEOUT_SECONDS = 300.0
+OPENCODE_UPSTREAM_REQUEST_TIMEOUT_SECONDS = 270.0
 
 
 @dataclass
@@ -622,7 +623,10 @@ def _forward_to_upstream(
     )
 
     try:
-        with urlopen(request, timeout=30) as response:
+        with urlopen(
+            request,
+            timeout=OPENCODE_UPSTREAM_REQUEST_TIMEOUT_SECONDS,
+        ) as response:
             return response.status, response.headers, response.read()
     except HTTPError as exc:
         return exc.code, exc.headers, exc.read()
@@ -718,9 +722,12 @@ def _write_forwarded_response(
     if content_type:
         handler.send_header("Content-Type", content_type)
     handler.send_header("Content-Length", str(len(upstream_body)))
-    handler.end_headers()
-    if upstream_body:
-        handler.wfile.write(upstream_body)
+    try:
+        handler.end_headers()
+        if upstream_body:
+            handler.wfile.write(upstream_body)
+    except (BrokenPipeError, ConnectionResetError, OSError):
+        return
 
 
 def _messages_contain_marker(messages: object, marker: str) -> bool:
