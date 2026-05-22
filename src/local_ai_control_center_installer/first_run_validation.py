@@ -23,6 +23,7 @@ from local_ai_control_center_installer.session import InstallerSession
 
 
 FIRST_RUN_PROMPT = "Reply with the single word READY."
+FIRST_RUN_SMOKE_TIMEOUT_SECONDS = 180.0
 
 
 @dataclass(frozen=True)
@@ -157,7 +158,7 @@ def apply_first_run_validation(
         output_text = _collect_process_output(
             process,
             run_paths.first_run_log_path,
-            timeout_seconds=30.0,
+            timeout_seconds=FIRST_RUN_SMOKE_TIMEOUT_SECONDS,
         )
         _set_first_run_log_path_if_present(session, run_paths.first_run_log_path)
         verification_succeeded = _apply_process_output_result(
@@ -529,18 +530,33 @@ def _parse_json_output(output_text: str) -> object | None:
     except (TypeError, ValueError, json.JSONDecodeError):
         pass
 
+    line_payloads: list[object] = []
     for line in reversed(normalized.splitlines()):
         candidate = line.strip()
         if not candidate:
             continue
         try:
-            return json.loads(candidate)
+            line_payloads.append(json.loads(candidate))
         except (TypeError, ValueError, json.JSONDecodeError):
             continue
-    return None
+
+    if not line_payloads:
+        return None
+
+    line_payloads.reverse()
+    if len(line_payloads) == 1:
+        return line_payloads[0]
+    return line_payloads
 
 
 def _extract_first_nonempty_assistant_text(payload: object) -> str | None:
+    if isinstance(payload, list):
+        for item in payload:
+            text = _extract_nonempty_text_event(item)
+            if text is not None:
+                return text
+        return None
+
     if not isinstance(payload, dict):
         return None
     choices = payload.get("choices")
@@ -556,6 +572,25 @@ def _extract_first_nonempty_assistant_text(payload: object) -> str | None:
         text = _coerce_assistant_content(message.get("content"))
         if text is not None:
             return text
+    return None
+
+
+def _extract_nonempty_text_event(payload: object) -> str | None:
+    if not isinstance(payload, dict):
+        return None
+
+    part = payload.get("part")
+    if isinstance(part, dict):
+        if part.get("type") == "text":
+            text = _coerce_assistant_content(part.get("text"))
+            if text is not None:
+                return text
+
+    if payload.get("type") == "text":
+        text = _coerce_assistant_content(payload.get("text"))
+        if text is not None:
+            return text
+
     return None
 
 

@@ -483,9 +483,11 @@ def test_apply_opencode_bootstrap_marks_artifact_ready_when_valid_artifact_exist
     assert updated.error_message is None
     assert Path(updated.opencode_artifact_path) == artifact_root
     assert Path(updated.opencode_metadata_path) == artifact_root / "opencode-artifact.json"
-    assert managed_config["installer_managed"] is True
     assert managed_config["autoupdate"] is False
     assert managed_config["model"] == "local-lacc/recommended-6gb"
+    assert "installer_managed" not in managed_config
+    assert managed_config["enabled_providers"] == ["local-lacc"]
+    assert managed_config["provider"]["local-lacc"]["npm"] == "@ai-sdk/openai-compatible"
 
 
 def test_apply_opencode_bootstrap_fails_prerequisites_when_active_model_id_cannot_be_resolved(
@@ -695,9 +697,9 @@ def test_apply_opencode_bootstrap_generated_config_uses_canonical_runtime_endpoi
 
     assert updated.opencode_artifact_status == "ready"
     assert managed_config["enabled_providers"] == ["local-lacc"]
-    assert managed_config["providers"]["local-lacc"]["provider"] == "@ai-sdk/openai-compatible"
-    assert managed_config["providers"]["local-lacc"]["options"]["baseURL"] == "http://127.0.0.1:39281/v1"
-    assert managed_config["providers"]["local-lacc"]["models"] == {"my-model-q4": {}}
+    assert managed_config["provider"]["local-lacc"]["npm"] == "@ai-sdk/openai-compatible"
+    assert managed_config["provider"]["local-lacc"]["options"]["baseURL"] == "http://127.0.0.1:39281/v1"
+    assert managed_config["provider"]["local-lacc"]["models"] == {"my-model-q4": {}}
 
 
 def test_apply_opencode_bootstrap_second_pass_reuses_staged_artifact_without_redownloading(

@@ -50,6 +50,24 @@ def test_collect_installer_answers_records_additional_model_paths():
     assert updated.additional_model_paths == ["C:\\models", "E:\\shared-models"]
 
 
+def test_collect_installer_answers_strips_utf8_bom_from_install_root_input():
+    answers = iter(["\ufeffC:\\Apps\\LACC", "1", "1", "1", "", "1"])
+    session = InstallerSession()
+
+    updated = collect_installer_answers(session, input_fn=lambda _: next(answers))
+
+    assert updated.install_root == "C:\\Apps\\LACC"
+
+
+def test_collect_installer_answers_strips_utf8_bom_mojibake_from_install_root_input():
+    answers = iter(["ï»¿C:\\Apps\\LACC", "1", "1", "1", "", "1"])
+    session = InstallerSession()
+
+    updated = collect_installer_answers(session, input_fn=lambda _: next(answers))
+
+    assert updated.install_root == "C:\\Apps\\LACC"
+
+
 def test_collect_installer_answers_retries_invalid_numbered_input():
     answers = iter(["9", "2", "", "4", "1", "3", "2", "2", "", "7", "1"])
     outputs = []

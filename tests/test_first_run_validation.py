@@ -14,8 +14,10 @@ class FakeCompletedProcess:
     def __init__(self, stdout_text: str, *, returncode: int):
         self._stdout_text = stdout_text
         self.returncode = returncode
+        self.communicate_timeouts: list[float] = []
 
     def communicate(self, timeout: float):
+        self.communicate_timeouts.append(timeout)
         return self._stdout_text, None
 
     def poll(self) -> int | None:
@@ -50,13 +52,12 @@ def _write_managed_opencode_config(path: Path, *, base_url: str) -> Path:
     path.write_text(
         json.dumps(
             {
-                "installer_managed": True,
                 "autoupdate": False,
                 "model": "local-lacc/recommended-6gb",
                 "enabled_providers": ["local-lacc"],
-                "providers": {
+                "provider": {
                     "local-lacc": {
-                        "provider": "@ai-sdk/openai-compatible",
+                        "npm": "@ai-sdk/openai-compatible",
                         "options": {"baseURL": f"{base_url}/v1"},
                         "models": {"recommended-6gb": {}},
                     }
@@ -143,7 +144,7 @@ def test_apply_first_run_validation_marks_ready_after_real_opencode_response(
         captured["cwd"] = cwd
         captured["env"] = env
         captured["log_path"] = log_path
-        return FakeCompletedProcess(
+        process = FakeCompletedProcess(
             json.dumps(
                 {
                     "choices": [
@@ -159,6 +160,8 @@ def test_apply_first_run_validation_marks_ready_after_real_opencode_response(
             + "\n",
             returncode=0,
         )
+        captured["process"] = process
+        return process
 
     monkeypatch.setattr(frv, "load_opencode_manifest", lambda: _first_run_manifest())
 
@@ -180,6 +183,7 @@ def test_apply_first_run_validation_marks_ready_after_real_opencode_response(
     assert Path(updated.first_run_log_path).read_text(encoding="utf-8").strip().startswith("{")
     assert captured["command"][-1] == frv.FIRST_RUN_PROMPT
     assert captured["command"][-2] == "local-lacc/recommended-6gb"
+    assert captured["process"].communicate_timeouts == [frv.FIRST_RUN_SMOKE_TIMEOUT_SECONDS]
     assert captured["env"]["OPENCODE_CONFIG"] == session.opencode_config_path
     assert "OPENCODE_CONFIG_CONTENT" not in captured["env"]
     assert captured["env"]["NO_COLOR"] == "1"
@@ -410,6 +414,56 @@ def test_apply_first_run_validation_fails_when_assistant_payload_is_empty(
     assert updated.first_run_process_status == "ready"
     assert updated.first_run_connection_status == "failed"
     assert updated.failing_step == "first-run-opencode-smoke"
+
+
+def test_apply_first_run_validation_accepts_opencode_event_stream_text_output(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    session = _build_first_run_ready_session(tmp_path)
+    monkeypatch.setattr(frv, "load_opencode_manifest", lambda: _first_run_manifest())
+
+    updated = frv.apply_first_run_validation(
+        session,
+        temp_root=tmp_path / "temp-runs",
+        runtime_server_factory=lambda target, **kwargs: frv.TemporaryRuntimeHandle(
+            process=object(),
+            base_url=target.runtime_base_url,
+            log_path=tmp_path / "runtime.log",
+        ),
+        process_factory=lambda *args, **kwargs: FakeCompletedProcess(
+            "\n".join(
+                [
+                    json.dumps(
+                        {
+                            "type": "step_start",
+                            "part": {
+                                "type": "step-start",
+                            },
+                        }
+                    ),
+                    json.dumps(
+                        {
+                            "type": "text",
+                            "part": {
+                                "type": "text",
+                                "text": "READY.",
+                            },
+                        }
+                    ),
+                ]
+            )
+            + "\n",
+            returncode=0,
+        ),
+        stop_process=lambda process: True,
+        stop_runtime=lambda handle: True,
+    )
+
+    assert updated.first_run_status == "ready"
+    assert updated.first_run_process_status == "ready"
+    assert updated.first_run_connection_status == "ready"
+    assert updated.failing_step is None
 
 
 def test_apply_first_run_validation_maps_cleanup_failure_after_success_to_process_stop(

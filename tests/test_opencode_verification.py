@@ -63,8 +63,9 @@ def _write_managed_config(path: Path, *, verified_server_url: str) -> Path:
     path.write_text(
         json.dumps(
             {
-                "providers": {
+                "provider": {
                     "local-lacc": {
+                        "npm": "@ai-sdk/openai-compatible",
                         "options": {"baseURL": f"{verified_server_url}/v1"}
                     }
                 }
@@ -305,21 +306,23 @@ def test_apply_opencode_verification_success_path_uses_bounded_smoke_and_relay_e
     assert captured["log_path"] == Path(updated.opencode_log_path)
     assert Path(updated.opencode_log_path).read_text(encoding="utf-8") == '{"ok":true}\n'
     assert list(Path(captured["cwd"]).iterdir()) == []
+    assert process.communicate_timeouts == [ov.OPENCODE_SMOKE_TIMEOUT_SECONDS]
     env = captured["env"]
     assert env["CUSTOM_FLAG"] == "enabled"
     assert env["OPENCODE_CONFIG"] == session.opencode_config_path
     assert env["OPENCODE_DISABLE_MODELS_FETCH"] == "true"
     embedded_config = json.loads(env["OPENCODE_CONFIG_CONTENT"])
     assert embedded_config["model"] == "local-lacc/recommended-6gb"
+    assert "installer_managed" not in embedded_config
     assert (
-        embedded_config["providers"]["local-lacc"]["options"]["baseURL"]
+        embedded_config["provider"]["local-lacc"]["options"]["baseURL"]
         == "http://127.0.0.1:9422/v1"
     )
     persisted_config = json.loads(
         Path(session.opencode_config_path).read_text(encoding="utf-8")
     )
     assert (
-        persisted_config["providers"]["local-lacc"]["options"]["baseURL"]
+        persisted_config["provider"]["local-lacc"]["options"]["baseURL"]
         == "http://127.0.0.1:8080/v1"
     )
 
@@ -1187,6 +1190,64 @@ def test_verification_relay_latches_valid_proof_for_parallel_good_and_bad_reques
         assert proof_state.upstream_error is None
     finally:
         release_bad_helper.set()
+        if relay_handle is not None:
+            ov.stop_verification_relay(relay_handle)
+        _stop_loopback_server(upstream_server, upstream_thread)
+
+
+def test_verification_relay_accepts_sse_chat_completion_chunks_as_valid_live_route():
+    marker = "LACC_VERIFY_MARKER:sse-proof"
+    response_bytes = (
+        b'data: {"choices":[{"delta":{"role":"assistant","content":null}}]}\n\n'
+        + f'data: {json.dumps({"choices":[{"delta":{"content":f"confirmed {marker}"}}]})}\n\n'.encode(
+            "utf-8"
+        )
+        + b"data: [DONE]\n\n"
+    )
+
+    class UpstreamHandler(BaseHTTPRequestHandler):
+        def do_POST(self):
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream")
+            self.send_header("Content-Length", str(len(response_bytes)))
+            self.end_headers()
+            self.wfile.write(response_bytes)
+
+        def log_message(self, format, *args):
+            return
+
+    upstream_server, upstream_base_url, upstream_thread = _start_loopback_server(
+        UpstreamHandler
+    )
+    relay_handle = None
+
+    try:
+        proof_state = ov.RelayProofState()
+        relay_handle = ov.start_verification_relay(
+            upstream_base_url=upstream_base_url,
+            marker=marker,
+            proof_state=proof_state,
+        )
+
+        status, response_text = _post_json(
+            f"{relay_handle.base_url}/v1/chat/completions",
+            {
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": f"Repeat this exact token once: {marker}",
+                    }
+                ]
+            },
+        )
+
+        assert status == 200
+        assert "[DONE]" in response_text
+        assert proof_state.marker_seen is True
+        assert proof_state.upstream_success is True
+        assert proof_state.response_has_assistant_content is True
+        assert proof_state.upstream_error is None
+    finally:
         if relay_handle is not None:
             ov.stop_verification_relay(relay_handle)
         _stop_loopback_server(upstream_server, upstream_thread)
