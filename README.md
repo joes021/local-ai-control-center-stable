@@ -69,20 +69,27 @@ Smoke checklist:
 
 ## Current Slice Status
 
-This slice already delivers:
+The current Windows installer/runtime milestone is complete for this repository scope.
+
+This repository now delivers:
 
 - the numbered installer questionnaire contract
-- dependency bootstrap and blocking/failure classification
-- pinned runtime payload preparation for `llama.cpp`
-- starter model preparation
-- active model configuration
-- runnable `llama.cpp` server verification
+- truthful dependency bootstrap and blocking/failure classification
+- three manifest-backed starter model tiers: `recommended-6gb`, `recommended-12gb`, and `recommended-24gb`
+- pinned `llama.cpp` runtime payload preparation
+- durable active-model, model-locations, and runtime-endpoint configuration in the install root
+- one planned sequential download queue with installer-managed progress output
+- canonical installer-managed runtime endpoint verification
 - installer-managed `OpenCode` artifact preparation
 - installer-managed `OpenCode` live-route verification against the active local runtime/model route
+- bounded first-run end-user `OpenCode` smoke against the persisted managed configuration
+- truthful `TurboQuant` status reporting for Windows
+- final installer/runtime completion gating through `product_installation_status`
 - human-readable logging and JSON reporting
 
-This slice does not yet deliver:
+This repository still does not claim:
 
-- first-run end-user `OpenCode` smoke
-- `TurboQuant`
-- completed product installation
+- portal or browser UI flows
+- update UX or catalog UX
+- Linux parity
+- a packaged Windows `TurboQuant` installation path when none is currently supported
