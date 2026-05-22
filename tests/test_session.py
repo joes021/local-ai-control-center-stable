@@ -1,5 +1,11 @@
 from local_ai_control_center_installer.session import DependencyRecord, InstallerSession
 
+TEST_MARKER = "LACC_VERIFY_MARKER:test-marker"
+TEST_VERIFIED_OPENCODE_COMMAND = (
+    "opencode --pure run --format json --model "
+    f'local-lacc/recommended-6gb "Repeat this exact token once: {TEST_MARKER}"'
+)
+
 
 def test_installer_session_defaults_to_incomplete_product_status():
     session = InstallerSession()
@@ -167,7 +173,7 @@ def test_installer_session_serializes_opencode_fields():
         opencode_artifact_path="C:\\LACC\\opencode",
         opencode_metadata_path="C:\\LACC\\opencode\\opencode-artifact.json",
         opencode_config_path="C:\\LACC\\config\\opencode.json",
-        verified_opencode_command="opencode --pure models local-lacc",
+        verified_opencode_command=TEST_VERIFIED_OPENCODE_COMMAND,
         opencode_log_path="C:\\LACC\\temp\\opencode-verification.log",
     )
 
@@ -181,5 +187,5 @@ def test_installer_session_serializes_opencode_fields():
     assert payload["opencode_artifact_path"] == "C:\\LACC\\opencode"
     assert payload["opencode_metadata_path"].endswith("opencode-artifact.json")
     assert payload["opencode_config_path"] == "C:\\LACC\\config\\opencode.json"
-    assert payload["verified_opencode_command"] == "opencode --pure models local-lacc"
+    assert payload["verified_opencode_command"] == TEST_VERIFIED_OPENCODE_COMMAND
     assert payload["opencode_log_path"] == "C:\\LACC\\temp\\opencode-verification.log"

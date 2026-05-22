@@ -50,7 +50,7 @@ def write_human_log(
         f"OpenCode artifact status: {session.opencode_artifact_status}",
         f"OpenCode verification status: {session.opencode_verification_status}",
         f"OpenCode process status: {session.opencode_process_status}",
-        f"OpenCode connection status: {session.opencode_connection_status}",
+        f"OpenCode live-route status: {session.opencode_connection_status}",
         f"Pinned runtime artifact id: {session.runtime_artifact_id}",
         f"Selected starter model: {session.starter_model}",
         f"Runtime artifact path: {session.runtime_artifact_path}",
