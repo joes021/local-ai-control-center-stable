@@ -27,6 +27,7 @@ def build_run_paths(temp_root: Path, run_id: str) -> RunPaths:
 
 
 def write_human_log(session: InstallerSession, log_path: Path) -> Path:
+    _normalize_session_opencode_log_path(session)
     lines = [
         f"Install root: {session.install_root}",
         f"Bootstrap status: {session.bootstrap_status}",
@@ -69,6 +70,7 @@ def write_human_log(session: InstallerSession, log_path: Path) -> Path:
 
 
 def write_json_report(session: InstallerSession, report_path: Path) -> Path:
+    _normalize_session_opencode_log_path(session)
     payload = {
         "bootstrap_status": session.bootstrap_status,
         "product_installation_status": session.product_installation_status,
@@ -108,12 +110,14 @@ def write_json_report(session: InstallerSession, report_path: Path) -> Path:
 
 
 def write_session_snapshot(session: InstallerSession, session_path: Path) -> Path:
+    _normalize_session_opencode_log_path(session)
     _write_text(session_path, json.dumps(session.to_dict(), indent=2))
     return session_path
 
 
 def persist_install_root_reports(session: InstallerSession) -> None:
     install_root = _require_install_root(session)
+    _normalize_session_opencode_log_path(session)
     install_root_preexisting = install_root.exists()
     staging_root = install_root / f".staging-{uuid4().hex}"
     artifact_paths = _build_artifact_paths(install_root)
@@ -121,15 +125,13 @@ def persist_install_root_reports(session: InstallerSession) -> None:
     original_opencode_log_path = session.opencode_log_path
 
     try:
-        staged_opencode_log_path = _stage_optional_opencode_log(
+        persisted_opencode_log_path = _stage_optional_opencode_log(
             session,
             install_root,
             staging_root,
             artifact_paths,
             staged_artifact_paths,
         )
-        if staged_opencode_log_path is not None:
-            session.opencode_log_path = str(staged_opencode_log_path)
         write_human_log(session, staged_artifact_paths[0])
         write_json_report(session, staged_artifact_paths[1])
         write_session_snapshot(session, staged_artifact_paths[2])
@@ -139,6 +141,11 @@ def persist_install_root_reports(session: InstallerSession) -> None:
             staged_artifact_paths,
             artifact_paths,
         )
+        if persisted_opencode_log_path is not None:
+            session.opencode_log_path = str(persisted_opencode_log_path)
+            write_human_log(session, artifact_paths[0])
+            write_json_report(session, artifact_paths[1])
+            write_session_snapshot(session, artifact_paths[2])
     except OSError:
         session.opencode_log_path = original_opencode_log_path
         _cleanup_staging_root(staging_root)
@@ -166,6 +173,24 @@ def _require_install_root(session: InstallerSession) -> Path:
     normalized_install_root = Path(install_root)
     session.install_root = str(normalized_install_root)
     return normalized_install_root
+
+
+def _normalize_optional_existing_file(raw_path: str | None) -> str | None:
+    normalized = (raw_path or "").strip()
+    if not normalized:
+        return None
+
+    candidate_path = Path(normalized)
+    if not candidate_path.exists() or not candidate_path.is_file():
+        return None
+
+    return str(candidate_path)
+
+
+def _normalize_session_opencode_log_path(session: InstallerSession) -> None:
+    session.opencode_log_path = _normalize_optional_existing_file(
+        session.opencode_log_path
+    )
 
 
 def _build_artifact_paths(root: Path) -> list[Path]:
