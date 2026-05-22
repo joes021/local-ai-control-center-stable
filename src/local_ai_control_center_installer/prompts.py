@@ -1,13 +1,9 @@
 from copy import deepcopy
 from pathlib import Path
 
+from .runtime_manifest import list_prompt_starter_models, load_runtime_manifest
 
 DEFAULT_INSTALL_ROOT = str(Path.home() / "LocalAIControlCenter")
-MODEL_CHOICES = {
-    "1": "recommended-6gb",
-    "2": "recommended-12gb",
-    "3": "recommended-24gb",
-}
 
 
 class PromptCancelledError(Exception):
@@ -40,6 +36,25 @@ def build_numbered_prompt(title: str, options: list[tuple[str, str]], default: s
         lines.append(f"{number}) {label}")
     lines.append(f"Select a number (default: {default}): ")
     return "\n".join(lines)
+
+
+def build_starter_model_prompt_options() -> tuple[list[tuple[str, str]], dict[str, str], str]:
+    options = list_prompt_starter_models(load_runtime_manifest())
+    numbered_options = [
+        (str(index), option.prompt_label) for index, option in enumerate(options, start=1)
+    ]
+    number_to_model_id = {
+        str(index): option.model_id for index, option in enumerate(options, start=1)
+    }
+    default_choice = determine_default_prompt_choice(options)
+    return numbered_options, number_to_model_id, default_choice
+
+
+def determine_default_prompt_choice(options) -> str:
+    for index, option in enumerate(options, start=1):
+        if option.recommended_default:
+            return str(index)
+    raise ValueError("Starter model catalog is missing a recommended default.")
 
 
 def prompt_for_number(
@@ -98,26 +113,25 @@ def collect_installer_answers(session, input_fn=input, output_fn=print):
         or default_install_root
     )
 
+    starter_model_options, starter_model_choices, starter_model_default = (
+        build_starter_model_prompt_options()
+    )
     model_choice = prompt_for_number(
         build_numbered_prompt(
             "Starter model",
-            [
-                ("1", "recommended-6gb"),
-                ("2", "recommended-12gb"),
-                ("3", "recommended-24gb"),
-            ],
-            "1",
+            starter_model_options,
+            starter_model_default,
         ),
-        "1",
-        set(MODEL_CHOICES),
+        starter_model_default,
+        set(starter_model_choices),
         input_fn=input_fn,
         output_fn=output_fn,
     )
-    draft_session.starter_model = MODEL_CHOICES[model_choice]
+    draft_session.starter_model = starter_model_choices[model_choice]
     draft_session.install_opencode = (
         prompt_for_number(
             build_numbered_prompt(
-                "Install OpenCode",
+                "Install OpenCode (required for a successful installation)",
                 [("1", "Yes"), ("2", "No")],
                 "1",
             ),
