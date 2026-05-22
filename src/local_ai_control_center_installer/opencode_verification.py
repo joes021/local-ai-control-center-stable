@@ -23,6 +23,9 @@ from local_ai_control_center_installer.server_verification import (
 from local_ai_control_center_installer.session import InstallerSession
 
 
+OPENCODE_SMOKE_TIMEOUT_SECONDS = 180.0
+
+
 @dataclass
 class OpenCodeVerificationTarget:
     executable_path: Path
@@ -186,7 +189,7 @@ def apply_opencode_verification(
         _collect_process_output(
             process,
             run_paths.opencode_log_path,
-            timeout_seconds=30.0,
+            timeout_seconds=OPENCODE_SMOKE_TIMEOUT_SECONDS,
         )
         _set_opencode_log_path_if_present(session, run_paths.opencode_log_path)
         verification_succeeded = _apply_process_and_proof_result(
@@ -657,15 +660,48 @@ def _evaluate_upstream_proof(
     if upstream_status != 200:
         return False, False, f"upstream returned HTTP {upstream_status}"
 
-    try:
-        payload = json.loads(upstream_body.decode("utf-8"))
-    except (UnicodeDecodeError, ValueError, json.JSONDecodeError):
+    payload = _decode_upstream_payload(upstream_body)
+    if payload is None:
         return False, False, "upstream returned invalid JSON"
+
+    if isinstance(payload, list):
+        if not _stream_response_has_assistant_content(payload):
+            return False, False, "upstream returned invalid assistant payload"
+        return True, True, None
 
     if not _response_has_assistant_content(payload):
         return False, False, "upstream returned invalid assistant payload"
 
     return True, True, None
+
+
+def _decode_upstream_payload(upstream_body: bytes) -> object | None:
+    try:
+        return json.loads(upstream_body.decode("utf-8"))
+    except (UnicodeDecodeError, ValueError, json.JSONDecodeError):
+        return _parse_sse_payload(upstream_body)
+
+
+def _parse_sse_payload(upstream_body: bytes) -> list[object] | None:
+    try:
+        text = upstream_body.decode("utf-8")
+    except UnicodeDecodeError:
+        return None
+
+    chunks: list[object] = []
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if not line.startswith("data:"):
+            continue
+        payload_text = line[5:].strip()
+        if not payload_text or payload_text == "[DONE]":
+            continue
+        try:
+            chunks.append(json.loads(payload_text))
+        except (ValueError, json.JSONDecodeError):
+            return None
+
+    return chunks or None
 
 
 def _write_forwarded_response(
@@ -726,6 +762,25 @@ def _response_has_assistant_content(payload: object) -> bool:
             continue
         if _assistant_content_present(message.get("content")):
             return True
+    return False
+
+
+def _stream_response_has_assistant_content(chunks: list[object]) -> bool:
+    for chunk in chunks:
+        if not isinstance(chunk, dict):
+            continue
+        choices = chunk.get("choices")
+        if not isinstance(choices, list):
+            continue
+        for choice in choices:
+            if not isinstance(choice, dict):
+                continue
+            delta = choice.get("delta")
+            if not isinstance(delta, dict):
+                continue
+            content = delta.get("content")
+            if isinstance(content, str) and content.strip():
+                return True
     return False
 
 
@@ -852,13 +907,12 @@ def _build_verification_env(
     relay_base_url: str,
 ) -> dict[str, str]:
     override_payload = {
-        "installer_managed": True,
         "autoupdate": False,
         "model": f"local-lacc/{target.model_id}",
         "enabled_providers": ["local-lacc"],
-        "providers": {
+        "provider": {
             "local-lacc": {
-                "provider": "@ai-sdk/openai-compatible",
+                "npm": "@ai-sdk/openai-compatible",
                 "options": {"baseURL": f"{relay_base_url}/v1"},
                 "models": {target.model_id: {}},
             }

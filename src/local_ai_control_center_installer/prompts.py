@@ -8,6 +8,7 @@ from .runtime_manifest import (
 )
 
 DEFAULT_INSTALL_ROOT = str(Path.home() / "LocalAIControlCenter")
+UTF8_BOM_MOJIBAKE = "\u00ef\u00bb\u00bf"
 
 
 class PromptCancelledError(Exception):
@@ -18,15 +19,27 @@ class StarterModelCatalogError(Exception):
     pass
 
 
+def normalize_prompt_input(raw_value: str) -> str:
+    return (
+        raw_value.replace("\ufeff", "")
+        .replace(UTF8_BOM_MOJIBAKE, "")
+        .strip()
+    )
+
+
 def choose_number(raw_value: str, default: str, allowed: set[str]) -> str:
-    value = raw_value.strip() or default
+    value = normalize_prompt_input(raw_value) or default
     if value not in allowed:
         raise ValueError(friendly_number_error(sorted(allowed)))
     return value
 
 
 def parse_model_paths(raw_value: str) -> list[str]:
-    return [item.strip() for item in raw_value.split(";") if item.strip()]
+    return [
+        normalized
+        for item in raw_value.split(";")
+        if (normalized := normalize_prompt_input(item))
+    ]
 
 
 def friendly_number_error(allowed: list[str]) -> str:
@@ -140,7 +153,7 @@ def collect_installer_answers(session, input_fn=input, output_fn=print):
 
     default_install_root = draft_session.install_root or DEFAULT_INSTALL_ROOT
     draft_session.install_root = (
-        input_fn(f"Install root (default: {default_install_root}): ").strip()
+        normalize_prompt_input(input_fn(f"Install root (default: {default_install_root}): "))
         or default_install_root
     )
 

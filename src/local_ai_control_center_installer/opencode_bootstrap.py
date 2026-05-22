@@ -341,13 +341,12 @@ def _write_managed_config(
     config_path.write_text(
         json.dumps(
             {
-                "installer_managed": True,
                 "autoupdate": False,
                 "model": f"local-lacc/{model_id}",
                 "enabled_providers": ["local-lacc"],
-                "providers": {
+                "provider": {
                     "local-lacc": {
-                        "provider": "@ai-sdk/openai-compatible",
+                        "npm": "@ai-sdk/openai-compatible",
                         "options": {"baseURL": f"{base_url}/v1"},
                         "models": {model_id: {}},
                     }
