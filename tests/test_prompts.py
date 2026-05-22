@@ -82,7 +82,10 @@ def test_render_confirmation_summary_lists_future_facing_answers():
 
     assert "Install mode: upgrade" in summary
     assert "Install root: C:\\Apps\\LACC" in summary
-    assert "Starter model: recommended-12gb" in summary
+    assert (
+        "Starter model: Qwen2.5 Coder 14B Instruct Q4_K_M (recommended-12gb)"
+        in summary
+    )
     assert "Install OpenCode: yes" in summary
     assert "Attempt TurboQuant: no" in summary
     assert "Additional model paths: C:\\models; E:\\shared-models" in summary
@@ -105,7 +108,10 @@ def test_collect_installer_answers_emits_summary_before_confirmation_prompt():
 
     assert outputs[-1] == render_confirmation_summary(updated)
     assert "Install root: D:\\Apps\\LACC" in outputs[-1]
-    assert "Starter model: recommended-12gb" in outputs[-1]
+    assert (
+        "Starter model: Qwen2.5 Coder 14B Instruct Q4_K_M (recommended-12gb)"
+        in outputs[-1]
+    )
     assert "Install OpenCode: yes" in outputs[-1]
     assert "Attempt TurboQuant: yes" in outputs[-1]
     assert "Additional model paths: C:\\models" in outputs[-1]
@@ -157,9 +163,9 @@ def test_collect_installer_answers_shows_numbered_options_and_defaults():
     assert "default: 1" in prompts[0]
     assert "Install root" in prompts[1]
     assert "Starter model" in prompts[2]
-    assert "1) recommended-6gb" in prompts[2]
-    assert "2) recommended-12gb" in prompts[2]
-    assert "3) recommended-24gb" in prompts[2]
+    assert "1) Qwen2.5 Coder 7B Instruct Q4_K_M (recommended-6gb)" in prompts[2]
+    assert "2) Qwen2.5 Coder 14B Instruct Q4_K_M (recommended-12gb)" in prompts[2]
+    assert "3) Qwen2.5 Coder 32B Instruct Q4_K_M (recommended-24gb)" in prompts[2]
     assert "default: 1" in prompts[2]
     assert "Install OpenCode" in prompts[3]
     assert "1) Yes" in prompts[3]
@@ -203,19 +209,19 @@ def test_collect_installer_answers_uses_manifest_default_prompt_choice(monkeypat
         lambda manifest: [
             StarterModelOption(
                 model_id="recommended-6gb",
-                prompt_label="recommended-6gb",
+                prompt_label="Qwen2.5 Coder 7B Instruct Q4_K_M (recommended-6gb)",
                 prompt_order=1,
                 recommended_default=False,
             ),
             StarterModelOption(
                 model_id="recommended-12gb",
-                prompt_label="recommended-12gb",
+                prompt_label="Qwen2.5 Coder 14B Instruct Q4_K_M (recommended-12gb)",
                 prompt_order=2,
                 recommended_default=True,
             ),
             StarterModelOption(
                 model_id="recommended-24gb",
-                prompt_label="recommended-24gb",
+                prompt_label="Qwen2.5 Coder 32B Instruct Q4_K_M (recommended-24gb)",
                 prompt_order=3,
                 recommended_default=False,
             ),

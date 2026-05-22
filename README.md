@@ -67,6 +67,14 @@ Smoke checklist:
 - if Python is missing, the launcher asks whether to attempt Python installation and then exits cleanly because this slice cannot continue without Python bootstrap
 - cancelling the questionnaire exits without a Python import traceback
 
+## Windows Release Installer
+
+For end users on Windows, the preferred artifact is a single executable installer:
+
+- `LocalAIControlCenterSetup.exe`
+
+That executable is intended to be launched with a double-click and should run the full installer flow without requiring ZIP extraction or a manual PowerShell command.
+
 ## Current Slice Status
 
 The current Windows installer/runtime milestone is complete for this repository scope.

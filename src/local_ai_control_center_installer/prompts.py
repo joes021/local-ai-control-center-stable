@@ -1,7 +1,11 @@
 from copy import deepcopy
 from pathlib import Path
 
-from .runtime_manifest import list_prompt_starter_models, load_runtime_manifest
+from .runtime_manifest import (
+    list_prompt_starter_models,
+    load_runtime_manifest,
+    resolve_requested_starter_model,
+)
 
 DEFAULT_INSTALL_ROOT = str(Path.home() / "LocalAIControlCenter")
 
@@ -84,17 +88,35 @@ def render_confirmation_summary(session) -> str:
     additional_paths = "; ".join(session.additional_model_paths) or "(none)"
     opencode = "yes" if session.install_opencode else "no"
     turboquant = "yes" if session.attempt_turboquant else "no"
+    starter_model_label = _render_selected_starter_model_label(session.starter_model)
     return "\n".join(
         [
             "Installer configuration summary:",
             f"Install mode: {session.install_mode}",
             f"Install root: {session.install_root}",
-            f"Starter model: {session.starter_model}",
+            f"Starter model: {starter_model_label}",
             f"Install OpenCode: {opencode}",
             f"Attempt TurboQuant: {turboquant}",
             f"Additional model paths: {additional_paths}",
         ]
     )
+
+
+def _render_selected_starter_model_label(starter_model_id: str | None) -> str:
+    normalized = (starter_model_id or "").strip()
+    if not normalized:
+        return "(none)"
+
+    try:
+        manifest = load_runtime_manifest()
+        entry = resolve_requested_starter_model(manifest, normalized)
+    except (OSError, ValueError):
+        return normalized
+
+    prompt_label = entry.get("prompt_label")
+    if not isinstance(prompt_label, str) or not prompt_label.strip():
+        return normalized
+    return prompt_label.strip()
 
 
 def collect_installer_answers(session, input_fn=input, output_fn=print):
