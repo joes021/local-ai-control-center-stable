@@ -78,6 +78,73 @@ def test_list_prompt_starter_models_rejects_missing_prompt_metadata():
         raise AssertionError("Expected missing prompt_label metadata to fail.")
 
 
+def test_list_prompt_starter_models_rejects_manifest_key_and_entry_id_mismatch():
+    manifest = {
+        "runtime_artifact": {
+            "id": "windows-llama-cpp-runtime",
+            "url": "https://example.invalid/runtime.zip",
+            "sha256": "runtime-sha",
+            "archive_type": "zip",
+            "required_files": ["llama-server.exe"],
+            "required_file_sha256": {"llama-server.exe": "file-sha"},
+            "install_subdir": "runtime/llama.cpp",
+        },
+        "starter_models": {
+            "recommended-6gb": {
+                "id": "recommended-12gb",
+                "url": "https://example.invalid/model.gguf",
+                "sha256": "model-sha",
+                "target_filename": "recommended-6gb.gguf",
+                "install_subdir": "models/recommended-6gb",
+                "size_bytes": 1,
+                "prompt_order": 1,
+                "prompt_label": "recommended-6gb",
+                "recommended_default": True,
+            }
+        },
+    }
+
+    try:
+        list_prompt_starter_models(manifest)
+    except ValueError as error:
+        assert "must match entry id" in str(error)
+    else:
+        raise AssertionError("Expected manifest key/id mismatch to fail.")
+
+
+def test_list_prompt_starter_models_rejects_missing_size_bytes():
+    manifest = {
+        "runtime_artifact": {
+            "id": "windows-llama-cpp-runtime",
+            "url": "https://example.invalid/runtime.zip",
+            "sha256": "runtime-sha",
+            "archive_type": "zip",
+            "required_files": ["llama-server.exe"],
+            "required_file_sha256": {"llama-server.exe": "file-sha"},
+            "install_subdir": "runtime/llama.cpp",
+        },
+        "starter_models": {
+            "recommended-6gb": {
+                "id": "recommended-6gb",
+                "url": "https://example.invalid/model.gguf",
+                "sha256": "model-sha",
+                "target_filename": "recommended-6gb.gguf",
+                "install_subdir": "models/recommended-6gb",
+                "prompt_order": 1,
+                "prompt_label": "recommended-6gb",
+                "recommended_default": True,
+            }
+        },
+    }
+
+    try:
+        list_prompt_starter_models(manifest)
+    except ValueError as error:
+        assert "size_bytes" in str(error)
+    else:
+        raise AssertionError("Expected missing size_bytes metadata to fail.")
+
+
 def test_resolve_requested_starter_model_returns_execution_entry_for_24gb():
     manifest = load_runtime_manifest()
 
@@ -99,3 +166,37 @@ def test_starter_model_option_is_frozen():
     )
 
     assert option.model_id == "recommended-6gb"
+
+
+def test_resolve_requested_starter_model_rejects_manifest_key_and_entry_id_mismatch():
+    manifest = {
+        "runtime_artifact": {
+            "id": "windows-llama-cpp-runtime",
+            "url": "https://example.invalid/runtime.zip",
+            "sha256": "runtime-sha",
+            "archive_type": "zip",
+            "required_files": ["llama-server.exe"],
+            "required_file_sha256": {"llama-server.exe": "file-sha"},
+            "install_subdir": "runtime/llama.cpp",
+        },
+        "starter_models": {
+            "recommended-6gb": {
+                "id": "recommended-12gb",
+                "url": "https://example.invalid/model.gguf",
+                "sha256": "model-sha",
+                "target_filename": "recommended-6gb.gguf",
+                "install_subdir": "models/recommended-6gb",
+                "size_bytes": 1,
+                "prompt_order": 1,
+                "prompt_label": "recommended-6gb",
+                "recommended_default": True,
+            }
+        },
+    }
+
+    try:
+        resolve_requested_starter_model(manifest, "recommended-6gb")
+    except ValueError as error:
+        assert "must match entry id" in str(error)
+    else:
+        raise AssertionError("Expected manifest key/id mismatch to fail.")

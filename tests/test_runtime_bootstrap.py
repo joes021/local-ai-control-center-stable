@@ -40,13 +40,14 @@ def test_load_runtime_manifest_reads_pinned_runtime_contract(tmp_path: Path):
                     "install_subdir": "runtime/llama.cpp",
                 },
                 "starter_models": {
-                    "recommended-6gb": {
-                        "id": "recommended-6gb",
-                        "url": "https://example.invalid/model.gguf",
-                        "sha256": "def456",
-                        "target_filename": "recommended-6gb.gguf",
-                        "install_subdir": "models/recommended-6gb",
-                    }
+                "recommended-6gb": {
+                    "id": "recommended-6gb",
+                    "url": "https://example.invalid/model.gguf",
+                    "sha256": "def456",
+                    "target_filename": "recommended-6gb.gguf",
+                    "install_subdir": "models/recommended-6gb",
+                    "size_bytes": 123,
+                }
                 },
             }
         ),
@@ -170,6 +171,7 @@ def test_apply_runtime_payload_marks_ready_when_runtime_and_model_are_verified_i
                 "sha256": "def456",
                 "target_filename": "recommended-6gb.gguf",
                 "install_subdir": "models/recommended-6gb",
+                "size_bytes": 123,
             }
         },
     }
@@ -297,6 +299,7 @@ def test_apply_runtime_payload_downloads_extracts_and_promotes_runtime_payload_w
                 "sha256": "model-sha",
                 "target_filename": "recommended-6gb.gguf",
                 "install_subdir": "models/recommended-6gb",
+                "size_bytes": 123,
             }
         },
     }
@@ -404,6 +407,7 @@ def test_apply_runtime_payload_redownloads_when_installed_required_runtime_file_
                 "sha256": "def456",
                 "target_filename": "recommended-6gb.gguf",
                 "install_subdir": "models/recommended-6gb",
+                "size_bytes": 123,
             }
         },
     }
@@ -500,6 +504,7 @@ def test_apply_runtime_payload_maps_invalid_requested_model_manifest_entry_to_ru
                 "url": "https://example.invalid/model.gguf",
                 "sha256": "def456",
                 "target_filename": "recommended-6gb.gguf",
+                "size_bytes": 123,
             }
         },
     }
@@ -542,6 +547,7 @@ def test_apply_runtime_payload_maps_wrong_type_requested_model_manifest_entry_to
                 "sha256": "def456",
                 "target_filename": "recommended-6gb.gguf",
                 "install_subdir": None,
+                "size_bytes": 123,
             }
         },
     }
@@ -606,6 +612,7 @@ def test_apply_runtime_payload_marks_runtime_artifact_failure_and_skips_later_st
                 "sha256": "def456",
                 "target_filename": "recommended-6gb.gguf",
                 "install_subdir": "models/recommended-6gb",
+                "size_bytes": 123,
             }
         },
     }
@@ -656,6 +663,7 @@ def test_apply_runtime_payload_maps_corrupt_runtime_metadata_to_runtime_artifact
                 "sha256": "def456",
                 "target_filename": "recommended-6gb.gguf",
                 "install_subdir": "models/recommended-6gb",
+                "size_bytes": 123,
             }
         },
     }
@@ -706,6 +714,7 @@ def test_apply_runtime_payload_maps_undecodable_runtime_metadata_to_runtime_arti
                 "sha256": "def456",
                 "target_filename": "recommended-6gb.gguf",
                 "install_subdir": "models/recommended-6gb",
+                "size_bytes": 123,
             }
         },
     }
@@ -764,6 +773,7 @@ def test_apply_runtime_payload_marks_starter_model_failure_after_runtime_is_read
                 "sha256": "def456",
                 "target_filename": "recommended-6gb.gguf",
                 "install_subdir": "models/recommended-6gb",
+                "size_bytes": 123,
             }
         },
     }
@@ -827,6 +837,7 @@ def test_apply_runtime_payload_marks_active_model_config_failure_after_model_is_
                 "sha256": "def456",
                 "target_filename": "recommended-6gb.gguf",
                 "install_subdir": "models/recommended-6gb",
+                "size_bytes": 123,
             }
         },
     }

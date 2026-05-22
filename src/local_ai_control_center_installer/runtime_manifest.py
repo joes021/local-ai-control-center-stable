@@ -144,6 +144,10 @@ def _validate_starter_model_entry(
         "id",
         context=f"Starter model entry for {requested_model_id}",
     )
+    if model_id != requested_model_id:
+        raise ValueError(
+            f"Starter model manifest key {requested_model_id} must match entry id {model_id}."
+        )
     for key in ("url", "sha256", "target_filename", "install_subdir"):
         _validate_manifest_string_field(
             starter_model,
@@ -152,7 +156,7 @@ def _validate_starter_model_entry(
         )
 
     size_bytes = starter_model.get("size_bytes")
-    if size_bytes is not None and (not isinstance(size_bytes, int) or size_bytes < 1):
+    if not isinstance(size_bytes, int) or size_bytes < 1:
         raise ValueError(
             f"Starter model entry for {requested_model_id} field must be a positive integer: size_bytes"
         )
