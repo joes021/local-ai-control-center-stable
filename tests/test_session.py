@@ -138,7 +138,9 @@ def test_installer_session_serializes_runtime_payload_fields():
         runtime_endpoint_config_status="ready",
         runtime_artifact_id="windows-llama-cpp-runtime",
         runtime_artifact_path="C:\\LACC\\runtime\\llama.cpp",
-        starter_model_path="C:\\LACC\\models\\recommended-6gb\\recommended-6gb.gguf",
+        starter_model_path=(
+            "C:\\LACC\\models\\recommended-6gb\\gemma-4-E4B-it-Q4_K_M.gguf"
+        ),
         active_model_config_path="C:\\LACC\\config\\active-model.json",
         model_locations_config_path="C:\\LACC\\config\\model-locations.json",
         runtime_metadata_path="C:\\LACC\\runtime\\llama.cpp\\runtime-artifact.json",
@@ -157,7 +159,7 @@ def test_installer_session_serializes_runtime_payload_fields():
     assert payload["runtime_endpoint_config_status"] == "ready"
     assert payload["runtime_artifact_id"] == "windows-llama-cpp-runtime"
     assert payload["runtime_artifact_path"] == "C:\\LACC\\runtime\\llama.cpp"
-    assert payload["starter_model_path"].endswith("recommended-6gb.gguf")
+    assert payload["starter_model_path"].endswith("gemma-4-E4B-it-Q4_K_M.gguf")
     assert payload["active_model_config_path"] == "C:\\LACC\\config\\active-model.json"
     assert payload["model_locations_config_path"] == "C:\\LACC\\config\\model-locations.json"
     assert payload["runtime_metadata_path"].endswith("runtime-artifact.json")

@@ -163,7 +163,7 @@ def test_collect_installer_answers_shows_numbered_options_and_defaults():
     assert "default: 1" in prompts[0]
     assert "Install root" in prompts[1]
     assert "Starter model" in prompts[2]
-    assert "1) Qwen2.5 Coder 7B Instruct Q4_K_M (recommended-6gb)" in prompts[2]
+    assert "1) gemma-4-E4B-it-Q4_K_M.gguf (recommended-6gb)" in prompts[2]
     assert "2) Qwen2.5 Coder 14B Instruct Q4_K_M (recommended-12gb)" in prompts[2]
     assert "3) Qwen2.5 Coder 32B Instruct Q4_K_M (recommended-24gb)" in prompts[2]
     assert "default: 1" in prompts[2]
@@ -210,7 +210,7 @@ def test_collect_installer_answers_uses_manifest_default_prompt_choice(monkeypat
         lambda manifest: [
             StarterModelOption(
                 model_id="recommended-6gb",
-                prompt_label="Qwen2.5 Coder 7B Instruct Q4_K_M (recommended-6gb)",
+                prompt_label="gemma-4-E4B-it-Q4_K_M.gguf (recommended-6gb)",
                 prompt_order=1,
                 recommended_default=False,
             ),

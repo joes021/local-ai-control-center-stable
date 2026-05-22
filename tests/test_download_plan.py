@@ -74,7 +74,7 @@ def test_build_download_plan_lists_runtime_model_and_opencode_before_downloads(
 
     assert [item.label for item in plan.items] == [
         "llama.cpp runtime",
-        "starter model recommended-12gb",
+        "starter model 12 GB",
         "OpenCode",
     ]
 
@@ -95,7 +95,7 @@ def test_build_download_plan_skips_opencode_when_not_requested(tmp_path: Path):
 
     assert [item.label for item in plan.items] == [
         "llama.cpp runtime",
-        "starter model recommended-12gb",
+        "starter model 12 GB",
     ]
 
 
@@ -157,5 +157,5 @@ def test_build_download_plan_keeps_runtime_item_when_installed_runtime_was_tampe
 
     assert [item.label for item in plan.items] == [
         "llama.cpp runtime",
-        "starter model recommended-12gb",
+        "starter model 12 GB",
     ]

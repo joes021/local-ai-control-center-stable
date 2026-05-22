@@ -20,7 +20,7 @@ def test_load_runtime_manifest_exposes_three_prompt_visible_models():
     ]
     assert [item.prompt_order for item in catalog] == [1, 2, 3]
     assert [item.prompt_label for item in catalog] == [
-        "Qwen2.5 Coder 7B Instruct Q4_K_M (recommended-6gb)",
+        "gemma-4-E4B-it-Q4_K_M.gguf (recommended-6gb)",
         "Qwen2.5 Coder 14B Instruct Q4_K_M (recommended-12gb)",
         "Qwen2.5 Coder 32B Instruct Q4_K_M (recommended-24gb)",
     ]
@@ -30,10 +30,22 @@ def test_load_runtime_manifest_exposes_three_prompt_visible_models():
 def test_load_runtime_manifest_keeps_pinned_size_and_digest_truth_for_starter_models():
     manifest = load_runtime_manifest()
 
-    assert manifest["starter_models"]["recommended-6gb"]["size_bytes"] == 4683073536
+    assert manifest["starter_models"]["recommended-6gb"]["size_bytes"] == 4977164416
+    assert (
+        manifest["starter_models"]["recommended-6gb"]["target_filename"]
+        == "gemma-4-E4B-it-Q4_K_M.gguf"
+    )
     assert (
         manifest["starter_models"]["recommended-6gb"]["sha256"]
-        == "fa9e1815472201e7dea978475c1f3ca7bc7df773eaeb3b3a383258c25b052f6f"
+        == "ced37f54b80068fe65e95c6dd79ac88cddc227e179fd1040b8f751b1e5bdf849"
+    )
+    assert (
+        "142068e90ddd9c28566f6a16af9921351a5cd61d"
+        in manifest["starter_models"]["recommended-6gb"]["url"]
+    )
+    assert (
+        "gemma-4-E4B-it-Q4_K_M.gguf"
+        in manifest["starter_models"]["recommended-6gb"]["url"]
     )
     assert manifest["starter_models"]["recommended-12gb"]["size_bytes"] == 8988110272
     assert (

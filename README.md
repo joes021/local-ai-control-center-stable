@@ -99,6 +99,8 @@ This repository now delivers:
 - final installer/runtime completion gating through `product_installation_status`
 - human-readable logging and JSON reporting
 
+The current `recommended-6gb` default is `gemma-4-E4B-it-Q4_K_M.gguf`, pinned from the public Hugging Face GGUF derivative at `StageMind/gemma-4-e4b` for the upstream `google/gemma-4-E4B-it` model family.
+
 This repository still does not claim:
 
 - portal or browser UI flows
