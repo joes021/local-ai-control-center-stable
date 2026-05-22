@@ -133,7 +133,7 @@ def test_collect_installer_answers_emits_summary_before_confirmation_prompt():
     assert "Install OpenCode: yes" in outputs[-1]
     assert "Attempt TurboQuant: yes" in outputs[-1]
     assert "Additional model paths: C:\\models" in outputs[-1]
-    assert prompts[-1].startswith("Confirm choices")
+    assert prompts[-1].startswith("[6/6] Confirm choices")
 
 
 def test_collect_installer_answers_raises_prompt_cancelled_error_on_cancel():
@@ -175,30 +175,47 @@ def test_collect_installer_answers_shows_numbered_options_and_defaults():
         input_fn=input_fn,
     )
 
-    assert "Install mode" in prompts[0]
+    assert prompts[0].startswith("[1/7] Install mode")
     assert "1) Upgrade" in prompts[0]
     assert "2) Fresh install" in prompts[0]
     assert "default: 1" in prompts[0]
-    assert "Install root" in prompts[1]
-    assert "Starter model" in prompts[2]
+    assert prompts[1].startswith("[2/7] Install root")
+    assert prompts[2].startswith("[3/7] Starter model")
     assert "1) gemma-4-E4B-it-Q4_K_M.gguf (recommended-6gb)" in prompts[2]
     assert "2) Qwen2.5 Coder 14B Instruct Q4_K_M (recommended-12gb)" in prompts[2]
     assert "3) Qwen2.5 Coder 32B Instruct Q4_K_M (recommended-24gb)" in prompts[2]
     assert "default: 1" in prompts[2]
-    assert "Install OpenCode" in prompts[3]
+    assert prompts[3].startswith("[4/7] Install OpenCode")
     assert "1) Yes" in prompts[3]
     assert "2) No" in prompts[3]
     assert "required for a successful installation" in prompts[3]
     assert "default: 1" in prompts[3]
-    assert "Attempt TurboQuant" in prompts[4]
+    assert prompts[4].startswith("[5/7] Attempt TurboQuant")
     assert "1) Yes" in prompts[4]
     assert "2) No" in prompts[4]
     assert "default: 1" in prompts[4]
-    assert "Additional model paths" in prompts[5]
-    assert "Confirm choices" in prompts[6]
+    assert prompts[5].startswith("[6/7] Additional model paths")
+    assert prompts[6].startswith("[7/7] Confirm choices")
     assert "1) Confirm" in prompts[6]
     assert "2) Cancel" in prompts[6]
     assert "default: 1" in prompts[6]
+
+
+def test_collect_installer_answers_shows_compact_step_counts_when_no_existing_install():
+    prompts = []
+    input_fn = make_capturing_input(["", "1", "1", "1", "", "1"], prompts)
+
+    collect_installer_answers(
+        InstallerSession(),
+        input_fn=input_fn,
+    )
+
+    assert prompts[0].startswith("[1/6] Install root")
+    assert prompts[1].startswith("[2/6] Starter model")
+    assert prompts[2].startswith("[3/6] Install OpenCode")
+    assert prompts[3].startswith("[4/6] Attempt TurboQuant")
+    assert prompts[4].startswith("[5/6] Additional model paths")
+    assert prompts[5].startswith("[6/6] Confirm choices")
 
 
 def test_collect_installer_answers_retries_invalid_confirmation_then_confirms():

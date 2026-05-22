@@ -1,3 +1,5 @@
+import re
+
 import pytest
 
 import local_ai_control_center_installer.defaults as defaults_module
@@ -89,6 +91,11 @@ def test_default_phase_wrappers_print_progress_for_reused_runtime_and_verificati
     )
     monkeypatch.setattr(
         defaults_module,
+        "apply_bootstrap_phase",
+        lambda current_session, **_: _mark_bootstrap_ready(current_session),
+    )
+    monkeypatch.setattr(
+        defaults_module,
         "apply_runtime_payload",
         lambda current_session, **_: _mark_runtime_payload_ready(current_session),
     )
@@ -122,7 +129,17 @@ def test_default_phase_wrappers_print_progress_for_reused_runtime_and_verificati
         "apply_product_gate",
         lambda current_session: _mark_product_complete(current_session),
     )
+    current_time = {"value": 100.0}
 
+    def fake_monotonic():
+        value = current_time["value"]
+        current_time["value"] += 4.0
+        return value
+
+    monkeypatch.setattr(defaults_module.time, "monotonic", fake_monotonic)
+
+    defaults_module.default_scan_dependencies(session)
+    defaults_module.default_apply_phase(session)
     defaults_module.default_prepare_download_plan(session)
     defaults_module.default_apply_runtime_payload(session)
     defaults_module.default_apply_server_verification(session)
@@ -133,26 +150,41 @@ def test_default_phase_wrappers_print_progress_for_reused_runtime_and_verificati
     defaults_module.default_apply_product_gate(session)
     captured = capsys.readouterr()
 
-    assert "Preparing download plan..." in captured.out
-    assert "Download plan ready: 0 item(s)." in captured.out
-    assert "Checking local runtime payload..." in captured.out
-    assert "Runtime payload status: ready" in captured.out
-    assert "Verifying local llama.cpp server..." in captured.out
-    assert "llama.cpp server verification status: ready" in captured.out
-    assert "Checking OpenCode artifact..." in captured.out
-    assert "OpenCode artifact status: ready" in captured.out
-    assert "Verifying OpenCode live route..." in captured.out
-    assert "OpenCode live-route verification status: ready" in captured.out
-    assert "Checking TurboQuant..." in captured.out
-    assert "TurboQuant status: failed" in captured.out
-    assert "Running first-run OpenCode smoke..." in captured.out
-    assert "First-run smoke status: ready" in captured.out
-    assert "Finalizing installation status..." in captured.out
-    assert "Product installation status: complete" in captured.out
+    expected_lines = [
+        "Checking installation prerequisites...",
+        "Applying bootstrap decisions...",
+        "Preparing download plan...",
+        "Download plan ready: 0 item(s).",
+        "Checking local runtime payload...",
+        "Runtime payload status: ready",
+        "Verifying local llama.cpp server...",
+        "llama.cpp server verification status: ready",
+        "Checking OpenCode artifact...",
+        "OpenCode artifact status: ready",
+        "Verifying OpenCode live route...",
+        "OpenCode live-route verification status: ready",
+        "Checking TurboQuant...",
+        "TurboQuant status: failed",
+        "Running first-run OpenCode smoke...",
+        "First-run smoke status: ready",
+        "Finalizing installation status...",
+        "Product installation status: complete",
+    ]
+    for line in expected_lines:
+        assert re.search(
+            r"\[\d+/10 \| elapsed [0-9:]+ \| ETA (?:--:--|[0-9:]+)\] "
+            + re.escape(line),
+            captured.out,
+        )
 
 
 def _mark_runtime_payload_ready(session: InstallerSession) -> InstallerSession:
     session.runtime_payload_status = "ready"
+    return session
+
+
+def _mark_bootstrap_ready(session: InstallerSession) -> InstallerSession:
+    session.bootstrap_status = "ready"
     return session
 
 
