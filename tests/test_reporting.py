@@ -79,6 +79,8 @@ def test_write_human_log_includes_install_root_dependency_outcomes_and_failing_s
     assert "Runtime artifact status: skipped" in contents
     assert "Starter model status: skipped" in contents
     assert "Active model config status: skipped" in contents
+    assert "Model locations config status: skipped" in contents
+    assert "Runtime endpoint config status: skipped" in contents
     assert "Pinned runtime artifact id: None" in contents
     assert "Selected starter model: None" in contents
     assert "python: ready" in contents
@@ -147,12 +149,17 @@ def test_write_json_report_serializes_bootstrap_summary(tmp_path: Path):
         runtime_artifact_status="failed",
         starter_model_status="skipped",
         active_model_config_status="skipped",
+        model_locations_config_status="failed",
+        runtime_endpoint_config_status="ready",
         runtime_artifact_id="runtime-win-x64",
         starter_model="qwen2.5-7b-instruct",
         runtime_artifact_path=str(tmp_path / "install-root" / "runtime"),
         starter_model_path=str(tmp_path / "install-root" / "models" / "starter.gguf"),
         active_model_config_path=str(tmp_path / "install-root" / "config" / "active-model.json"),
+        model_locations_config_path=str(tmp_path / "install-root" / "config" / "model-locations.json"),
         runtime_metadata_path=str(tmp_path / "install-root" / "runtime" / "runtime-artifact.json"),
+        runtime_endpoint_config_path=str(tmp_path / "install-root" / "config" / "runtime-endpoint.json"),
+        managed_runtime_port=39281,
         dependencies=[
             DependencyRecord(name="python", required=True, status="ready", detected=True),
         ],
@@ -169,13 +176,45 @@ def test_write_json_report_serializes_bootstrap_summary(tmp_path: Path):
     assert payload["runtime_artifact_status"] == "failed"
     assert payload["starter_model_status"] == "skipped"
     assert payload["active_model_config_status"] == "skipped"
+    assert payload["model_locations_config_status"] == "failed"
+    assert payload["runtime_endpoint_config_status"] == "ready"
     assert payload["runtime_artifact_id"] == "runtime-win-x64"
     assert payload["starter_model"] == "qwen2.5-7b-instruct"
     assert payload["runtime_artifact_path"] == session.runtime_artifact_path
     assert payload["starter_model_path"] == session.starter_model_path
     assert payload["active_model_config_path"] == session.active_model_config_path
+    assert payload["model_locations_config_path"] == session.model_locations_config_path
     assert payload["runtime_metadata_path"] == session.runtime_metadata_path
+    assert payload["runtime_endpoint_config_path"] == session.runtime_endpoint_config_path
+    assert payload["managed_runtime_port"] == 39281
     assert payload["dependencies"] == [session.dependencies[0].to_dict()]
+
+
+def test_write_human_log_includes_runtime_config_statuses_and_paths(tmp_path: Path):
+    paths = build_run_paths(tmp_path, "2026-05-22T10-00-00")
+    session = InstallerSession(
+        install_root=str(tmp_path / "install-root"),
+        model_locations_config_status="ready",
+        runtime_endpoint_config_status="ready",
+        error_message="runtime endpoint failed",
+        model_locations_config_path=str(
+            tmp_path / "install-root" / "config" / "model-locations.json"
+        ),
+        runtime_endpoint_config_path=str(
+            tmp_path / "install-root" / "config" / "runtime-endpoint.json"
+        ),
+        managed_runtime_port=39281,
+    )
+
+    write_human_log(session, paths.log_path)
+
+    contents = paths.log_path.read_text(encoding="utf-8")
+    assert "Model locations config status: ready" in contents
+    assert "Runtime endpoint config status: ready" in contents
+    assert "Model locations config path:" in contents
+    assert "Runtime endpoint config path:" in contents
+    assert "Managed runtime port: 39281" in contents
+    assert "Error message: runtime endpoint failed" in contents
 
 
 def test_write_json_report_serializes_server_verification_summary(tmp_path: Path):
@@ -202,6 +241,21 @@ def test_write_json_report_serializes_server_verification_summary(tmp_path: Path
     assert payload["verified_server_port"] == 8080
     assert payload["verified_server_url"] == "http://127.0.0.1:8080"
     assert payload["server_log_path"] == str(paths.server_log_path)
+
+
+def test_write_json_report_serializes_error_message(tmp_path: Path):
+    paths = build_run_paths(tmp_path, "2026-05-22T10-00-00")
+    session = InstallerSession(
+        install_root=str(tmp_path / "install-root"),
+        runtime_payload_status="failed",
+        failing_step="runtime-endpoint-config",
+        error_message="runtime endpoint failed",
+    )
+
+    write_json_report(session, paths.json_report_path)
+
+    payload = json.loads(paths.json_report_path.read_text(encoding="utf-8"))
+    assert payload["error_message"] == "runtime endpoint failed"
 
 
 def test_write_json_report_serializes_opencode_summary(tmp_path: Path):

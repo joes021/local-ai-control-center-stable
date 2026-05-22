@@ -8,6 +8,9 @@ import zipfile
 import pytest
 
 from local_ai_control_center_installer.runtime_bootstrap import (
+    _write_active_model_config,
+    _write_model_locations_config,
+    _write_runtime_endpoint_config,
     apply_runtime_payload,
     load_runtime_manifest,
     resolve_requested_starter_model,
@@ -190,7 +193,395 @@ def test_apply_runtime_payload_marks_ready_when_runtime_and_model_are_verified_i
     assert updated.runtime_artifact_status == "ready"
     assert updated.starter_model_status == "ready"
     assert updated.active_model_config_status == "ready"
+    assert updated.model_locations_config_status == "ready"
+    assert updated.runtime_endpoint_config_status == "ready"
+    assert updated.managed_runtime_port == 39281
     assert Path(updated.active_model_config_path).exists()
+    assert Path(updated.model_locations_config_path).exists()
+    assert Path(updated.runtime_endpoint_config_path).exists()
+
+    model_locations_payload = json.loads(
+        Path(updated.model_locations_config_path).read_text(encoding="utf-8")
+    )
+    runtime_endpoint_payload = json.loads(
+        Path(updated.runtime_endpoint_config_path).read_text(encoding="utf-8")
+    )
+
+    assert model_locations_payload == {
+        "default_model_root": str(model_root),
+        "additional_read_only_model_paths": [],
+    }
+    assert runtime_endpoint_payload == {
+        "base_url": "http://127.0.0.1:39281",
+        "port": 39281,
+        "installer_managed": True,
+    }
+
+
+def test_apply_runtime_payload_writes_model_locations_with_additional_paths(
+    tmp_path: Path,
+):
+    install_root = tmp_path / "install-root"
+    runtime_root = install_root / "runtime" / "llama.cpp"
+    model_root = install_root / "models" / "recommended-6gb"
+    runtime_root.mkdir(parents=True)
+    model_root.mkdir(parents=True)
+    (runtime_root / "llama-server.exe").write_text("ok", encoding="utf-8")
+    (runtime_root / "runtime-artifact.json").write_text(
+        json.dumps(
+            {
+                "artifact_id": "windows-llama-cpp-runtime",
+                "source_sha256": "abc123",
+            }
+        ),
+        encoding="utf-8",
+    )
+    (model_root / "recommended-6gb.gguf").write_text("ok", encoding="utf-8")
+    session = InstallerSession(
+        bootstrap_status="ready",
+        install_root=str(install_root),
+        starter_model="recommended-6gb",
+        additional_model_paths=["D:\\models", "E:\\shared-models"],
+    )
+    manifest = {
+        "runtime_artifact": {
+            "id": "windows-llama-cpp-runtime",
+            "url": "https://example.invalid/runtime.zip",
+            "sha256": "abc123",
+            "archive_type": "zip",
+            "required_files": ["llama-server.exe"],
+            "required_file_sha256": {"llama-server.exe": PINNED_OK_RUNTIME_SHA256},
+            "install_subdir": "runtime/llama.cpp",
+        },
+        "starter_models": {
+            "recommended-6gb": {
+                "id": "recommended-6gb",
+                "url": "https://example.invalid/model.gguf",
+                "sha256": "def456",
+                "target_filename": "recommended-6gb.gguf",
+                "install_subdir": "models/recommended-6gb",
+                "size_bytes": 123,
+            }
+        },
+    }
+
+    updated = apply_runtime_payload(
+        session,
+        temp_root=tmp_path / "temp-runs",
+        load_manifest=lambda: manifest,
+        verify_model_file=lambda path, expected_sha256: True,
+    )
+
+    payload = json.loads(
+        Path(updated.model_locations_config_path).read_text(encoding="utf-8")
+    )
+    assert payload == {
+        "default_model_root": str(model_root),
+        "additional_read_only_model_paths": ["D:\\models", "E:\\shared-models"],
+    }
+
+
+def test_runtime_config_writers_preserve_previous_good_file_when_atomic_replace_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    original_replace = Path.replace
+
+    def fail_atomic_replace(self: Path, target: Path):
+        if target in protected_targets and self != target:
+            raise OSError("simulated replace failure")
+        return original_replace(self, target)
+
+    protected_targets = {
+        tmp_path / "active-model.json",
+        tmp_path / "model-locations.json",
+        tmp_path / "runtime-endpoint.json",
+    }
+    monkeypatch.setattr(Path, "replace", fail_atomic_replace)
+
+    active_model_config_path = tmp_path / "active-model.json"
+    active_model_config_path.write_text('{"sentinel":"active"}', encoding="utf-8")
+    with pytest.raises(OSError, match="simulated replace failure"):
+        _write_active_model_config(
+            active_model_config_path,
+            model_id="recommended-6gb",
+            model_path=Path("C:\\models\\recommended-6gb.gguf"),
+        )
+    assert (
+        active_model_config_path.read_text(encoding="utf-8")
+        == '{"sentinel":"active"}'
+    )
+
+    model_locations_config_path = tmp_path / "model-locations.json"
+    model_locations_config_path.write_text('{"sentinel":"locations"}', encoding="utf-8")
+    with pytest.raises(OSError, match="simulated replace failure"):
+        _write_model_locations_config(
+            model_locations_config_path,
+            default_model_root=Path("C:\\models"),
+            additional_paths=["D:\\models"],
+        )
+    assert (
+        model_locations_config_path.read_text(encoding="utf-8")
+        == '{"sentinel":"locations"}'
+    )
+
+    runtime_endpoint_config_path = tmp_path / "runtime-endpoint.json"
+    runtime_endpoint_config_path.write_text('{"sentinel":"endpoint"}', encoding="utf-8")
+    with pytest.raises(OSError, match="simulated replace failure"):
+        _write_runtime_endpoint_config(
+            runtime_endpoint_config_path,
+            port=39281,
+        )
+    assert (
+        runtime_endpoint_config_path.read_text(encoding="utf-8")
+        == '{"sentinel":"endpoint"}'
+    )
+
+
+def test_apply_runtime_payload_clears_stale_error_message_when_runtime_phase_succeeds(
+    tmp_path: Path,
+):
+    install_root = tmp_path / "install-root"
+    runtime_root = install_root / "runtime" / "llama.cpp"
+    model_root = install_root / "models" / "recommended-6gb"
+    runtime_root.mkdir(parents=True)
+    model_root.mkdir(parents=True)
+    (runtime_root / "llama-server.exe").write_text("ok", encoding="utf-8")
+    (runtime_root / "runtime-artifact.json").write_text(
+        json.dumps(
+            {
+                "artifact_id": "windows-llama-cpp-runtime",
+                "source_sha256": "abc123",
+            }
+        ),
+        encoding="utf-8",
+    )
+    (model_root / "recommended-6gb.gguf").write_text("ok", encoding="utf-8")
+    session = InstallerSession(
+        bootstrap_status="ready",
+        install_root=str(install_root),
+        starter_model="recommended-6gb",
+        error_message="stale failure",
+    )
+    manifest = {
+        "runtime_artifact": {
+            "id": "windows-llama-cpp-runtime",
+            "url": "https://example.invalid/runtime.zip",
+            "sha256": "abc123",
+            "archive_type": "zip",
+            "required_files": ["llama-server.exe"],
+            "required_file_sha256": {"llama-server.exe": PINNED_OK_RUNTIME_SHA256},
+            "install_subdir": "runtime/llama.cpp",
+        },
+        "starter_models": {
+            "recommended-6gb": {
+                "id": "recommended-6gb",
+                "url": "https://example.invalid/model.gguf",
+                "sha256": "def456",
+                "target_filename": "recommended-6gb.gguf",
+                "install_subdir": "models/recommended-6gb",
+                "size_bytes": 123,
+            }
+        },
+    }
+
+    updated = apply_runtime_payload(
+        session,
+        temp_root=tmp_path / "temp-runs",
+        load_manifest=lambda: manifest,
+        verify_model_file=lambda path, expected_sha256: True,
+    )
+
+    assert updated.runtime_payload_status == "ready"
+    assert updated.error_message is None
+
+
+def test_apply_runtime_payload_normalizes_and_deduplicates_additional_model_paths(
+    tmp_path: Path,
+):
+    install_root = tmp_path / "install-root"
+    runtime_root = install_root / "runtime" / "llama.cpp"
+    model_root = install_root / "models" / "recommended-6gb"
+    runtime_root.mkdir(parents=True)
+    model_root.mkdir(parents=True)
+    (runtime_root / "llama-server.exe").write_text("ok", encoding="utf-8")
+    (runtime_root / "runtime-artifact.json").write_text(
+        json.dumps(
+            {
+                "artifact_id": "windows-llama-cpp-runtime",
+                "source_sha256": "abc123",
+            }
+        ),
+        encoding="utf-8",
+    )
+    (model_root / "recommended-6gb.gguf").write_text("ok", encoding="utf-8")
+    session = InstallerSession(
+        bootstrap_status="ready",
+        install_root=str(install_root),
+        starter_model="recommended-6gb",
+        additional_model_paths=[
+            " D:\\models\\ ",
+            "d:\\models",
+            "E:\\shared-models\\",
+            "",
+            "   ",
+        ],
+    )
+    manifest = {
+        "runtime_artifact": {
+            "id": "windows-llama-cpp-runtime",
+            "url": "https://example.invalid/runtime.zip",
+            "sha256": "abc123",
+            "archive_type": "zip",
+            "required_files": ["llama-server.exe"],
+            "required_file_sha256": {"llama-server.exe": PINNED_OK_RUNTIME_SHA256},
+            "install_subdir": "runtime/llama.cpp",
+        },
+        "starter_models": {
+            "recommended-6gb": {
+                "id": "recommended-6gb",
+                "url": "https://example.invalid/model.gguf",
+                "sha256": "def456",
+                "target_filename": "recommended-6gb.gguf",
+                "install_subdir": "models/recommended-6gb",
+                "size_bytes": 123,
+            }
+        },
+    }
+
+    updated = apply_runtime_payload(
+        session,
+        temp_root=tmp_path / "temp-runs",
+        load_manifest=lambda: manifest,
+        verify_model_file=lambda path, expected_sha256: True,
+    )
+
+    payload = json.loads(
+        Path(updated.model_locations_config_path).read_text(encoding="utf-8")
+    )
+    assert payload["additional_read_only_model_paths"] == [
+        str(Path("D:\\models")),
+        str(Path("E:\\shared-models")),
+    ]
+
+
+@pytest.mark.parametrize("managed_runtime_port", [0, 70000, "39281", True])
+def test_apply_runtime_payload_fails_when_managed_runtime_port_is_invalid(
+    tmp_path: Path,
+    managed_runtime_port,
+):
+    install_root = tmp_path / "install-root"
+    runtime_root = install_root / "runtime" / "llama.cpp"
+    model_root = install_root / "models" / "recommended-6gb"
+    runtime_root.mkdir(parents=True)
+    model_root.mkdir(parents=True)
+    (runtime_root / "llama-server.exe").write_text("ok", encoding="utf-8")
+    (runtime_root / "runtime-artifact.json").write_text(
+        json.dumps(
+            {
+                "artifact_id": "windows-llama-cpp-runtime",
+                "source_sha256": "abc123",
+            }
+        ),
+        encoding="utf-8",
+    )
+    (model_root / "recommended-6gb.gguf").write_text("ok", encoding="utf-8")
+    session = InstallerSession(
+        bootstrap_status="ready",
+        install_root=str(install_root),
+        starter_model="recommended-6gb",
+    )
+    manifest = {
+        "runtime_artifact": {
+            "id": "windows-llama-cpp-runtime",
+            "url": "https://example.invalid/runtime.zip",
+            "sha256": "abc123",
+            "archive_type": "zip",
+            "required_files": ["llama-server.exe"],
+            "required_file_sha256": {"llama-server.exe": PINNED_OK_RUNTIME_SHA256},
+            "install_subdir": "runtime/llama.cpp",
+        },
+        "starter_models": {
+            "recommended-6gb": {
+                "id": "recommended-6gb",
+                "url": "https://example.invalid/model.gguf",
+                "sha256": "def456",
+                "target_filename": "recommended-6gb.gguf",
+                "install_subdir": "models/recommended-6gb",
+                "size_bytes": 123,
+            }
+        },
+    }
+
+    updated = apply_runtime_payload(
+        session,
+        temp_root=tmp_path / "temp-runs",
+        load_manifest=lambda: manifest,
+        verify_model_file=lambda path, expected_sha256: True,
+        managed_runtime_port=managed_runtime_port,
+    )
+
+    assert updated.runtime_payload_status == "failed"
+    assert updated.runtime_endpoint_config_status == "failed"
+    assert updated.failing_step == "runtime-endpoint-config"
+    assert "managed runtime port" in (updated.error_message or "").lower()
+
+
+def test_apply_runtime_payload_invalid_managed_port_clears_stale_ready_runtime_statuses(
+    tmp_path: Path,
+):
+    install_root = tmp_path / "install-root"
+    session = InstallerSession(
+        bootstrap_status="ready",
+        install_root=str(install_root),
+        starter_model="recommended-6gb",
+        runtime_payload_status="ready",
+        runtime_artifact_status="ready",
+        starter_model_status="ready",
+        active_model_config_status="ready",
+        model_locations_config_status="ready",
+        runtime_endpoint_config_status="ready",
+        managed_runtime_port=39281,
+        last_successful_step="runtime-endpoint-config",
+    )
+    manifest = {
+        "runtime_artifact": {
+            "id": "windows-llama-cpp-runtime",
+            "url": "https://example.invalid/runtime.zip",
+            "sha256": "abc123",
+            "archive_type": "zip",
+            "required_files": ["llama-server.exe"],
+            "required_file_sha256": {"llama-server.exe": PINNED_OK_RUNTIME_SHA256},
+            "install_subdir": "runtime/llama.cpp",
+        },
+        "starter_models": {
+            "recommended-6gb": {
+                "id": "recommended-6gb",
+                "url": "https://example.invalid/model.gguf",
+                "sha256": "def456",
+                "target_filename": "recommended-6gb.gguf",
+                "install_subdir": "models/recommended-6gb",
+                "size_bytes": 123,
+            }
+        },
+    }
+
+    updated = apply_runtime_payload(
+        session,
+        temp_root=tmp_path / "temp-runs",
+        load_manifest=lambda: manifest,
+        managed_runtime_port=0,
+    )
+
+    assert updated.runtime_payload_status == "failed"
+    assert updated.runtime_artifact_status == "skipped"
+    assert updated.starter_model_status == "skipped"
+    assert updated.active_model_config_status == "skipped"
+    assert updated.model_locations_config_status == "skipped"
+    assert updated.runtime_endpoint_config_status == "failed"
+    assert updated.managed_runtime_port is None
+    assert updated.last_successful_step is None
+    assert updated.failing_step == "runtime-endpoint-config"
 
 
 @pytest.mark.parametrize(
@@ -481,6 +872,7 @@ def test_apply_runtime_payload_fails_when_requested_model_manifest_entry_is_miss
     assert updated.starter_model_status == "failed"
     assert updated.active_model_config_status == "skipped"
     assert updated.failing_step == "runtime-manifest"
+    assert "missing starter model entry" in (updated.error_message or "").lower()
 
 
 def test_apply_runtime_payload_maps_invalid_requested_model_manifest_entry_to_runtime_manifest_failure(
@@ -523,6 +915,7 @@ def test_apply_runtime_payload_maps_invalid_requested_model_manifest_entry_to_ru
     assert updated.starter_model_status == "failed"
     assert updated.active_model_config_status == "skipped"
     assert updated.failing_step == "runtime-manifest"
+    assert "missing required field" in (updated.error_message or "").lower()
 
 
 def test_apply_runtime_payload_maps_wrong_type_requested_model_manifest_entry_to_runtime_manifest_failure(
@@ -566,6 +959,7 @@ def test_apply_runtime_payload_maps_wrong_type_requested_model_manifest_entry_to
     assert updated.starter_model_status == "failed"
     assert updated.active_model_config_status == "skipped"
     assert updated.failing_step == "runtime-manifest"
+    assert "field must be a non-empty string" in (updated.error_message or "").lower()
 
 
 def test_apply_runtime_payload_maps_manifest_load_error_to_runtime_manifest_failure(
@@ -588,6 +982,7 @@ def test_apply_runtime_payload_maps_manifest_load_error_to_runtime_manifest_fail
     assert updated.starter_model_status == "failed"
     assert updated.active_model_config_status == "skipped"
     assert updated.failing_step == "runtime-manifest"
+    assert updated.error_message == "bad manifest"
 
 
 def test_apply_runtime_payload_marks_runtime_artifact_failure_and_skips_later_steps(
@@ -634,6 +1029,7 @@ def test_apply_runtime_payload_marks_runtime_artifact_failure_and_skips_later_st
     assert updated.starter_model_status == "skipped"
     assert updated.active_model_config_status == "skipped"
     assert updated.failing_step == "runtime-artifact"
+    assert updated.error_message == "download failed"
 
 
 def test_apply_runtime_payload_maps_corrupt_runtime_metadata_to_runtime_artifact_failure(
@@ -685,6 +1081,7 @@ def test_apply_runtime_payload_maps_corrupt_runtime_metadata_to_runtime_artifact
     assert updated.starter_model_status == "skipped"
     assert updated.active_model_config_status == "skipped"
     assert updated.failing_step == "runtime-artifact"
+    assert updated.error_message == "download failed"
 
 
 def test_apply_runtime_payload_maps_undecodable_runtime_metadata_to_runtime_artifact_failure(
@@ -736,6 +1133,7 @@ def test_apply_runtime_payload_maps_undecodable_runtime_metadata_to_runtime_arti
     assert updated.starter_model_status == "skipped"
     assert updated.active_model_config_status == "skipped"
     assert updated.failing_step == "runtime-artifact"
+    assert updated.error_message == "download failed"
 
 
 def test_apply_runtime_payload_marks_starter_model_failure_after_runtime_is_ready(
@@ -797,6 +1195,7 @@ def test_apply_runtime_payload_marks_starter_model_failure_after_runtime_is_read
     assert updated.active_model_config_status == "skipped"
     assert updated.last_successful_step == "runtime-artifact"
     assert updated.failing_step == "starter-model"
+    assert updated.error_message == "model failed"
 
 
 def test_apply_runtime_payload_marks_active_model_config_failure_after_model_is_ready(
@@ -859,5 +1258,142 @@ def test_apply_runtime_payload_marks_active_model_config_failure_after_model_is_
     assert updated.runtime_artifact_status == "ready"
     assert updated.starter_model_status == "ready"
     assert updated.active_model_config_status == "failed"
+    assert updated.model_locations_config_status == "skipped"
+    assert updated.runtime_endpoint_config_status == "skipped"
     assert updated.last_successful_step == "starter-model"
     assert updated.failing_step == "active-model-config"
+    assert updated.error_message == "config failed"
+
+
+def test_apply_runtime_payload_marks_model_locations_config_failure_after_active_model_is_ready(
+    tmp_path: Path,
+):
+    install_root = tmp_path / "install-root"
+    runtime_root = install_root / "runtime" / "llama.cpp"
+    model_root = install_root / "models" / "recommended-6gb"
+    runtime_root.mkdir(parents=True)
+    model_root.mkdir(parents=True)
+    (runtime_root / "llama-server.exe").write_text("ok", encoding="utf-8")
+    (runtime_root / "runtime-artifact.json").write_text(
+        json.dumps(
+            {
+                "artifact_id": "windows-llama-cpp-runtime",
+                "source_sha256": "abc123",
+            }
+        ),
+        encoding="utf-8",
+    )
+    (model_root / "recommended-6gb.gguf").write_text("ok", encoding="utf-8")
+    session = InstallerSession(
+        bootstrap_status="ready",
+        install_root=str(install_root),
+        starter_model="recommended-6gb",
+    )
+    manifest = {
+        "runtime_artifact": {
+            "id": "windows-llama-cpp-runtime",
+            "url": "https://example.invalid/runtime.zip",
+            "sha256": "abc123",
+            "archive_type": "zip",
+            "required_files": ["llama-server.exe"],
+            "required_file_sha256": {"llama-server.exe": PINNED_OK_RUNTIME_SHA256},
+            "install_subdir": "runtime/llama.cpp",
+        },
+        "starter_models": {
+            "recommended-6gb": {
+                "id": "recommended-6gb",
+                "url": "https://example.invalid/model.gguf",
+                "sha256": "def456",
+                "target_filename": "recommended-6gb.gguf",
+                "install_subdir": "models/recommended-6gb",
+                "size_bytes": 123,
+            }
+        },
+    }
+
+    updated = apply_runtime_payload(
+        session,
+        temp_root=tmp_path / "temp-runs",
+        load_manifest=lambda: manifest,
+        verify_model_file=lambda path, expected_sha256: True,
+        write_model_locations_config=lambda *args, **kwargs: (_ for _ in ()).throw(
+            OSError("model locations failed")
+        ),
+    )
+
+    assert updated.runtime_payload_status == "failed"
+    assert updated.runtime_artifact_status == "ready"
+    assert updated.starter_model_status == "ready"
+    assert updated.active_model_config_status == "ready"
+    assert updated.model_locations_config_status == "failed"
+    assert updated.runtime_endpoint_config_status == "skipped"
+    assert updated.last_successful_step == "active-model-config"
+    assert updated.failing_step == "model-locations-config"
+    assert updated.error_message == "model locations failed"
+
+
+def test_apply_runtime_payload_marks_runtime_endpoint_config_failure_after_model_locations_are_ready(
+    tmp_path: Path,
+):
+    install_root = tmp_path / "install-root"
+    runtime_root = install_root / "runtime" / "llama.cpp"
+    model_root = install_root / "models" / "recommended-6gb"
+    runtime_root.mkdir(parents=True)
+    model_root.mkdir(parents=True)
+    (runtime_root / "llama-server.exe").write_text("ok", encoding="utf-8")
+    (runtime_root / "runtime-artifact.json").write_text(
+        json.dumps(
+            {
+                "artifact_id": "windows-llama-cpp-runtime",
+                "source_sha256": "abc123",
+            }
+        ),
+        encoding="utf-8",
+    )
+    (model_root / "recommended-6gb.gguf").write_text("ok", encoding="utf-8")
+    session = InstallerSession(
+        bootstrap_status="ready",
+        install_root=str(install_root),
+        starter_model="recommended-6gb",
+    )
+    manifest = {
+        "runtime_artifact": {
+            "id": "windows-llama-cpp-runtime",
+            "url": "https://example.invalid/runtime.zip",
+            "sha256": "abc123",
+            "archive_type": "zip",
+            "required_files": ["llama-server.exe"],
+            "required_file_sha256": {"llama-server.exe": PINNED_OK_RUNTIME_SHA256},
+            "install_subdir": "runtime/llama.cpp",
+        },
+        "starter_models": {
+            "recommended-6gb": {
+                "id": "recommended-6gb",
+                "url": "https://example.invalid/model.gguf",
+                "sha256": "def456",
+                "target_filename": "recommended-6gb.gguf",
+                "install_subdir": "models/recommended-6gb",
+                "size_bytes": 123,
+            }
+        },
+    }
+
+    updated = apply_runtime_payload(
+        session,
+        temp_root=tmp_path / "temp-runs",
+        load_manifest=lambda: manifest,
+        verify_model_file=lambda path, expected_sha256: True,
+        write_runtime_endpoint_config=lambda *args, **kwargs: (_ for _ in ()).throw(
+            OSError("runtime endpoint failed")
+        ),
+    )
+
+    assert updated.runtime_payload_status == "failed"
+    assert updated.runtime_artifact_status == "ready"
+    assert updated.starter_model_status == "ready"
+    assert updated.active_model_config_status == "ready"
+    assert updated.model_locations_config_status == "ready"
+    assert updated.runtime_endpoint_config_status == "failed"
+    assert updated.last_successful_step == "model-locations-config"
+    assert updated.failing_step == "runtime-endpoint-config"
+    assert updated.error_message == "runtime endpoint failed"
