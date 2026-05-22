@@ -19,6 +19,7 @@ from .download_plan import (
     OPENCODE_ARTIFACT_DOWNLOAD_KEY,
     find_download_plan_item,
 )
+from .runtime_bootstrap import load_runtime_endpoint_config
 from .session import InstallerSession
 
 
@@ -98,8 +99,13 @@ def apply_opencode_bootstrap(
     )
 
     model_id = _resolve_active_model_id(session.active_model_config_path)
-    verified_server_url = (session.verified_server_url or "").strip()
-    if not verified_server_url or model_id is None:
+    try:
+        runtime_endpoint = load_runtime_endpoint_config(
+            session.runtime_endpoint_config_path
+        )
+    except (OSError, UnicodeDecodeError, ValueError, JSONDecodeError):
+        runtime_endpoint = None
+    if runtime_endpoint is None or model_id is None:
         session.opencode_artifact_status = "ready" if artifact_ready else "skipped"
         if artifact_ready:
             session.last_successful_step = "opencode-artifact"
@@ -146,7 +152,7 @@ def apply_opencode_bootstrap(
         write_managed_config(
             config_path,
             model_id=model_id,
-            verified_server_url=verified_server_url,
+            base_url=runtime_endpoint.base_url,
         )
     except Exception as exc:
         session.opencode_artifact_status = "ready"
@@ -329,7 +335,7 @@ def _write_managed_config(
     config_path: Path,
     *,
     model_id: str,
-    verified_server_url: str,
+    base_url: str,
 ) -> Path:
     config_path.parent.mkdir(parents=True, exist_ok=True)
     config_path.write_text(
@@ -342,7 +348,7 @@ def _write_managed_config(
                 "providers": {
                     "local-lacc": {
                         "provider": "@ai-sdk/openai-compatible",
-                        "options": {"baseURL": f"{verified_server_url}/v1"},
+                        "options": {"baseURL": f"{base_url}/v1"},
                         "models": {model_id: {}},
                     }
                 },

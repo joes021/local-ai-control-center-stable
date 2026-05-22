@@ -12,6 +12,9 @@ from local_ai_control_center_installer.opencode_bootstrap import (
     apply_opencode_bootstrap,
     load_opencode_manifest,
 )
+from local_ai_control_center_installer.runtime_bootstrap import (
+    _write_runtime_endpoint_config,
+)
 from local_ai_control_center_installer.session import InstallerSession
 
 
@@ -54,6 +57,17 @@ def _write_active_model_config(path: Path, *, model_id: str = "recommended-6gb")
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps({"model_id": model_id}, indent=2), encoding="utf-8")
     return path
+
+
+def _write_runtime_endpoint_fixture(
+    install_root: Path,
+    *,
+    port: int = 8080,
+) -> Path:
+    return _write_runtime_endpoint_config(
+        install_root / "config" / "runtime-endpoint.json",
+        port=port,
+    )
 
 
 def _opencode_download_plan() -> dict:
@@ -356,6 +370,9 @@ def test_apply_opencode_bootstrap_skips_when_install_opencode_is_false(
         server_verification_status="ready",
         install_root=str(tmp_path / "install-root"),
         verified_server_url="http://127.0.0.1:8080",
+        runtime_endpoint_config_path=str(
+            _write_runtime_endpoint_fixture(tmp_path / "install-root")
+        ),
         active_model_config_path=str(tmp_path / "install-root" / "config" / "active-model.json"),
     )
 
@@ -440,6 +457,9 @@ def test_apply_opencode_bootstrap_marks_artifact_ready_when_valid_artifact_exist
         server_verification_status="ready",
         install_root=str(install_root),
         verified_server_url="http://127.0.0.1:8080",
+        runtime_endpoint_config_path=str(
+            _write_runtime_endpoint_fixture(install_root)
+        ),
         active_model_config_path=str(active_model_config_path),
         error_message="stale error",
     )
@@ -480,7 +500,43 @@ def test_apply_opencode_bootstrap_fails_prerequisites_when_active_model_id_canno
         server_verification_status="ready",
         install_root=str(install_root),
         verified_server_url="http://127.0.0.1:8080",
+        runtime_endpoint_config_path=str(
+            _write_runtime_endpoint_fixture(install_root)
+        ),
         active_model_config_path=str(active_model_config_path),
+        error_message="stale error",
+    )
+    manifest = _build_opencode_manifest()
+
+    updated = apply_opencode_bootstrap(
+        session,
+        temp_root=tmp_path / "temp-runs",
+        load_manifest=lambda: manifest,
+    )
+
+    assert updated.opencode_artifact_status == "skipped"
+    assert updated.opencode_verification_status == "failed"
+    assert updated.opencode_process_status == "skipped"
+    assert updated.opencode_connection_status == "skipped"
+    assert updated.failing_step == "opencode-verification-prerequisites"
+    assert updated.error_message == "OpenCode bootstrap prerequisites are missing or invalid."
+
+
+def test_apply_opencode_bootstrap_fails_prerequisites_when_runtime_endpoint_config_cannot_be_resolved(
+    tmp_path: Path,
+):
+    install_root = tmp_path / "install-root"
+    session = InstallerSession(
+        install_opencode=True,
+        server_verification_status="ready",
+        install_root=str(install_root),
+        verified_server_url="http://127.0.0.1:8080",
+        runtime_endpoint_config_path=str(
+            install_root / "config" / "missing-runtime-endpoint.json"
+        ),
+        active_model_config_path=str(
+            _write_active_model_config(install_root / "config" / "active-model.json")
+        ),
         error_message="stale error",
     )
     manifest = _build_opencode_manifest()
@@ -508,6 +564,9 @@ def test_apply_opencode_bootstrap_maps_archive_verification_failure_to_opencode_
         server_verification_status="ready",
         install_root=str(install_root),
         verified_server_url="http://127.0.0.1:8080",
+        runtime_endpoint_config_path=str(
+            _write_runtime_endpoint_fixture(install_root)
+        ),
         active_model_config_path=str(
             _write_active_model_config(install_root / "config" / "active-model.json")
         ),
@@ -558,6 +617,9 @@ def test_apply_opencode_bootstrap_marks_opencode_config_failure_after_artifact_i
         server_verification_status="ready",
         install_root=str(install_root),
         verified_server_url="http://127.0.0.1:8080",
+        runtime_endpoint_config_path=str(
+            _write_runtime_endpoint_fixture(install_root)
+        ),
         active_model_config_path=str(
             _write_active_model_config(install_root / "config" / "active-model.json")
         ),
@@ -583,7 +645,7 @@ def test_apply_opencode_bootstrap_marks_opencode_config_failure_after_artifact_i
     assert updated.error_message == "config failed"
 
 
-def test_apply_opencode_bootstrap_generated_config_contains_local_lacc_provider_and_verified_server_url(
+def test_apply_opencode_bootstrap_generated_config_uses_canonical_runtime_endpoint_config(
     tmp_path: Path,
 ):
     install_root = tmp_path / "install-root"
@@ -592,6 +654,9 @@ def test_apply_opencode_bootstrap_generated_config_contains_local_lacc_provider_
         server_verification_status="ready",
         install_root=str(install_root),
         verified_server_url="http://127.0.0.1:8080",
+        runtime_endpoint_config_path=str(
+            _write_runtime_endpoint_fixture(install_root, port=39281)
+        ),
         active_model_config_path=str(
             _write_active_model_config(
                 install_root / "config" / "active-model.json",
@@ -631,7 +696,7 @@ def test_apply_opencode_bootstrap_generated_config_contains_local_lacc_provider_
     assert updated.opencode_artifact_status == "ready"
     assert managed_config["enabled_providers"] == ["local-lacc"]
     assert managed_config["providers"]["local-lacc"]["provider"] == "@ai-sdk/openai-compatible"
-    assert managed_config["providers"]["local-lacc"]["options"]["baseURL"] == "http://127.0.0.1:8080/v1"
+    assert managed_config["providers"]["local-lacc"]["options"]["baseURL"] == "http://127.0.0.1:39281/v1"
     assert managed_config["providers"]["local-lacc"]["models"] == {"my-model-q4": {}}
 
 
@@ -644,6 +709,9 @@ def test_apply_opencode_bootstrap_second_pass_reuses_staged_artifact_without_red
         server_verification_status="ready",
         install_root=str(install_root),
         verified_server_url="http://127.0.0.1:8080",
+        runtime_endpoint_config_path=str(
+            _write_runtime_endpoint_fixture(install_root)
+        ),
         active_model_config_path=str(
             _write_active_model_config(
                 install_root / "config" / "active-model.json",
@@ -690,6 +758,9 @@ def test_apply_opencode_bootstrap_second_pass_reuses_staged_artifact_without_red
             server_verification_status="ready",
             install_root=str(install_root),
             verified_server_url="http://127.0.0.1:8080",
+            runtime_endpoint_config_path=str(
+                _write_runtime_endpoint_fixture(install_root)
+            ),
             active_model_config_path=str(
                 install_root / "config" / "active-model.json"
             ),
@@ -715,6 +786,9 @@ def test_apply_opencode_bootstrap_uses_session_download_plan_for_default_queue_i
         server_verification_status="ready",
         install_root=str(install_root),
         verified_server_url="http://127.0.0.1:8080",
+        runtime_endpoint_config_path=str(
+            _write_runtime_endpoint_fixture(install_root)
+        ),
         active_model_config_path=str(
             _write_active_model_config(
                 install_root / "config" / "active-model.json",

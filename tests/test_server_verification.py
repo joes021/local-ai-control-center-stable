@@ -8,6 +8,9 @@ from local_ai_control_center_installer.server_verification import (
     probe_server_health,
     stop_server_process,
 )
+from local_ai_control_center_installer.runtime_bootstrap import (
+    _write_runtime_endpoint_config,
+)
 from local_ai_control_center_installer.session import InstallerSession
 
 
@@ -25,6 +28,17 @@ class FakeProcess:
 
     def kill(self) -> None:
         self.kill_calls += 1
+
+
+def _write_runtime_endpoint_fixture(
+    install_root: Path,
+    *,
+    port: int = 8080,
+) -> Path:
+    return _write_runtime_endpoint_config(
+        install_root / "config" / "runtime-endpoint.json",
+        port=port,
+    )
 
 
 def test_apply_server_verification_skips_when_runtime_payload_is_not_ready(
@@ -62,15 +76,19 @@ def test_apply_server_verification_skips_when_bootstrap_is_not_ready(
 def test_apply_server_verification_fails_when_active_model_config_is_missing(
     tmp_path: Path,
 ):
+    install_root = tmp_path / "install-root"
     runtime_dir = tmp_path / "runtime"
     runtime_dir.mkdir()
     (runtime_dir / "llama-server.exe").write_text("", encoding="utf-8")
     session = InstallerSession(
         bootstrap_status="ready",
         runtime_payload_status="ready",
-        install_root=str(tmp_path / "install-root"),
+        install_root=str(install_root),
         active_model_config_path=str(tmp_path / "config" / "missing-active-model.json"),
         runtime_artifact_path=str(runtime_dir),
+        runtime_endpoint_config_path=str(
+            _write_runtime_endpoint_fixture(install_root)
+        ),
     )
 
     updated = apply_server_verification(session, temp_root=tmp_path / "temp-runs")
@@ -84,6 +102,7 @@ def test_apply_server_verification_fails_when_active_model_config_is_missing(
 def test_apply_server_verification_fails_when_active_model_path_is_missing_from_config(
     tmp_path: Path,
 ):
+    install_root = tmp_path / "install-root"
     runtime_dir = tmp_path / "runtime"
     runtime_dir.mkdir()
     (runtime_dir / "llama-server.exe").write_text("", encoding="utf-8")
@@ -97,9 +116,12 @@ def test_apply_server_verification_fails_when_active_model_path_is_missing_from_
     session = InstallerSession(
         bootstrap_status="ready",
         runtime_payload_status="ready",
-        install_root=str(tmp_path / "install-root"),
+        install_root=str(install_root),
         active_model_config_path=str(active_model_config_path),
         runtime_artifact_path=str(runtime_dir),
+        runtime_endpoint_config_path=str(
+            _write_runtime_endpoint_fixture(install_root)
+        ),
     )
 
     updated = apply_server_verification(session, temp_root=tmp_path / "temp-runs")
@@ -113,6 +135,7 @@ def test_apply_server_verification_fails_when_active_model_path_is_missing_from_
 def test_apply_server_verification_fails_when_llama_server_exe_is_missing(
     tmp_path: Path,
 ):
+    install_root = tmp_path / "install-root"
     config_dir = tmp_path / "config"
     config_dir.mkdir()
     model_path = tmp_path / "models" / "model.gguf"
@@ -129,9 +152,12 @@ def test_apply_server_verification_fails_when_llama_server_exe_is_missing(
     session = InstallerSession(
         bootstrap_status="ready",
         runtime_payload_status="ready",
-        install_root=str(tmp_path / "install-root"),
+        install_root=str(install_root),
         active_model_config_path=str(active_model_config_path),
         runtime_artifact_path=str(tmp_path / "missing-runtime"),
+        runtime_endpoint_config_path=str(
+            _write_runtime_endpoint_fixture(install_root)
+        ),
     )
 
     updated = apply_server_verification(session, temp_root=tmp_path / "temp-runs")
@@ -145,6 +171,7 @@ def test_apply_server_verification_fails_when_llama_server_exe_is_missing(
 def test_apply_server_verification_fails_when_active_model_path_is_a_directory(
     tmp_path: Path,
 ):
+    install_root = tmp_path / "install-root"
     runtime_dir = tmp_path / "runtime"
     runtime_dir.mkdir()
     (runtime_dir / "llama-server.exe").write_text("", encoding="utf-8")
@@ -163,9 +190,12 @@ def test_apply_server_verification_fails_when_active_model_path_is_a_directory(
     session = InstallerSession(
         bootstrap_status="ready",
         runtime_payload_status="ready",
-        install_root=str(tmp_path / "install-root"),
+        install_root=str(install_root),
         active_model_config_path=str(active_model_config_path),
         runtime_artifact_path=str(runtime_dir),
+        runtime_endpoint_config_path=str(
+            _write_runtime_endpoint_fixture(install_root)
+        ),
     )
 
     updated = apply_server_verification(session, temp_root=tmp_path / "temp-runs")
@@ -174,6 +204,134 @@ def test_apply_server_verification_fails_when_active_model_path_is_a_directory(
     assert updated.server_process_status == "skipped"
     assert updated.server_health_status == "skipped"
     assert updated.failing_step == "server-verification-prerequisites"
+
+
+def test_apply_server_verification_uses_persisted_managed_runtime_port(
+    tmp_path: Path,
+):
+    session = _build_runtime_ready_session(tmp_path, managed_port=39281)
+    process = FakeProcess([None, None, None, None, None, None])
+    health_states = iter(["loading", "ready"])
+
+    updated = apply_server_verification(
+        session,
+        temp_root=tmp_path / "temp-runs",
+        select_port=lambda host="127.0.0.1": 8080,
+        process_factory=lambda command, log_path: process,
+        health_probe=lambda base_url: next(health_states),
+        stop_process=lambda proc: True,
+        now_fn=_fake_now([0.0, 0.3, 0.6, 0.9, 1.1, 1.2, 1.3]),
+        sleep_fn=lambda _: None,
+    )
+
+    assert updated.server_verification_status == "ready"
+    assert updated.verified_server_port == 39281
+    assert updated.verified_server_url == "http://127.0.0.1:39281"
+
+
+def test_apply_server_verification_fails_when_foreign_process_owns_managed_port(
+    tmp_path: Path,
+):
+    session = _build_runtime_ready_session(tmp_path, managed_port=39281)
+
+    updated = apply_server_verification(
+        session,
+        temp_root=tmp_path / "temp-runs",
+        port_is_free=lambda host, port: False,
+        is_managed_runtime_port_owned_by_installation=(
+            lambda port, server_executable, install_root: False
+        ),
+        process_factory=lambda command, log_path: (_ for _ in ()).throw(
+            AssertionError("foreign-owned managed port should not start a new process")
+        ),
+        health_probe=lambda base_url: "ready",
+        stop_process=lambda proc: True,
+        now_fn=_fake_now([0.0]),
+        sleep_fn=lambda _: None,
+    )
+
+    assert updated.server_verification_status == "failed"
+    assert updated.server_process_status == "skipped"
+    assert updated.server_health_status == "skipped"
+    assert updated.verified_server_port == 39281
+    assert updated.verified_server_url == "http://127.0.0.1:39281"
+    assert updated.failing_step == "server-port-bind"
+    assert "occupied by another process" in (updated.error_message or "").lower()
+
+
+def test_apply_server_verification_reuses_same_owner_managed_runtime_when_requested(
+    tmp_path: Path,
+):
+    session = _build_runtime_ready_session(tmp_path, managed_port=39281)
+    health_states = iter(["ready"])
+    reused_health_urls: list[str] = []
+    stop_port_owner_calls = 0
+
+    def _health_probe(base_url: str) -> str:
+        reused_health_urls.append(base_url)
+        return next(health_states)
+
+    def _stop_port_owner(*args, **kwargs) -> bool:
+        nonlocal stop_port_owner_calls
+        stop_port_owner_calls += 1
+        return True
+
+    updated = apply_server_verification(
+        session,
+        temp_root=tmp_path / "temp-runs",
+        port_is_free=lambda host, port: False,
+        is_managed_runtime_port_owned_by_installation=(
+            lambda port, server_executable, install_root: True
+        ),
+        stop_managed_runtime_on_port=_stop_port_owner,
+        process_factory=lambda command, log_path: (_ for _ in ()).throw(
+            AssertionError("same-owner reuse should not spawn a new process")
+        ),
+        health_probe=_health_probe,
+        stop_process=lambda proc: True,
+        now_fn=_fake_now([0.0, 1.1, 1.2]),
+        sleep_fn=lambda _: None,
+    )
+
+    assert updated.server_verification_status == "ready"
+    assert updated.server_process_status == "ready"
+    assert updated.server_health_status == "ready"
+    assert reused_health_urls == ["http://127.0.0.1:39281"]
+    assert stop_port_owner_calls == 0
+
+
+def test_apply_server_verification_restarts_same_owner_managed_runtime_when_reuse_is_disabled(
+    tmp_path: Path,
+):
+    session = _build_runtime_ready_session(tmp_path, managed_port=39281)
+    process = FakeProcess([None, None, None, None, None, None])
+    health_states = iter(["loading", "ready"])
+    events: list[str] = []
+
+    updated = apply_server_verification(
+        session,
+        temp_root=tmp_path / "temp-runs",
+        port_is_free=lambda host, port: False,
+        is_managed_runtime_port_owned_by_installation=(
+            lambda port, server_executable, install_root: True
+        ),
+        stop_managed_runtime_on_port=lambda port, server_executable, install_root: (
+            events.append("stop-owner") or True
+        ),
+        reuse_existing_managed_runtime=False,
+        process_factory=lambda command, log_path: events.append("start")
+        or process,
+        health_probe=lambda base_url: next(health_states),
+        stop_process=lambda proc: True,
+        now_fn=_fake_now([0.0, 0.3, 0.6, 0.9, 1.1, 1.2, 1.3]),
+        sleep_fn=lambda _: None,
+    )
+
+    assert updated.server_verification_status == "ready"
+    assert updated.server_process_status == "ready"
+    assert updated.server_health_status == "ready"
+    assert updated.verified_server_port == 39281
+    assert events == ["stop-owner", "start"]
 
 
 def test_apply_server_verification_marks_ready_after_healthy_start_and_clean_stop(
@@ -371,15 +529,18 @@ def test_apply_server_verification_maps_general_start_exception_to_server_proces
     assert updated.failing_step == "server-process-start"
 
 
-def test_apply_server_verification_maps_port_selection_failure_to_server_port_bind(
+def test_apply_server_verification_maps_invalid_runtime_endpoint_config_to_prerequisites(
     tmp_path: Path,
 ):
     session = _build_runtime_ready_session(tmp_path)
+    Path(session.runtime_endpoint_config_path).write_text(
+        '{"base_url": "", "port": "bad", "installer_managed": true}',
+        encoding="utf-8",
+    )
 
     updated = apply_server_verification(
         session,
         temp_root=tmp_path / "temp-runs",
-        select_port=lambda host="127.0.0.1": (_ for _ in ()).throw(OSError("busy")),
         process_factory=lambda command, log_path: None,
         health_probe=lambda base_url: "ready",
         stop_process=lambda proc: True,
@@ -390,7 +551,7 @@ def test_apply_server_verification_maps_port_selection_failure_to_server_port_bi
     assert updated.server_verification_status == "failed"
     assert updated.server_process_status == "skipped"
     assert updated.server_health_status == "skipped"
-    assert updated.failing_step == "server-port-bind"
+    assert updated.failing_step == "server-verification-prerequisites"
 
 
 def test_apply_server_verification_marks_server_health_failure_after_timeout(
@@ -646,15 +807,23 @@ def _fake_now(values: list[float]):
     return _now
 
 
-def _build_runtime_ready_session(tmp_path: Path) -> InstallerSession:
+def _build_runtime_ready_session(
+    tmp_path: Path,
+    *,
+    managed_port: int = 8080,
+) -> InstallerSession:
     install_root = tmp_path / "install-root"
     runtime_root = install_root / "runtime" / "llama.cpp"
     config_root = install_root / "config"
     model_path = install_root / "models" / "starter.gguf"
     active_model_path = config_root / "active-model.json"
+    runtime_endpoint_path = _write_runtime_endpoint_fixture(
+        install_root,
+        port=managed_port,
+    )
 
     runtime_root.mkdir(parents=True)
-    config_root.mkdir(parents=True)
+    config_root.mkdir(parents=True, exist_ok=True)
     model_path.parent.mkdir(parents=True)
     (runtime_root / "llama-server.exe").write_text("", encoding="utf-8")
     model_path.write_text("", encoding="utf-8")
@@ -674,12 +843,14 @@ def _build_runtime_ready_session(tmp_path: Path) -> InstallerSession:
         install_root=str(install_root),
         active_model_config_path=str(active_model_path),
         runtime_artifact_path=str(runtime_root),
+        runtime_endpoint_config_path=str(runtime_endpoint_path),
     )
 
 
 def test_apply_server_verification_fails_when_llama_server_exe_is_a_directory(
     tmp_path: Path,
 ):
+    install_root = tmp_path / "install-root"
     runtime_dir = tmp_path / "runtime"
     runtime_dir.mkdir()
     (runtime_dir / "llama-server.exe").mkdir()
@@ -699,9 +870,12 @@ def test_apply_server_verification_fails_when_llama_server_exe_is_a_directory(
     session = InstallerSession(
         bootstrap_status="ready",
         runtime_payload_status="ready",
-        install_root=str(tmp_path / "install-root"),
+        install_root=str(install_root),
         active_model_config_path=str(active_model_config_path),
         runtime_artifact_path=str(runtime_dir),
+        runtime_endpoint_config_path=str(
+            _write_runtime_endpoint_fixture(install_root)
+        ),
     )
 
     updated = apply_server_verification(session, temp_root=tmp_path / "temp-runs")

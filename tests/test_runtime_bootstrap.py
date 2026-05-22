@@ -12,6 +12,7 @@ from local_ai_control_center_installer.runtime_bootstrap import (
     _write_model_locations_config,
     _write_runtime_endpoint_config,
     apply_runtime_payload,
+    load_runtime_endpoint_config,
     load_runtime_manifest,
     resolve_requested_starter_model,
 )
@@ -377,6 +378,21 @@ def test_runtime_config_writers_preserve_previous_good_file_when_atomic_replace_
         runtime_endpoint_config_path.read_text(encoding="utf-8")
         == '{"sentinel":"endpoint"}'
     )
+
+
+def test_load_runtime_endpoint_config_reads_canonical_managed_endpoint(
+    tmp_path: Path,
+):
+    runtime_endpoint_config_path = _write_runtime_endpoint_config(
+        tmp_path / "runtime-endpoint.json",
+        port=39281,
+    )
+
+    config = load_runtime_endpoint_config(runtime_endpoint_config_path)
+
+    assert config.port == 39281
+    assert config.base_url == "http://127.0.0.1:39281"
+    assert config.installer_managed is True
 
 
 def test_apply_runtime_payload_clears_stale_error_message_when_runtime_phase_succeeds(

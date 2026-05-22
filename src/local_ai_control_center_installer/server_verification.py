@@ -9,6 +9,9 @@ from urllib.error import HTTPError, URLError
 from urllib.request import urlopen
 
 from local_ai_control_center_installer.reporting import build_run_paths
+from local_ai_control_center_installer.runtime_bootstrap import (
+    load_runtime_endpoint_config,
+)
 from local_ai_control_center_installer.session import InstallerSession
 
 
@@ -24,6 +27,145 @@ def choose_free_port(host: str = "127.0.0.1") -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         sock.bind((host, 0))
         return int(sock.getsockname()[1])
+
+
+def is_loopback_port_free(host: str, port: int) -> bool:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        try:
+            sock.bind((host, port))
+        except OSError:
+            return False
+    return True
+
+
+def is_managed_runtime_port_owned_by_installation(
+    port: int,
+    server_executable: Path,
+    install_root: Path,
+) -> bool:
+    listener_pid = _find_listening_pid_on_loopback_port(port)
+    if listener_pid is None:
+        return False
+
+    executable_path, _ = _load_process_details(listener_pid)
+    if not executable_path:
+        return False
+
+    try:
+        actual_executable = Path(executable_path).expanduser().resolve()
+        expected_executable = server_executable.expanduser().resolve()
+        expected_root = install_root.expanduser().resolve()
+    except OSError:
+        return False
+
+    if actual_executable != expected_executable:
+        return False
+
+    try:
+        actual_executable.relative_to(expected_root)
+    except ValueError:
+        return False
+
+    return True
+
+
+def stop_managed_runtime_on_port(
+    port: int,
+    server_executable: Path,
+    install_root: Path,
+) -> bool:
+    if not is_managed_runtime_port_owned_by_installation(
+        port,
+        server_executable,
+        install_root,
+    ):
+        return False
+
+    listener_pid = _find_listening_pid_on_loopback_port(port)
+    if listener_pid is None:
+        return False
+
+    command = (
+        f"Stop-Process -Id {listener_pid} -Force -ErrorAction Stop; "
+        f"Wait-Process -Id {listener_pid} -Timeout 5 -ErrorAction SilentlyContinue; "
+        f"if (Get-Process -Id {listener_pid} -ErrorAction SilentlyContinue) {{ exit 1 }} "
+        f"else {{ exit 0 }}"
+    )
+    result = subprocess.run(
+        ["powershell", "-NoProfile", "-Command", command],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return result.returncode == 0
+
+
+def _find_listening_pid_on_loopback_port(port: int) -> int | None:
+    result = subprocess.run(
+        ["netstat", "-ano", "-p", "tcp"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        return None
+
+    expected_local_address = f"127.0.0.1:{port}".lower()
+    for raw_line in result.stdout.splitlines():
+        columns = raw_line.split()
+        if len(columns) < 5 or columns[0].upper() != "TCP":
+            continue
+
+        local_address = columns[1].lower()
+        state = columns[3].upper()
+        pid_raw = columns[4]
+        if local_address != expected_local_address or state != "LISTENING":
+            continue
+        try:
+            return int(pid_raw)
+        except ValueError:
+            return None
+
+    return None
+
+
+def _load_process_details(pid: int) -> tuple[str | None, str | None]:
+    command = (
+        f"$process = Get-CimInstance Win32_Process -Filter \"ProcessId = {pid}\" "
+        "| Select-Object -First 1 ProcessId, ExecutablePath, CommandLine; "
+        "if ($null -eq $process) { exit 1 } "
+        "else { $process | ConvertTo-Json -Compress }"
+    )
+    result = subprocess.run(
+        ["powershell", "-NoProfile", "-Command", command],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        return None, None
+
+    stdout = result.stdout.strip()
+    if not stdout:
+        return None, None
+
+    try:
+        payload = json.loads(stdout)
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return None, None
+
+    if not isinstance(payload, dict):
+        return None, None
+
+    executable_path = payload.get("ExecutablePath")
+    command_line = payload.get("CommandLine")
+    if not isinstance(executable_path, str) or not executable_path.strip():
+        executable_path = None
+    if not isinstance(command_line, str) or not command_line.strip():
+        command_line = None
+    return executable_path, command_line
 
 
 def launch_llama_server(
@@ -100,13 +242,24 @@ def apply_server_verification(
     health_probe=None,
     stop_process=None,
     select_port=None,
+    port_is_free=None,
+    is_managed_runtime_port_owned_by_installation=None,
+    stop_managed_runtime_on_port=None,
+    reuse_existing_managed_runtime: bool = True,
     now_fn=None,
     sleep_fn=None,
 ) -> InstallerSession:
     process_factory = process_factory or launch_llama_server
     health_probe = health_probe or _probe_server_health_during_startup
     stop_process = stop_process or stop_server_process
-    select_port = select_port or choose_free_port
+    port_is_free = port_is_free or is_loopback_port_free
+    managed_port_owner_check = (
+        is_managed_runtime_port_owned_by_installation
+        or globals()["is_managed_runtime_port_owned_by_installation"]
+    )
+    stop_managed_runtime_owner = (
+        stop_managed_runtime_on_port or globals()["stop_managed_runtime_on_port"]
+    )
     now_fn = now_fn or time.monotonic
     sleep_fn = sleep_fn or time.sleep
 
@@ -121,11 +274,14 @@ def apply_server_verification(
 
     run_id = (session.started_at or "manual-run").replace(":", "-")
     run_paths = build_run_paths(temp_root, run_id)
-    session.server_log_path = str(run_paths.server_log_path)
+    session.server_log_path = None
 
     try:
         target = resolve_server_verification_target(session)
-    except (ValueError, OSError, json.JSONDecodeError) as exc:
+        runtime_endpoint = load_runtime_endpoint_config(
+            session.runtime_endpoint_config_path
+        )
+    except (ValueError, OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         session.server_verification_status = "failed"
         session.server_process_status = "skipped"
         session.server_health_status = "skipped"
@@ -133,19 +289,54 @@ def apply_server_verification(
         session.error_message = str(exc)
         return session
 
-    try:
-        session.verified_server_port = select_port("127.0.0.1")
-    except OSError as exc:
-        session.server_verification_status = "failed"
-        session.server_process_status = "skipped"
-        session.server_health_status = "skipped"
-        session.failing_step = "server-port-bind"
-        session.error_message = str(exc)
-        return session
+    install_root = Path(session.install_root).expanduser().resolve()
+    managed_port = runtime_endpoint.port
+    session.verified_server_port = managed_port
+    session.verified_server_url = runtime_endpoint.base_url
 
-    session.verified_server_url = f"http://127.0.0.1:{session.verified_server_port}"
+    if not port_is_free("127.0.0.1", managed_port):
+        if not managed_port_owner_check(
+            managed_port,
+            target.server_executable,
+            install_root,
+        ):
+            session.server_verification_status = "failed"
+            session.server_process_status = "skipped"
+            session.server_health_status = "skipped"
+            session.failing_step = "server-port-bind"
+            session.error_message = (
+                f"Managed runtime port {managed_port} is occupied by another process."
+            )
+            return session
+
+        if reuse_existing_managed_runtime:
+            return _verify_existing_managed_runtime(
+                session,
+                health_probe=health_probe,
+                verification_started_at=now_fn(),
+                now_fn=now_fn,
+                sleep_fn=sleep_fn,
+            )
+
+        if not stop_managed_runtime_owner(
+            managed_port,
+            target.server_executable,
+            install_root,
+        ):
+            session.server_verification_status = "failed"
+            session.server_process_status = "skipped"
+            session.server_health_status = "skipped"
+            session.failing_step = "server-port-bind"
+            session.error_message = (
+                "Failed to stop the existing installer-managed runtime on the "
+                f"managed port {managed_port}."
+            )
+            return session
+
     command = _build_server_command(target, session.verified_server_port)
     verification_started_at = now_fn()
+    process = None
+    session.server_log_path = str(run_paths.server_log_path)
 
     try:
         process = process_factory(command, run_paths.server_log_path)
@@ -216,18 +407,70 @@ def apply_server_verification(
 
             sleep_fn(poll_interval_seconds)
     finally:
-        cleanup_error = _cleanup_server_process(process, stop_process)
-        if cleanup_error is not None:
-            if session.error_message:
-                session.error_message = f"{session.error_message}; {cleanup_error}"
-            else:
-                session.error_message = cleanup_error
+        if process is not None:
+            cleanup_error = _cleanup_server_process(process, stop_process)
+            if cleanup_error is not None:
+                if session.error_message:
+                    session.error_message = f"{session.error_message}; {cleanup_error}"
+                else:
+                    session.error_message = cleanup_error
 
-            if reached_ready and session.failing_step is None:
-                session.server_verification_status = "failed"
-                session.server_process_status = "ready"
-                session.server_health_status = "ready"
-                session.failing_step = "server-process-stop"
+                if reached_ready and session.failing_step is None:
+                    session.server_verification_status = "failed"
+                    session.server_process_status = "ready"
+                    session.server_health_status = "ready"
+                    session.failing_step = "server-process-stop"
+
+    session.server_verification_status = "failed"
+    session.server_process_status = "ready"
+    session.server_health_status = "failed"
+    session.failing_step = "server-health"
+    return session
+
+
+def _verify_existing_managed_runtime(
+    session: InstallerSession,
+    *,
+    health_probe,
+    verification_started_at: float,
+    now_fn,
+    sleep_fn,
+) -> InstallerSession:
+    health_deadline = verification_started_at + 30.0
+    poll_interval_seconds = 0.1
+    health_attempt_limit = int(30.0 / poll_interval_seconds) + 2
+
+    for _ in range(health_attempt_limit):
+        current_time = now_fn()
+        if current_time > health_deadline:
+            session.server_verification_status = "failed"
+            session.server_process_status = "ready"
+            session.server_health_status = "failed"
+            session.failing_step = "server-health"
+            return session
+
+        remaining_health_window = max(0.0, health_deadline - current_time)
+        health_status = _call_health_probe(
+            health_probe,
+            session.verified_server_url,
+            min(1.0, remaining_health_window),
+        )
+        if health_status == "ready":
+            session.server_process_status = "ready"
+            session.server_health_status = "ready"
+            session.server_verification_status = "ready"
+            session.failing_step = None
+            session.error_message = None
+            return session
+
+        if health_status == "failed":
+            session.server_verification_status = "failed"
+            session.server_process_status = "ready"
+            session.server_health_status = "failed"
+            session.failing_step = "server-health"
+            return session
+
+        sleep_fn(poll_interval_seconds)
 
     session.server_verification_status = "failed"
     session.server_process_status = "ready"

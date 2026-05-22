@@ -1,5 +1,6 @@
 import json
 import os
+from dataclasses import dataclass
 from pathlib import Path
 from tempfile import mkdtemp, mkstemp
 import inspect
@@ -23,6 +24,13 @@ from .runtime_manifest import load_runtime_manifest, resolve_requested_starter_m
 from .session import InstallerSession
 
 DEFAULT_MANAGED_RUNTIME_PORT = 39281
+
+
+@dataclass(frozen=True)
+class RuntimeEndpointConfig:
+    base_url: str
+    port: int
+    installer_managed: bool
 
 
 def apply_runtime_payload(
@@ -362,10 +370,48 @@ def _write_runtime_endpoint_config(
     return _atomic_write_json(
         runtime_endpoint_config_path,
         {
-            "base_url": f"http://127.0.0.1:{port}",
+            "base_url": build_runtime_endpoint_base_url(port),
             "port": port,
             "installer_managed": True,
         },
+    )
+
+
+def build_runtime_endpoint_base_url(port: int) -> str:
+    return f"http://127.0.0.1:{port}"
+
+
+def load_runtime_endpoint_config(
+    runtime_endpoint_config_path: str | Path | None,
+) -> RuntimeEndpointConfig:
+    normalized_path = str(runtime_endpoint_config_path or "").strip()
+    if not normalized_path:
+        raise ValueError("Runtime endpoint config path is required.")
+
+    config_path = Path(normalized_path)
+    payload = json.loads(config_path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError("Runtime endpoint config must be a JSON object.")
+
+    port = _validate_managed_runtime_port(payload.get("port"))
+    base_url = payload.get("base_url")
+    if not isinstance(base_url, str) or not base_url.strip():
+        raise ValueError("Runtime endpoint config base_url must be a non-empty string.")
+
+    expected_base_url = build_runtime_endpoint_base_url(port)
+    if base_url.strip() != expected_base_url:
+        raise ValueError(
+            "Runtime endpoint config base_url must match the canonical managed runtime URL."
+        )
+
+    installer_managed = payload.get("installer_managed")
+    if installer_managed is not True:
+        raise ValueError("Runtime endpoint config must declare installer_managed = true.")
+
+    return RuntimeEndpointConfig(
+        base_url=expected_base_url,
+        port=port,
+        installer_managed=True,
     )
 
 
