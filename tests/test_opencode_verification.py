@@ -795,6 +795,79 @@ def test_apply_opencode_verification_timeout_after_successful_proof_preserves_co
     assert updated.error_message == "OpenCode inference smoke timed out."
 
 
+def test_forward_to_upstream_uses_extended_request_timeout(monkeypatch: pytest.MonkeyPatch):
+    captured: dict[str, object] = {}
+    response_bytes = b'{"choices":[{"message":{"role":"assistant","content":"READY"}}]}'
+
+    class FakeResponse:
+        status = 200
+        headers = {"Content-Type": "application/json"}
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def read(self):
+            return response_bytes
+
+    def fake_urlopen(request, timeout):
+        captured["url"] = request.full_url
+        captured["timeout"] = timeout
+        return FakeResponse()
+
+    monkeypatch.setattr(ov, "urlopen", fake_urlopen)
+
+    status, headers, body = ov._forward_to_upstream(
+        upstream_base_url="http://127.0.0.1:8080",
+        request_body=b'{"messages":[]}',
+    )
+
+    assert status == 200
+    assert headers["Content-Type"] == "application/json"
+    assert body == response_bytes
+    assert captured["url"] == "http://127.0.0.1:8080/v1/chat/completions"
+    assert captured["timeout"] == 270.0
+
+
+@pytest.mark.parametrize("failure_site", ["end_headers", "write"])
+def test_write_forwarded_response_ignores_client_disconnect(failure_site: str):
+    class BrokenWriter:
+        def write(self, data):
+            if failure_site == "write":
+                raise ConnectionResetError(10054, "socket closed")
+            return len(data)
+
+    class FakeHandler:
+        def __init__(self):
+            self.wfile = BrokenWriter()
+            self.status = None
+            self.headers: list[tuple[str, str]] = []
+
+        def send_response(self, status):
+            self.status = status
+
+        def send_header(self, name, value):
+            self.headers.append((name, value))
+
+        def end_headers(self):
+            if failure_site == "end_headers":
+                raise ConnectionResetError(10054, "socket closed")
+
+    handler = FakeHandler()
+
+    ov._write_forwarded_response(
+        handler,
+        upstream_status=200,
+        upstream_headers={"Content-Type": "application/json"},
+        upstream_body=b'{"ok":true}',
+    )
+
+    assert handler.status == 200
+    assert ("Content-Type", "application/json") in handler.headers
+
+
 def test_start_temporary_runtime_server_uses_dedicated_log_path(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
