@@ -6,6 +6,8 @@ import tempfile
 
 from local_ai_control_center_installer.apply_phase import apply_bootstrap_phase
 from local_ai_control_center_installer.dependencies import scan_all_dependencies
+from local_ai_control_center_installer.download_plan import build_download_plan
+from local_ai_control_center_installer.downloads import download_file
 from local_ai_control_center_installer.prompts import collect_installer_answers
 from local_ai_control_center_installer.reporting import (
     build_run_paths,
@@ -46,8 +48,34 @@ def default_apply_phase(session: InstallerSession) -> InstallerSession:
     return apply_bootstrap_phase(session, temp_root=_default_temp_root())
 
 
+def default_prepare_download_plan(session: InstallerSession) -> InstallerSession:
+    if session.download_plan is not None or session.bootstrap_status != "ready":
+        return session
+    try:
+        session.download_plan = build_download_plan(session)
+    except (OSError, ValueError):
+        session.download_plan = None
+    return session
+
+
 def default_apply_runtime_payload(session: InstallerSession) -> InstallerSession:
-    return apply_runtime_payload(session, temp_root=_default_temp_root())
+    progress_callback = _build_download_progress_callback()
+    return apply_runtime_payload(
+        session,
+        temp_root=_default_temp_root(),
+        download_runtime_archive=lambda url, destination, *, plan_item=None: download_file(
+            url,
+            destination,
+            progress_callback=progress_callback,
+            plan_item=plan_item,
+        ),
+        download_model_file=lambda url, destination, *, plan_item=None: download_file(
+            url,
+            destination,
+            progress_callback=progress_callback,
+            plan_item=plan_item,
+        ),
+    )
 
 
 def default_apply_server_verification(session: InstallerSession) -> InstallerSession:
@@ -55,7 +83,17 @@ def default_apply_server_verification(session: InstallerSession) -> InstallerSes
 
 
 def default_apply_opencode_bootstrap(session: InstallerSession) -> InstallerSession:
-    return apply_opencode_bootstrap(session, temp_root=_default_temp_root())
+    progress_callback = _build_download_progress_callback()
+    return apply_opencode_bootstrap(
+        session,
+        temp_root=_default_temp_root(),
+        download_archive=lambda url, destination, *, plan_item=None: download_file(
+            url,
+            destination,
+            progress_callback=progress_callback,
+            plan_item=plan_item,
+        ),
+    )
 
 
 def default_apply_opencode_verification(session: InstallerSession) -> InstallerSession:
@@ -125,6 +163,23 @@ def _probe_build_tools_version() -> str | None:
     if not compiler_banner or not build_driver_banner:
         return None
     return f"{compiler_banner}; {build_driver_banner}"
+
+
+def _build_download_progress_callback():
+    def on_progress(progress) -> None:
+        position = ""
+        if progress.current_index is not None and progress.total_items is not None:
+            position = f"[{progress.current_index}/{progress.total_items}] "
+        label = progress.label or "download"
+        bytes_summary = f"{progress.bytes_downloaded} B"
+        if progress.total_bytes is not None:
+            bytes_summary = f"{progress.bytes_downloaded}/{progress.total_bytes} B"
+        eta_summary = ""
+        if progress.eta_seconds is not None:
+            eta_summary = f", ETA {progress.eta_seconds:.1f}s"
+        print(f"{position}{label}: {bytes_summary}{eta_summary}")
+
+    return on_progress
 
 
 def _capture_first_available_output(*command: list[str]) -> str | None:

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from dataclasses import asdict, dataclass, field
 
 
@@ -61,6 +63,7 @@ class InstallerSession:
     install_opencode: bool = False
     attempt_turboquant: bool = False
     additional_model_paths: list[str] = field(default_factory=list)
+    download_plan: "DownloadPlan | dict | None" = None
     last_successful_step: str | None = None
     failing_step: str | None = None
     error_message: str | None = None

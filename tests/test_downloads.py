@@ -4,6 +4,8 @@ import zipfile
 import pytest
 
 from local_ai_control_center_installer.downloads import (
+    DownloadProgress,
+    download_file,
     extract_archive,
     promote_tree,
     verify_required_file_checksums,
@@ -196,3 +198,60 @@ def test_promote_tree_removes_nested_created_directories_when_first_replace_fail
 
     assert not (final_root / "runtime").exists()
     assert not final_root.exists()
+
+
+def test_download_file_emits_streaming_progress_with_queue_position_and_eta(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    class FakeResponse:
+        def __init__(self):
+            self.headers = {"Content-Length": "6"}
+            self._chunks = [b"abc", b"def"]
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def read(self, amount: int) -> bytes:
+            if self._chunks:
+                return self._chunks.pop(0)
+            return b""
+
+    timestamps = iter([0.0, 1.0, 2.0, 3.0])
+    events: list[DownloadProgress] = []
+
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.downloads.urlopen",
+        lambda url: FakeResponse(),
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.downloads.time.monotonic",
+        lambda: next(timestamps),
+    )
+
+    destination = download_file(
+        "https://example.invalid/runtime.zip",
+        tmp_path / "runtime.zip",
+        progress_callback=events.append,
+        plan_item={
+            "key": "runtime-artifact",
+            "label": "llama.cpp runtime",
+            "queue_index": 1,
+            "queue_total": 3,
+        },
+    )
+
+    assert destination.read_bytes() == b"abcdef"
+    assert events
+    assert events[-1] == DownloadProgress(
+        key="runtime-artifact",
+        label="llama.cpp runtime",
+        current_index=1,
+        total_items=3,
+        bytes_downloaded=6,
+        total_bytes=6,
+        eta_seconds=0.0,
+    )

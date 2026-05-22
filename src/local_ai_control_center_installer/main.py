@@ -27,6 +27,7 @@ def run_installer(
     collect_answers: SessionStep | None = None,
     scan_dependencies: SessionStep | None = None,
     apply_phase: SessionStep | None = None,
+    prepare_download_plan: SessionStep | None = None,
     apply_runtime_payload: SessionStep | None = None,
     apply_server_verification: SessionStep | None = None,
     apply_opencode_bootstrap: SessionStep | None = None,
@@ -36,6 +37,9 @@ def run_installer(
     collect_answers = collect_answers or defaults_module.default_collect_answers
     scan_dependencies = scan_dependencies or defaults_module.default_scan_dependencies
     apply_phase = apply_phase or defaults_module.default_apply_phase
+    prepare_download_plan = (
+        prepare_download_plan or defaults_module.default_prepare_download_plan
+    )
     apply_runtime_payload = (
         apply_runtime_payload or defaults_module.default_apply_runtime_payload
     )
@@ -56,6 +60,7 @@ def run_installer(
     session = collect_answers(session)
     session = scan_dependencies(session)
     session = apply_phase(session)
+    session = prepare_download_plan(session)
     session = apply_runtime_payload(session)
     session = apply_server_verification(session)
     session = apply_opencode_bootstrap(session)

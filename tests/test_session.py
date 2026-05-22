@@ -100,6 +100,7 @@ def test_installer_session_serializes_first_slice_state():
         "install_opencode": True,
         "attempt_turboquant": True,
         "additional_model_paths": ["D:\\models", "E:\\archive"],
+        "download_plan": None,
         "last_successful_step": "download-model",
         "failing_step": "finalize-install",
         "error_message": "Disk full",
@@ -156,6 +157,29 @@ def test_installer_session_serializes_runtime_payload_fields():
     assert payload["runtime_metadata_path"].endswith("runtime-artifact.json")
     assert payload["runtime_endpoint_config_path"] == "C:\\LACC\\config\\runtime-endpoint.json"
     assert payload["managed_runtime_port"] == 39281
+
+
+def test_installer_session_serializes_download_plan_fields():
+    session = InstallerSession(
+        download_plan={
+            "items": [
+                {
+                    "key": "runtime-artifact",
+                    "label": "llama.cpp runtime",
+                    "url": "https://example.invalid/runtime.zip",
+                    "destination_hint": "runtime/llama.cpp",
+                    "size_bytes": None,
+                    "queue_index": 1,
+                    "queue_total": 3,
+                }
+            ]
+        }
+    )
+
+    payload = session.to_dict()
+
+    assert payload["download_plan"]["items"][0]["label"] == "llama.cpp runtime"
+    assert payload["download_plan"]["items"][0]["queue_index"] == 1
 
 
 def test_installer_session_serializes_server_verification_fields():

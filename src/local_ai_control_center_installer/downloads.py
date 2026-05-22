@@ -1,8 +1,22 @@
+from dataclasses import dataclass
 import hashlib
 import json
 from json import JSONDecodeError
 from pathlib import Path
+import time
+from urllib.request import urlopen
 import zipfile
+
+
+@dataclass(frozen=True)
+class DownloadProgress:
+    key: str | None
+    label: str | None
+    current_index: int | None
+    total_items: int | None
+    bytes_downloaded: int
+    total_bytes: int | None
+    eta_seconds: float | None
 
 
 def verify_sha256(path: Path, expected_sha256: str) -> bool:
@@ -157,3 +171,124 @@ def promote_tree(staging_root: Path, final_root: Path) -> None:
                 pass
 
         raise
+
+
+def download_file(
+    url: str,
+    destination: Path,
+    *,
+    progress_callback=None,
+    plan_item=None,
+    chunk_size: int = 64 * 1024,
+) -> Path:
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    total_bytes = _resolve_total_bytes(plan_item)
+    start_time = time.monotonic()
+    bytes_downloaded = 0
+
+    with urlopen(url) as response:
+        header_length = response.headers.get("Content-Length")
+        if total_bytes is None and isinstance(header_length, str) and header_length.isdigit():
+            total_bytes = int(header_length)
+
+        with destination.open("wb") as handle:
+            while True:
+                chunk = response.read(chunk_size)
+                if not chunk:
+                    break
+                handle.write(chunk)
+                bytes_downloaded += len(chunk)
+                _emit_download_progress(
+                    progress_callback,
+                    plan_item,
+                    bytes_downloaded=bytes_downloaded,
+                    total_bytes=total_bytes,
+                    start_time=start_time,
+                )
+
+    if bytes_downloaded == 0:
+        _emit_download_progress(
+            progress_callback,
+            plan_item,
+            bytes_downloaded=0,
+            total_bytes=total_bytes,
+            start_time=start_time,
+        )
+
+    return destination
+
+
+def _emit_download_progress(
+    progress_callback,
+    plan_item,
+    *,
+    bytes_downloaded: int,
+    total_bytes: int | None,
+    start_time: float,
+) -> None:
+    if progress_callback is None:
+        return
+    current_time = time.monotonic()
+    elapsed = max(current_time - start_time, 0.0)
+    eta_seconds = None
+    if total_bytes is not None:
+        remaining_bytes = max(total_bytes - bytes_downloaded, 0)
+        if remaining_bytes == 0:
+            eta_seconds = 0.0
+        elif elapsed > 0 and bytes_downloaded > 0:
+            bytes_per_second = bytes_downloaded / elapsed
+            if bytes_per_second > 0:
+                eta_seconds = remaining_bytes / bytes_per_second
+    progress_callback(
+        DownloadProgress(
+            key=_resolve_plan_item_value(plan_item, "key"),
+            label=_resolve_plan_item_value(plan_item, "label"),
+            current_index=_resolve_optional_int(plan_item, "queue_index"),
+            total_items=_resolve_optional_int(plan_item, "queue_total"),
+            bytes_downloaded=bytes_downloaded,
+            total_bytes=total_bytes,
+            eta_seconds=eta_seconds,
+        )
+    )
+
+
+def _resolve_total_bytes(plan_item) -> int | None:
+    if plan_item is None:
+        return None
+    if hasattr(plan_item, "size_bytes"):
+        value = getattr(plan_item, "size_bytes")
+    elif isinstance(plan_item, dict):
+        value = plan_item.get("size_bytes")
+    else:
+        return None
+    if isinstance(value, bool) or not isinstance(value, int):
+        return None
+    return value
+
+
+def _resolve_plan_item_value(plan_item, key: str) -> str | None:
+    if plan_item is None:
+        return None
+    if hasattr(plan_item, key):
+        value = getattr(plan_item, key)
+    elif isinstance(plan_item, dict):
+        value = plan_item.get(key)
+    else:
+        return None
+    if not isinstance(value, str) or not value:
+        return None
+    return value
+
+
+def _resolve_optional_int(plan_item, key: str) -> int | None:
+    if plan_item is None:
+        return None
+    if hasattr(plan_item, key):
+        value = getattr(plan_item, key)
+    elif isinstance(plan_item, dict):
+        value = plan_item.get(key)
+    else:
+        return None
+    if isinstance(value, bool) or not isinstance(value, int):
+        return None
+    return value

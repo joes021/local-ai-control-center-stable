@@ -3,9 +3,10 @@ from importlib.resources import files
 from json import JSONDecodeError
 from pathlib import Path
 from tempfile import mkdtemp
-from urllib.request import urlopen
+import inspect
 
 from .downloads import (
+    download_file as shared_download_file,
     extract_archive,
     promote_tree,
     verify_required_file_checksums,
@@ -13,6 +14,10 @@ from .downloads import (
     verify_runtime_metadata,
     verify_sha256,
     write_runtime_metadata,
+)
+from .download_plan import (
+    OPENCODE_ARTIFACT_DOWNLOAD_KEY,
+    find_download_plan_item,
 )
 from .session import InstallerSession
 
@@ -106,6 +111,10 @@ def apply_opencode_bootstrap(
         return session
 
     if not artifact_ready:
+        plan_item = _require_download_plan_item(
+            session,
+            OPENCODE_ARTIFACT_DOWNLOAD_KEY,
+        )
         if download_archive is None:
             download_archive = _download_file
         try:
@@ -117,6 +126,7 @@ def apply_opencode_bootstrap(
                 extract_archive=extract_archive,
                 verify_archive_sha256=verify_archive_sha256,
                 verify_required_file_checksums=verify_required_file_checksums,
+                plan_item=plan_item,
             )
         except Exception as exc:
             session.opencode_artifact_status = "failed"
@@ -279,13 +289,19 @@ def _stage_opencode_artifact(
     extract_archive,
     verify_archive_sha256,
     verify_required_file_checksums,
+    plan_item,
 ) -> None:
     staging_root = _make_staging_root(temp_root)
     archive_path = staging_root / "downloads" / "opencode-artifact.archive"
     extracted_root = staging_root / "payload" / opencode_artifact["install_subdir"]
 
     archive_path.parent.mkdir(parents=True, exist_ok=True)
-    download_archive(opencode_artifact["url"], archive_path)
+    _invoke_download(
+        download_archive,
+        opencode_artifact["url"],
+        archive_path,
+        plan_item=plan_item,
+    )
     if not verify_archive_sha256(archive_path, opencode_artifact["sha256"]):
         raise ValueError("OpenCode archive checksum verification failed.")
 
@@ -343,8 +359,32 @@ def _make_staging_root(temp_root: Path) -> Path:
     return Path(mkdtemp(prefix="opencode-payload-", dir=str(temp_root)))
 
 
-def _download_file(url: str, destination: Path) -> Path:
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    with urlopen(url) as response:
-        destination.write_bytes(response.read())
-    return destination
+def _download_file(
+    url: str,
+    destination: Path,
+    *,
+    progress_callback=None,
+    plan_item=None,
+) -> Path:
+    return shared_download_file(
+        url,
+        destination,
+        progress_callback=progress_callback,
+        plan_item=plan_item,
+    )
+
+
+def _require_download_plan_item(session: InstallerSession, key: str):
+    plan_item = find_download_plan_item(session.download_plan, key)
+    if plan_item is None:
+        raise ValueError(f"Installer session download plan is missing item: {key}")
+    return plan_item
+
+
+def _invoke_download(download_func, url: str, destination: Path, *, plan_item) -> Path:
+    parameters = inspect.signature(download_func).parameters.values()
+    if any(parameter.kind is inspect.Parameter.VAR_KEYWORD for parameter in parameters):
+        return download_func(url, destination, plan_item=plan_item)
+    if "plan_item" in inspect.signature(download_func).parameters:
+        return download_func(url, destination, plan_item=plan_item)
+    return download_func(url, destination)
