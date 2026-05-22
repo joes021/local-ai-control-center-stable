@@ -74,6 +74,9 @@ def test_installer_session_serializes_first_slice_state():
         "opencode_verification_status": "skipped",
         "opencode_process_status": "skipped",
         "opencode_connection_status": "skipped",
+        "first_run_status": "skipped",
+        "first_run_process_status": "skipped",
+        "first_run_connection_status": "skipped",
         "platform": "windows",
         "started_at": "2026-05-20T22:45:00Z",
         "existing_install_detected": True,
@@ -96,6 +99,7 @@ def test_installer_session_serializes_first_slice_state():
         "verified_server_port": None,
         "verified_server_url": None,
         "opencode_log_path": None,
+        "first_run_log_path": None,
         "server_log_path": None,
         "install_opencode": True,
         "attempt_turboquant": True,
@@ -228,3 +232,19 @@ def test_installer_session_serializes_opencode_fields():
     assert payload["opencode_config_path"] == "C:\\LACC\\config\\opencode.json"
     assert payload["verified_opencode_command"] == TEST_VERIFIED_OPENCODE_COMMAND
     assert payload["opencode_log_path"] == "C:\\LACC\\temp\\opencode-verification.log"
+
+
+def test_installer_session_serializes_first_run_fields():
+    session = InstallerSession(
+        first_run_status="ready",
+        first_run_process_status="ready",
+        first_run_connection_status="ready",
+        first_run_log_path="C:\\LACC\\temp\\first-run-validation.log",
+    )
+
+    payload = session.to_dict()
+
+    assert payload["first_run_status"] == "ready"
+    assert payload["first_run_process_status"] == "ready"
+    assert payload["first_run_connection_status"] == "ready"
+    assert payload["first_run_log_path"] == "C:\\LACC\\temp\\first-run-validation.log"

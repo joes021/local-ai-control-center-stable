@@ -53,6 +53,18 @@ def test_build_run_paths_exposes_opencode_log_path(tmp_path: Path):
     )
 
 
+def test_build_run_paths_exposes_first_run_log_path(tmp_path: Path):
+    paths = build_run_paths(tmp_path, "2026-05-22T10-00-00")
+    assert (
+        paths.first_run_log_path
+        == tmp_path
+        / "LocalAIControlCenterInstaller"
+        / "runs"
+        / "2026-05-22T10-00-00"
+        / "first-run-validation.log"
+    )
+
+
 def test_write_human_log_includes_install_root_dependency_outcomes_and_failing_step(
     tmp_path: Path,
 ):
@@ -136,6 +148,24 @@ def test_write_human_log_includes_opencode_summary_lines(tmp_path: Path):
     assert "OpenCode artifact id: opencode-windows-x64" in contents
     assert f"Verified OpenCode command: {TEST_VERIFIED_OPENCODE_COMMAND}" in contents
     assert "OpenCode log path:" in contents
+
+
+def test_write_human_log_includes_first_run_summary_lines(tmp_path: Path):
+    paths = build_run_paths(tmp_path, "2026-05-22T10-00-00")
+    session = InstallerSession(
+        first_run_status="failed",
+        first_run_process_status="ready",
+        first_run_connection_status="failed",
+        first_run_log_path=str(paths.first_run_log_path),
+    )
+
+    write_human_log(session, paths.log_path)
+
+    contents = paths.log_path.read_text(encoding="utf-8")
+    assert "First-run status: failed" in contents
+    assert "First-run process status: ready" in contents
+    assert "First-run connection status: failed" in contents
+    assert "First-run log path:" in contents
 
 
 def test_write_json_report_serializes_bootstrap_summary(tmp_path: Path):
@@ -292,6 +322,27 @@ def test_write_json_report_serializes_opencode_summary(tmp_path: Path):
     assert payload["opencode_log_path"] == str(paths.opencode_log_path)
 
 
+def test_write_json_report_serializes_first_run_summary(tmp_path: Path):
+    paths = build_run_paths(tmp_path, "2026-05-22T10-00-00")
+    paths.first_run_log_path.parent.mkdir(parents=True, exist_ok=True)
+    paths.first_run_log_path.write_text("READY\n", encoding="utf-8")
+    session = InstallerSession(
+        install_root=str(tmp_path / "install-root"),
+        first_run_status="ready",
+        first_run_process_status="ready",
+        first_run_connection_status="ready",
+        first_run_log_path=str(paths.first_run_log_path),
+    )
+
+    write_json_report(session, paths.json_report_path)
+
+    payload = json.loads(paths.json_report_path.read_text(encoding="utf-8"))
+    assert payload["first_run_status"] == "ready"
+    assert payload["first_run_process_status"] == "ready"
+    assert payload["first_run_connection_status"] == "ready"
+    assert payload["first_run_log_path"] == str(paths.first_run_log_path)
+
+
 def test_write_report_artifacts_normalize_missing_opencode_log_path_to_none(
     tmp_path: Path,
 ):
@@ -315,6 +366,31 @@ def test_write_report_artifacts_normalize_missing_opencode_log_path_to_none(
     assert report_payload["opencode_log_path"] is None
     assert session_payload["opencode_log_path"] is None
     assert session.opencode_log_path is None
+
+
+def test_write_report_artifacts_normalize_missing_first_run_log_path_to_none(
+    tmp_path: Path,
+):
+    paths = build_run_paths(tmp_path, "2026-05-22T10-00-00")
+    missing_log_path = paths.first_run_log_path
+    session = InstallerSession(
+        install_root=str(tmp_path / "install-root"),
+        first_run_log_path=str(missing_log_path),
+    )
+
+    write_human_log(session, paths.log_path)
+    write_json_report(session, paths.json_report_path)
+    session_snapshot_path = tmp_path / "session.json"
+    reporting_module.write_session_snapshot(session, session_snapshot_path)
+
+    human_log_contents = paths.log_path.read_text(encoding="utf-8")
+    report_payload = json.loads(paths.json_report_path.read_text(encoding="utf-8"))
+    session_payload = json.loads(session_snapshot_path.read_text(encoding="utf-8"))
+
+    assert "First-run log path: None" in human_log_contents
+    assert report_payload["first_run_log_path"] is None
+    assert session_payload["first_run_log_path"] is None
+    assert session.first_run_log_path is None
 
 
 def test_persist_install_root_reports_rewrites_log_report_and_session_snapshot(
@@ -381,6 +457,31 @@ def test_persist_install_root_reports_copies_opencode_log(tmp_path: Path):
     assert f"OpenCode log path: {persisted_opencode_log}" in install_log_contents
     assert report_payload["opencode_log_path"] == str(persisted_opencode_log)
     assert session_payload["opencode_log_path"] == str(persisted_opencode_log)
+
+
+def test_persist_install_root_reports_copies_first_run_log(tmp_path: Path):
+    install_root = tmp_path / "install-root"
+    temp_first_run_log = tmp_path / "temp-run" / "first-run-validation.log"
+    temp_first_run_log.parent.mkdir(parents=True, exist_ok=True)
+    temp_first_run_log.write_text("READY\n", encoding="utf-8")
+
+    session = InstallerSession(
+        install_root=str(install_root),
+        first_run_log_path=str(temp_first_run_log),
+    )
+
+    persist_install_root_reports(session)
+
+    persisted_first_run_log = install_root / "logs" / "first-run-validation.log"
+    assert persisted_first_run_log.read_text(encoding="utf-8") == "READY\n"
+    assert session.first_run_log_path == str(persisted_first_run_log)
+
+    install_log_contents = (install_root / "logs" / "install.log").read_text(encoding="utf-8")
+    report_payload = json.loads((install_root / "logs" / "install-report.json").read_text(encoding="utf-8"))
+    session_payload = json.loads((install_root / "config" / "installer-session.json").read_text(encoding="utf-8"))
+    assert f"First-run log path: {persisted_first_run_log}" in install_log_contents
+    assert report_payload["first_run_log_path"] == str(persisted_first_run_log)
+    assert session_payload["first_run_log_path"] == str(persisted_first_run_log)
 
 
 def test_persist_install_root_reports_copies_opencode_log_bytes_verbatim(tmp_path: Path):
@@ -534,6 +635,7 @@ def test_persist_install_root_reports_keeps_atomic_writes_with_real_opencode_log
         log_path,
         *,
         allowed_opencode_log_path=None,
+        allowed_first_run_log_path=None,
     ):
         if log_path == final_log_path:
             raise OSError("unexpected direct final install.log rewrite")
@@ -541,6 +643,7 @@ def test_persist_install_root_reports_keeps_atomic_writes_with_real_opencode_log
             current_session,
             log_path,
             allowed_opencode_log_path=allowed_opencode_log_path,
+            allowed_first_run_log_path=allowed_first_run_log_path,
         )
 
     def fail_if_rewriting_final_report(
@@ -548,6 +651,7 @@ def test_persist_install_root_reports_keeps_atomic_writes_with_real_opencode_log
         report_path,
         *,
         allowed_opencode_log_path=None,
+        allowed_first_run_log_path=None,
     ):
         if report_path == final_report_path:
             raise OSError("unexpected direct final rewrite")
@@ -555,6 +659,7 @@ def test_persist_install_root_reports_keeps_atomic_writes_with_real_opencode_log
             current_session,
             report_path,
             allowed_opencode_log_path=allowed_opencode_log_path,
+            allowed_first_run_log_path=allowed_first_run_log_path,
         )
 
     def fail_if_rewriting_final_session(
@@ -562,6 +667,7 @@ def test_persist_install_root_reports_keeps_atomic_writes_with_real_opencode_log
         session_path,
         *,
         allowed_opencode_log_path=None,
+        allowed_first_run_log_path=None,
     ):
         if session_path == final_session_path:
             raise OSError("unexpected direct final installer-session rewrite")
@@ -569,6 +675,7 @@ def test_persist_install_root_reports_keeps_atomic_writes_with_real_opencode_log
             current_session,
             session_path,
             allowed_opencode_log_path=allowed_opencode_log_path,
+            allowed_first_run_log_path=allowed_first_run_log_path,
         )
 
     monkeypatch.setattr(

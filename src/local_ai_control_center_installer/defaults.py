@@ -8,6 +8,9 @@ from local_ai_control_center_installer.apply_phase import apply_bootstrap_phase
 from local_ai_control_center_installer.dependencies import scan_all_dependencies
 from local_ai_control_center_installer.download_plan import build_download_plan
 from local_ai_control_center_installer.downloads import download_file
+from local_ai_control_center_installer.first_run_validation import (
+    apply_first_run_validation,
+)
 from local_ai_control_center_installer.prompts import collect_installer_answers
 from local_ai_control_center_installer.reporting import (
     build_run_paths,
@@ -98,6 +101,10 @@ def default_apply_opencode_bootstrap(session: InstallerSession) -> InstallerSess
 
 def default_apply_opencode_verification(session: InstallerSession) -> InstallerSession:
     return apply_opencode_verification(session, temp_root=_default_temp_root())
+
+
+def default_apply_first_run_validation(session: InstallerSession) -> InstallerSession:
+    return apply_first_run_validation(session, temp_root=_default_temp_root())
 
 
 def default_write_reports(session: InstallerSession) -> None:
