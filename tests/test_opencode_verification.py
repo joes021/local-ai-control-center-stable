@@ -115,6 +115,12 @@ def _build_nested_executable_session(tmp_path: Path) -> InstallerSession:
     return session
 
 
+def _assign_stale_opencode_log_path(session: InstallerSession, tmp_path: Path) -> Path:
+    stale_log_path = tmp_path / "stale-run" / "opencode-verification.log"
+    session.opencode_log_path = str(stale_log_path)
+    return stale_log_path
+
+
 class FakeProcess:
     def __init__(
         self,
@@ -238,6 +244,27 @@ def test_apply_opencode_verification_fails_prerequisites(
     assert updated.opencode_connection_status == "skipped"
     assert updated.failing_step == "opencode-verification-prerequisites"
     assert updated.opencode_log_path is None
+
+
+def test_apply_opencode_verification_clears_stale_log_path_on_prerequisites_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    session = _build_ready_session(tmp_path)
+    stale_log_path = _assign_stale_opencode_log_path(session, tmp_path)
+    session.verified_server_url = None
+
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.opencode_verification.load_opencode_manifest",
+        lambda: _build_manifest(),
+    )
+
+    updated = apply_opencode_verification(session, temp_root=tmp_path / "temp-runs")
+
+    assert updated.failing_step == "opencode-verification-prerequisites"
+    assert updated.error_message == "session.verified_server_url is required"
+    assert updated.opencode_log_path is None
+    assert not stale_log_path.exists()
 
 
 def test_apply_opencode_verification_success_path_and_log_capture(
@@ -390,6 +417,30 @@ def test_apply_opencode_verification_process_launch_failure_leaves_log_path_unse
     assert updated.failing_step == "opencode-process-start"
     assert updated.error_message == "launch failed"
     assert updated.opencode_log_path is None
+
+
+def test_apply_opencode_verification_clears_stale_log_path_on_process_start_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    session = _build_ready_session(tmp_path)
+    stale_log_path = _assign_stale_opencode_log_path(session, tmp_path)
+
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.opencode_verification.load_opencode_manifest",
+        lambda: _build_manifest(),
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.opencode_verification._make_working_directory",
+        lambda run_dir: (_ for _ in ()).throw(OSError("temp root unavailable")),
+    )
+
+    updated = apply_opencode_verification(session, temp_root=tmp_path / "temp-runs")
+
+    assert updated.failing_step == "opencode-process-start"
+    assert updated.error_message == "temp root unavailable"
+    assert updated.opencode_log_path is None
+    assert not stale_log_path.exists()
 
 
 def test_apply_opencode_verification_maps_log_write_failure_without_crashing(

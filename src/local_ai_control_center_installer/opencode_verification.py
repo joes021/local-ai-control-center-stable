@@ -45,6 +45,7 @@ def apply_opencode_verification(
         session.opencode_connection_status = "skipped"
         return session
 
+    session.opencode_log_path = None
     run_id = (session.started_at or "manual-run").replace(":", "-")
     run_paths = build_run_paths(temp_root, run_id)
 
