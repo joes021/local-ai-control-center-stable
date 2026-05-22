@@ -1,6 +1,7 @@
 import json
 import subprocess
 import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from subprocess import TimeoutExpired
@@ -863,6 +864,15 @@ def _post_json(url: str, payload: dict, *, content_type: str = "application/json
         return response.status, response.read().decode("utf-8")
 
 
+def _wait_for(predicate, *, timeout_seconds: float) -> bool:
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() < deadline:
+        if predicate():
+            return True
+        time.sleep(0.01)
+    return predicate()
+
+
 def test_verification_relay_loopback_rejects_invalid_routes_methods_and_non_json_and_extracts_marker():
     marker = "LACC_VERIFY_MARKER:relay-proof"
     upstream_requests: list[dict[str, object]] = []
@@ -1048,6 +1058,135 @@ def test_verification_relay_latches_valid_proof_against_later_failing_requests()
         assert proof_state.response_has_assistant_content is True
         assert proof_state.upstream_error is None
     finally:
+        if relay_handle is not None:
+            ov.stop_verification_relay(relay_handle)
+        _stop_loopback_server(upstream_server, upstream_thread)
+
+
+def test_verification_relay_latches_valid_proof_for_parallel_good_and_bad_requests(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    marker = "LACC_VERIFY_MARKER:parallel-latch"
+    bad_helper_entered = threading.Event()
+    release_bad_helper = threading.Event()
+    original_response_has_assistant_content = ov._response_has_assistant_content
+
+    def controlled_response_has_assistant_content(payload):
+        if payload.get("request_kind") == "bad":
+            bad_helper_entered.set()
+            assert release_bad_helper.wait(timeout=5)
+        return original_response_has_assistant_content(payload)
+
+    monkeypatch.setattr(
+        ov,
+        "_response_has_assistant_content",
+        controlled_response_has_assistant_content,
+    )
+
+    class UpstreamHandler(BaseHTTPRequestHandler):
+        def do_POST(self):
+            length = int(self.headers.get("Content-Length", "0"))
+            request_body = json.loads(self.rfile.read(length).decode("utf-8"))
+            variant = request_body["variant"]
+            if variant == "good":
+                response_payload = {
+                    "request_kind": "good",
+                    "choices": [
+                        {
+                            "message": {
+                                "role": "assistant",
+                                "content": f"confirmed {marker}",
+                            }
+                        }
+                    ],
+                }
+            else:
+                response_payload = {
+                    "request_kind": "bad",
+                    "choices": [
+                        {
+                            "message": {
+                                "role": "user",
+                                "content": "not assistant content",
+                            }
+                        }
+                    ],
+                }
+            response_bytes = json.dumps(response_payload).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(response_bytes)))
+            self.end_headers()
+            self.wfile.write(response_bytes)
+
+        def log_message(self, format, *args):
+            return
+
+    upstream_server, upstream_base_url, upstream_thread = _start_loopback_server(
+        UpstreamHandler
+    )
+    relay_handle = None
+    results: dict[str, tuple[int, str]] = {}
+    errors: dict[str, Exception] = {}
+
+    def send_request(name: str, variant: str) -> None:
+        try:
+            results[name] = _post_json(
+                f"{relay_handle.base_url}/v1/chat/completions",
+                {
+                    "variant": variant,
+                    "messages": [
+                        {
+                            "role": "user",
+                            "content": f"Repeat this exact token once: {marker}",
+                        }
+                    ],
+                },
+            )
+        except Exception as exc:
+            errors[name] = exc
+
+    try:
+        proof_state = ov.RelayProofState()
+        relay_handle = ov.start_verification_relay(
+            upstream_base_url=upstream_base_url,
+            marker=marker,
+            proof_state=proof_state,
+        )
+
+        bad_thread = threading.Thread(
+            target=send_request,
+            args=("bad", "bad"),
+            daemon=True,
+        )
+        good_thread = threading.Thread(
+            target=send_request,
+            args=("good", "good"),
+            daemon=True,
+        )
+
+        bad_thread.start()
+        assert bad_helper_entered.wait(timeout=5)
+        good_thread.start()
+
+        _wait_for(
+            lambda: proof_state.upstream_success,
+            timeout_seconds=0.5,
+        )
+        release_bad_helper.set()
+
+        bad_thread.join(timeout=5)
+        good_thread.join(timeout=5)
+
+        assert errors == {}
+        assert results["bad"][0] == 200
+        assert results["good"][0] == 200
+        assert proof_state.marker_seen is True
+        assert proof_state.upstream_success is True
+        assert proof_state.response_has_assistant_content is True
+        assert proof_state.upstream_error is None
+    finally:
+        release_bad_helper.set()
         if relay_handle is not None:
             ov.stop_verification_relay(relay_handle)
         _stop_loopback_server(upstream_server, upstream_thread)

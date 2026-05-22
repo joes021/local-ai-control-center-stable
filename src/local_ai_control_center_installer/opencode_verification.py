@@ -5,7 +5,7 @@ import subprocess
 import threading
 import time
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from tempfile import mkdtemp
@@ -42,6 +42,11 @@ class RelayProofState:
     upstream_success: bool = False
     response_has_assistant_content: bool = False
     upstream_error: str | None = None
+    proof_lock: object = field(
+        default_factory=threading.Lock,
+        repr=False,
+        compare=False,
+    )
 
 
 @dataclass
@@ -547,9 +552,12 @@ def _build_verification_relay_handler(
                 self.send_error(400, "Invalid JSON body")
                 return
 
-            proof_state.marker_seen = proof_state.marker_seen or _messages_contain_marker(
-                payload.get("messages"),
-                marker,
+            _record_marker_seen(
+                proof_state,
+                _messages_contain_marker(
+                    payload.get("messages"),
+                    marker,
+                ),
             )
 
             upstream_status, upstream_headers, upstream_body = _forward_to_upstream(
@@ -627,31 +635,37 @@ def _apply_upstream_proof(
     upstream_status: int,
     upstream_body: bytes,
 ) -> None:
-    if _has_valid_live_route_proof(proof_state):
-        return
+    next_success, next_has_assistant_content, next_error = _evaluate_upstream_proof(
+        upstream_status=upstream_status,
+        upstream_body=upstream_body,
+    )
 
-    proof_state.upstream_success = False
-    proof_state.response_has_assistant_content = False
+    with proof_state.proof_lock:
+        if _has_valid_live_route_proof(proof_state):
+            return
 
+        proof_state.upstream_success = next_success
+        proof_state.response_has_assistant_content = next_has_assistant_content
+        proof_state.upstream_error = next_error
+
+
+def _evaluate_upstream_proof(
+    *,
+    upstream_status: int,
+    upstream_body: bytes,
+) -> tuple[bool, bool, str | None]:
     if upstream_status != 200:
-        proof_state.upstream_error = f"upstream returned HTTP {upstream_status}"
-        return
+        return False, False, f"upstream returned HTTP {upstream_status}"
 
     try:
         payload = json.loads(upstream_body.decode("utf-8"))
     except (UnicodeDecodeError, ValueError, json.JSONDecodeError):
-        proof_state.upstream_error = "upstream returned invalid JSON"
-        return
+        return False, False, "upstream returned invalid JSON"
 
     if not _response_has_assistant_content(payload):
-        proof_state.upstream_error = (
-            "upstream returned invalid assistant payload"
-        )
-        return
+        return False, False, "upstream returned invalid assistant payload"
 
-    proof_state.upstream_success = True
-    proof_state.response_has_assistant_content = True
-    proof_state.upstream_error = None
+    return True, True, None
 
 
 def _write_forwarded_response(
@@ -917,6 +931,17 @@ def _set_opencode_log_path_if_present(
 ) -> None:
     if log_path.exists() and log_path.is_file():
         session.opencode_log_path = str(log_path)
+
+
+def _record_marker_seen(
+    proof_state: RelayProofState,
+    marker_seen: bool,
+) -> None:
+    if not marker_seen:
+        return
+
+    with proof_state.proof_lock:
+        proof_state.marker_seen = True
 
 
 def _has_valid_live_route_proof(proof_state: RelayProofState) -> bool:
