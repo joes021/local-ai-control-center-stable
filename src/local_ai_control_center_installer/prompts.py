@@ -10,6 +10,10 @@ class PromptCancelledError(Exception):
     pass
 
 
+class StarterModelCatalogError(Exception):
+    pass
+
+
 def choose_number(raw_value: str, default: str, allowed: set[str]) -> str:
     value = raw_value.strip() or default
     if value not in allowed:
@@ -39,7 +43,12 @@ def build_numbered_prompt(title: str, options: list[tuple[str, str]], default: s
 
 
 def build_starter_model_prompt_options() -> tuple[list[tuple[str, str]], dict[str, str], str]:
-    options = list_prompt_starter_models(load_runtime_manifest())
+    try:
+        options = list_prompt_starter_models(load_runtime_manifest())
+    except (OSError, ValueError) as exc:
+        raise StarterModelCatalogError(
+            f"Starter model catalog is unavailable: {exc}"
+        ) from exc
     numbered_options = [
         (str(index), option.prompt_label) for index, option in enumerate(options, start=1)
     ]

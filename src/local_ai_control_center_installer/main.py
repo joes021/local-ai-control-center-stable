@@ -4,7 +4,10 @@ import platform as platform_module
 import sys
 
 import local_ai_control_center_installer.defaults as defaults_module
-from local_ai_control_center_installer.prompts import PromptCancelledError
+from local_ai_control_center_installer.prompts import (
+    PromptCancelledError,
+    StarterModelCatalogError,
+)
 from local_ai_control_center_installer.session import InstallerSession
 
 
@@ -64,7 +67,7 @@ def run_installer(
 def main() -> int:
     try:
         result = run_installer()
-    except PromptCancelledError as error:
+    except (PromptCancelledError, StarterModelCatalogError) as error:
         print(str(error), file=sys.stderr)
         return 1
     opencode_requested = result.get("install_opencode") is True

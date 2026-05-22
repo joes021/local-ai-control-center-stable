@@ -40,14 +40,17 @@ def test_load_runtime_manifest_reads_pinned_runtime_contract(tmp_path: Path):
                     "install_subdir": "runtime/llama.cpp",
                 },
                 "starter_models": {
-                "recommended-6gb": {
-                    "id": "recommended-6gb",
-                    "url": "https://example.invalid/model.gguf",
-                    "sha256": "def456",
-                    "target_filename": "recommended-6gb.gguf",
-                    "install_subdir": "models/recommended-6gb",
-                    "size_bytes": 123,
-                }
+                    "recommended-6gb": {
+                        "id": "recommended-6gb",
+                        "url": "https://example.invalid/model.gguf",
+                        "sha256": "def456",
+                        "target_filename": "recommended-6gb.gguf",
+                        "install_subdir": "models/recommended-6gb",
+                        "size_bytes": 123,
+                        "prompt_order": 1,
+                        "prompt_label": "recommended-6gb",
+                        "recommended_default": True
+                    }
                 },
             }
         ),

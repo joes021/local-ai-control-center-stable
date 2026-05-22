@@ -1,3 +1,5 @@
+import pytest
+
 from local_ai_control_center_installer.runtime_manifest import (
     StarterModelOption,
     list_prompt_starter_models,
@@ -43,6 +45,89 @@ def test_load_runtime_manifest_keeps_pinned_size_and_digest_truth_for_starter_mo
         manifest["starter_models"]["recommended-24gb"]["sha256"]
         == "2687a00b84e7e35c652ea0024cb8747070b090e9f311ab9b6461b8a71c2bc50f"
     )
+
+
+def test_load_runtime_manifest_rejects_duplicate_prompt_order(tmp_path):
+    manifest_path = tmp_path / "windows-stable-runtime.json"
+    manifest_path.write_text(
+        """
+        {
+          "runtime_artifact": {
+            "id": "windows-llama-cpp-runtime",
+            "url": "https://example.invalid/runtime.zip",
+            "sha256": "runtime-sha",
+            "archive_type": "zip",
+            "required_files": ["llama-server.exe"],
+            "required_file_sha256": {"llama-server.exe": "file-sha"},
+            "install_subdir": "runtime/llama.cpp"
+          },
+          "starter_models": {
+            "recommended-6gb": {
+              "id": "recommended-6gb",
+              "url": "https://example.invalid/model-6.gguf",
+              "sha256": "sha-6",
+              "target_filename": "recommended-6gb.gguf",
+              "install_subdir": "models/recommended-6gb",
+              "size_bytes": 1,
+              "prompt_order": 1,
+              "prompt_label": "recommended-6gb",
+              "recommended_default": true
+            },
+            "recommended-12gb": {
+              "id": "recommended-12gb",
+              "url": "https://example.invalid/model-12.gguf",
+              "sha256": "sha-12",
+              "target_filename": "recommended-12gb.gguf",
+              "install_subdir": "models/recommended-12gb",
+              "size_bytes": 2,
+              "prompt_order": 1,
+              "prompt_label": "recommended-12gb",
+              "recommended_default": false
+            }
+          }
+        }
+        """,
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="Duplicate starter model prompt_order"):
+        load_runtime_manifest(manifest_path)
+
+
+def test_load_runtime_manifest_rejects_missing_prompt_metadata_in_shared_contract(
+    tmp_path,
+):
+    manifest_path = tmp_path / "windows-stable-runtime.json"
+    manifest_path.write_text(
+        """
+        {
+          "runtime_artifact": {
+            "id": "windows-llama-cpp-runtime",
+            "url": "https://example.invalid/runtime.zip",
+            "sha256": "runtime-sha",
+            "archive_type": "zip",
+            "required_files": ["llama-server.exe"],
+            "required_file_sha256": {"llama-server.exe": "file-sha"},
+            "install_subdir": "runtime/llama.cpp"
+          },
+          "starter_models": {
+            "recommended-6gb": {
+              "id": "recommended-6gb",
+              "url": "https://example.invalid/model-6.gguf",
+              "sha256": "sha-6",
+              "target_filename": "recommended-6gb.gguf",
+              "install_subdir": "models/recommended-6gb",
+              "size_bytes": 1,
+              "recommended_default": true
+            }
+          }
+        }
+        """,
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="prompt_label"):
+        load_runtime_manifest(manifest_path)
 
 
 def test_list_prompt_starter_models_rejects_missing_prompt_metadata():
