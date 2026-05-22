@@ -63,65 +63,122 @@ def default_apply_phase(session: InstallerSession) -> InstallerSession:
 def default_prepare_download_plan(session: InstallerSession) -> InstallerSession:
     if session.download_plan is not None or session.bootstrap_status != "ready":
         return session
+    print("Preparing download plan...")
     try:
         session.download_plan = build_download_plan(session)
     except (OSError, ValueError):
         session.download_plan = None
+    item_count = _count_download_plan_items(session.download_plan)
+    if item_count is None:
+        print("Download plan unavailable.")
+    else:
+        print(f"Download plan ready: {item_count} item(s).")
     return session
 
 
 def default_apply_runtime_payload(session: InstallerSession) -> InstallerSession:
     progress_callback = _build_download_progress_callback()
-    return apply_runtime_payload(
+    return _run_phase_with_status(
         session,
-        temp_root=_default_temp_root(),
-        download_runtime_archive=lambda url, destination, *, plan_item=None: download_file(
-            url,
-            destination,
-            progress_callback=progress_callback,
-            plan_item=plan_item,
+        start_message="Checking local runtime payload...",
+        status_label="Runtime payload status",
+        step_fn=lambda current_session: apply_runtime_payload(
+            current_session,
+            temp_root=_default_temp_root(),
+            download_runtime_archive=lambda url, destination, *, plan_item=None: download_file(
+                url,
+                destination,
+                progress_callback=progress_callback,
+                plan_item=plan_item,
+            ),
+            download_model_file=lambda url, destination, *, plan_item=None: download_file(
+                url,
+                destination,
+                progress_callback=progress_callback,
+                plan_item=plan_item,
+            ),
         ),
-        download_model_file=lambda url, destination, *, plan_item=None: download_file(
-            url,
-            destination,
-            progress_callback=progress_callback,
-            plan_item=plan_item,
-        ),
+        status_getter=lambda current_session: current_session.runtime_payload_status,
     )
 
 
 def default_apply_server_verification(session: InstallerSession) -> InstallerSession:
-    return apply_server_verification(session, temp_root=_default_temp_root())
+    return _run_phase_with_status(
+        session,
+        start_message="Verifying local llama.cpp server...",
+        status_label="llama.cpp server verification status",
+        step_fn=lambda current_session: apply_server_verification(
+            current_session,
+            temp_root=_default_temp_root(),
+        ),
+        status_getter=lambda current_session: current_session.server_verification_status,
+    )
 
 
 def default_apply_opencode_bootstrap(session: InstallerSession) -> InstallerSession:
     progress_callback = _build_download_progress_callback()
-    return apply_opencode_bootstrap(
+    return _run_phase_with_status(
         session,
-        temp_root=_default_temp_root(),
-        download_archive=lambda url, destination, *, plan_item=None: download_file(
-            url,
-            destination,
-            progress_callback=progress_callback,
-            plan_item=plan_item,
+        start_message="Checking OpenCode artifact...",
+        status_label="OpenCode artifact status",
+        step_fn=lambda current_session: apply_opencode_bootstrap(
+            current_session,
+            temp_root=_default_temp_root(),
+            download_archive=lambda url, destination, *, plan_item=None: download_file(
+                url,
+                destination,
+                progress_callback=progress_callback,
+                plan_item=plan_item,
+            ),
         ),
+        status_getter=lambda current_session: current_session.opencode_artifact_status,
     )
 
 
 def default_apply_opencode_verification(session: InstallerSession) -> InstallerSession:
-    return apply_opencode_verification(session, temp_root=_default_temp_root())
+    return _run_phase_with_status(
+        session,
+        start_message="Verifying OpenCode live route...",
+        status_label="OpenCode live-route verification status",
+        step_fn=lambda current_session: apply_opencode_verification(
+            current_session,
+            temp_root=_default_temp_root(),
+        ),
+        status_getter=lambda current_session: current_session.opencode_verification_status,
+    )
 
 
 def default_apply_first_run_validation(session: InstallerSession) -> InstallerSession:
-    return apply_first_run_validation(session, temp_root=_default_temp_root())
+    return _run_phase_with_status(
+        session,
+        start_message="Running first-run OpenCode smoke...",
+        status_label="First-run smoke status",
+        step_fn=lambda current_session: apply_first_run_validation(
+            current_session,
+            temp_root=_default_temp_root(),
+        ),
+        status_getter=lambda current_session: current_session.first_run_status,
+    )
 
 
 def default_apply_turboquant(session: InstallerSession) -> InstallerSession:
-    return apply_turboquant(session)
+    return _run_phase_with_status(
+        session,
+        start_message="Checking TurboQuant...",
+        status_label="TurboQuant status",
+        step_fn=apply_turboquant,
+        status_getter=lambda current_session: current_session.turboquant_status,
+    )
 
 
 def default_apply_product_gate(session: InstallerSession) -> InstallerSession:
-    return apply_product_gate(session)
+    return _run_phase_with_status(
+        session,
+        start_message="Finalizing installation status...",
+        status_label="Product installation status",
+        step_fn=apply_product_gate,
+        status_getter=lambda current_session: current_session.product_installation_status,
+    )
 
 
 def default_write_reports(session: InstallerSession) -> None:
@@ -145,6 +202,35 @@ def default_write_reports(session: InstallerSession) -> None:
 
 def _default_temp_root() -> Path:
     return Path(tempfile.gettempdir())
+
+
+def _run_phase_with_status(
+    session: InstallerSession,
+    *,
+    start_message: str,
+    status_label: str,
+    step_fn,
+    status_getter,
+) -> InstallerSession:
+    print(start_message)
+    session = step_fn(session)
+    print(f"{status_label}: {status_getter(session)}")
+    return session
+
+
+def _count_download_plan_items(download_plan) -> int | None:
+    if download_plan is None:
+        return None
+    if hasattr(download_plan, "items"):
+        try:
+            return len(download_plan.items)
+        except TypeError:
+            return None
+    if isinstance(download_plan, dict):
+        items = download_plan.get("items")
+        if isinstance(items, list):
+            return len(items)
+    return None
 
 
 def _build_run_id(session: InstallerSession) -> str:

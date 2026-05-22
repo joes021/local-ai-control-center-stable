@@ -1,6 +1,7 @@
 import pytest
 
 import local_ai_control_center_installer.defaults as defaults_module
+from local_ai_control_center_installer.download_plan import DownloadPlan
 from local_ai_control_center_installer.session import InstallerSession
 
 
@@ -69,3 +70,117 @@ def test_default_scan_dependencies_surfaces_failed_python_runtime_detection(
     assert python_record.install_attempted is True
     assert python_record.install_succeeded is False
     assert "Automatic install failed: python (no packaged strategy)" in captured.out
+
+
+def test_default_phase_wrappers_print_progress_for_reused_runtime_and_verification_steps(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
+    session = InstallerSession(
+        bootstrap_status="ready",
+        install_opencode=True,
+        attempt_turboquant=True,
+    )
+
+    monkeypatch.setattr(
+        defaults_module,
+        "build_download_plan",
+        lambda current_session: DownloadPlan(items=()),
+    )
+    monkeypatch.setattr(
+        defaults_module,
+        "apply_runtime_payload",
+        lambda current_session, **_: _mark_runtime_payload_ready(current_session),
+    )
+    monkeypatch.setattr(
+        defaults_module,
+        "apply_server_verification",
+        lambda current_session, **_: _mark_server_verification_ready(current_session),
+    )
+    monkeypatch.setattr(
+        defaults_module,
+        "apply_opencode_bootstrap",
+        lambda current_session, **_: _mark_opencode_artifact_ready(current_session),
+    )
+    monkeypatch.setattr(
+        defaults_module,
+        "apply_opencode_verification",
+        lambda current_session, **_: _mark_opencode_verification_ready(current_session),
+    )
+    monkeypatch.setattr(
+        defaults_module,
+        "apply_turboquant",
+        lambda current_session: _mark_turboquant_failed(current_session),
+    )
+    monkeypatch.setattr(
+        defaults_module,
+        "apply_first_run_validation",
+        lambda current_session, **_: _mark_first_run_ready(current_session),
+    )
+    monkeypatch.setattr(
+        defaults_module,
+        "apply_product_gate",
+        lambda current_session: _mark_product_complete(current_session),
+    )
+
+    defaults_module.default_prepare_download_plan(session)
+    defaults_module.default_apply_runtime_payload(session)
+    defaults_module.default_apply_server_verification(session)
+    defaults_module.default_apply_opencode_bootstrap(session)
+    defaults_module.default_apply_opencode_verification(session)
+    defaults_module.default_apply_turboquant(session)
+    defaults_module.default_apply_first_run_validation(session)
+    defaults_module.default_apply_product_gate(session)
+    captured = capsys.readouterr()
+
+    assert "Preparing download plan..." in captured.out
+    assert "Download plan ready: 0 item(s)." in captured.out
+    assert "Checking local runtime payload..." in captured.out
+    assert "Runtime payload status: ready" in captured.out
+    assert "Verifying local llama.cpp server..." in captured.out
+    assert "llama.cpp server verification status: ready" in captured.out
+    assert "Checking OpenCode artifact..." in captured.out
+    assert "OpenCode artifact status: ready" in captured.out
+    assert "Verifying OpenCode live route..." in captured.out
+    assert "OpenCode live-route verification status: ready" in captured.out
+    assert "Checking TurboQuant..." in captured.out
+    assert "TurboQuant status: failed" in captured.out
+    assert "Running first-run OpenCode smoke..." in captured.out
+    assert "First-run smoke status: ready" in captured.out
+    assert "Finalizing installation status..." in captured.out
+    assert "Product installation status: complete" in captured.out
+
+
+def _mark_runtime_payload_ready(session: InstallerSession) -> InstallerSession:
+    session.runtime_payload_status = "ready"
+    return session
+
+
+def _mark_server_verification_ready(session: InstallerSession) -> InstallerSession:
+    session.server_verification_status = "ready"
+    return session
+
+
+def _mark_opencode_artifact_ready(session: InstallerSession) -> InstallerSession:
+    session.opencode_artifact_status = "ready"
+    return session
+
+
+def _mark_opencode_verification_ready(session: InstallerSession) -> InstallerSession:
+    session.opencode_verification_status = "ready"
+    return session
+
+
+def _mark_turboquant_failed(session: InstallerSession) -> InstallerSession:
+    session.turboquant_status = "failed"
+    return session
+
+
+def _mark_first_run_ready(session: InstallerSession) -> InstallerSession:
+    session.first_run_status = "ready"
+    return session
+
+
+def _mark_product_complete(session: InstallerSession) -> InstallerSession:
+    session.product_installation_status = "complete"
+    return session
