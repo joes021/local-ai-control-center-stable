@@ -21,7 +21,7 @@
       "install_subdir": "models/recommended-6gb",
       "size_bytes": 4683073536,
       "prompt_order": 1,
-      "prompt_label": "recommended-6gb",
+      "prompt_label": "Qwen2.5 Coder 7B Instruct Q4_K_M (recommended-6gb)",
       "recommended_default": true
     },
     "recommended-12gb": {
@@ -32,7 +32,7 @@
       "install_subdir": "models/recommended-12gb",
       "size_bytes": 8988110272,
       "prompt_order": 2,
-      "prompt_label": "recommended-12gb",
+      "prompt_label": "Qwen2.5 Coder 14B Instruct Q4_K_M (recommended-12gb)",
       "recommended_default": false
     },
     "recommended-24gb": {
@@ -43,7 +43,7 @@
       "install_subdir": "models/recommended-24gb",
       "size_bytes": 19851335872,
       "prompt_order": 3,
-      "prompt_label": "recommended-24gb",
+      "prompt_label": "Qwen2.5 Coder 32B Instruct Q4_K_M (recommended-24gb)",
       "recommended_default": false
     }
   }

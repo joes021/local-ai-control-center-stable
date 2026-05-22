@@ -4,12 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "local-ai-control-center-installer"
-version = "0.1.0"
+version = "0.1.1"
 requires-python = ">=3.11"
 dependencies = []
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0"]
+release = ["build>=1.5.0", "pyinstaller>=6.0"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

@@ -5,7 +5,10 @@ import sys
 import tempfile
 
 from local_ai_control_center_installer.apply_phase import apply_bootstrap_phase
-from local_ai_control_center_installer.dependencies import scan_all_dependencies
+from local_ai_control_center_installer.dependencies import (
+    apply_dependency_decision,
+    scan_all_dependencies,
+)
 from local_ai_control_center_installer.download_plan import build_download_plan
 from local_ai_control_center_installer.downloads import download_file
 from local_ai_control_center_installer.first_run_validation import (
@@ -38,15 +41,22 @@ def default_collect_answers(session: InstallerSession) -> InstallerSession:
 
 
 def default_scan_dependencies(session: InstallerSession) -> InstallerSession:
-    return scan_all_dependencies(
+    probes = {
+        "python": _probe_python_version,
+        "git": _probe_git_version,
+        "node": _probe_node_version,
+        "build-tools": _probe_build_tools_version,
+    }
+    session = scan_all_dependencies(
         session,
-        probes={
-            "python": _probe_python_version,
-            "git": _probe_git_version,
-            "node": _probe_node_version,
-            "build-tools": _probe_build_tools_version,
-        },
+        probes=probes,
     )
+    _attempt_missing_dependency_installs(
+        session,
+        probes=probes,
+        install_strategies=_build_dependency_install_strategies(),
+    )
+    return session
 
 
 def default_apply_phase(session: InstallerSession) -> InstallerSession:
@@ -133,6 +143,7 @@ def default_write_reports(session: InstallerSession) -> None:
                 session.failing_step = "install-root-persistence"
             write_human_log(session, run_paths.log_path)
             write_json_report(session, run_paths.json_report_path)
+    _print_final_outcome(session, run_paths)
 
 
 def _default_temp_root() -> Path:
@@ -143,6 +154,137 @@ def _build_run_id(session: InstallerSession) -> str:
     if session.started_at:
         return session.started_at.replace(":", "-")
     return "manual-run"
+
+
+def _attempt_missing_dependency_installs(
+    session: InstallerSession,
+    *,
+    probes: dict[str, callable],
+    install_strategies: dict[str, callable],
+) -> None:
+    for record in session.dependencies:
+        detected_version = record.version or ""
+        if record.status == "ready":
+            print(f"Dependency ready: {record.name} ({detected_version})")
+            continue
+        if not record.required or record.status != "missing-installable":
+            print(f"Dependency status: {record.name} ({record.status})")
+            continue
+
+        print(f"Missing dependency detected: {record.name}")
+        print(f"Attempting automatic install: {record.name}")
+        strategy = install_strategies.get(record.name)
+        if strategy is None:
+            print(f"Automatic install failed: {record.name} (no packaged strategy)")
+            apply_dependency_decision(
+                record,
+                user_accepts_install=True,
+                install_fn=lambda dependency: False,
+            )
+            continue
+
+        def install_and_verify(_dependency) -> bool:
+            if not strategy():
+                return False
+            installed_version = probes[record.name]()
+            if not installed_version:
+                return False
+            record.version = installed_version
+            return True
+
+        apply_dependency_decision(
+            record,
+            user_accepts_install=True,
+            install_fn=install_and_verify,
+        )
+
+        if record.status == "ready":
+            print(f"Automatic install succeeded: {record.name} ({record.version})")
+        else:
+            print(f"Automatic install failed: {record.name}")
+
+
+def _build_dependency_install_strategies() -> dict[str, callable]:
+    return {
+        "git": _install_git_dependency,
+        "node": _install_node_dependency,
+        "build-tools": _install_build_tools_dependency,
+    }
+
+
+def _install_git_dependency() -> bool:
+    return _install_with_winget("Git.Git")
+
+
+def _install_node_dependency() -> bool:
+    return _install_with_winget("OpenJS.NodeJS.LTS")
+
+
+def _install_build_tools_dependency() -> bool:
+    build_tools_ready = _install_with_winget(
+        "Microsoft.VisualStudio.2022.BuildTools",
+        extra_args=[
+            "--override",
+            (
+                "--quiet --wait --norestart --nocache "
+                "--add Microsoft.VisualStudio.Workload.VCTools "
+                "--add Microsoft.VisualStudio.Component.VC.CMake.Project "
+                "--includeRecommended"
+            ),
+        ],
+    )
+    if not build_tools_ready:
+        return False
+    return _install_with_winget("Kitware.CMake")
+
+
+def _install_with_winget(package_id: str, *, extra_args: list[str] | None = None) -> bool:
+    winget_path = shutil.which("winget")
+    if not winget_path:
+        print(f"winget is not available; cannot auto-install {package_id}.")
+        return False
+
+    command = [
+        winget_path,
+        "install",
+        "--id",
+        package_id,
+        "-e",
+        "--accept-package-agreements",
+        "--accept-source-agreements",
+        "--silent",
+    ]
+    if extra_args:
+        command.extend(extra_args)
+
+    result = subprocess.run(command, check=False)
+    return result.returncode == 0
+
+
+def _print_final_outcome(session: InstallerSession, run_paths) -> None:
+    if session.product_installation_status == "complete":
+        print("Installation completed successfully.")
+    else:
+        print("Installation failed.")
+
+    print(f"Install root: {session.install_root}")
+    if session.failing_step:
+        print(f"Failing step: {session.failing_step}")
+    if session.error_message:
+        print(f"Error: {session.error_message}")
+
+    print(f"Temporary log: {run_paths.log_path}")
+    print(f"Temporary report: {run_paths.json_report_path}")
+
+    for dependency in session.dependencies:
+        version_suffix = f" [{dependency.version}]" if dependency.version else ""
+        print(f"Dependency {dependency.name}: {dependency.status}{version_suffix}")
+
+    install_root = (session.install_root or "").strip()
+    if install_root:
+        install_root_path = Path(install_root)
+        print(f"Install log: {install_root_path / 'logs' / 'install.log'}")
+        print(f"Install report: {install_root_path / 'logs' / 'install-report.json'}")
 
 
 def _probe_python_version() -> str | None:

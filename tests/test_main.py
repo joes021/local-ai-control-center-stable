@@ -752,6 +752,7 @@ def test_probe_build_tools_version_accepts_recognized_msvc_banner_on_non_zero_ex
 def test_run_installer_uses_real_default_scan_apply_and_write_paths(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path,
+    capsys: pytest.CaptureFixture[str],
 ):
     def fake_collect_installer_answers(session: InstallerSession):
         session.install_root = str(tmp_path / "install-root")
@@ -830,6 +831,7 @@ def test_run_installer_uses_real_default_scan_apply_and_write_paths(
     install_report_path = tmp_path / "install-root" / "logs" / "install-report.json"
     temp_payload = json.loads(temp_report_path.read_text(encoding="utf-8"))
     install_payload = json.loads(install_report_path.read_text(encoding="utf-8"))
+    captured = capsys.readouterr()
 
     assert result["bootstrap_status"] == "ready"
     assert result["failing_step"] is None
@@ -859,11 +861,17 @@ def test_run_installer_uses_real_default_scan_apply_and_write_paths(
     assert install_payload["opencode_verification_status"] == "ready"
     assert install_payload["first_run_status"] == "ready"
     assert install_payload["product_installation_status"] == "complete"
+    assert "Installation completed successfully." in captured.out
+    assert f"Temporary log: {run_dir / 'install.log'}" in captured.out
+    assert f"Temporary report: {temp_report_path}" in captured.out
+    assert f"Install log: {tmp_path / 'install-root' / 'logs' / 'install.log'}" in captured.out
+    assert f"Install report: {install_report_path}" in captured.out
 
 
 def test_run_installer_real_default_path_converts_install_root_report_persistence_error_to_failed_result(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path,
+    capsys: pytest.CaptureFixture[str],
 ):
     def fake_collect_installer_answers(session: InstallerSession):
         session.install_root = str(tmp_path / "install-root")
@@ -947,6 +955,7 @@ def test_run_installer_real_default_path_converts_install_root_report_persistenc
     )
     temp_report_path = run_dir / "install-report.json"
     temp_payload = json.loads(temp_report_path.read_text(encoding="utf-8"))
+    captured = capsys.readouterr()
 
     assert result["runtime_payload_status"] == "failed"
     assert result["failing_step"] == "install-root-persistence"
@@ -954,6 +963,10 @@ def test_run_installer_real_default_path_converts_install_root_report_persistenc
     assert temp_payload["runtime_payload_status"] == "failed"
     assert temp_payload["failing_step"] == "install-root-persistence"
     assert temp_payload["error_message"] == "locked"
+    assert "Installation failed." in captured.out
+    assert "Failing step: install-root-persistence" in captured.out
+    assert "Error: locked" in captured.out
+    assert f"Temporary report: {temp_report_path}" in captured.out
 
 
 def _mark_runtime_ready(session: InstallerSession, tmp_path) -> InstallerSession:

@@ -20,9 +20,9 @@ def test_load_runtime_manifest_exposes_three_prompt_visible_models():
     ]
     assert [item.prompt_order for item in catalog] == [1, 2, 3]
     assert [item.prompt_label for item in catalog] == [
-        "recommended-6gb",
-        "recommended-12gb",
-        "recommended-24gb",
+        "Qwen2.5 Coder 7B Instruct Q4_K_M (recommended-6gb)",
+        "Qwen2.5 Coder 14B Instruct Q4_K_M (recommended-12gb)",
+        "Qwen2.5 Coder 32B Instruct Q4_K_M (recommended-24gb)",
     ]
     assert [item.recommended_default for item in catalog] == [True, False, False]
 
