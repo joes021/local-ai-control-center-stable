@@ -12,6 +12,12 @@ from local_ai_control_center_installer.reporting import (
 )
 from local_ai_control_center_installer.session import DependencyRecord, InstallerSession
 
+TEST_MARKER = "LACC_VERIFY_MARKER:test-marker"
+TEST_VERIFIED_OPENCODE_COMMAND = (
+    "opencode --pure run --format json --model "
+    f'local-lacc/recommended-6gb "Repeat this exact token once: {TEST_MARKER}"'
+)
+
 
 def test_build_run_paths_keeps_temp_artifacts_even_for_failed_runs(tmp_path: Path):
     paths = build_run_paths(tmp_path, "2026-05-20T10-00-00")
@@ -113,7 +119,7 @@ def test_write_human_log_includes_opencode_summary_lines(tmp_path: Path):
         opencode_artifact_path=str(tmp_path / "install-root" / "opencode"),
         opencode_metadata_path=str(tmp_path / "install-root" / "opencode" / "opencode-artifact.json"),
         opencode_config_path=str(tmp_path / "install-root" / "config" / "opencode.json"),
-        verified_opencode_command="opencode --pure models local-lacc",
+        verified_opencode_command=TEST_VERIFIED_OPENCODE_COMMAND,
         opencode_log_path=str(paths.opencode_log_path),
     )
 
@@ -123,9 +129,10 @@ def test_write_human_log_includes_opencode_summary_lines(tmp_path: Path):
     assert "OpenCode artifact status: ready" in contents
     assert "OpenCode verification status: failed" in contents
     assert "OpenCode process status: ready" in contents
-    assert "OpenCode connection status: failed" in contents
+    assert "OpenCode live-route status: failed" in contents
+    assert "OpenCode connection status:" not in contents
     assert "OpenCode artifact id: opencode-windows-x64" in contents
-    assert "Verified OpenCode command: opencode --pure models local-lacc" in contents
+    assert f"Verified OpenCode command: {TEST_VERIFIED_OPENCODE_COMMAND}" in contents
     assert "OpenCode log path:" in contents
 
 
@@ -212,7 +219,7 @@ def test_write_json_report_serializes_opencode_summary(tmp_path: Path):
         opencode_artifact_path=str(tmp_path / "install-root" / "opencode"),
         opencode_metadata_path=str(tmp_path / "install-root" / "opencode" / "opencode-artifact.json"),
         opencode_config_path=str(tmp_path / "install-root" / "config" / "opencode.json"),
-        verified_opencode_command="opencode --pure models local-lacc",
+        verified_opencode_command=TEST_VERIFIED_OPENCODE_COMMAND,
         opencode_log_path=str(paths.opencode_log_path),
     )
 
@@ -227,7 +234,7 @@ def test_write_json_report_serializes_opencode_summary(tmp_path: Path):
     assert payload["opencode_artifact_path"] == session.opencode_artifact_path
     assert payload["opencode_metadata_path"] == session.opencode_metadata_path
     assert payload["opencode_config_path"] == session.opencode_config_path
-    assert payload["verified_opencode_command"] == "opencode --pure models local-lacc"
+    assert payload["verified_opencode_command"] == TEST_VERIFIED_OPENCODE_COMMAND
     assert payload["opencode_log_path"] == str(paths.opencode_log_path)
 
 

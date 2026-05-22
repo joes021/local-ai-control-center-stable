@@ -9,6 +9,12 @@ from local_ai_control_center_installer.main import run_installer
 from local_ai_control_center_installer.prompts import PromptCancelledError
 from local_ai_control_center_installer.session import InstallerSession
 
+TEST_MARKER = "LACC_VERIFY_MARKER:test-marker"
+TEST_VERIFIED_OPENCODE_COMMAND = (
+    "opencode --pure run --format json --model "
+    f'local-lacc/recommended-6gb "Repeat this exact token once: {TEST_MARKER}"'
+)
+
 
 def test_main_delegates_to_run_installer_and_returns_zero(monkeypatch: pytest.MonkeyPatch):
     calls: list[str] = []
@@ -838,6 +844,6 @@ def _mark_opencode_verification_ready(
     session.opencode_verification_status = "ready"
     session.opencode_process_status = "ready"
     session.opencode_connection_status = "ready"
-    session.verified_opencode_command = "opencode --pure models local-lacc"
+    session.verified_opencode_command = TEST_VERIFIED_OPENCODE_COMMAND
     session.opencode_log_path = str(log_path)
     return session

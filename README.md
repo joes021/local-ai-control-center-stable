@@ -78,12 +78,11 @@ This slice already delivers:
 - active model configuration
 - runnable `llama.cpp` server verification
 - installer-managed `OpenCode` artifact preparation
-- installer-managed `OpenCode` verification against the active local runtime/model route
+- installer-managed `OpenCode` live-route verification against the active local runtime/model route
 - human-readable logging and JSON reporting
 
 This slice does not yet deliver:
 
-- first-run `OpenCode` inference smoke
-- the current milestone verifies installer-managed `OpenCode` routing, but it does not yet run a first inference smoke
+- first-run end-user `OpenCode` smoke
 - `TurboQuant`
 - completed product installation
