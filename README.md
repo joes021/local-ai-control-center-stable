@@ -77,6 +77,8 @@ That executable is intended to be launched with a double-click and should run th
 
 The installer window should remain open at the end of the run so the user can read the final success or failure output and press Enter to close it.
 
+For the packaged Windows installer, the core installation path is based on bundled Python plus prebuilt runtime artifacts. It should not block on developer-only tools such as `git`, `Node.js`, or local C/C++ build toolchains.
+
 ## Current Slice Status
 
 The current Windows installer/runtime milestone is complete for this repository scope.

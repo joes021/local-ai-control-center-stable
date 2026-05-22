@@ -60,13 +60,6 @@ def scan_all_dependencies(
 ) -> InstallerSession:
     session.dependencies = [
         evaluate_dependency("python", required=True, detected_version=probes["python"]()),
-        evaluate_dependency("git", required=True, detected_version=probes["git"]()),
-        evaluate_dependency("node", required=True, detected_version=probes["node"]()),
-        evaluate_dependency(
-            "build-tools",
-            required=True,
-            detected_version=probes["build-tools"](),
-        ),
     ]
     return session
 

@@ -836,11 +836,9 @@ def test_run_installer_uses_real_default_scan_apply_and_write_paths(
     assert result["bootstrap_status"] == "ready"
     assert result["failing_step"] is None
     assert result["product_installation_status"] == "complete"
+    assert [dependency["name"] for dependency in result["dependencies"]] == ["python"]
     assert [dependency["version"] for dependency in result["dependencies"]] == [
         defaults_module.sys.version.split()[0],
-        "git version 2.49.0.windows.1",
-        "v22.14.0; npm 10.9.2",
-        "gcc (GCC) 14.2.0; cmake version 3.31.6",
     ]
     assert all(dependency["status"] == "ready" for dependency in result["dependencies"])
     assert temp_report_path.exists()
@@ -852,8 +850,7 @@ def test_run_installer_uses_real_default_scan_apply_and_write_paths(
     assert temp_payload["opencode_verification_status"] == "ready"
     assert temp_payload["first_run_status"] == "ready"
     assert temp_payload["product_installation_status"] == "complete"
-    assert temp_payload["dependencies"][2]["version"] == "v22.14.0; npm 10.9.2"
-    assert temp_payload["dependencies"][3]["version"] == "gcc (GCC) 14.2.0; cmake version 3.31.6"
+    assert temp_payload["dependencies"][0]["version"] == defaults_module.sys.version.split()[0]
     assert install_payload["bootstrap_status"] == "ready"
     assert install_payload["runtime_payload_status"] == "ready"
     assert install_payload["server_verification_status"] == "ready"
