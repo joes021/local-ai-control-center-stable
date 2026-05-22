@@ -396,6 +396,8 @@ def test_apply_opencode_verification_relay_start_failure_skips_process_and_conne
 ):
     session = _build_ready_session(tmp_path)
     process_called = False
+    runtime_handle = _runtime_handle(tmp_path)
+    cleaned_runtime: list[object] = []
 
     monkeypatch.setattr(
         "local_ai_control_center_installer.opencode_verification.load_opencode_manifest",
@@ -411,10 +413,9 @@ def test_apply_opencode_verification_relay_start_failure_skips_process_and_conne
         session,
         temp_root=tmp_path / "temp-runs",
         process_factory=process_factory,
-        runtime_server_factory=lambda target, *, run_paths, now_fn, sleep_fn: _runtime_handle(
-            tmp_path
-        ),
+        runtime_server_factory=lambda target, *, run_paths, now_fn, sleep_fn: runtime_handle,
         relay_factory=lambda **kwargs: (_ for _ in ()).throw(OSError("relay bind failed")),
+        stop_runtime=lambda handle: cleaned_runtime.append(handle) or True,
     )
 
     assert updated.opencode_verification_status == "failed"
@@ -423,6 +424,7 @@ def test_apply_opencode_verification_relay_start_failure_skips_process_and_conne
     assert updated.failing_step == "opencode-relay-start"
     assert updated.error_message == "relay bind failed"
     assert process_called is False
+    assert cleaned_runtime == [runtime_handle]
 
 
 def test_apply_opencode_verification_process_failure_before_any_proof_skips_connection(
@@ -783,9 +785,9 @@ def test_verification_relay_loopback_rejects_invalid_routes_methods_and_non_json
 
 
 @pytest.mark.parametrize(
-    ("response_bytes", "content_type"),
+    ("response_bytes", "content_type", "expected_error"),
     [
-        (b"{invalid json", "application/json"),
+        (b"{invalid json", "application/json", "upstream returned invalid JSON"),
         (
             json.dumps(
                 {
@@ -795,12 +797,25 @@ def test_verification_relay_loopback_rejects_invalid_routes_methods_and_non_json
                 }
             ).encode("utf-8"),
             "application/json",
+            "upstream returned invalid assistant payload",
+        ),
+        (
+            json.dumps(
+                {
+                    "choices": [
+                        {"message": {"content": "assistant-looking text without role"}},
+                    ]
+                }
+            ).encode("utf-8"),
+            "application/json",
+            "upstream returned invalid assistant payload",
         ),
     ],
 )
 def test_verification_relay_marks_upstream_success_false_for_invalid_or_empty_assistant_payload(
     response_bytes: bytes,
     content_type: str,
+    expected_error: str,
 ):
     marker = "LACC_VERIFY_MARKER:upstream-check"
 
@@ -844,6 +859,7 @@ def test_verification_relay_marks_upstream_success_false_for_invalid_or_empty_as
         assert proof_state.marker_seen is True
         assert proof_state.upstream_success is False
         assert proof_state.response_has_assistant_content is False
+        assert proof_state.upstream_error == expected_error
     finally:
         if relay_handle is not None:
             ov.stop_verification_relay(relay_handle)
