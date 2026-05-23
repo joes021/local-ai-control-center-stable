@@ -22,6 +22,9 @@ from local_ai_control_center_installer.runtime_bootstrap import (
     build_runtime_endpoint_base_url,
     load_runtime_endpoint_config,
 )
+from local_ai_control_center_installer.runtime_binary_health import (
+    detect_missing_sidecar_imports,
+)
 from local_ai_control_center_installer.runtime_manifest import load_runtime_manifest
 from local_ai_control_center_installer.turboquant import load_turboquant_manifest
 
@@ -216,6 +219,14 @@ def probe_runtime_binary_launchable(binary_path: Path) -> tuple[bool, str]:
         return False, f"{runtime_label} runtime nije instaliran."
     if os.environ.get(LAUNCH_PROBE_SKIP_ENV) == "1":
         return True, f"{runtime_label} launch probe je preskocen."
+
+    missing_sidecars = detect_missing_sidecar_imports(binary_path)
+    if missing_sidecars:
+        missing_labels = ", ".join(missing_sidecars)
+        return (
+            False,
+            f"{runtime_label} launch probe failed: missing sidecar DLLs: {missing_labels}.",
+        )
 
     try:
         completed = subprocess.run(

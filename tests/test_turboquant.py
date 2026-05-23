@@ -1,4 +1,7 @@
+from pathlib import Path
+
 from local_ai_control_center_installer.session import InstallerSession
+from local_ai_control_center_installer import turboquant as turboquant_module
 from local_ai_control_center_installer.turboquant import apply_turboquant
 
 
@@ -108,3 +111,42 @@ def test_apply_turboquant_skips_when_core_prerequisites_are_not_ready():
 
     assert updated.turboquant_status == "skipped"
     assert updated.turboquant_error is None
+
+
+def test_turboquant_artifact_is_not_ready_when_executable_imports_missing_sidecar_dlls(
+    tmp_path: Path,
+    monkeypatch,
+):
+    strategy = _strategy()
+    artifact = strategy["artifact"]
+    turboquant_root = tmp_path / artifact["install_subdir"]
+    turboquant_root.mkdir(parents=True, exist_ok=True)
+    (turboquant_root / "llama-server.exe").write_text("binary", encoding="utf-8")
+    metadata_path = turboquant_root / "turboquant-artifact.json"
+
+    monkeypatch.setattr(turboquant_module, "verify_required_files", lambda *args, **kwargs: True)
+    monkeypatch.setattr(
+        turboquant_module,
+        "verify_runtime_metadata",
+        lambda *args, **kwargs: True,
+    )
+    monkeypatch.setattr(
+        turboquant_module,
+        "_verify_bundled_libraries_load",
+        lambda *args, **kwargs: True,
+    )
+    monkeypatch.setattr(
+        turboquant_module,
+        "detect_missing_sidecar_imports",
+        lambda path: ("libssl-3-x64.dll",),
+        raising=False,
+    )
+
+    ready = turboquant_module._turboquant_artifact_ready(
+        turboquant_root,
+        metadata_path,
+        artifact,
+        verify_required_file_checksums=lambda *args, **kwargs: True,
+    )
+
+    assert ready is False
