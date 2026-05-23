@@ -100,11 +100,19 @@ The control panel currently focuses on the reliable core path:
 - `Server`
 - `OpenCode`
 - `Models`
+- `Browser`
 - `Settings`
 - `Logs`
 - `Repair`
 
-The first stable panel version intentionally does not expose unfinished `Browser`, `Benchmark`, or `Updates` flows in the main navigation.
+Browser and Models now have distinct roles:
+
+- `Models`
+  - installer-managed local catalog for active models, local imports, curated starter models, and direct registry management
+- `Browser`
+  - internet-backed GGUF catalog for discovering models from `Hugging Face` and `Unsloth`, checking compatibility, and starting the same installer-managed download path used by the local catalog
+
+The stable panel still intentionally keeps unfinished `Benchmark` and `Updates` flows out of the main navigation.
 
 ## Current Product Status
 
@@ -126,6 +134,9 @@ This repository now delivers:
 - integrated local control panel packaging, deployment, and auto-launch
 - truthful runtime/model/OpenCode/TurboQuant status views in the local control panel
 - reliable model activation, local/Hugging Face/Unsloth registration, and download progress in the control panel
+- unified Browser table for internet-backed `Hugging Face` and `Unsloth` GGUF discovery
+- compatibility checks and settings-apply actions directly from the Browser table
+- Browser `Download` actions routed through the canonical installer-managed model download worker and progress tracking
 - installer-truth-backed settings, OpenCode presets, and TurboQuant presets in the control panel
 - final installer/runtime completion gating through `product_installation_status`
 - human-readable logging and JSON reporting

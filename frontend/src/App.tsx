@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Layout } from "./components/Layout";
 import { fetchStatus } from "./lib/api";
 import type { StatusPayload } from "./lib/types";
+import { BrowserPage } from "./pages/BrowserPage";
 import { HomePage } from "./pages/HomePage";
 import { LogsPage } from "./pages/LogsPage";
 import { ModelsPage } from "./pages/ModelsPage";
@@ -16,6 +17,7 @@ const PAGES = {
   server: "Server",
   opencode: "OpenCode",
   models: "Models",
+  browser: "Browser",
   settings: "Settings",
   logs: "Logs",
   repair: "Repair",
@@ -73,6 +75,7 @@ export default function App() {
       {page === "server" ? <ServerPage /> : null}
       {page === "opencode" ? <OpenCodePage /> : null}
       {page === "models" ? <ModelsPage /> : null}
+      {page === "browser" ? <BrowserPage /> : null}
       {page === "settings" ? <SettingsPage /> : null}
       {page === "logs" ? <LogsPage /> : null}
       {page === "repair" ? <RepairPage /> : null}
