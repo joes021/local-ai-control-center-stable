@@ -160,6 +160,7 @@ def _write_opencode_launcher(
     lines = [
         "@echo off",
         "setlocal",
+        "title Local AI Control Center - OpenCode",
         f'cd /d "{working_directory}"',
     ]
     for key in [
@@ -176,25 +177,27 @@ def _write_opencode_launcher(
         escaped_value = value.replace('"', '""')
         lines.append(f'set "{key}={escaped_value}"')
     lines.append(f'"{executable_path}"')
+    lines.append('set "OPENCODE_EXIT_CODE=%ERRORLEVEL%"')
+    lines.append("if not \"%OPENCODE_EXIT_CODE%\"==\"0\" (")
+    lines.append("  echo.")
+    lines.append("  echo OpenCode je zavrsio sa kodom %OPENCODE_EXIT_CODE%.")
+    lines.append("  echo Proveri model, konfiguraciju i logove ako se prozor odmah zatvorio.")
+    lines.append("  pause")
+    lines.append(")")
     lines.append("endlocal")
     launcher_path.write_text("\r\n".join(lines) + "\r\n", encoding="utf-8")
 
 
 def _launch_opencode_launcher(launcher_path: Path) -> None:
-    startfile = getattr(os, "startfile", None)
-    if startfile is not None:
-        startfile(str(launcher_path))
-        return
-
     subprocess.Popen(
         [
             "cmd.exe",
-            "/c",
-            "start",
-            "",
+            "/d",
+            "/k",
             str(launcher_path),
         ],
-        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        cwd=str(launcher_path.parent),
+        creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0),
     )
 
 

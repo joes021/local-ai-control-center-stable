@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+import subprocess
 
 from fastapi.testclient import TestClient
 
@@ -59,18 +60,10 @@ def test_opencode_open_route_launches_visible_windows_launcher(
 
     captured: dict[str, object] = {}
 
-    def fake_startfile(path):
-        captured["startfile"] = path
-
     def fake_popen(command, **kwargs):
         captured["command"] = command
         captured["kwargs"] = kwargs
 
-    monkeypatch.setattr(
-        "local_ai_control_center_installer.control_center_backend.services.opencode_service.os.startfile",
-        fake_startfile,
-        raising=False,
-    )
     monkeypatch.setattr(
         "local_ai_control_center_installer.control_center_backend.services.opencode_service.subprocess.Popen",
         fake_popen,
@@ -83,15 +76,25 @@ def test_opencode_open_route_launches_visible_windows_launcher(
     payload = response.json()
     assert payload["status"] == "ok"
     assert "OpenCode je pokrenut" in payload["summary"]
-    launcher_path = Path(str(captured["startfile"]))
+    launcher_path = install_root / "control-center" / "Open-OpenCode.cmd"
     assert launcher_path.name == "Open-OpenCode.cmd"
     assert launcher_path.is_file()
     launcher_text = launcher_path.read_text(encoding="utf-8")
+    assert "title Local AI Control Center - OpenCode" in launcher_text
     assert "opencode.exe" in launcher_text
     assert "managed-config.json" in launcher_text
     assert 'set "LACC_PROFILE=balanced"' in launcher_text
     assert 'set "LACC_OPENCODE_SECURITY_MODE=strict"' in launcher_text
-    assert "command" not in captured
+    assert 'echo OpenCode je zavrsio sa kodom %OPENCODE_EXIT_CODE%.' in launcher_text
+    assert "pause" in launcher_text
+    assert captured["command"] == [
+        "cmd.exe",
+        "/d",
+        "/k",
+        str(launcher_path),
+    ]
+    assert captured["kwargs"]["cwd"] == str(launcher_path.parent)
+    assert captured["kwargs"]["creationflags"] == getattr(subprocess, "CREATE_NEW_CONSOLE", 0)
 
 
 def test_opencode_steps_and_settings_routes_persist_panel_managed_values(
