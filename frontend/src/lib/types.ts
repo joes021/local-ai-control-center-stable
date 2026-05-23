@@ -21,6 +21,9 @@ export type StatusPayload = {
   llamaCppStatus: string;
   turboQuantStatus: string;
   turboQuantReason: string;
+  turboQuantDisplayState: string;
+  turboQuantSummary: string;
+  turboQuantGuidance: string;
   activeRuntimeBinary: string;
   activeRuntimeBinarySource: string;
   runtimeLiveStatus: string;
