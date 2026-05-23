@@ -6,6 +6,7 @@ from local_ai_control_center_installer.server_verification import (
     _cleanup_server_process,
     apply_server_verification,
     probe_server_health,
+    stop_managed_runtime_on_port,
     stop_server_process,
 )
 from local_ai_control_center_installer.runtime_bootstrap import (
@@ -793,6 +794,43 @@ def test_cleanup_server_process_closes_attached_server_log_handle_on_cleanup_fai
         == "failed to stop server verification process"
     )
     assert log_handle.close_calls == 1
+
+
+def test_stop_managed_runtime_on_port_treats_disappearing_listener_as_success_even_when_powershell_returns_non_zero(
+    tmp_path: Path,
+):
+    install_root = tmp_path / "install-root"
+    runtime_root = install_root / "runtime" / "llama.cpp"
+    runtime_root.mkdir(parents=True)
+    server_executable = runtime_root / "llama-server.exe"
+    server_executable.write_text("", encoding="utf-8")
+
+    pid_values = iter([5150, None])
+
+    with patch(
+        "local_ai_control_center_installer.server_verification.is_managed_runtime_port_owned_by_installation",
+        return_value=True,
+    ), patch(
+        "local_ai_control_center_installer.server_verification._find_listening_pid_on_loopback_port",
+        side_effect=lambda port: next(pid_values, None),
+    ), patch(
+        "local_ai_control_center_installer.server_verification.subprocess.run",
+        return_value=type(
+            "CompletedProcess",
+            (),
+            {"returncode": 1, "stdout": "", "stderr": ""},
+        )(),
+    ):
+        assert (
+            stop_managed_runtime_on_port(
+                39281,
+                server_executable,
+                install_root,
+                now_fn=_fake_now([0.0, 0.1, 0.2]),
+                sleep_fn=lambda _: None,
+            )
+            is True
+        )
 
 
 def _fake_now(values: list[float]):

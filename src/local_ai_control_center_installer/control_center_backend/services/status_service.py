@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from importlib.metadata import PackageNotFoundError, version as package_version
 import json
+import os
 from pathlib import Path
 import platform
 import socket
@@ -27,6 +28,8 @@ from local_ai_control_center_installer.turboquant import load_turboquant_manifes
 
 RUNTIME_SELECTION_FILE = "runtime-selection.json"
 SUPPORTED_RUNTIMES = {"llama.cpp", "turboquant"}
+LAUNCH_PROBE_SKIP_ENV = "LACC_SKIP_RUNTIME_LAUNCH_PROBE"
+LAUNCH_PROBE_TIMEOUT_SECONDS = 5.0
 
 
 def load_status_payload(
@@ -66,8 +69,14 @@ def load_status_payload(
         "availableRuntimes": _build_available_runtimes(runtime_state),
         "llamaRuntimeAvailable": runtime_state["llama_available"],
         "turboQuantRuntimeAvailable": runtime_state["turbo_available"],
-        "llamaCppStatus": "ready" if runtime_state["llama_available"] else "missing",
-        "turboQuantStatus": "ready" if runtime_state["turbo_available"] else "missing",
+        "llamaCppStatus": _build_runtime_install_status(
+            available=bool(runtime_state["llama_available"]),
+            installed=bool(runtime_state["llama_installed"]),
+        ),
+        "turboQuantStatus": _build_runtime_install_status(
+            available=bool(runtime_state["turbo_available"]),
+            installed=bool(runtime_state["turbo_installed"]),
+        ),
         "turboQuantReason": runtime_state["turbo_reason"],
         "activeRuntimeBinary": runtime_state["active_binary"],
         "activeRuntimeBinarySource": runtime_state["active_binary_source"],
@@ -106,8 +115,10 @@ def load_runtime_state(
     turbo_launch = turbo_artifact["launch"]["executable_relative_path"]
     turbo_binary = install_root / turbo_artifact["install_subdir"] / turbo_launch
 
-    llama_available = llama_binary.is_file()
-    turbo_available = turbo_binary.is_file()
+    llama_installed = llama_binary.is_file()
+    turbo_installed = turbo_binary.is_file()
+    llama_available, llama_reason = probe_runtime_binary_launchable(llama_binary)
+    turbo_available, turbo_reason = probe_runtime_binary_launchable(turbo_binary)
     selected_runtime, selection_source = _resolve_selected_runtime(
         config,
         llama_available=llama_available,
@@ -128,12 +139,6 @@ def load_runtime_state(
         runtime_pid,
     )
 
-    turbo_reason = (
-        "TurboQuant runtime je instaliran i spreman."
-        if turbo_available
-        else "TurboQuant runtime nije instaliran."
-    )
-
     return {
         "install_root": install_root,
         "profile": _load_profile(config),
@@ -144,6 +149,8 @@ def load_runtime_state(
         "base_url": base_url,
         "llama_binary": str(llama_binary),
         "turbo_binary": str(turbo_binary),
+        "llama_installed": llama_installed,
+        "turbo_installed": turbo_installed,
         "llama_available": llama_available,
         "turbo_available": turbo_available,
         "active_runtime": active_runtime,
@@ -151,6 +158,7 @@ def load_runtime_state(
         "active_binary_source": selection_source,
         "runtime_live_status": runtime_live_status,
         "runtime_live_reason": runtime_live_reason,
+        "llama_reason": llama_reason,
         "turbo_reason": turbo_reason,
     }
 
@@ -200,6 +208,37 @@ def find_runtime_pid(port: int) -> int | None:
         except ValueError:
             return None
     return None
+
+
+def probe_runtime_binary_launchable(binary_path: Path) -> tuple[bool, str]:
+    runtime_label = _runtime_label_from_path(binary_path)
+    if not binary_path.is_file():
+        return False, f"{runtime_label} runtime nije instaliran."
+    if os.environ.get(LAUNCH_PROBE_SKIP_ENV) == "1":
+        return True, f"{runtime_label} launch probe je preskocen."
+
+    try:
+        completed = subprocess.run(
+            [str(binary_path), "--version"],
+            cwd=str(binary_path.parent),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=LAUNCH_PROBE_TIMEOUT_SECONDS,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        return False, f"{runtime_label} launch probe failed: timeout."
+    except OSError as exc:
+        return False, f"{runtime_label} launch probe failed: {exc}."
+
+    if completed.returncode == 0:
+        return True, f"{runtime_label} runtime je instaliran i spreman."
+
+    detail = completed.stderr.strip() or completed.stdout.strip() or f"exit code {completed.returncode}"
+    return False, f"{runtime_label} launch probe failed: {detail}."
 
 
 def is_port_listening(port: int) -> bool:
@@ -274,6 +313,21 @@ def _runtime_label(runtime_name: str) -> str:
         "turboquant": "TurboQuant",
         "unknown": "unknown",
     }.get(runtime_name, runtime_name)
+
+
+def _runtime_label_from_path(binary_path: Path) -> str:
+    normalized = str(binary_path).lower()
+    if "turboquant" in normalized:
+        return "TurboQuant"
+    return "llama.cpp"
+
+
+def _build_runtime_install_status(*, available: bool, installed: bool) -> str:
+    if available:
+        return "ready"
+    if installed:
+        return "failed"
+    return "missing"
 
 
 def _load_profile(config: ControlCenterConfig) -> str:
