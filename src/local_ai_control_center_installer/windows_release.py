@@ -6,6 +6,9 @@ import sys
 from local_ai_control_center_installer.control_center_panel import (
     run_control_center_panel_entry,
 )
+from local_ai_control_center_installer.control_center_uninstall import (
+    run_control_center_uninstall_entry,
+)
 from local_ai_control_center_installer.main import main
 
 
@@ -22,6 +25,7 @@ def run_windows_installer_entry(
     *,
     main_fn: Callable[[], int] = main,
     panel_main_fn: Callable[[list[str] | None], int] = run_control_center_panel_entry,
+    uninstall_main_fn: Callable[[list[str] | None], int] = run_control_center_uninstall_entry,
     pause_fn: Callable[[str], str] = input,
     output_fn: Callable[[str], None] = print,
     frozen: bool | None = None,
@@ -33,6 +37,9 @@ def run_windows_installer_entry(
     if "--panel" in argv:
         panel_index = argv.index("--panel")
         return panel_main_fn(argv[panel_index + 1 :])
+    if "--uninstall" in argv:
+        uninstall_index = argv.index("--uninstall")
+        return uninstall_main_fn(argv[uninstall_index + 1 :])
     try:
         return main_fn()
     finally:

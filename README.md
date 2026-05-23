@@ -87,11 +87,16 @@ The installed Windows product now includes a local web control panel:
 - default URL: `http://127.0.0.1:3210/`
 - persistent launcher: `control-center/Open-Control-Center.cmd` inside the install root
 - persistent runtime host: `control-center/LocalAIControlCenterPanel.exe`
+- Start Menu folder: `Local AI Control Center`
+- desktop launchers for the panel and installer-managed `OpenCode`
+- uninstall entry for the current-user Windows install
 
 The installer is expected to:
 
 - deploy the persistent control panel runtime into the install root
 - auto-launch the control panel after a successful installation
+- create persistent Start Menu and Desktop entry points for daily use
+- register an uninstall entry for the current-user Windows install
 - keep panel truth tied to installer-managed config, runtime, model, and OpenCode artifacts
 
 The control panel currently focuses on the reliable core path:
@@ -132,6 +137,7 @@ This repository now delivers:
 - bounded first-run end-user `OpenCode` smoke against the persisted managed configuration
 - installer-managed packaged Windows `TurboQuant` installation for supported NVIDIA x64 systems, including bundled OpenSSL sidecar DLLs required by the packaged runtime
 - integrated local control panel packaging, deployment, and auto-launch
+- Start Menu, Desktop, and uninstall shell integration for the installed Windows product
 - truthful runtime/model/OpenCode/TurboQuant status views in the local control panel
 - reliable model activation, local/Hugging Face/Unsloth registration, and download progress in the control panel
 - unified Browser table for internet-backed `Hugging Face` and `Unsloth` GGUF discovery

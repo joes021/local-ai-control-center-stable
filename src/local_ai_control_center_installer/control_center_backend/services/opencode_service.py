@@ -63,23 +63,41 @@ def open_opencode(
     config = config or get_config()
     executable_path = _resolve_opencode_executable_path(config)
     managed_config_path = config.install_root / "config" / "opencode" / "managed-config.json"
-    settings = load_effective_settings_state(config)
     if not executable_path.is_file():
         return _result("error", "open-opencode", "OpenCode executable nije pronadjen.")
     if not managed_config_path.is_file():
         return _result("error", "open-opencode", "OpenCode managed config nije pronadjen.")
 
-    env = os.environ.copy()
-    env["OPENCODE_CONFIG"] = str(managed_config_path)
-    env["LACC_PROFILE"] = profile or str(settings["profile"])
-    env["LACC_OPENCODE_SECURITY_MODE"] = str(settings["securityMode"])
-    env["LACC_OPENCODE_CAPABILITY_MODE"] = str(settings["capabilityMode"])
-    env["LACC_OPENCODE_BUILD_STEPS"] = str(settings["buildSteps"])
-    env["LACC_OPENCODE_PLAN_STEPS"] = str(settings["planSteps"])
-    env["LACC_OPENCODE_GENERAL_STEPS"] = str(settings["generalSteps"])
-    env["LACC_OPENCODE_EXPLORE_STEPS"] = str(settings["exploreSteps"])
     log_path = config.install_root / "logs" / "opencode-launch.log"
     log_path.parent.mkdir(parents=True, exist_ok=True)
+    launcher_path = prepare_opencode_launcher(config=config, profile=profile)
+    with log_path.open("a", encoding="utf-8") as handle:
+        handle.write(f"Launching OpenCode via {launcher_path}\n")
+    _launch_opencode_launcher(launcher_path)
+
+    return _result("ok", "open-opencode", "OpenCode je pokrenut u novom prozoru.")
+
+
+def prepare_opencode_launcher(
+    config: ControlCenterConfig | None = None,
+    profile: str = "",
+) -> Path:
+    config = config or get_config()
+    executable_path = _resolve_opencode_executable_path(config)
+    managed_config_path = config.install_root / "config" / "opencode" / "managed-config.json"
+    settings = load_effective_settings_state(config)
+    if not executable_path.is_file():
+        raise FileNotFoundError(f"OpenCode executable nije pronadjen: {executable_path}")
+    if not managed_config_path.is_file():
+        raise FileNotFoundError(
+            f"OpenCode managed config nije pronadjen: {managed_config_path}"
+        )
+
+    env = _build_opencode_launch_environment(
+        managed_config_path=managed_config_path,
+        settings=settings,
+        profile=profile,
+    )
     launcher_path = config.install_root / "control-center" / "Open-OpenCode.cmd"
     launcher_path.parent.mkdir(parents=True, exist_ok=True)
     _write_opencode_launcher(
@@ -88,11 +106,7 @@ def open_opencode(
         working_directory=Path(str(settings["workingDirectory"])),
         env=env,
     )
-    with log_path.open("a", encoding="utf-8") as handle:
-        handle.write(f"Launching OpenCode via {launcher_path}\n")
-    _launch_opencode_launcher(launcher_path)
-
-    return _result("ok", "open-opencode", "OpenCode je pokrenut u novom prozoru.")
+    return launcher_path
 
 
 def detect_opencode_instances(executable_path: Path) -> list[dict[str, object]]:
@@ -148,6 +162,24 @@ def _resolve_opencode_executable_path(config: ControlCenterConfig) -> Path:
     artifact = manifest["opencode_artifact"]
     launch = artifact["launch"]["executable_relative_path"]
     return config.install_root / artifact["install_subdir"] / launch
+
+
+def _build_opencode_launch_environment(
+    *,
+    managed_config_path: Path,
+    settings: dict[str, object],
+    profile: str,
+) -> dict[str, str]:
+    env = os.environ.copy()
+    env["OPENCODE_CONFIG"] = str(managed_config_path)
+    env["LACC_PROFILE"] = profile or str(settings["profile"])
+    env["LACC_OPENCODE_SECURITY_MODE"] = str(settings["securityMode"])
+    env["LACC_OPENCODE_CAPABILITY_MODE"] = str(settings["capabilityMode"])
+    env["LACC_OPENCODE_BUILD_STEPS"] = str(settings["buildSteps"])
+    env["LACC_OPENCODE_PLAN_STEPS"] = str(settings["planSteps"])
+    env["LACC_OPENCODE_GENERAL_STEPS"] = str(settings["generalSteps"])
+    env["LACC_OPENCODE_EXPLORE_STEPS"] = str(settings["exploreSteps"])
+    return env
 
 
 def _write_opencode_launcher(
