@@ -9,7 +9,10 @@ from tempfile import mkdtemp
 from urllib.error import HTTPError, URLError
 from urllib.request import urlopen
 
-from local_ai_control_center_installer.opencode_bootstrap import load_opencode_manifest
+from local_ai_control_center_installer.opencode_bootstrap import (
+    load_opencode_manifest,
+    resolve_opencode_public_model_name,
+)
 from local_ai_control_center_installer.opencode_verification import (
     OPENCODE_SMOKE_TIMEOUT_SECONDS,
 )
@@ -35,6 +38,7 @@ class FirstRunValidationTarget:
     runtime_executable_path: Path
     managed_config_path: Path
     model_id: str
+    public_model_name: str
     model_path: Path
     runtime_base_url: str
     runtime_port: int
@@ -147,7 +151,7 @@ def apply_first_run_validation(
     command = _build_first_run_command(
         target.executable_path,
         verification_args=target.verification_args,
-        model_id=target.model_id,
+        public_model_name=target.public_model_name,
     )
     env = _build_first_run_env(target)
 
@@ -282,6 +286,7 @@ def resolve_first_run_validation_target(
         runtime_executable_path=runtime_executable_path,
         managed_config_path=managed_config_path,
         model_id=model_id,
+        public_model_name=resolve_opencode_public_model_name(model_id, model_path),
         model_path=model_path,
         runtime_base_url=runtime_endpoint.base_url,
         runtime_port=runtime_endpoint.port,
@@ -477,12 +482,12 @@ def _build_first_run_command(
     executable_path: Path,
     *,
     verification_args: list[str],
-    model_id: str,
+    public_model_name: str,
 ) -> list[str]:
     return [
         str(executable_path),
         *verification_args,
-        f"local-lacc/{model_id}",
+        f"local-lacc/{public_model_name}",
         FIRST_RUN_PROMPT,
     ]
 

@@ -188,5 +188,8 @@ def test_activate_model_route_updates_active_model_and_managed_opencode_config(
             encoding="utf-8"
         )
     )
-    assert managed_config["model"] == "local-lacc/huggingface-qwen-qwen3-0-6b-gguf-qwen3-0-6b-q8-0"
+    assert managed_config["model"] == "local-lacc/Qwen3-0.6B-Q8_0.gguf"
     assert managed_config["provider"]["local-lacc"]["options"]["baseURL"] == "http://127.0.0.1:39281/v1"
+    assert managed_config["provider"]["local-lacc"]["models"] == {
+        "Qwen3-0.6B-Q8_0.gguf": {"name": "Qwen3-0.6B-Q8_0.gguf"}
+    }

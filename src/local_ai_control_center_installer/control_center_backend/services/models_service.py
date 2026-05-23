@@ -139,6 +139,7 @@ def activate_model(
         _write_managed_config(
             config.opencode_managed_config_path,
             model_id=str(model["id"]),
+            public_model_name=model_path.name,
             base_url=runtime_endpoint.base_url,
         )
         summary_bits.append("OpenCode config je osvezen")

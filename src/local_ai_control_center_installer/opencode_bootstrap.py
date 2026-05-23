@@ -98,14 +98,16 @@ def apply_opencode_bootstrap(
         verify_required_file_checksums=verify_required_file_checksums,
     )
 
-    model_id = _resolve_active_model_id(session.active_model_config_path)
+    model_id, public_model_name = _resolve_active_model_reference(
+        session.active_model_config_path
+    )
     try:
         runtime_endpoint = load_runtime_endpoint_config(
             session.runtime_endpoint_config_path
         )
     except (OSError, UnicodeDecodeError, ValueError, JSONDecodeError):
         runtime_endpoint = None
-    if runtime_endpoint is None or model_id is None:
+    if runtime_endpoint is None or model_id is None or public_model_name is None:
         session.opencode_artifact_status = "ready" if artifact_ready else "skipped"
         if artifact_ready:
             session.last_successful_step = "opencode-artifact"
@@ -152,6 +154,7 @@ def apply_opencode_bootstrap(
         write_managed_config(
             config_path,
             model_id=model_id,
+            public_model_name=public_model_name,
             base_url=runtime_endpoint.base_url,
         )
     except Exception as exc:
@@ -266,24 +269,31 @@ def _opencode_artifact_ready(
     )
 
 
-def _resolve_active_model_id(active_model_config_path: str | None) -> str | None:
+def _resolve_active_model_reference(
+    active_model_config_path: str | None,
+) -> tuple[str | None, str | None]:
     if not isinstance(active_model_config_path, str) or not active_model_config_path.strip():
-        return None
+        return None, None
 
     try:
         payload = json.loads(
             Path(active_model_config_path).read_text(encoding="utf-8")
         )
     except (JSONDecodeError, OSError, UnicodeDecodeError):
-        return None
+        return None, None
 
     if not isinstance(payload, dict):
-        return None
+        return None, None
 
     model_id = payload.get("model_id")
     if not isinstance(model_id, str) or not model_id.strip():
-        return None
-    return model_id
+        return None, None
+    resolved_model_id = model_id.strip()
+    public_model_name = resolve_opencode_public_model_name(
+        resolved_model_id,
+        payload.get("model_path"),
+    )
+    return resolved_model_id, public_model_name
 
 
 def _stage_opencode_artifact(
@@ -335,20 +345,27 @@ def _write_managed_config(
     config_path: Path,
     *,
     model_id: str,
+    public_model_name: str,
     base_url: str,
 ) -> Path:
+    del model_id
+    resolved_public_model_name = public_model_name.strip() or "unknown-model"
     config_path.parent.mkdir(parents=True, exist_ok=True)
     config_path.write_text(
         json.dumps(
             {
                 "autoupdate": False,
-                "model": f"local-lacc/{model_id}",
+                "model": f"local-lacc/{resolved_public_model_name}",
                 "enabled_providers": ["local-lacc"],
                 "provider": {
                     "local-lacc": {
                         "npm": "@ai-sdk/openai-compatible",
                         "options": {"baseURL": f"{base_url}/v1"},
-                        "models": {model_id: {}},
+                        "models": {
+                            resolved_public_model_name: {
+                                "name": resolved_public_model_name
+                            }
+                        },
                     }
                 },
             },
@@ -357,6 +374,20 @@ def _write_managed_config(
         encoding="utf-8",
     )
     return config_path
+
+
+def resolve_opencode_public_model_name(
+    model_id: str,
+    model_path: str | Path | object | None,
+) -> str:
+    candidate_path = ""
+    if isinstance(model_path, Path):
+        candidate_path = str(model_path)
+    elif isinstance(model_path, str):
+        candidate_path = model_path
+
+    candidate_name = Path(candidate_path).name.strip() if candidate_path.strip() else ""
+    return candidate_name or model_id.strip()
 
 
 def _make_staging_root(temp_root: Path) -> Path:
