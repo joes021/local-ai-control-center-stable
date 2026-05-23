@@ -29,6 +29,14 @@ def select_runtime(
 
     runtime_state = load_runtime_state(config)
     if normalized == "turboquant" and not runtime_state["turbo_available"]:
+        reason = str(runtime_state.get("turbo_reason", "") or "").strip()
+        if runtime_state.get("turbo_installed"):
+            summary = (
+                "TurboQuant ne moze da se aktivira jer runtime ne moze uspesno da se pokrene."
+            )
+            if reason:
+                summary = f"{summary} {reason}"
+            return _result("error", "select-runtime", summary)
         return _result(
             "error",
             "select-runtime",

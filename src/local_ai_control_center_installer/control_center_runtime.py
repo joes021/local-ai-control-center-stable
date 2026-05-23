@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import socket
 import subprocess
 import sys
 import time
@@ -49,6 +50,11 @@ def deploy_control_center_runtime(
     panel_root = normalized_install_root / "control-center"
     panel_root.mkdir(parents=True, exist_ok=True)
     launcher_path = panel_root / "Open-Control-Center.cmd"
+    _stop_existing_panel_for_update(
+        install_root=normalized_install_root,
+        port=DEFAULT_PANEL_PORT,
+        panel_executable_path=panel_root / PANEL_EXECUTABLE_NAME,
+    )
 
     if frozen is None:
         frozen = bool(getattr(sys, "frozen", False))
@@ -56,7 +62,7 @@ def deploy_control_center_runtime(
     panel_executable_resource = panel_executable_resource or _resolve_panel_executable_resource()
     if panel_executable_resource is not None and panel_executable_resource.is_file():
         executable_path = panel_root / PANEL_EXECUTABLE_NAME
-        shutil.copy2(panel_executable_resource, executable_path)
+        _copy_panel_executable(panel_executable_resource, executable_path)
         command = (
             str(executable_path),
             "--install-root",
@@ -93,7 +99,7 @@ def deploy_control_center_runtime(
     )
     if frozen and candidate_frozen_executable.is_file():
         executable_path = panel_root / PANEL_EXECUTABLE_NAME
-        shutil.copy2(candidate_frozen_executable, executable_path)
+        _copy_panel_executable(candidate_frozen_executable, executable_path)
         command = (
             str(executable_path),
             "--panel",
@@ -338,3 +344,155 @@ def _open_panel_url(url: str) -> None:
         creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         close_fds=False,
     )
+
+
+def _stop_existing_panel_for_update(
+    *,
+    install_root: Path,
+    port: int,
+    panel_executable_path: Path,
+    timeout_seconds: float = 10.0,
+) -> None:
+    panel_url = f"http://127.0.0.1:{port}/"
+    if not _panel_health_ready(panel_url, expected_install_root=str(install_root)):
+        return
+
+    pids = _find_panel_process_ids(panel_executable_path)
+    if not pids:
+        listening_pid = _find_listening_pid(port)
+        if listening_pid is not None:
+            pids = [listening_pid]
+
+    if not pids:
+        raise RuntimeError(
+            f"Control Center panel je aktivan na portu {port}, ali PID nije mogao da se odredi."
+        )
+
+    for pid in pids:
+        completed = subprocess.run(
+            ["taskkill", "/PID", str(pid), "/F"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+        if completed.returncode != 0:
+            detail = completed.stderr.strip() or completed.stdout.strip() or f"exit code {completed.returncode}"
+            raise RuntimeError(f"Control Center panel nije mogao da se zaustavi: {detail}")
+
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() < deadline:
+        if not _port_in_use("127.0.0.1", port):
+            return
+        time.sleep(0.25)
+
+    raise TimeoutError(
+        f"Control Center panel nije oslobodio port {port} posle zaustavljanja."
+    )
+
+
+def _copy_panel_executable(source: Path, destination: Path) -> None:
+    try:
+        shutil.copy2(source, destination)
+    except PermissionError:
+        _wait_for_path_replaceable(destination)
+        shutil.copy2(source, destination)
+
+
+def _find_panel_process_ids(executable_path: Path) -> list[int]:
+    powershell_command = (
+        "$target = "
+        + _quote_powershell_string(str(executable_path))
+        + "; Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -eq $target } "
+        + "| Select-Object -ExpandProperty ProcessId"
+    )
+    result = subprocess.run(
+        [
+            "powershell",
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-Command",
+            powershell_command,
+        ],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+    )
+    if result.returncode != 0:
+        return []
+
+    process_ids: list[int] = []
+    for raw_line in result.stdout.splitlines():
+        candidate = raw_line.strip()
+        if not candidate:
+            continue
+        try:
+            process_ids.append(int(candidate))
+        except ValueError:
+            continue
+    return process_ids
+
+
+def _find_listening_pid(port: int) -> int | None:
+    result = subprocess.run(
+        ["netstat", "-ano", "-p", "tcp"],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+    )
+    if result.returncode != 0:
+        return None
+
+    expected_local_address = f"127.0.0.1:{port}".lower()
+    for raw_line in result.stdout.splitlines():
+        columns = raw_line.split()
+        if len(columns) < 5 or columns[0].upper() != "TCP":
+            continue
+        local_address = columns[1].lower()
+        state = columns[3].upper()
+        pid_raw = columns[4]
+        if local_address != expected_local_address or state != "LISTENING":
+            continue
+        try:
+            return int(pid_raw)
+        except ValueError:
+            return None
+    return None
+
+
+def _port_in_use(host: str, port: int) -> bool:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.settimeout(0.25)
+        return sock.connect_ex((host, port)) == 0
+
+
+def _wait_for_path_replaceable(path: Path, timeout_seconds: float = 10.0) -> None:
+    if not path.exists():
+        return
+
+    deadline = time.monotonic() + timeout_seconds
+    last_error: OSError | None = None
+    while time.monotonic() < deadline:
+        try:
+            with path.open("ab"):
+                return
+        except OSError as exc:
+            last_error = exc
+            time.sleep(0.25)
+
+    if last_error is not None:
+        raise last_error
+    raise TimeoutError(f"Path did not become replaceable in time: {path}")
+
+
+def _quote_powershell_string(value: str) -> str:
+    return "'" + value.replace("'", "''") + "'"

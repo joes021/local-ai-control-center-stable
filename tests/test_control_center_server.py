@@ -244,3 +244,67 @@ def test_server_open_web_route_returns_local_runtime_url(
     payload = response.json()
     assert payload["status"] == "ok"
     assert "http://127.0.0.1:39281/" in payload["summary"]
+
+
+def test_server_start_route_falls_back_to_llama_when_selected_turboquant_is_not_launchable(
+    tmp_path: Path,
+    monkeypatch,
+):
+    install_root = tmp_path / "install-root"
+    runtime_root = install_root / "runtime" / "llama.cpp"
+    runtime_root.mkdir(parents=True)
+    executable = runtime_root / "llama-server.exe"
+    executable.write_text("llama", encoding="utf-8")
+    turbo_root = install_root / "tools" / "turboquant" / "windows-x64-cuda12.4"
+    turbo_root.mkdir(parents=True, exist_ok=True)
+    (turbo_root / "llama-server.exe").write_text("turbo", encoding="utf-8")
+    _write_active_model_config(
+        install_root,
+        filename="gemma-4-E4B-it-Q4_K_M.gguf",
+    )
+    _write_runtime_endpoint_config(
+        install_root / "config" / "runtime-endpoint.json",
+        port=39281,
+    )
+    selection_path = install_root / "config" / "control-center" / "runtime-selection.json"
+    selection_path.parent.mkdir(parents=True, exist_ok=True)
+    selection_path.write_text(json.dumps({"runtime": "turboquant"}), encoding="utf-8")
+
+    captured: dict[str, object] = {}
+
+    class FakeProcess:
+        pid = 7002
+
+    def fake_popen(command, **kwargs):
+        captured["command"] = command
+        captured["kwargs"] = kwargs
+        return FakeProcess()
+
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.server_service.find_runtime_pid",
+        lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.status_service.find_runtime_pid",
+        lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.status_service.probe_runtime_binary_launchable",
+        lambda path: (False, "TurboQuant launch probe failed.")
+        if "turboquant" in str(path).lower()
+        else (True, "llama.cpp launch probe passed."),
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.server_service.subprocess.Popen",
+        fake_popen,
+    )
+
+    client = TestClient(app)
+    response = client.post("/api/server/start")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "ok"
+    command = captured["command"]
+    assert command[0].endswith("runtime\\llama.cpp\\llama-server.exe")

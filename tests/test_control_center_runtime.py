@@ -78,3 +78,31 @@ def test_runtime_select_route_rejects_missing_turboquant_runtime(
     payload = response.json()
     assert payload["status"] == "error"
     assert "TurboQuant" in payload["summary"]
+
+
+def test_runtime_select_route_rejects_unlaunchable_turboquant_runtime(
+    tmp_path: Path,
+    monkeypatch,
+):
+    install_root = tmp_path / "install-root"
+    _write_runtime_fixture(install_root, include_turboquant=True)
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.runtime_service.find_runtime_pid",
+        lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.status_service.probe_runtime_binary_launchable",
+        lambda path: (False, "TurboQuant launch probe failed.")
+        if "turboquant" in str(path).lower()
+        else (True, "llama.cpp launch probe passed."),
+    )
+
+    client = TestClient(app)
+    response = client.post("/api/runtime/select", json={"runtime": "turboquant"})
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "error"
+    assert "TurboQuant" in payload["summary"]
+    assert "pokrene" in payload["summary"]

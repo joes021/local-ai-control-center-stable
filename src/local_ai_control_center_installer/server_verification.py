@@ -75,6 +75,10 @@ def stop_managed_runtime_on_port(
     port: int,
     server_executable: Path,
     install_root: Path,
+    *,
+    now_fn=time.monotonic,
+    sleep_fn=time.sleep,
+    timeout_seconds: float = 5.0,
 ) -> bool:
     if not is_managed_runtime_port_owned_by_installation(
         port,
@@ -87,18 +91,23 @@ def stop_managed_runtime_on_port(
     if listener_pid is None:
         return False
 
-    command = (
-        f"Stop-Process -Id {listener_pid} -Force -ErrorAction Stop; "
-        f"Wait-Process -Id {listener_pid} -Timeout 5 -ErrorAction SilentlyContinue; "
-        f"if (Get-Process -Id {listener_pid} -ErrorAction SilentlyContinue) {{ exit 1 }} "
-        f"else {{ exit 0 }}"
-    )
+    command = f"Stop-Process -Id {listener_pid} -Force -ErrorAction Stop"
     result = subprocess.run(
         ["powershell", "-NoProfile", "-Command", command],
         capture_output=True,
         text=True,
         check=False,
     )
+
+    deadline = now_fn() + timeout_seconds
+    while now_fn() < deadline:
+        if _find_listening_pid_on_loopback_port(port) is None:
+            return True
+        sleep_fn(0.1)
+
+    if _find_listening_pid_on_loopback_port(port) is None:
+        return True
+
     return result.returncode == 0
 
 
