@@ -80,17 +80,19 @@ def open_opencode(
     env["LACC_OPENCODE_EXPLORE_STEPS"] = str(settings["exploreSteps"])
     log_path = config.install_root / "logs" / "opencode-launch.log"
     log_path.parent.mkdir(parents=True, exist_ok=True)
+    launcher_path = config.install_root / "control-center" / "Open-OpenCode.cmd"
+    launcher_path.parent.mkdir(parents=True, exist_ok=True)
+    _write_opencode_launcher(
+        launcher_path=launcher_path,
+        executable_path=executable_path,
+        working_directory=Path(str(settings["workingDirectory"])),
+        env=env,
+    )
     with log_path.open("a", encoding="utf-8") as handle:
-        subprocess.Popen(
-            [str(executable_path)],
-            cwd=str(settings["workingDirectory"]),
-            env=env,
-            stdout=handle,
-            stderr=subprocess.STDOUT,
-            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-        )
+        handle.write(f"Launching OpenCode via {launcher_path}\n")
+    _launch_opencode_launcher(launcher_path)
 
-    return _result("ok", "open-opencode", "OpenCode je pokrenut.")
+    return _result("ok", "open-opencode", "OpenCode je pokrenut u novom prozoru.")
 
 
 def detect_opencode_instances(executable_path: Path) -> list[dict[str, object]]:
@@ -146,6 +148,54 @@ def _resolve_opencode_executable_path(config: ControlCenterConfig) -> Path:
     artifact = manifest["opencode_artifact"]
     launch = artifact["launch"]["executable_relative_path"]
     return config.install_root / artifact["install_subdir"] / launch
+
+
+def _write_opencode_launcher(
+    *,
+    launcher_path: Path,
+    executable_path: Path,
+    working_directory: Path,
+    env: dict[str, str],
+) -> None:
+    lines = [
+        "@echo off",
+        "setlocal",
+        f'cd /d "{working_directory}"',
+    ]
+    for key in [
+        "OPENCODE_CONFIG",
+        "LACC_PROFILE",
+        "LACC_OPENCODE_SECURITY_MODE",
+        "LACC_OPENCODE_CAPABILITY_MODE",
+        "LACC_OPENCODE_BUILD_STEPS",
+        "LACC_OPENCODE_PLAN_STEPS",
+        "LACC_OPENCODE_GENERAL_STEPS",
+        "LACC_OPENCODE_EXPLORE_STEPS",
+    ]:
+        value = str(env.get(key, ""))
+        escaped_value = value.replace('"', '""')
+        lines.append(f'set "{key}={escaped_value}"')
+    lines.append(f'"{executable_path}"')
+    lines.append("endlocal")
+    launcher_path.write_text("\r\n".join(lines) + "\r\n", encoding="utf-8")
+
+
+def _launch_opencode_launcher(launcher_path: Path) -> None:
+    startfile = getattr(os, "startfile", None)
+    if startfile is not None:
+        startfile(str(launcher_path))
+        return
+
+    subprocess.Popen(
+        [
+            "cmd.exe",
+            "/c",
+            "start",
+            "",
+            str(launcher_path),
+        ],
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+    )
 
 
 def load_opencode_step_schema_payload(
