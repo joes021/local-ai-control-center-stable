@@ -260,11 +260,13 @@ def add_hf_model(
         "download_url": _build_huggingface_download_url(normalized_repo, normalized_filename),
     }
     _upsert_custom_registry_entry(config, entry)
-    return action_result(
+    result = action_result(
         "ok",
         "add-hf-model",
         f"Hugging Face model je dodat u spisak: {entry['label']}. Sledeci korak je Download.",
     )
+    result["localModelId"] = entry["id"]
+    return result
 
 
 def add_unsloth_model(
@@ -296,11 +298,13 @@ def add_unsloth_model(
         "download_url": _build_huggingface_download_url(normalized_repo, normalized_filename),
     }
     _upsert_custom_registry_entry(config, entry)
-    return action_result(
+    result = action_result(
         "ok",
         "add-unsloth-model",
         f"Unsloth model je dodat u spisak: {entry['label']}. Sledeci korak je Download.",
     )
+    result["localModelId"] = entry["id"]
+    return result
 
 
 def delete_model(

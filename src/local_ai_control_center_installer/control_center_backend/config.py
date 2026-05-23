@@ -67,6 +67,10 @@ class ControlCenterConfig:
     def model_action_state_root(self) -> Path:
         return self.control_center_config_root / "model-actions"
 
+    @property
+    def browser_catalog_cache_path(self) -> Path:
+        return self.control_center_config_root / "browser-catalog-cache.json"
+
 
 def get_config() -> ControlCenterConfig:
     raw_port = os.environ.get("LACC_UI_PORT", "3210").strip() or "3210"
