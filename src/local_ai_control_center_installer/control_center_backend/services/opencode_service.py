@@ -9,12 +9,18 @@ from local_ai_control_center_installer.control_center_backend.config import (
     ControlCenterConfig,
     get_config,
 )
+from local_ai_control_center_installer.control_center_backend.services.server_service import (
+    ensure_runtime_ready,
+)
 from local_ai_control_center_installer.control_center_backend.services.settings_service import (
     apply_opencode_settings,
     delete_opencode_step_preset,
     load_effective_settings_state,
     load_opencode_step_schema,
     save_opencode_step_preset,
+)
+from local_ai_control_center_installer.control_center_backend.services.status_service import (
+    load_runtime_state,
 )
 from local_ai_control_center_installer.opencode_bootstrap import load_opencode_manifest
 
@@ -27,12 +33,24 @@ def load_opencode_status_payload(
     config_path = config.install_root / "config" / "opencode" / "managed-config.json"
     instances = detect_opencode_instances(executable_path)
     settings = load_effective_settings_state(config)
+    runtime_state = load_runtime_state(config)
+    runtime_connected = str(runtime_state.get("runtime_live_status", "")) == "started"
+    session_state, session_summary = _build_session_state(
+        has_instances=bool(instances),
+        runtime_connected=runtime_connected,
+        runtime_reason=str(runtime_state.get("runtime_live_reason", "") or ""),
+    )
 
     return {
         "available": executable_path.is_file(),
         "active": bool(instances),
         "instanceCount": len(instances),
         "instances": instances,
+        "runtimeConnected": runtime_connected,
+        "runtimeLiveStatus": str(runtime_state.get("runtime_live_status", "") or ""),
+        "runtimeLiveReason": str(runtime_state.get("runtime_live_reason", "") or ""),
+        "sessionState": session_state,
+        "sessionSummary": session_summary,
         "configExists": config_path.is_file(),
         "configPath": str(config_path),
         "configDir": str(config_path.parent),
@@ -67,6 +85,14 @@ def open_opencode(
         return _result("error", "open-opencode", "OpenCode executable nije pronadjen.")
     if not managed_config_path.is_file():
         return _result("error", "open-opencode", "OpenCode managed config nije pronadjen.")
+    runtime_result = ensure_runtime_ready(config)
+    if runtime_result.get("status") != "ok":
+        summary = str(runtime_result.get("summary", "") or "Runtime nije spreman za OpenCode.")
+        return _result(
+            "error",
+            "open-opencode",
+            f"OpenCode nije pokrenut. {summary}",
+        )
 
     log_path = config.install_root / "logs" / "opencode-launch.log"
     log_path.parent.mkdir(parents=True, exist_ok=True)
@@ -288,3 +314,20 @@ def _capability_mode_label(value: str) -> str:
         "confirm-commands": "3. Citanje + izmena + komande uz potvrdu",
         "auto-commands": "4. Citanje + izmena + komande bez potvrde",
     }.get(value, value)
+
+
+def _build_session_state(
+    *,
+    has_instances: bool,
+    runtime_connected: bool,
+    runtime_reason: str,
+) -> tuple[str, str]:
+    if has_instances and runtime_connected:
+        return "connected", "OpenCode je otvoren i povezan sa runtime-om."
+    if has_instances:
+        reason = runtime_reason or "Runtime trenutno nije pokrenut."
+        return "app-only", f"OpenCode je otvoren, ali backend nije spreman. {reason}"
+    if runtime_connected:
+        return "runtime-ready", "Runtime je spreman za novi OpenCode session."
+    reason = runtime_reason or "Runtime trenutno nije pokrenut."
+    return "idle", f"OpenCode je dostupan, ali backend jos nije spreman. {reason}"

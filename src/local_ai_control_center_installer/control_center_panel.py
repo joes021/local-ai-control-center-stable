@@ -12,6 +12,10 @@ from urllib.request import urlopen
 import uvicorn
 
 from local_ai_control_center_installer.control_center_backend.main import app
+from local_ai_control_center_installer.control_center_backend.config import get_config
+from local_ai_control_center_installer.control_center_backend.services.server_service import (
+    ensure_runtime_ready,
+)
 
 
 DEFAULT_UI_HOST = "127.0.0.1"
@@ -45,6 +49,10 @@ def run_control_center_panel_entry(argv: list[str] | None = None) -> int:
             args=(url,),
             daemon=True,
         ).start()
+    threading.Thread(
+        target=_ensure_runtime_ready_after_panel_boot,
+        daemon=True,
+    ).start()
 
     uvicorn.run(app, host=args.host, port=args.port, log_level="warning")
     return 0
@@ -91,3 +99,13 @@ def _port_in_use(host: str, port: int) -> bool:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         sock.settimeout(0.25)
         return sock.connect_ex((host, port)) == 0
+
+
+def _ensure_runtime_ready_after_panel_boot() -> None:
+    config = get_config()
+    log_path = config.install_root / "logs" / "control-center-runtime-autostart.log"
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    result = ensure_runtime_ready(config)
+    summary = str(result.get("summary", "") or "Runtime autostart completed.")
+    with log_path.open("a", encoding="utf-8") as handle:
+        handle.write(f"{summary}\n")

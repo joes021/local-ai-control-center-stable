@@ -95,9 +95,11 @@ The installer is expected to:
 
 - deploy the persistent control panel runtime into the install root
 - auto-launch the control panel after a successful installation
+- auto-start the installer-managed runtime in the background when the control panel boots
 - create persistent Start Menu and Desktop entry points for daily use
 - register an uninstall entry for the current-user Windows install
 - keep panel truth tied to installer-managed config, runtime, model, and OpenCode artifacts
+- ensure `OpenCode` launch does not proceed until the managed runtime is ready
 
 The control panel currently focuses on the reliable core path:
 
@@ -137,6 +139,7 @@ This repository now delivers:
 - bounded first-run end-user `OpenCode` smoke against the persisted managed configuration
 - installer-managed packaged Windows `TurboQuant` installation for supported NVIDIA x64 systems, including bundled OpenSSL sidecar DLLs required by the packaged runtime
 - integrated local control panel packaging, deployment, and auto-launch
+- background runtime autostart on control-panel launch plus runtime-gated `OpenCode` launch
 - Start Menu, Desktop, and uninstall shell integration for the installed Windows product
 - truthful runtime/model/OpenCode/TurboQuant status views in the local control panel
 - reliable model activation, local/Hugging Face/Unsloth registration, and download progress in the control panel

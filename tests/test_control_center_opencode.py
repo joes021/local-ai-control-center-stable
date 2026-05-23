@@ -50,6 +50,43 @@ def test_opencode_status_route_reports_packaged_installation(
     assert payload["profile"] == "balanced"
 
 
+def test_opencode_status_route_reports_app_only_when_runtime_is_not_connected(
+    tmp_path: Path,
+    monkeypatch,
+):
+    install_root = tmp_path / "install-root"
+    _write_opencode_fixture(install_root)
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.opencode_service.detect_opencode_instances",
+        lambda executable_path: [
+            {
+                "pid": 4242,
+                "name": "opencode.exe",
+                "commandLine": "\"C:\\\\opencode.exe\"",
+            }
+        ],
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.opencode_service.load_runtime_state",
+        lambda config: {
+            "runtime_live_status": "stopped",
+            "runtime_live_reason": "Runtime trenutno nije pokrenut.",
+        },
+        raising=False,
+    )
+
+    client = TestClient(app)
+    response = client.get("/api/opencode/status")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["active"] is True
+    assert payload["runtimeConnected"] is False
+    assert payload["sessionState"] == "app-only"
+    assert "nije pokrenut" in payload["sessionSummary"].lower()
+
+
 def test_opencode_open_route_launches_visible_windows_launcher(
     tmp_path: Path,
     monkeypatch,
@@ -59,14 +96,33 @@ def test_opencode_open_route_launches_visible_windows_launcher(
     monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
 
     captured: dict[str, object] = {}
+    ensure_calls: list[str] = []
 
     def fake_popen(command, **kwargs):
         captured["command"] = command
         captured["kwargs"] = kwargs
 
+    def fake_ensure_runtime_ready(config):
+        ensure_calls.append(str(config.install_root))
+        return {
+            "status": "ok",
+            "action": "ensure-runtime-ready",
+            "summary": "Runtime je spreman za OpenCode.",
+            "details": {
+                "returncode": 0,
+                "stdout": "Runtime je spreman za OpenCode.",
+                "stderr": "",
+            },
+        }
+
     monkeypatch.setattr(
         "local_ai_control_center_installer.control_center_backend.services.opencode_service.subprocess.Popen",
         fake_popen,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.opencode_service.ensure_runtime_ready",
+        fake_ensure_runtime_ready,
+        raising=False,
     )
 
     client = TestClient(app)
@@ -76,6 +132,7 @@ def test_opencode_open_route_launches_visible_windows_launcher(
     payload = response.json()
     assert payload["status"] == "ok"
     assert "OpenCode je pokrenut" in payload["summary"]
+    assert ensure_calls == [str(install_root)]
     launcher_path = install_root / "control-center" / "Open-OpenCode.cmd"
     assert launcher_path.name == "Open-OpenCode.cmd"
     assert launcher_path.is_file()
@@ -95,6 +152,49 @@ def test_opencode_open_route_launches_visible_windows_launcher(
     ]
     assert captured["kwargs"]["cwd"] == str(launcher_path.parent)
     assert captured["kwargs"]["creationflags"] == getattr(subprocess, "CREATE_NEW_CONSOLE", 0)
+
+
+def test_opencode_open_route_returns_error_when_runtime_cannot_be_prepared(
+    tmp_path: Path,
+    monkeypatch,
+):
+    install_root = tmp_path / "install-root"
+    _write_opencode_fixture(install_root)
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+
+    launch_attempted = False
+
+    def fake_popen(command, **kwargs):
+        nonlocal launch_attempted
+        launch_attempted = True
+
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.opencode_service.subprocess.Popen",
+        fake_popen,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.opencode_service.ensure_runtime_ready",
+        lambda config: {
+            "status": "error",
+            "action": "ensure-runtime-ready",
+            "summary": "Runtime nije mogao da se pripremi za OpenCode.",
+            "details": {
+                "returncode": 1,
+                "stdout": "",
+                "stderr": "Runtime nije mogao da se pripremi za OpenCode.",
+            },
+        },
+        raising=False,
+    )
+
+    client = TestClient(app)
+    response = client.post("/api/opencode/open", json={"profile": "balanced"})
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "error"
+    assert "runtime" in payload["summary"].lower()
+    assert launch_attempted is False
 
 
 def test_opencode_steps_and_settings_routes_persist_panel_managed_values(

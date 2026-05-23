@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from pathlib import Path
 import subprocess
+import time
 
 from local_ai_control_center_installer.control_center_backend.config import (
     ControlCenterConfig,
@@ -22,6 +23,9 @@ from local_ai_control_center_installer.server_verification import (
     stop_server_process,
     ServerVerificationTarget,
 )
+
+RUNTIME_READY_TIMEOUT_SECONDS = 180.0
+RUNTIME_READY_POLL_INTERVAL_SECONDS = 1.0
 
 
 def load_server_status(
@@ -122,6 +126,66 @@ def start_server(
         "ok",
         "start-server",
         "Pokretanje runtime servera je poslato. Status ce se osveziti automatski.",
+    )
+
+
+def ensure_runtime_ready(
+    config: ControlCenterConfig | None = None,
+    *,
+    timeout_seconds: float = RUNTIME_READY_TIMEOUT_SECONDS,
+    poll_interval_seconds: float = RUNTIME_READY_POLL_INTERVAL_SECONDS,
+    now_fn=time.monotonic,
+    sleep_fn=time.sleep,
+    health_probe=probe_server_health,
+    pid_finder=find_runtime_pid,
+) -> dict[str, object]:
+    config = config or get_config()
+    runtime_state = load_runtime_state(config)
+    port = int(runtime_state["port"])
+    base_url = str(runtime_state["base_url"])
+
+    health_status = health_probe(base_url)
+    runtime_pid = pid_finder(port)
+    if health_status == "ready":
+        return _result(
+            "ok",
+            "ensure-runtime-ready",
+            "Runtime je vec spreman za OpenCode.",
+        )
+
+    if health_status == "offline" and runtime_pid is None:
+        start_result = start_server(config)
+        if start_result.get("status") != "ok":
+            return {
+                "status": "error",
+                "action": "ensure-runtime-ready",
+                "summary": str(start_result.get("summary", "") or "Runtime nije mogao da se pokrene."),
+                "details": dict(start_result.get("details", {})),
+            }
+
+    deadline = now_fn() + max(timeout_seconds, 0.0)
+    last_summary = "Runtime jos nije spreman za OpenCode."
+    while now_fn() <= deadline:
+        health_status = health_probe(base_url)
+        runtime_pid = pid_finder(port)
+        if health_status == "ready":
+            return _result(
+                "ok",
+                "ensure-runtime-ready",
+                "Runtime je spreman za OpenCode.",
+            )
+        if health_status == "loading":
+            last_summary = "Runtime se jos ucitava za OpenCode."
+        elif runtime_pid is not None:
+            last_summary = "Runtime proces postoji, ali health jos nije spreman."
+        else:
+            last_summary = "Runtime nije ostao pokrenut tokom pripreme za OpenCode."
+        sleep_fn(poll_interval_seconds)
+
+    return _result(
+        "error",
+        "ensure-runtime-ready",
+        f"Runtime nije postao spreman za OpenCode u roku od {int(timeout_seconds)}s. {last_summary}",
     )
 
 

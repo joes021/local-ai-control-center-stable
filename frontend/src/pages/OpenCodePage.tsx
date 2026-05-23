@@ -24,8 +24,14 @@ function renderOpenCodeState(opencode: OpenCodeStatusPayload | null) {
   if (!opencode?.available) {
     return "Nedostupan";
   }
-  if (opencode.active) {
+  if (opencode.sessionState === "connected") {
     return "Aktivan";
+  }
+  if (opencode.sessionState === "app-only") {
+    return "Otvoren bez backend veze";
+  }
+  if (opencode.sessionState === "runtime-ready") {
+    return "Runtime spreman";
   }
   return "Dostupan";
 }
@@ -111,6 +117,7 @@ export function OpenCodePage() {
         <div className="summary-metrics">
           <span>Instanci: {opencode.instanceCount ?? 0}</span>
           <span>Profil: {opencode.profile || "--"}</span>
+          <span>Backend: {opencode.runtimeConnected ? "povezan" : opencode.runtimeLiveStatus || "--"}</span>
           <span>Security režim: {opencode.securityModeLabel || "--"}</span>
           <span>Autonomija: {opencode.capabilityModeLabel || "--"}</span>
         </div>
@@ -131,8 +138,8 @@ export function OpenCodePage() {
           </button>
         </div>
         <p className="helper-text">
-          Promena modela vazi za novi OpenCode session. Vec otvoren OpenCode prozor ne menja model
-          usred sesije.
+          {opencode.sessionSummary ||
+            "Promena modela vazi za novi OpenCode session. Vec otvoren OpenCode prozor ne menja model usred sesije."}
         </p>
       </section>
 
@@ -141,6 +148,10 @@ export function OpenCodePage() {
         <strong className="status-value">{opencode.configPath || "nije pronadjen"}</strong>
         <p className="helper-text">Executable: {opencode.executablePath || "nije pronadjen"}</p>
         <p className="helper-text">Working directory: {opencode.workingDirectory || "--"}</p>
+        <p className="helper-text">
+          Backend veza: {opencode.runtimeConnected ? "spremna" : "nije spremna"} |{" "}
+          {opencode.runtimeLiveReason || "Nema dodatnih runtime detalja."}
+        </p>
         <p className="helper-text">Audit: {opencode.auditSummary || "Nema dodatnih OpenCode detalja."}</p>
       </section>
 

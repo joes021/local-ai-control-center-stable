@@ -449,6 +449,11 @@ export type OpenCodeStatusPayload = {
   available: boolean;
   active: boolean;
   instanceCount: number;
+  runtimeConnected: boolean;
+  runtimeLiveStatus: string;
+  runtimeLiveReason: string;
+  sessionState: string;
+  sessionSummary: string;
   instances: Array<{
     pid?: number | null;
     name?: string;
