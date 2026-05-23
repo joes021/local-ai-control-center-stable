@@ -4,9 +4,9 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "local-ai-control-center-installer"
-version = "0.1.13"
+version = "0.2.0"
 requires-python = ">=3.11"
-dependencies = []
+dependencies = ["fastapi>=0.115", "uvicorn>=0.35"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0"]
@@ -14,6 +14,11 @@ release = ["build>=1.5.0", "pyinstaller>=6.0"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
+testpaths = ["tests"]
 
 [tool.setuptools.package-data]
-local_ai_control_center_installer = ["manifests/*.json"]
+local_ai_control_center_installer = [
+  "manifests/*.json",
+  "control_center_backend/frontend_dist/*",
+  "control_center_backend/frontend_dist/assets/*",
+]

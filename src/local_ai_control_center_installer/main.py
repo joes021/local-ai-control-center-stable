@@ -34,6 +34,7 @@ def run_installer(
     apply_opencode_verification: SessionStep | None = None,
     apply_turboquant: SessionStep | None = None,
     apply_first_run_validation: SessionStep | None = None,
+    apply_control_center_integration: SessionStep | None = None,
     apply_product_gate: SessionStep | None = None,
     write_reports: ReportStep | None = None,
 ):
@@ -62,6 +63,10 @@ def run_installer(
         apply_first_run_validation
         or defaults_module.default_apply_first_run_validation
     )
+    apply_control_center_integration = (
+        apply_control_center_integration
+        or defaults_module.default_apply_control_center_integration
+    )
     apply_product_gate = apply_product_gate or defaults_module.default_apply_product_gate
     write_reports = write_reports or defaults_module.default_write_reports
 
@@ -76,6 +81,7 @@ def run_installer(
     session = apply_opencode_verification(session)
     session = apply_turboquant(session)
     session = apply_first_run_validation(session)
+    session = apply_control_center_integration(session)
     session = apply_product_gate(session)
     write_reports(session)
     return session.to_dict()

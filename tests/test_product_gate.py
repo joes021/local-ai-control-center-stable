@@ -21,6 +21,8 @@ def _build_gate_ready_session() -> InstallerSession:
         first_run_status="ready",
         first_run_process_status="ready",
         first_run_connection_status="ready",
+        control_center_runtime_status="ready",
+        control_center_launch_status="ready",
         install_opencode=True,
     )
 
@@ -86,3 +88,14 @@ def test_apply_product_gate_allows_complete_when_turboquant_is_the_only_failure(
     assert updated.product_installation_status == "complete"
     assert updated.failing_step is None
     assert updated.error_message is None
+
+
+def test_apply_product_gate_marks_failed_when_control_center_launch_is_not_ready():
+    session = _build_gate_ready_session()
+    session.control_center_launch_status = "failed"
+
+    updated = apply_product_gate(session)
+
+    assert updated.product_installation_status == "failed"
+    assert updated.failing_step == "product-gate"
+    assert updated.error_message == "The control panel did not launch ready."

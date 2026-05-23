@@ -201,6 +201,43 @@ def test_run_installer_confirms_summary_before_dependency_scan():
     assert events == ["summary-confirm", "scan"]
 
 
+def test_run_installer_invokes_control_center_integration_before_final_product_gate():
+    events: list[str] = []
+
+    def mark_ready(session):
+        session.install_opencode = True
+        return session
+
+    def control_center(session):
+        events.append("control-center")
+        session.control_center_runtime_status = "ready"
+        session.control_center_launch_status = "ready"
+        return session
+
+    def product_gate(session):
+        events.append("product-gate")
+        session.product_installation_status = "complete"
+        return session
+
+    run_installer(
+        collect_answers=mark_ready,
+        scan_dependencies=lambda session: events.append("scan") or session,
+        apply_phase=lambda session: events.append("phase") or session,
+        prepare_download_plan=lambda session: events.append("download-plan") or session,
+        apply_runtime_payload=lambda session: events.append("runtime") or session,
+        apply_server_verification=lambda session: events.append("server") or session,
+        apply_opencode_bootstrap=lambda session: events.append("opencode-bootstrap") or session,
+        apply_opencode_verification=lambda session: events.append("opencode-verify") or session,
+        apply_turboquant=lambda session: events.append("turboquant") or session,
+        apply_first_run_validation=lambda session: events.append("first-run") or session,
+        apply_control_center_integration=control_center,
+        apply_product_gate=product_gate,
+        write_reports=lambda session: None,
+    )
+
+    assert events[-2:] == ["control-center", "product-gate"]
+
+
 def test_run_installer_stops_before_dependency_scan_when_confirmation_is_cancelled():
     events: list[str] = []
 
@@ -283,6 +320,8 @@ def test_run_installer_writes_reports_after_failed_bootstrap_apply():
             "first_run_process_status": "skipped",
             "first_run_connection_status": "skipped",
             "turboquant_status": "skipped",
+            "control_center_runtime_status": "skipped",
+            "control_center_launch_status": "skipped",
             "turboquant_artifact_id": None,
             "turboquant_artifact_path": None,
             "turboquant_metadata_path": None,
@@ -312,6 +351,10 @@ def test_run_installer_writes_reports_after_failed_bootstrap_apply():
             "first_run_log_path": None,
             "server_log_path": None,
             "turboquant_error": None,
+            "control_center_executable_path": None,
+            "control_center_launcher_path": None,
+            "control_center_url": None,
+            "control_center_port": None,
             "install_opencode": False,
             "attempt_turboquant": False,
             "additional_model_paths": [],
@@ -790,6 +833,11 @@ def test_run_installer_uses_real_default_scan_apply_and_write_paths(
         "default_apply_first_run_validation",
         lambda session: _mark_first_run_ready(session, tmp_path),
     )
+    monkeypatch.setattr(
+        defaults_module,
+        "default_apply_control_center_integration",
+        lambda session: _mark_control_center_ready(session, tmp_path),
+    )
     availability = {
         "git": "C:\\Tools\\git.exe",
         "node": "C:\\Tools\\node.exe",
@@ -906,6 +954,11 @@ def test_run_installer_real_default_path_converts_install_root_report_persistenc
         defaults_module,
         "default_apply_first_run_validation",
         lambda session: _mark_first_run_ready(session, tmp_path),
+    )
+    monkeypatch.setattr(
+        defaults_module,
+        "default_apply_control_center_integration",
+        lambda session: _mark_control_center_ready(session, tmp_path),
     )
     monkeypatch.setattr(
         defaults_module,
@@ -1068,4 +1121,22 @@ def _mark_first_run_ready(
     session.first_run_process_status = "ready"
     session.first_run_connection_status = "ready"
     session.first_run_log_path = str(log_path)
+    return session
+
+
+def _mark_control_center_ready(
+    session: InstallerSession,
+    tmp_path,
+) -> InstallerSession:
+    install_root = tmp_path / "install-root"
+    session.control_center_runtime_status = "ready"
+    session.control_center_launch_status = "ready"
+    session.control_center_executable_path = str(
+        install_root / "control-center" / "LocalAIControlCenterPanel.exe"
+    )
+    session.control_center_launcher_path = str(
+        install_root / "control-center" / "Open-Control-Center.cmd"
+    )
+    session.control_center_url = "http://127.0.0.1:3210/"
+    session.control_center_port = 3210
     return session
