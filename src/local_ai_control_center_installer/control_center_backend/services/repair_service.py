@@ -223,10 +223,12 @@ def repair_config(
         endpoint = None
     active_payload = read_json_object(config.active_model_config_path)
     active_model_id = str(active_payload.get("model_id", "") or "")
+    active_model_path = Path(str(active_payload.get("model_path", "") or ""))
     if endpoint is not None and active_model_id and not config.opencode_managed_config_path.is_file():
         _write_managed_config(
             config.opencode_managed_config_path,
             model_id=active_model_id,
+            public_model_name=active_model_path.name or active_model_id,
             base_url=endpoint.base_url,
         )
         wrote_anything = True

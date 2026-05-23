@@ -183,7 +183,7 @@ def test_apply_first_run_validation_marks_ready_after_real_opencode_response(
     assert updated.first_run_log_path is not None
     assert Path(updated.first_run_log_path).read_text(encoding="utf-8").strip().startswith("{")
     assert captured["command"][-1] == frv.FIRST_RUN_PROMPT
-    assert captured["command"][-2] == "local-lacc/recommended-6gb"
+    assert captured["command"][-2] == "local-lacc/recommended-6gb.gguf"
     assert captured["process"].communicate_timeouts == [ov.OPENCODE_SMOKE_TIMEOUT_SECONDS]
     assert captured["env"]["OPENCODE_CONFIG"] == session.opencode_config_path
     assert "OPENCODE_CONFIG_CONTENT" not in captured["env"]

@@ -294,7 +294,7 @@ def test_apply_opencode_verification_success_path_uses_bounded_smoke_and_relay_e
         "--format",
         "json",
         "--model",
-        "local-lacc/recommended-6gb",
+        "local-lacc/recommended-6gb.gguf",
         f"Repeat this exact token once: {marker}",
     ]
     assert updated.verified_opencode_command == subprocess.list2cmdline(
@@ -312,12 +312,15 @@ def test_apply_opencode_verification_success_path_uses_bounded_smoke_and_relay_e
     assert env["OPENCODE_CONFIG"] == session.opencode_config_path
     assert env["OPENCODE_DISABLE_MODELS_FETCH"] == "true"
     embedded_config = json.loads(env["OPENCODE_CONFIG_CONTENT"])
-    assert embedded_config["model"] == "local-lacc/recommended-6gb"
+    assert embedded_config["model"] == "local-lacc/recommended-6gb.gguf"
     assert "installer_managed" not in embedded_config
     assert (
         embedded_config["provider"]["local-lacc"]["options"]["baseURL"]
         == "http://127.0.0.1:9422/v1"
     )
+    assert embedded_config["provider"]["local-lacc"]["models"] == {
+        "recommended-6gb.gguf": {"name": "recommended-6gb.gguf"}
+    }
     persisted_config = json.loads(
         Path(session.opencode_config_path).read_text(encoding="utf-8")
     )
@@ -878,6 +881,7 @@ def test_start_temporary_runtime_server_uses_dedicated_log_path(
         managed_config_path=tmp_path / "managed-config.json",
         managed_config_text="{}",
         model_id="recommended-6gb",
+        public_model_name="recommended-6gb.gguf",
         model_path=tmp_path / "model.gguf",
         verified_server_url="http://127.0.0.1:8080",
         extra_env={},

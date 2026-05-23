@@ -14,6 +14,7 @@ from urllib.request import Request, urlopen
 
 from local_ai_control_center_installer.opencode_bootstrap import (
     load_opencode_manifest,
+    resolve_opencode_public_model_name,
 )
 from local_ai_control_center_installer.reporting import build_run_paths
 from local_ai_control_center_installer.server_verification import (
@@ -34,6 +35,7 @@ class OpenCodeVerificationTarget:
     managed_config_path: Path
     managed_config_text: str
     model_id: str
+    public_model_name: str
     model_path: Path
     verified_server_url: str
     extra_env: dict[str, str]
@@ -174,7 +176,7 @@ def apply_opencode_verification(
     command = _build_verification_command(
         target.executable_path,
         verification_args=target.verification_args,
-        model_id=target.model_id,
+        public_model_name=target.public_model_name,
         marker=marker,
     )
     session.verified_opencode_command = _format_windows_command(command)
@@ -311,6 +313,7 @@ def resolve_opencode_verification_target(
         managed_config_path=managed_config_path,
         managed_config_text=managed_config_text,
         model_id=model_id,
+        public_model_name=resolve_opencode_public_model_name(model_id, model_path),
         model_path=model_path,
         verified_server_url=verified_server_url,
         extra_env=launch_contract["extra_env"],
@@ -915,13 +918,15 @@ def _build_verification_env(
 ) -> dict[str, str]:
     override_payload = {
         "autoupdate": False,
-        "model": f"local-lacc/{target.model_id}",
+        "model": f"local-lacc/{target.public_model_name}",
         "enabled_providers": ["local-lacc"],
         "provider": {
             "local-lacc": {
                 "npm": "@ai-sdk/openai-compatible",
                 "options": {"baseURL": f"{relay_base_url}/v1"},
-                "models": {target.model_id: {}},
+                "models": {
+                    target.public_model_name: {"name": target.public_model_name}
+                },
             }
         },
     }
@@ -937,13 +942,13 @@ def _build_verification_command(
     executable_path: Path,
     *,
     verification_args: list[str],
-    model_id: str,
+    public_model_name: str,
     marker: str,
 ) -> list[str]:
     return [
         str(executable_path),
         *verification_args,
-        f"local-lacc/{model_id}",
+        f"local-lacc/{public_model_name}",
         f"Repeat this exact token once: {marker}",
     ]
 

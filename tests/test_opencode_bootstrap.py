@@ -53,9 +53,21 @@ def _build_opencode_manifest(
     }
 
 
-def _write_active_model_config(path: Path, *, model_id: str = "recommended-6gb") -> Path:
+def _write_active_model_config(
+    path: Path,
+    *,
+    model_id: str = "recommended-6gb",
+    model_path: Path | None = None,
+) -> Path:
+    if model_path is None:
+        model_path = path.parent / "models" / f"{model_id}.gguf"
+    model_path.parent.mkdir(parents=True, exist_ok=True)
+    model_path.write_text("model", encoding="utf-8")
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps({"model_id": model_id}, indent=2), encoding="utf-8")
+    path.write_text(
+        json.dumps({"model_id": model_id, "model_path": str(model_path)}, indent=2),
+        encoding="utf-8",
+    )
     return path
 
 
@@ -450,7 +462,11 @@ def test_apply_opencode_bootstrap_marks_artifact_ready_when_valid_artifact_exist
         encoding="utf-8",
     )
     active_model_config_path = _write_active_model_config(
-        install_root / "config" / "active-model.json"
+        install_root / "config" / "active-model.json",
+        model_path=install_root
+        / "models"
+        / "recommended-6gb"
+        / "gemma-4-E4B-it-Q4_K_M.gguf",
     )
     session = InstallerSession(
         install_opencode=True,
@@ -484,10 +500,13 @@ def test_apply_opencode_bootstrap_marks_artifact_ready_when_valid_artifact_exist
     assert Path(updated.opencode_artifact_path) == artifact_root
     assert Path(updated.opencode_metadata_path) == artifact_root / "opencode-artifact.json"
     assert managed_config["autoupdate"] is False
-    assert managed_config["model"] == "local-lacc/recommended-6gb"
+    assert managed_config["model"] == "local-lacc/gemma-4-E4B-it-Q4_K_M.gguf"
     assert "installer_managed" not in managed_config
     assert managed_config["enabled_providers"] == ["local-lacc"]
     assert managed_config["provider"]["local-lacc"]["npm"] == "@ai-sdk/openai-compatible"
+    assert managed_config["provider"]["local-lacc"]["models"] == {
+        "gemma-4-E4B-it-Q4_K_M.gguf": {"name": "gemma-4-E4B-it-Q4_K_M.gguf"}
+    }
 
 
 def test_apply_opencode_bootstrap_fails_prerequisites_when_active_model_id_cannot_be_resolved(
@@ -699,7 +718,9 @@ def test_apply_opencode_bootstrap_generated_config_uses_canonical_runtime_endpoi
     assert managed_config["enabled_providers"] == ["local-lacc"]
     assert managed_config["provider"]["local-lacc"]["npm"] == "@ai-sdk/openai-compatible"
     assert managed_config["provider"]["local-lacc"]["options"]["baseURL"] == "http://127.0.0.1:39281/v1"
-    assert managed_config["provider"]["local-lacc"]["models"] == {"my-model-q4": {}}
+    assert managed_config["provider"]["local-lacc"]["models"] == {
+        "my-model-q4.gguf": {"name": "my-model-q4.gguf"}
+    }
 
 
 def test_apply_opencode_bootstrap_second_pass_reuses_staged_artifact_without_redownloading(
