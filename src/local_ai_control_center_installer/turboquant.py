@@ -26,6 +26,7 @@ from .download_plan import (
     TURBOQUANT_ARTIFACT_DOWNLOAD_KEY,
     find_download_plan_item,
 )
+from .runtime_binary_health import detect_missing_sidecar_imports
 from .session import InstallerSession
 
 
@@ -314,6 +315,10 @@ def _turboquant_artifact_ready(
     verify_required_file_checksums,
     load_library=None,
 ) -> bool:
+    executable_path = _resolve_turboquant_executable_path(
+        turboquant_root,
+        turboquant_artifact,
+    )
     return (
         verify_required_files(turboquant_root, turboquant_artifact["required_files"])
         and verify_required_file_checksums(
@@ -329,6 +334,7 @@ def _turboquant_artifact_ready(
             turboquant_artifact["required_files"],
             load_library=load_library,
         )
+        and not detect_missing_sidecar_imports(executable_path)
     )
 
 
@@ -385,6 +391,15 @@ def _install_packaged_windows_strategy(
             "TurboQuant bundled libraries could not be loaded on this machine."
         )
 
+    missing_sidecars = detect_missing_sidecar_imports(
+        _resolve_turboquant_executable_path(extracted_root, turboquant_artifact)
+    )
+    if missing_sidecars:
+        missing_labels = ", ".join(missing_sidecars)
+        raise ValueError(
+            f"TurboQuant executable is missing required sidecar DLLs: {missing_labels}."
+        )
+
     write_runtime_metadata(
         extracted_root / "turboquant-artifact.json",
         artifact_id=turboquant_artifact["id"],
@@ -423,6 +438,17 @@ def _require_download_plan_item(session: InstallerSession, key: str):
     if plan_item is None:
         raise ValueError(f"Installer session download plan is missing item: {key}")
     return plan_item
+
+
+def _resolve_turboquant_executable_path(
+    root: Path,
+    turboquant_artifact: dict,
+) -> Path:
+    launch = turboquant_artifact.get("launch", {})
+    executable_relative_path = str(
+        launch.get("executable_relative_path", "llama-server.exe")
+    )
+    return root / executable_relative_path
 
 
 def _invoke_download(download_func, url: str, destination: Path, *, plan_item) -> Path:

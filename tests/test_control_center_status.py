@@ -4,6 +4,9 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from local_ai_control_center_installer.control_center_backend.main import app
+from local_ai_control_center_installer.control_center_backend.services import (
+    status_service,
+)
 from local_ai_control_center_installer.runtime_bootstrap import (
     _write_runtime_endpoint_config,
 )
@@ -179,3 +182,37 @@ def test_status_route_falls_back_to_llama_when_selected_turboquant_is_not_launch
     assert payload["turboQuantRuntimeAvailable"] is False
     assert payload["turboQuantStatus"] == "failed"
     assert "launch probe failed" in payload["turboQuantReason"]
+
+
+def test_probe_runtime_binary_launchable_reports_missing_sidecar_dlls_without_spawn(
+    tmp_path: Path,
+    monkeypatch,
+):
+    binary_path = (
+        tmp_path
+        / "tools"
+        / "turboquant"
+        / "windows-x64-cuda12.4"
+        / "llama-server.exe"
+    )
+    binary_path.parent.mkdir(parents=True, exist_ok=True)
+    binary_path.write_text("binary", encoding="utf-8")
+
+    monkeypatch.delenv("LACC_SKIP_RUNTIME_LAUNCH_PROBE", raising=False)
+    monkeypatch.setattr(
+        status_service,
+        "detect_missing_sidecar_imports",
+        lambda path: ("libssl-3-x64.dll", "libcrypto-3-x64.dll"),
+        raising=False,
+    )
+
+    def _unexpected_run(*args, **kwargs):
+        raise AssertionError("subprocess.run should not be called for missing DLL sidecars")
+
+    monkeypatch.setattr(status_service.subprocess, "run", _unexpected_run)
+
+    launchable, reason = status_service.probe_runtime_binary_launchable(binary_path)
+
+    assert launchable is False
+    assert "libssl-3-x64.dll" in reason
+    assert "libcrypto-3-x64.dll" in reason
