@@ -41,6 +41,9 @@ NVIDIA_SMI_QUERY_TIMEOUT_SECONDS = 20
 DEFAULT_NVSMI_PATH = Path(
     r"C:\Program Files\NVIDIA Corporation\NVSMI\nvidia-smi.exe"
 )
+PACKAGED_TURBOQUANT_SIDECARS_PACKAGE = (
+    "local_ai_control_center_installer.turboquant_sidecars"
+)
 
 StrategyResolver = Callable[[], object | None]
 StrategyInstaller = Callable[[InstallerSession, object], InstallerSession | None]
@@ -231,6 +234,25 @@ def _validate_turboquant_artifact(turboquant_artifact: dict) -> None:
                 "TurboQuant artifact entry required_files must contain non-empty string paths."
             )
 
+    packaged_sidecar_files = turboquant_artifact.get("packaged_sidecar_files")
+    if packaged_sidecar_files is not None:
+        if (
+            not isinstance(packaged_sidecar_files, list)
+            or not packaged_sidecar_files
+        ):
+            raise ValueError(
+                "TurboQuant artifact entry packaged_sidecar_files must be a non-empty list when provided."
+            )
+        for relative_path in packaged_sidecar_files:
+            if not isinstance(relative_path, str) or not relative_path.strip():
+                raise ValueError(
+                    "TurboQuant artifact entry packaged_sidecar_files must contain non-empty string paths."
+                )
+            if relative_path not in required_files:
+                raise ValueError(
+                    "TurboQuant artifact entry packaged_sidecar_files contains an unknown required file."
+                )
+
     required_file_sha256 = turboquant_artifact.get("required_file_sha256")
     if not isinstance(required_file_sha256, dict):
         raise ValueError(
@@ -315,6 +337,7 @@ def _turboquant_artifact_ready(
     verify_required_file_checksums,
     load_library=None,
 ) -> bool:
+    _ensure_packaged_sidecars(turboquant_root, turboquant_artifact)
     executable_path = _resolve_turboquant_executable_path(
         turboquant_root,
         turboquant_artifact,
@@ -375,6 +398,7 @@ def _install_packaged_windows_strategy(
         extracted_root,
         archive_type=turboquant_artifact["archive_type"],
     )
+    _ensure_packaged_sidecars(extracted_root, turboquant_artifact)
     if not verify_required_files(extracted_root, turboquant_artifact["required_files"]):
         raise ValueError("TurboQuant artifact is missing required files.")
     if not verify_required_file_checksums(
@@ -458,6 +482,56 @@ def _invoke_download(download_func, url: str, destination: Path, *, plan_item) -
     if "plan_item" in inspect.signature(download_func).parameters:
         return download_func(url, destination, plan_item=plan_item)
     return download_func(url, destination)
+
+
+def _resolve_packaged_sidecar_root(turboquant_artifact: dict) -> Path | None:
+    artifact_id = str(turboquant_artifact.get("id", "") or "").strip()
+    if not artifact_id:
+        return None
+    try:
+        resource = files(PACKAGED_TURBOQUANT_SIDECARS_PACKAGE).joinpath(artifact_id)
+    except ModuleNotFoundError:
+        return None
+    resource_path = Path(str(resource))
+    if resource_path.is_dir():
+        return resource_path
+    return None
+
+
+def _ensure_packaged_sidecars(root: Path, turboquant_artifact: dict) -> None:
+    sidecar_files = tuple(
+        str(relative_path).strip()
+        for relative_path in turboquant_artifact.get("packaged_sidecar_files", ())
+        if isinstance(relative_path, str) and str(relative_path).strip()
+    )
+    if not sidecar_files:
+        return
+
+    sidecar_root = _resolve_packaged_sidecar_root(turboquant_artifact)
+    if sidecar_root is None:
+        raise FileNotFoundError(
+            "Packaged TurboQuant sidecar resources are missing from this installer build."
+        )
+
+    required_file_sha256 = turboquant_artifact["required_file_sha256"]
+    for relative_path in sidecar_files:
+        source_path = sidecar_root / relative_path
+        if not source_path.is_file():
+            raise FileNotFoundError(
+                f"Packaged TurboQuant sidecar is missing from installer resources: {relative_path}"
+            )
+        expected_sha256 = str(required_file_sha256[relative_path])
+        if not verify_sha256(source_path, expected_sha256):
+            raise ValueError(
+                f"Packaged TurboQuant sidecar checksum verification failed: {relative_path}"
+            )
+
+        destination_path = root / relative_path
+        if destination_path.is_file() and verify_sha256(destination_path, expected_sha256):
+            continue
+
+        destination_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source_path, destination_path)
 
 
 def _resolve_nvidia_smi_path() -> Path | None:

@@ -130,7 +130,7 @@ This repository now delivers:
 - installer-managed `OpenCode` artifact preparation
 - installer-managed `OpenCode` live-route verification against the active local runtime/model route
 - bounded first-run end-user `OpenCode` smoke against the persisted managed configuration
-- installer-managed packaged Windows `TurboQuant` installation for supported NVIDIA x64 systems, with truthful non-hard-fail status reporting
+- installer-managed packaged Windows `TurboQuant` installation for supported NVIDIA x64 systems, including bundled OpenSSL sidecar DLLs required by the packaged runtime
 - integrated local control panel packaging, deployment, and auto-launch
 - truthful runtime/model/OpenCode/TurboQuant status views in the local control panel
 - reliable model activation, local/Hugging Face/Unsloth registration, and download progress in the control panel
