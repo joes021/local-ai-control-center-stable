@@ -2,12 +2,13 @@
 
 Clean restart repo for building a stable `Local AI Control Center`.
 
-This repository exists to prioritize:
+This repository now prioritizes:
 
 - stable installer behavior
 - transparent runtime setup
 - reliable model bootstrap
 - reliable OpenCode integration
+- reliable local control panel behavior
 - clear logs and diagnostics
 
 Working principle:
@@ -30,7 +31,7 @@ Priority order:
 2. Ubuntu x86_64
 3. Ubuntu arm64
 
-The current goal is not feature expansion. The goal is a trustworthy installer and runtime product.
+The current goal is a trustworthy installer, runtime, and local control panel product.
 
 ## Development Setup
 
@@ -79,9 +80,35 @@ The installer window should remain open at the end of the run so the user can re
 
 For the packaged Windows installer, the core installation path is based on bundled Python plus prebuilt runtime artifacts. It should not block on developer-only tools such as `git`, `Node.js`, or local C/C++ build toolchains.
 
-## Current Slice Status
+## Control Panel
 
-The current Windows installer/runtime milestone is complete for this repository scope.
+The installed Windows product now includes a local web control panel:
+
+- default URL: `http://127.0.0.1:3210/`
+- persistent launcher: `control-center/Open-Control-Center.cmd` inside the install root
+- persistent runtime host: `control-center/LocalAIControlCenterPanel.exe`
+
+The installer is expected to:
+
+- deploy the persistent control panel runtime into the install root
+- auto-launch the control panel after a successful installation
+- keep panel truth tied to installer-managed config, runtime, model, and OpenCode artifacts
+
+The control panel currently focuses on the reliable core path:
+
+- `Home`
+- `Server`
+- `OpenCode`
+- `Models`
+- `Settings`
+- `Logs`
+- `Repair`
+
+The first stable panel version intentionally does not expose unfinished `Browser`, `Benchmark`, or `Updates` flows in the main navigation.
+
+## Current Product Status
+
+The current Windows installer/control-panel milestone is complete for this repository scope.
 
 This repository now delivers:
 
@@ -96,6 +123,10 @@ This repository now delivers:
 - installer-managed `OpenCode` live-route verification against the active local runtime/model route
 - bounded first-run end-user `OpenCode` smoke against the persisted managed configuration
 - installer-managed packaged Windows `TurboQuant` installation for supported NVIDIA x64 systems, with truthful non-hard-fail status reporting
+- integrated local control panel packaging, deployment, and auto-launch
+- truthful runtime/model/OpenCode/TurboQuant status views in the local control panel
+- reliable model activation, local/Hugging Face/Unsloth registration, and download progress in the control panel
+- installer-truth-backed settings, OpenCode presets, and TurboQuant presets in the control panel
 - final installer/runtime completion gating through `product_installation_status`
 - human-readable logging and JSON reporting
 
@@ -103,6 +134,4 @@ The current `recommended-6gb` default is `gemma-4-E4B-it-Q4_K_M.gguf`, pinned fr
 
 This repository still does not claim:
 
-- portal or browser UI flows
-- update UX or catalog UX
 - Linux parity

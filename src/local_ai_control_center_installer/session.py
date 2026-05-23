@@ -41,6 +41,8 @@ class InstallerSession:
     first_run_process_status: str = "skipped"
     first_run_connection_status: str = "skipped"
     turboquant_status: str = "skipped"
+    control_center_runtime_status: str = "skipped"
+    control_center_launch_status: str = "skipped"
     platform: str | None = None
     started_at: str | None = None
     existing_install_detected: bool = False
@@ -70,6 +72,10 @@ class InstallerSession:
     turboquant_metadata_path: str | None = None
     turboquant_executable_path: str | None = None
     turboquant_error: str | None = None
+    control_center_executable_path: str | None = None
+    control_center_launcher_path: str | None = None
+    control_center_url: str | None = None
+    control_center_port: int | None = None
     install_opencode: bool = False
     attempt_turboquant: bool = False
     additional_model_paths: list[str] = field(default_factory=list)

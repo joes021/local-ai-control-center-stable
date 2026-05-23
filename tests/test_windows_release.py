@@ -59,3 +59,20 @@ def test_run_windows_installer_entry_waits_for_confirmation_when_main_fn_raises(
         )
 
     assert prompts == ["Press Enter to close the installer window..."]
+
+
+def test_run_windows_installer_entry_dispatches_panel_mode_without_pause():
+    calls: list[str] = []
+    prompts: list[str] = []
+
+    exit_code = run_windows_installer_entry(
+        main_fn=lambda: calls.append("installer") or 1,
+        panel_main_fn=lambda argv=None: calls.append("panel") or 0,
+        argv=["LocalAIControlCenterPanel.exe", "--panel", "--install-root", "C:\\AI"],
+        pause_fn=lambda prompt: prompts.append(prompt) or "",
+        frozen=True,
+    )
+
+    assert exit_code == 0
+    assert calls == ["panel"]
+    assert prompts == []

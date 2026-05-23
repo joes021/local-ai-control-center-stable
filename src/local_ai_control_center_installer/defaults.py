@@ -39,12 +39,16 @@ from local_ai_control_center_installer.server_verification import (
     apply_server_verification,
 )
 from local_ai_control_center_installer.session import InstallerSession
+from local_ai_control_center_installer.control_center_runtime import (
+    apply_control_center_integration,
+)
 from local_ai_control_center_installer.turboquant import apply_turboquant
 
-INSTALL_PHASE_TOTAL_STEPS = 10
+INSTALL_PHASE_TOTAL_STEPS = 11
 SILENT_PHASE_HEARTBEAT_INTERVAL_SECONDS = 15.0
 HEARTBEAT_POLL_INTERVAL_SECONDS = 0.5
 SERVER_VERIFICATION_EXPECTED_SECONDS = 30.0
+CONTROL_CENTER_EXPECTED_SECONDS = 20.0
 
 
 @dataclass
@@ -260,11 +264,28 @@ def default_apply_turboquant(session: InstallerSession) -> InstallerSession:
 def default_apply_product_gate(session: InstallerSession) -> InstallerSession:
     return _run_phase_with_status(
         session,
-        step_index=10,
+        step_index=11,
         start_message="Finalizing installation status...",
         status_label="Product installation status",
         step_fn=apply_product_gate,
         status_getter=lambda current_session: current_session.product_installation_status,
+    )
+
+
+def default_apply_control_center_integration(session: InstallerSession) -> InstallerSession:
+    return _run_phase_with_status(
+        session,
+        step_index=10,
+        start_message="Deploying and launching control panel...",
+        status_label="Control panel launch status",
+        heartbeat_message="Control panel deployment is still running...",
+        expected_duration_seconds=CONTROL_CENTER_EXPECTED_SECONDS,
+        step_fn=lambda current_session: apply_control_center_integration(
+            current_session,
+            frozen=bool(getattr(sys, "frozen", False)),
+            frozen_executable=sys.executable,
+        ),
+        status_getter=lambda current_session: current_session.control_center_launch_status,
     )
 
 
@@ -492,6 +513,10 @@ def _print_final_outcome(session: InstallerSession, run_paths) -> None:
         install_root_path = Path(install_root)
         print(f"Install log: {install_root_path / 'logs' / 'install.log'}")
         print(f"Install report: {install_root_path / 'logs' / 'install-report.json'}")
+    if session.control_center_url:
+        print(f"Control Center URL: {session.control_center_url}")
+    if session.control_center_launcher_path:
+        print(f"Control Center launcher: {session.control_center_launcher_path}")
 
 
 def _probe_python_version() -> str | None:

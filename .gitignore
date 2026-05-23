@@ -11,3 +11,8 @@ temp/
 *.tmp
 Thumbs.db
 .DS_Store
+%temp%/
+.codex-tmp-wheels/
+config/
+logs/
+*.egg-info/

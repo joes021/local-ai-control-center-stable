@@ -8,10 +8,57 @@ $ErrorActionPreference = "Stop"
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).ProviderPath
 $distRoot = Join-Path $repoRoot "dist"
 $buildRoot = Join-Path $repoRoot "build"
+$frontendRoot = Join-Path $repoRoot "frontend"
+$frontendPackageDist = Join-Path $repoRoot "src\\local_ai_control_center_installer\\control_center_backend\\frontend_dist"
+$frontendTsc = Join-Path $frontendRoot "node_modules\\typescript\\bin\\tsc"
+$frontendVite = Join-Path $frontendRoot "node_modules\\vite\\bin\\vite.js"
 $specPath = $null
 
 Push-Location $repoRoot
 try {
+    $npmCommand = if (Get-Command "npm.cmd" -ErrorAction SilentlyContinue) { "npm.cmd" } else { "npm" }
+    $nodeCommand = (Get-Command "node" -ErrorAction SilentlyContinue).Source
+    if (-not (Test-Path (Join-Path $frontendRoot "package.json"))) {
+        throw "Frontend package.json is missing."
+    }
+    if (-not $nodeCommand) {
+        throw "Node.js is required to build the control panel frontend."
+    }
+
+    Push-Location $frontendRoot
+    try {
+        & $npmCommand install
+        if ($LASTEXITCODE -ne 0) {
+            throw "Failed to install frontend dependencies."
+        }
+
+        if (-not (Test-Path $frontendTsc)) {
+            throw "Frontend TypeScript compiler is missing."
+        }
+        if (-not (Test-Path $frontendVite)) {
+            throw "Frontend Vite binary is missing."
+        }
+
+        & $nodeCommand $frontendTsc -b
+        if ($LASTEXITCODE -ne 0) {
+            throw "Frontend TypeScript build failed."
+        }
+
+        & $nodeCommand $frontendVite build
+        if ($LASTEXITCODE -ne 0) {
+            throw "Frontend Vite build failed."
+        }
+    }
+    finally {
+        Pop-Location
+    }
+
+    if (Test-Path $frontendPackageDist) {
+        Get-ChildItem $frontendPackageDist -Force | Remove-Item -Recurse -Force
+    }
+    New-Item -ItemType Directory -Force -Path $frontendPackageDist | Out-Null
+    Copy-Item (Join-Path $frontendRoot "dist\\*") -Destination $frontendPackageDist -Recurse -Force
+
     & $PythonExe -m pip install .[release]
     if ($LASTEXITCODE -ne 0) {
         throw "Failed to install release build dependencies."

@@ -91,6 +91,16 @@ def _build_failure_message(session: InstallerSession) -> str | None:
             "ready",
             "The first-run OpenCode smoke did not confirm a ready connection.",
         ),
+        (
+            "control_center_runtime_status",
+            "ready",
+            "The control panel runtime is not ready.",
+        ),
+        (
+            "control_center_launch_status",
+            "ready",
+            "The control panel did not launch ready.",
+        ),
     )
 
     for field_name, expected, message in checks:

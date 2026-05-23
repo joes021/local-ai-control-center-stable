@@ -127,6 +127,11 @@ def test_default_phase_wrappers_print_progress_for_reused_runtime_and_verificati
     )
     monkeypatch.setattr(
         defaults_module,
+        "apply_control_center_integration",
+        lambda current_session, **_: _mark_control_center_ready(current_session),
+    )
+    monkeypatch.setattr(
+        defaults_module,
         "apply_product_gate",
         lambda current_session: _mark_product_complete(current_session),
     )
@@ -148,6 +153,7 @@ def test_default_phase_wrappers_print_progress_for_reused_runtime_and_verificati
     defaults_module.default_apply_opencode_verification(session)
     defaults_module.default_apply_turboquant(session)
     defaults_module.default_apply_first_run_validation(session)
+    defaults_module.default_apply_control_center_integration(session)
     defaults_module.default_apply_product_gate(session)
     captured = capsys.readouterr()
 
@@ -168,12 +174,14 @@ def test_default_phase_wrappers_print_progress_for_reused_runtime_and_verificati
         "TurboQuant status: failed",
         "Running first-run OpenCode smoke...",
         "First-run smoke status: ready",
+        "Deploying and launching control panel...",
+        "Control panel launch status: ready",
         "Finalizing installation status...",
         "Product installation status: complete",
     ]
     for line in expected_lines:
         assert re.search(
-            r"\[\d+/10 \| elapsed [0-9:]+ \| ETA (?:--:--|[0-9:]+)\] "
+            r"\[\d+/11 \| elapsed [0-9:]+ \| ETA (?:--:--|[0-9:]+)\] "
             + re.escape(line),
             captured.out,
         )
@@ -227,7 +235,7 @@ def test_format_phase_prefix_uses_timeout_bound_eta_for_active_step(
     )
 
     assert "elapsed 03:40" in prefix
-    assert "ETA 03:10" in prefix
+    assert "ETA 03:20" in prefix
 
 
 def _mark_runtime_payload_ready(session: InstallerSession) -> InstallerSession:
@@ -262,6 +270,12 @@ def _mark_turboquant_failed(session: InstallerSession) -> InstallerSession:
 
 def _mark_first_run_ready(session: InstallerSession) -> InstallerSession:
     session.first_run_status = "ready"
+    return session
+
+
+def _mark_control_center_ready(session: InstallerSession) -> InstallerSession:
+    session.control_center_runtime_status = "ready"
+    session.control_center_launch_status = "ready"
     return session
 
 
