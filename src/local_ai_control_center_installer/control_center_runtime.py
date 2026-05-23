@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from importlib.resources import files
+from importlib.metadata import PackageNotFoundError, version as package_version
 import json
 import os
 from pathlib import Path
@@ -14,12 +15,24 @@ from urllib.error import URLError
 from urllib.request import urlopen
 
 from local_ai_control_center_installer.control_center_backend.config import (
+    ControlCenterConfig,
     DEFAULT_INSTALL_ROOT,
+)
+from local_ai_control_center_installer.control_center_backend.services.opencode_service import (
+    prepare_opencode_launcher,
+)
+from local_ai_control_center_installer.control_center_uninstall import (
+    OPENCODE_SHORTCUT_NAME,
+    PANEL_SHORTCUT_NAME,
+    START_MENU_FOLDER_NAME,
+    UNINSTALL_REGISTRY_KEY,
+    UNINSTALL_SHORTCUT_NAME,
 )
 from local_ai_control_center_installer.session import InstallerSession
 
 
 PANEL_EXECUTABLE_NAME = "LocalAIControlCenterPanel.exe"
+UNINSTALL_LAUNCHER_NAME = "Uninstall-LocalAIControlCenter.cmd"
 DEFAULT_PANEL_PORT = 3210
 DEFAULT_PANEL_URL = f"http://127.0.0.1:{DEFAULT_PANEL_PORT}/"
 
@@ -36,6 +49,15 @@ class ControlCenterRuntimeDeployment:
     access_mode: str
     strategy: str
     env_overrides: dict[str, str] | None = None
+    opencode_launcher_path: Path | None = None
+    uninstall_launcher_path: Path | None = None
+    start_menu_dir: Path | None = None
+    start_menu_panel_shortcut_path: Path | None = None
+    start_menu_opencode_shortcut_path: Path | None = None
+    start_menu_uninstall_shortcut_path: Path | None = None
+    desktop_panel_shortcut_path: Path | None = None
+    desktop_opencode_shortcut_path: Path | None = None
+    uninstall_registry_key: str | None = None
 
 
 def deploy_control_center_runtime(
@@ -80,6 +102,14 @@ def deploy_control_center_runtime(
             command,
             env_overrides=None,
         )
+        shell_assets = _ensure_windows_shell_assets(
+            install_root=normalized_install_root,
+            panel_root=panel_root,
+            panel_launcher_path=launcher_path,
+            panel_executable_path=executable_path,
+            access_mode="local-only",
+            display_version=_resolve_display_version(panel_executable_resource),
+        )
         return ControlCenterRuntimeDeployment(
             install_root=normalized_install_root,
             panel_root=panel_root,
@@ -90,6 +120,15 @@ def deploy_control_center_runtime(
             port=DEFAULT_PANEL_PORT,
             access_mode="local-only",
             strategy="packaged-exe",
+            opencode_launcher_path=shell_assets["opencode_launcher_path"],
+            uninstall_launcher_path=shell_assets["uninstall_launcher_path"],
+            start_menu_dir=shell_assets["start_menu_dir"],
+            start_menu_panel_shortcut_path=shell_assets["start_menu_panel_shortcut_path"],
+            start_menu_opencode_shortcut_path=shell_assets["start_menu_opencode_shortcut_path"],
+            start_menu_uninstall_shortcut_path=shell_assets["start_menu_uninstall_shortcut_path"],
+            desktop_panel_shortcut_path=shell_assets["desktop_panel_shortcut_path"],
+            desktop_opencode_shortcut_path=shell_assets["desktop_opencode_shortcut_path"],
+            uninstall_registry_key=shell_assets["uninstall_registry_key"],
         )
 
     candidate_frozen_executable = (
@@ -118,6 +157,14 @@ def deploy_control_center_runtime(
             command,
             env_overrides=None,
         )
+        shell_assets = _ensure_windows_shell_assets(
+            install_root=normalized_install_root,
+            panel_root=panel_root,
+            panel_launcher_path=launcher_path,
+            panel_executable_path=executable_path,
+            access_mode="local-only",
+            display_version=_resolve_display_version(candidate_frozen_executable),
+        )
         return ControlCenterRuntimeDeployment(
             install_root=normalized_install_root,
             panel_root=panel_root,
@@ -128,6 +175,15 @@ def deploy_control_center_runtime(
             port=DEFAULT_PANEL_PORT,
             access_mode="local-only",
             strategy="copied-frozen-exe",
+            opencode_launcher_path=shell_assets["opencode_launcher_path"],
+            uninstall_launcher_path=shell_assets["uninstall_launcher_path"],
+            start_menu_dir=shell_assets["start_menu_dir"],
+            start_menu_panel_shortcut_path=shell_assets["start_menu_panel_shortcut_path"],
+            start_menu_opencode_shortcut_path=shell_assets["start_menu_opencode_shortcut_path"],
+            start_menu_uninstall_shortcut_path=shell_assets["start_menu_uninstall_shortcut_path"],
+            desktop_panel_shortcut_path=shell_assets["desktop_panel_shortcut_path"],
+            desktop_opencode_shortcut_path=shell_assets["desktop_opencode_shortcut_path"],
+            uninstall_registry_key=shell_assets["uninstall_registry_key"],
         )
 
     python_executable = current_python or sys.executable
@@ -163,6 +219,14 @@ def deploy_control_center_runtime(
         "--access-mode local-only --open-browser\r\n",
         encoding="utf-8",
     )
+    shell_assets = _ensure_windows_shell_assets(
+        install_root=normalized_install_root,
+        panel_root=panel_root,
+        panel_launcher_path=launcher_path,
+        panel_executable_path=Path(python_executable),
+        access_mode="local-only",
+        display_version=_resolve_display_version(Path(python_executable)),
+    )
     return ControlCenterRuntimeDeployment(
         install_root=normalized_install_root,
         panel_root=panel_root,
@@ -174,6 +238,15 @@ def deploy_control_center_runtime(
         access_mode="local-only",
         strategy="python-fallback",
         env_overrides=env_overrides,
+        opencode_launcher_path=shell_assets["opencode_launcher_path"],
+        uninstall_launcher_path=shell_assets["uninstall_launcher_path"],
+        start_menu_dir=shell_assets["start_menu_dir"],
+        start_menu_panel_shortcut_path=shell_assets["start_menu_panel_shortcut_path"],
+        start_menu_opencode_shortcut_path=shell_assets["start_menu_opencode_shortcut_path"],
+        start_menu_uninstall_shortcut_path=shell_assets["start_menu_uninstall_shortcut_path"],
+        desktop_panel_shortcut_path=shell_assets["desktop_panel_shortcut_path"],
+        desktop_opencode_shortcut_path=shell_assets["desktop_opencode_shortcut_path"],
+        uninstall_registry_key=shell_assets["uninstall_registry_key"],
     )
 
 
@@ -295,6 +368,246 @@ def _write_launcher_script(
     quoted_command = " ".join(_quote_windows_part(part) for part in command)
     lines.append(f"start \"\" {quoted_command}")
     launcher_path.write_text("\r\n".join(lines) + "\r\n", encoding="utf-8")
+
+
+def _ensure_windows_shell_assets(
+    *,
+    install_root: Path,
+    panel_root: Path,
+    panel_launcher_path: Path,
+    panel_executable_path: Path,
+    access_mode: str,
+    display_version: str,
+) -> dict[str, Path | str | None]:
+    config = ControlCenterConfig(
+        ui_host="127.0.0.1",
+        ui_port=DEFAULT_PANEL_PORT,
+        install_root=install_root,
+        access_mode=access_mode,
+    )
+    opencode_launcher_path: Path | None
+    try:
+        opencode_launcher_path = prepare_opencode_launcher(config=config)
+    except FileNotFoundError:
+        opencode_launcher_path = None
+
+    start_menu_dir = _resolve_start_menu_programs_dir()
+    desktop_dir = _resolve_desktop_dir()
+    start_menu_dir.mkdir(parents=True, exist_ok=True)
+    desktop_dir.mkdir(parents=True, exist_ok=True)
+
+    panel_shortcut_target = panel_launcher_path
+    panel_shortcut_icon = panel_executable_path if panel_executable_path.is_file() else None
+    start_menu_panel_shortcut_path = start_menu_dir / PANEL_SHORTCUT_NAME
+    _create_windows_shortcut(
+        start_menu_panel_shortcut_path,
+        panel_shortcut_target,
+        working_directory=panel_root,
+        description="Open the Local AI Control Center panel.",
+        icon_path=panel_shortcut_icon,
+    )
+
+    desktop_panel_shortcut_path = desktop_dir / PANEL_SHORTCUT_NAME
+    _create_windows_shortcut(
+        desktop_panel_shortcut_path,
+        panel_shortcut_target,
+        working_directory=panel_root,
+        description="Open the Local AI Control Center panel.",
+        icon_path=panel_shortcut_icon,
+    )
+
+    start_menu_opencode_shortcut_path: Path | None = None
+    desktop_opencode_shortcut_path: Path | None = None
+    if opencode_launcher_path is not None:
+        start_menu_opencode_shortcut_path = start_menu_dir / OPENCODE_SHORTCUT_NAME
+        _create_windows_shortcut(
+            start_menu_opencode_shortcut_path,
+            opencode_launcher_path,
+            working_directory=panel_root,
+            description="Open the installer-managed OpenCode console.",
+            icon_path=panel_shortcut_icon,
+        )
+
+        desktop_opencode_shortcut_path = desktop_dir / OPENCODE_SHORTCUT_NAME
+        _create_windows_shortcut(
+            desktop_opencode_shortcut_path,
+            opencode_launcher_path,
+            working_directory=panel_root,
+            description="Open the installer-managed OpenCode console.",
+            icon_path=panel_shortcut_icon,
+        )
+
+    uninstall_launcher_path = panel_root / UNINSTALL_LAUNCHER_NAME
+    _write_uninstall_launcher(
+        uninstall_launcher_path=uninstall_launcher_path,
+        panel_executable_path=panel_executable_path,
+        install_root=install_root,
+    )
+
+    start_menu_uninstall_shortcut_path = start_menu_dir / UNINSTALL_SHORTCUT_NAME
+    _create_windows_shortcut(
+        start_menu_uninstall_shortcut_path,
+        uninstall_launcher_path,
+        working_directory=panel_root,
+        description="Uninstall Local AI Control Center.",
+        icon_path=panel_shortcut_icon,
+    )
+
+    _register_uninstall_entry(
+        install_root=install_root,
+        display_icon_path=panel_executable_path,
+        uninstall_command_path=uninstall_launcher_path,
+        display_version=display_version,
+    )
+
+    return {
+        "opencode_launcher_path": opencode_launcher_path,
+        "uninstall_launcher_path": uninstall_launcher_path,
+        "start_menu_dir": start_menu_dir,
+        "start_menu_panel_shortcut_path": start_menu_panel_shortcut_path,
+        "start_menu_opencode_shortcut_path": start_menu_opencode_shortcut_path,
+        "start_menu_uninstall_shortcut_path": start_menu_uninstall_shortcut_path,
+        "desktop_panel_shortcut_path": desktop_panel_shortcut_path,
+        "desktop_opencode_shortcut_path": desktop_opencode_shortcut_path,
+        "uninstall_registry_key": UNINSTALL_REGISTRY_KEY,
+    }
+
+
+def _write_uninstall_launcher(
+    *,
+    uninstall_launcher_path: Path,
+    panel_executable_path: Path,
+    install_root: Path,
+) -> None:
+    uninstall_launcher_path.parent.mkdir(parents=True, exist_ok=True)
+    lines = [
+        "@echo off",
+        "setlocal",
+        f"echo Local AI Control Center uninstall je pokrenut.",
+        f'"{panel_executable_path}" --uninstall --install-root "{install_root}"',
+        'set "LACC_UNINSTALL_EXIT_CODE=%ERRORLEVEL%"',
+        'if not "%LACC_UNINSTALL_EXIT_CODE%"=="0" (',
+        "  echo.",
+        "  echo Deinstalacija nije zavrsena uspesno.",
+        "  pause",
+        ")",
+        "endlocal",
+    ]
+    uninstall_launcher_path.write_text("\r\n".join(lines) + "\r\n", encoding="utf-8")
+
+
+def _resolve_start_menu_programs_dir() -> Path:
+    appdata = Path(os.environ.get("APPDATA", Path.home() / "AppData" / "Roaming"))
+    return appdata / "Microsoft" / "Windows" / "Start Menu" / "Programs" / START_MENU_FOLDER_NAME
+
+
+def _resolve_desktop_dir() -> Path:
+    return Path.home() / "Desktop"
+
+
+def _create_windows_shortcut(
+    shortcut_path: Path,
+    target_path: Path,
+    *,
+    working_directory: Path | None = None,
+    description: str = "",
+    icon_path: Path | None = None,
+) -> None:
+    shortcut_path.parent.mkdir(parents=True, exist_ok=True)
+    powershell_lines = [
+        "$shell = New-Object -ComObject WScript.Shell",
+        f"$shortcut = $shell.CreateShortcut({_quote_powershell_string(str(shortcut_path))})",
+        f"$shortcut.TargetPath = {_quote_powershell_string(str(target_path))}",
+    ]
+    if working_directory is not None:
+        powershell_lines.append(
+            f"$shortcut.WorkingDirectory = {_quote_powershell_string(str(working_directory))}"
+        )
+    if description:
+        powershell_lines.append(f"$shortcut.Description = {_quote_powershell_string(description)}")
+    if icon_path is not None and icon_path.exists():
+        powershell_lines.append(
+            f"$shortcut.IconLocation = {_quote_powershell_string(str(icon_path))}"
+        )
+    powershell_lines.append("$shortcut.Save()")
+    completed = subprocess.run(
+        [
+            "powershell",
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-Command",
+            " ; ".join(powershell_lines),
+        ],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+    )
+    if completed.returncode != 0:
+        detail = completed.stderr.strip() or completed.stdout.strip() or f"exit code {completed.returncode}"
+        raise RuntimeError(f"Windows shortcut nije mogao da se napravi: {detail}")
+
+
+def _register_uninstall_entry(
+    *,
+    install_root: Path,
+    display_icon_path: Path,
+    uninstall_command_path: Path,
+    display_version: str,
+) -> None:
+    entry_values = {
+        "DisplayName": "Local AI Control Center",
+        "DisplayVersion": display_version,
+        "Publisher": "joes021",
+        "InstallLocation": str(install_root),
+        "DisplayIcon": str(display_icon_path),
+        "UninstallString": str(uninstall_command_path),
+        "QuietUninstallString": str(uninstall_command_path),
+        "NoModify": "1",
+        "NoRepair": "1",
+    }
+    for name, value in entry_values.items():
+        completed = subprocess.run(
+            [
+                "reg",
+                "add",
+                UNINSTALL_REGISTRY_KEY,
+                "/v",
+                name,
+                "/t",
+                "REG_SZ",
+                "/d",
+                value,
+                "/f",
+            ],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+        if completed.returncode != 0:
+            detail = completed.stderr.strip() or completed.stdout.strip() or f"exit code {completed.returncode}"
+            raise RuntimeError(f"Windows uninstall entry nije mogao da se upise: {detail}")
+
+
+def _resolve_installer_version() -> str:
+    try:
+        return package_version("local-ai-control-center-installer")
+    except PackageNotFoundError:
+        return "unknown"
+
+
+def _resolve_display_version(source_executable_path: Path) -> str:
+    file_name = source_executable_path.name
+    marker = "LocalAIControlCenterSetup-v"
+    if file_name.lower().startswith(marker.lower()) and file_name.lower().endswith(".exe"):
+        return file_name[len(marker) : -4]
+    return _resolve_installer_version()
 
 
 def _quote_windows_part(value: str) -> str:
