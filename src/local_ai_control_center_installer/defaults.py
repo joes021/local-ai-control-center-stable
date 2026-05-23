@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
 from pathlib import Path
+import threading
 import shutil
 import subprocess
 import sys
@@ -15,6 +16,7 @@ from local_ai_control_center_installer.dependencies import (
 from local_ai_control_center_installer.download_plan import build_download_plan
 from local_ai_control_center_installer.downloads import download_file
 from local_ai_control_center_installer.first_run_validation import (
+    FIRST_RUN_SMOKE_TIMEOUT_SECONDS,
     apply_first_run_validation,
 )
 from local_ai_control_center_installer.product_gate import apply_product_gate
@@ -29,6 +31,7 @@ from local_ai_control_center_installer.opencode_bootstrap import (
     apply_opencode_bootstrap,
 )
 from local_ai_control_center_installer.opencode_verification import (
+    OPENCODE_SMOKE_TIMEOUT_SECONDS,
     apply_opencode_verification,
 )
 from local_ai_control_center_installer.runtime_bootstrap import apply_runtime_payload
@@ -39,6 +42,9 @@ from local_ai_control_center_installer.session import InstallerSession
 from local_ai_control_center_installer.turboquant import apply_turboquant
 
 INSTALL_PHASE_TOTAL_STEPS = 10
+SILENT_PHASE_HEARTBEAT_INTERVAL_SECONDS = 15.0
+HEARTBEAT_POLL_INTERVAL_SECONDS = 0.5
+SERVER_VERIFICATION_EXPECTED_SECONDS = 30.0
 
 
 @dataclass
@@ -48,6 +54,14 @@ class InstallProgressTracker:
     completed_durations: list[float] = field(default_factory=list)
     active_step_index: int | None = None
     active_step_started_at: float | None = None
+    active_step_expected_duration: float | None = None
+    active_step_heartbeat_message: str | None = None
+    last_output_monotonic: float | None = None
+    state_lock: object = field(
+        default_factory=threading.Lock,
+        repr=False,
+        compare=False,
+    )
 
 
 _install_progress_tracker: InstallProgressTracker | None = None
@@ -158,6 +172,8 @@ def default_apply_server_verification(session: InstallerSession) -> InstallerSes
         step_index=5,
         start_message="Verifying local llama.cpp server...",
         status_label="llama.cpp server verification status",
+        heartbeat_message="llama.cpp server verification is still running...",
+        expected_duration_seconds=SERVER_VERIFICATION_EXPECTED_SECONDS,
         step_fn=lambda current_session: apply_server_verification(
             current_session,
             temp_root=_default_temp_root(),
@@ -193,6 +209,8 @@ def default_apply_opencode_verification(session: InstallerSession) -> InstallerS
         step_index=7,
         start_message="Verifying OpenCode live route...",
         status_label="OpenCode live-route verification status",
+        heartbeat_message="OpenCode live-route verification is still running...",
+        expected_duration_seconds=OPENCODE_SMOKE_TIMEOUT_SECONDS,
         step_fn=lambda current_session: apply_opencode_verification(
             current_session,
             temp_root=_default_temp_root(),
@@ -207,6 +225,8 @@ def default_apply_first_run_validation(session: InstallerSession) -> InstallerSe
         step_index=9,
         start_message="Running first-run OpenCode smoke...",
         status_label="First-run smoke status",
+        heartbeat_message="First-run OpenCode smoke is still running...",
+        expected_duration_seconds=FIRST_RUN_SMOKE_TIMEOUT_SECONDS,
         step_fn=lambda current_session: apply_first_run_validation(
             current_session,
             temp_root=_default_temp_root(),
@@ -278,11 +298,29 @@ def _run_phase_with_status(
     step_index: int,
     start_message: str,
     status_label: str,
+    heartbeat_message: str | None = None,
+    expected_duration_seconds: float | None = None,
+    heartbeat_interval_seconds: float = SILENT_PHASE_HEARTBEAT_INTERVAL_SECONDS,
     step_fn,
     status_getter,
 ) -> InstallerSession:
-    _print_phase_message(step_index, start_message)
-    session = step_fn(session)
+    _print_phase_message(
+        step_index,
+        start_message,
+        expected_duration_seconds=expected_duration_seconds,
+        heartbeat_message=heartbeat_message,
+    )
+    heartbeat_stop_event = threading.Event()
+    heartbeat_thread = _start_phase_heartbeat_thread(
+        step_index,
+        stop_event=heartbeat_stop_event,
+        heartbeat_interval_seconds=heartbeat_interval_seconds,
+    )
+    try:
+        session = step_fn(session)
+    finally:
+        heartbeat_stop_event.set()
+        heartbeat_thread.join(timeout=2.0)
     _print_phase_message(
         step_index,
         f"{status_label}: {status_getter(session)}",
@@ -508,17 +546,18 @@ def _build_download_progress_callback():
         if progress.eta_seconds is not None:
             eta_summary = f", ETA {progress.eta_seconds:.1f}s"
         line = f"{position}{label}: {bytes_summary}{eta_summary}"
-        if phase_prefix:
-            print(f"{phase_prefix} {line}")
-        else:
-            print(line)
+        _emit_progress_line(line, phase_prefix=phase_prefix)
 
     return on_progress
 
 
 def _reset_install_progress_tracker() -> None:
     global _install_progress_tracker
-    _install_progress_tracker = InstallProgressTracker(start_monotonic=time.monotonic())
+    start_monotonic = time.monotonic()
+    _install_progress_tracker = InstallProgressTracker(
+        start_monotonic=start_monotonic,
+        last_output_monotonic=start_monotonic,
+    )
 
 
 def _clear_install_progress_tracker() -> None:
@@ -529,22 +568,49 @@ def _clear_install_progress_tracker() -> None:
 def _require_install_progress_tracker() -> InstallProgressTracker:
     global _install_progress_tracker
     if _install_progress_tracker is None:
-        _install_progress_tracker = InstallProgressTracker(start_monotonic=time.monotonic())
+        start_monotonic = time.monotonic()
+        _install_progress_tracker = InstallProgressTracker(
+            start_monotonic=start_monotonic,
+            last_output_monotonic=start_monotonic,
+        )
     return _install_progress_tracker
 
 
-def _print_phase_message(step_index: int, message: str, *, complete: bool = False) -> None:
+def _print_phase_message(
+    step_index: int,
+    message: str,
+    *,
+    complete: bool = False,
+    expected_duration_seconds: float | None = None,
+    heartbeat_message: str | None = None,
+) -> None:
     tracker = _require_install_progress_tracker()
     if complete:
         _mark_step_completed(tracker, step_index)
     else:
-        _mark_step_started(tracker, step_index)
-    print(f"{_format_phase_prefix_for_tracker(tracker, step_index, complete=complete)} {message}")
+        _mark_step_started(
+            tracker,
+            step_index,
+            expected_duration_seconds=expected_duration_seconds,
+            heartbeat_message=heartbeat_message,
+        )
+    _emit_progress_line(
+        message,
+        phase_prefix=_format_phase_prefix_for_tracker(tracker, step_index, complete=complete),
+    )
 
 
-def _mark_step_started(tracker: InstallProgressTracker, step_index: int) -> None:
+def _mark_step_started(
+    tracker: InstallProgressTracker,
+    step_index: int,
+    *,
+    expected_duration_seconds: float | None = None,
+    heartbeat_message: str | None = None,
+) -> None:
     tracker.active_step_index = step_index
     tracker.active_step_started_at = time.monotonic()
+    tracker.active_step_expected_duration = expected_duration_seconds
+    tracker.active_step_heartbeat_message = heartbeat_message
 
 
 def _mark_step_completed(tracker: InstallProgressTracker, step_index: int) -> None:
@@ -556,6 +622,8 @@ def _mark_step_completed(tracker: InstallProgressTracker, step_index: int) -> No
         tracker.completed_durations.append(now - tracker.active_step_started_at)
     tracker.active_step_index = None
     tracker.active_step_started_at = None
+    tracker.active_step_expected_duration = None
+    tracker.active_step_heartbeat_message = None
 
 
 def _format_phase_prefix(active_step: bool = False) -> str:
@@ -580,6 +648,7 @@ def _format_phase_prefix_for_tracker(
         tracker,
         step_index=step_index,
         complete=complete,
+        current_time=now,
     )
     return (
         f"[{step_index}/{tracker.total_steps} | "
@@ -593,16 +662,51 @@ def _estimate_install_eta_seconds(
     *,
     step_index: int,
     complete: bool,
+    current_time: float | None = None,
 ) -> float | None:
-    if not tracker.completed_durations:
+    current_time = current_time if current_time is not None else time.monotonic()
+    average_duration = None
+    if tracker.completed_durations:
+        average_duration = sum(tracker.completed_durations) / len(tracker.completed_durations)
+
+    current_step_remaining = 0.0
+    if not complete and tracker.active_step_index == step_index:
+        current_step_remaining = _estimate_active_step_remaining_seconds(
+            tracker,
+            current_time=current_time,
+            average_duration=average_duration,
+        )
+
+    remaining_future_steps = tracker.total_steps - step_index
+    future_steps_eta = None
+    if average_duration is not None:
+        future_steps_eta = average_duration * max(remaining_future_steps, 0)
+
+    eta_components = [
+        value
+        for value in (current_step_remaining, future_steps_eta)
+        if value is not None
+    ]
+    if not eta_components:
         return None
-    average_duration = sum(tracker.completed_durations) / len(tracker.completed_durations)
-    completed_steps = len(tracker.completed_durations)
-    if complete:
-        remaining_steps = max(tracker.total_steps - completed_steps, 0)
-    else:
-        remaining_steps = max(tracker.total_steps - completed_steps, 0)
-    return average_duration * remaining_steps
+    return sum(eta_components)
+
+
+def _estimate_active_step_remaining_seconds(
+    tracker: InstallProgressTracker,
+    *,
+    current_time: float,
+    average_duration: float | None,
+) -> float:
+    if tracker.active_step_started_at is None:
+        return 0.0
+
+    active_elapsed = max(current_time - tracker.active_step_started_at, 0.0)
+    if tracker.active_step_expected_duration is not None:
+        return max(tracker.active_step_expected_duration - active_elapsed, 0.0)
+    if average_duration is None:
+        return 0.0
+    return max(average_duration - active_elapsed, 0.0)
 
 
 def _format_elapsed_seconds(seconds: float) -> str:
@@ -618,6 +722,67 @@ def _format_eta_seconds(seconds: float | None) -> str:
     if seconds is None:
         return "--:--"
     return _format_elapsed_seconds(seconds)
+
+
+def _start_phase_heartbeat_thread(
+    step_index: int,
+    *,
+    stop_event: threading.Event,
+    heartbeat_interval_seconds: float,
+) -> threading.Thread:
+    poll_interval_seconds = min(
+        HEARTBEAT_POLL_INTERVAL_SECONDS,
+        max(heartbeat_interval_seconds / 4.0, 0.05),
+    )
+    thread = threading.Thread(
+        target=_phase_heartbeat_worker,
+        args=(step_index, stop_event, heartbeat_interval_seconds, poll_interval_seconds),
+        daemon=True,
+    )
+    thread.start()
+    return thread
+
+
+def _phase_heartbeat_worker(
+    step_index: int,
+    stop_event: threading.Event,
+    heartbeat_interval_seconds: float,
+    poll_interval_seconds: float,
+) -> None:
+    while not stop_event.wait(poll_interval_seconds):
+        tracker = _install_progress_tracker
+        if tracker is None:
+            continue
+        if tracker.active_step_index != step_index:
+            continue
+
+        last_output_monotonic = tracker.last_output_monotonic
+        if last_output_monotonic is None:
+            continue
+        if time.monotonic() - last_output_monotonic < heartbeat_interval_seconds:
+            continue
+
+        heartbeat_message = (
+            tracker.active_step_heartbeat_message or "Installation step is still running..."
+        )
+        _emit_progress_line(
+            heartbeat_message,
+            phase_prefix=_format_phase_prefix_for_tracker(
+                tracker,
+                step_index,
+                complete=False,
+            ),
+        )
+
+
+def _emit_progress_line(message: str, *, phase_prefix: str = "") -> None:
+    tracker = _install_progress_tracker
+    if tracker is not None:
+        tracker.last_output_monotonic = time.monotonic()
+    if phase_prefix:
+        print(f"{phase_prefix} {message}")
+        return
+    print(message)
 
 
 def _capture_first_available_output(*command: list[str]) -> str | None:

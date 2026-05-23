@@ -1,4 +1,5 @@
 import re
+import time
 
 import pytest
 
@@ -176,6 +177,57 @@ def test_default_phase_wrappers_print_progress_for_reused_runtime_and_verificati
             + re.escape(line),
             captured.out,
         )
+
+
+def test_run_phase_with_status_emits_heartbeat_for_silent_long_running_step(
+    capsys: pytest.CaptureFixture[str],
+):
+    session = InstallerSession()
+    defaults_module._reset_install_progress_tracker()
+
+    def slow_step(current_session: InstallerSession) -> InstallerSession:
+        time.sleep(0.08)
+        current_session.first_run_status = "ready"
+        return current_session
+
+    defaults_module._run_phase_with_status(
+        session,
+        step_index=9,
+        start_message="Running first-run OpenCode smoke...",
+        status_label="First-run smoke status",
+        heartbeat_message="First-run OpenCode smoke is still running...",
+        expected_duration_seconds=0.2,
+        heartbeat_interval_seconds=0.02,
+        step_fn=slow_step,
+        status_getter=lambda current_session: current_session.first_run_status,
+    )
+    captured = capsys.readouterr()
+
+    assert "First-run OpenCode smoke is still running..." in captured.out
+
+
+def test_format_phase_prefix_uses_timeout_bound_eta_for_active_step(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    tracker = defaults_module.InstallProgressTracker(
+        start_monotonic=0.0,
+        completed_durations=[10.0] * 8,
+        active_step_index=9,
+        active_step_started_at=100.0,
+        active_step_expected_duration=300.0,
+        last_output_monotonic=100.0,
+    )
+
+    monkeypatch.setattr(defaults_module.time, "monotonic", lambda: 220.0)
+
+    prefix = defaults_module._format_phase_prefix_for_tracker(
+        tracker,
+        9,
+        complete=False,
+    )
+
+    assert "elapsed 03:40" in prefix
+    assert "ETA 03:10" in prefix
 
 
 def _mark_runtime_payload_ready(session: InstallerSession) -> InstallerSession:
