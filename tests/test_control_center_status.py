@@ -90,6 +90,53 @@ def test_status_route_returns_installer_managed_runtime_snapshot(
     assert payload["activeRuntimeBinary"].endswith("runtime\\llama.cpp\\llama-server.exe")
 
 
+def test_status_route_falls_back_to_windows_display_version_when_package_metadata_is_unavailable(
+    tmp_path: Path,
+    monkeypatch,
+):
+    install_root = tmp_path / "install-root"
+    llama_root = install_root / "runtime" / "llama.cpp"
+    llama_root.mkdir(parents=True)
+    (llama_root / "llama-server.exe").write_text("llama", encoding="utf-8")
+    _write_active_model_config(
+        install_root,
+        filename="gemma-4-E4B-it-Q4_K_M.gguf",
+    )
+    _write_runtime_endpoint_config(
+        install_root / "config" / "runtime-endpoint.json",
+        port=39281,
+    )
+
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.status_service.package_version",
+        lambda _: (_ for _ in ()).throw(status_service.PackageNotFoundError()),
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.status_service._query_windows_display_version",
+        lambda: "0.4.1",
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.status_service.probe_server_health",
+        lambda *args, **kwargs: "offline",
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.status_service.detect_tailscale_ip",
+        lambda: "",
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.status_service.find_runtime_pid",
+        lambda *args, **kwargs: None,
+    )
+
+    client = TestClient(app)
+    response = client.get("/api/status")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["version"] == "0.4.1"
+
+
 def test_status_route_reports_ui_not_exposed_when_tailscale_is_missing(
     tmp_path: Path,
     monkeypatch,

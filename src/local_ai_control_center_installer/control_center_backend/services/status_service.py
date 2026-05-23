@@ -27,6 +27,9 @@ from local_ai_control_center_installer.runtime_binary_health import (
 )
 from local_ai_control_center_installer.runtime_manifest import load_runtime_manifest
 from local_ai_control_center_installer.turboquant import load_turboquant_manifest
+from local_ai_control_center_installer.control_center_uninstall import (
+    UNINSTALL_REGISTRY_KEY,
+)
 
 
 RUNTIME_SELECTION_FILE = "runtime-selection.json"
@@ -57,7 +60,7 @@ def load_status_payload(
         "hostPlatform": host_platform,
         "hostPlatformLabel": host_platform_label,
         "hostShellLabel": "PowerShell" if host_platform == "windows" else "Shell",
-        "version": _detect_version(),
+        "version": _detect_version(config),
         "health": "ok" if runtime_state["active_model"] != "unknown" else "unknown",
         "activeModel": runtime_state["active_model"],
         "profile": runtime_state["profile"],
@@ -395,8 +398,56 @@ def _read_json_file(path: Path) -> dict:
     return payload
 
 
-def _detect_version() -> str:
+def _detect_version(config: ControlCenterConfig | None = None) -> str:
     try:
         return package_version("local-ai-control-center-installer")
     except PackageNotFoundError:
-        return "0.0.0"
+        pass
+
+    installed_version = _query_windows_display_version()
+    if installed_version:
+        return installed_version
+
+    report_version = _read_version_from_install_report((config or get_config()).install_root)
+    if report_version:
+        return report_version
+
+    return "unknown"
+
+
+def _query_windows_display_version() -> str | None:
+    completed = subprocess.run(
+        [
+            "reg",
+            "query",
+            UNINSTALL_REGISTRY_KEY,
+            "/v",
+            "DisplayVersion",
+        ],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+    )
+    if completed.returncode != 0:
+        return None
+
+    for raw_line in completed.stdout.splitlines():
+        line = raw_line.strip()
+        if not line or "DisplayVersion" not in line:
+            continue
+        parts = line.split()
+        if len(parts) >= 3 and parts[0] == "DisplayVersion":
+            return parts[-1].strip()
+    return None
+
+
+def _read_version_from_install_report(install_root: Path) -> str | None:
+    payload = _read_json_file(install_root / "logs" / "install-report.json")
+    for key in ("product_version", "version", "display_version"):
+        value = str(payload.get(key, "") or "").strip()
+        if value:
+            return value
+    return None
