@@ -82,6 +82,9 @@ def test_status_route_returns_installer_managed_runtime_snapshot(
     assert payload["turboQuantRuntimeAvailable"] is True
     assert payload["llamaCppStatus"] == "ready"
     assert payload["turboQuantStatus"] == "ready"
+    assert payload["turboQuantDisplayState"] == "available"
+    assert payload["turboQuantSummary"] == "TurboQuant je dostupan za aktivaciju."
+    assert "aktivirati" in payload["turboQuantGuidance"]
     assert payload["runtimeLiveStatus"] == "started"
     assert "Runtime health endpoint" in payload["runtimeLiveReason"]
     assert payload["activeRuntimeBinary"].endswith("runtime\\llama.cpp\\llama-server.exe")
@@ -181,6 +184,9 @@ def test_status_route_falls_back_to_llama_when_selected_turboquant_is_not_launch
     assert payload["activeRuntimeBinarySource"] == "fallback"
     assert payload["turboQuantRuntimeAvailable"] is False
     assert payload["turboQuantStatus"] == "failed"
+    assert payload["turboQuantDisplayState"] == "disabled"
+    assert payload["turboQuantSummary"] == "TurboQuant trenutno nije dostupan na ovoj instalaciji."
+    assert "llama.cpp" in payload["turboQuantGuidance"]
     assert "launch probe failed" in payload["turboQuantReason"]
 
 

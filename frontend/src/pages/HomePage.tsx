@@ -148,10 +148,16 @@ export function HomePage() {
         </p>
       </section>
       <section className="status-card wide-card">
-        <span className="status-label">TurboQuant detalji</span>
+        <span className="status-label">TurboQuant stanje</span>
         <strong className="status-value">
-          {status?.turboQuantReason ?? "Ucitavam TurboQuant stanje..."}
+          {status?.turboQuantSummary ?? "Ucitavam TurboQuant stanje..."}
         </strong>
+        <p className="helper-text">
+          {status?.turboQuantGuidance || "Ucitavam TurboQuant smernice..."}
+        </p>
+        <p className="helper-text">
+          Tehnicki razlog: {status?.turboQuantReason || "nema dodatnih detalja."}
+        </p>
         <div className="inline-actions">
           <button
             type="button"
@@ -165,6 +171,7 @@ export function HomePage() {
           </button>
           <button
             type="button"
+            disabled={!status?.turboQuantRuntimeAvailable}
             onClick={async () => {
               const actionResult = await selectRuntime("turboquant");
               setResult(actionResult);

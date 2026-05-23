@@ -40,6 +40,7 @@ def load_status_payload(
 ) -> dict[str, object]:
     config = config or get_config()
     runtime_state = load_runtime_state(config)
+    turboquant_display = _build_turboquant_display(runtime_state)
     tailscale_ip = detect_tailscale_ip()
     tailscale_url = ""
     if config.access_mode == "tailscale" and tailscale_ip:
@@ -81,6 +82,9 @@ def load_status_payload(
             installed=bool(runtime_state["turbo_installed"]),
         ),
         "turboQuantReason": runtime_state["turbo_reason"],
+        "turboQuantDisplayState": turboquant_display["state"],
+        "turboQuantSummary": turboquant_display["summary"],
+        "turboQuantGuidance": turboquant_display["guidance"],
         "activeRuntimeBinary": runtime_state["active_binary"],
         "activeRuntimeBinarySource": runtime_state["active_binary_source"],
         "runtimeLiveStatus": runtime_state["runtime_live_status"],
@@ -339,6 +343,37 @@ def _build_runtime_install_status(*, available: bool, installed: bool) -> str:
     if installed:
         return "failed"
     return "missing"
+
+
+def _build_turboquant_display(runtime_state: dict[str, object]) -> dict[str, str]:
+    turbo_available = bool(runtime_state.get("turbo_available"))
+    turbo_installed = bool(runtime_state.get("turbo_installed"))
+    turbo_reason = str(runtime_state.get("turbo_reason", "") or "").strip()
+
+    if turbo_available:
+        return {
+            "state": "available",
+            "summary": "TurboQuant je dostupan za aktivaciju.",
+            "guidance": "Mozeš ga aktivirati kada želiš manji memorijski pritisak ili TurboQuant-specifične presete.",
+        }
+
+    if turbo_installed:
+        guidance = "Panel koristi llama.cpp dok TurboQuant ne dobije ispravne runtime zavisnosti."
+        if "missing sidecar dlls" in turbo_reason.lower():
+            guidance = (
+                "Panel koristi llama.cpp dok TurboQuant ne dobije nedostajuce DLL fajlove."
+            )
+        return {
+            "state": "disabled",
+            "summary": "TurboQuant trenutno nije dostupan na ovoj instalaciji.",
+            "guidance": guidance,
+        }
+
+    return {
+        "state": "missing",
+        "summary": "TurboQuant nije instaliran u ovom okruženju.",
+        "guidance": "Panel koristi llama.cpp dok TurboQuant ne bude dodat kroz installer ili repair tok.",
+    }
 
 
 def _load_profile(config: ControlCenterConfig) -> str:
