@@ -492,6 +492,7 @@ def launch_opencode_verification_process(
         command,
         cwd=str(cwd),
         env=env,
+        stdin=subprocess.DEVNULL,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,

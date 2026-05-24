@@ -421,6 +421,34 @@ def test_apply_opencode_verification_runtime_never_becomes_healthy_maps_to_runti
     assert process_called is False
 
 
+def test_launch_opencode_verification_process_detaches_child_from_parent_stdin(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    captured: dict[str, object] = {}
+    sentinel = object()
+
+    def fake_popen(command, **kwargs):
+        captured["command"] = command
+        captured.update(kwargs)
+        return sentinel
+
+    monkeypatch.setattr(ov.subprocess, "Popen", fake_popen)
+
+    result = ov.launch_opencode_verification_process(
+        ["opencode.exe", "--pure"],
+        cwd=tmp_path,
+        env={"EXAMPLE": "1"},
+        log_path=tmp_path / "ignored.log",
+    )
+
+    assert result is sentinel
+    assert captured["stdin"] is ov.subprocess.DEVNULL
+    assert captured["stdout"] is ov.subprocess.PIPE
+    assert captured["stderr"] is ov.subprocess.STDOUT
+    assert captured["text"] is True
+
+
 def test_apply_opencode_verification_relay_start_failure_skips_process_and_connection(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

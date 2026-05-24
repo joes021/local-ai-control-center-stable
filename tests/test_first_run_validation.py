@@ -186,7 +186,12 @@ def test_apply_first_run_validation_marks_ready_after_real_opencode_response(
     assert captured["command"][-2] == "local-lacc/recommended-6gb.gguf"
     assert captured["process"].communicate_timeouts == [ov.OPENCODE_SMOKE_TIMEOUT_SECONDS]
     assert captured["env"]["OPENCODE_CONFIG"] == session.opencode_config_path
-    assert "OPENCODE_CONFIG_CONTENT" not in captured["env"]
+    embedded_config = json.loads(captured["env"]["OPENCODE_CONFIG_CONTENT"])
+    assert embedded_config["model"] == "local-lacc/recommended-6gb.gguf"
+    assert (
+        embedded_config["provider"]["local-lacc"]["options"]["baseURL"]
+        .endswith("/v1")
+    )
     assert captured["env"]["OPENCODE_DISABLE_MODELS_FETCH"] == "true"
     assert captured["env"]["NO_COLOR"] == "1"
 
@@ -468,6 +473,56 @@ def test_apply_first_run_validation_accepts_opencode_event_stream_text_output(
     assert updated.failing_step is None
 
 
+def test_apply_first_run_validation_accepts_live_route_proof_when_stdout_has_only_step_start(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    session = _build_first_run_ready_session(tmp_path)
+    monkeypatch.setattr(frv, "load_opencode_manifest", lambda: _first_run_manifest())
+
+    updated = frv.apply_first_run_validation(
+        session,
+        temp_root=tmp_path / "temp-runs",
+        runtime_server_factory=lambda target, **kwargs: frv.TemporaryRuntimeHandle(
+            process=object(),
+            base_url=target.runtime_base_url,
+            log_path=tmp_path / "runtime.log",
+        ),
+        relay_factory=lambda **kwargs: type(
+            "RelayHandle",
+            (),
+            {
+                "base_url": "http://127.0.0.1:9422",
+                "proof_state": ov.RelayProofState(
+                    marker_seen=True,
+                    upstream_success=True,
+                    response_has_assistant_content=True,
+                ),
+            },
+        )(),
+        process_factory=lambda *args, **kwargs: FakeCompletedProcess(
+            json.dumps(
+                {
+                    "type": "step_start",
+                    "part": {
+                        "type": "step-start",
+                    },
+                }
+            )
+            + "\n",
+            returncode=0,
+        ),
+        stop_process=lambda process: True,
+        stop_relay=lambda handle: True,
+        stop_runtime=lambda handle: True,
+    )
+
+    assert updated.first_run_status == "ready"
+    assert updated.first_run_process_status == "ready"
+    assert updated.first_run_connection_status == "ready"
+    assert updated.failing_step is None
+
+
 def test_apply_first_run_validation_maps_cleanup_failure_after_success_to_process_stop(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -528,3 +583,31 @@ def test_apply_first_run_validation_skips_when_opencode_is_not_requested(
     assert updated.first_run_status == "skipped"
     assert updated.first_run_process_status == "skipped"
     assert updated.first_run_connection_status == "skipped"
+
+
+def test_launch_first_run_process_detaches_child_from_parent_stdin(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    captured: dict[str, object] = {}
+    sentinel = object()
+
+    def fake_popen(command, **kwargs):
+        captured["command"] = command
+        captured.update(kwargs)
+        return sentinel
+
+    monkeypatch.setattr(frv.subprocess, "Popen", fake_popen)
+
+    result = frv.launch_first_run_process(
+        ["opencode.exe", "--pure"],
+        cwd=tmp_path,
+        env={"EXAMPLE": "1"},
+        log_path=tmp_path / "ignored.log",
+    )
+
+    assert result is sentinel
+    assert captured["stdin"] is frv.subprocess.DEVNULL
+    assert captured["stdout"] is frv.subprocess.PIPE
+    assert captured["stderr"] is frv.subprocess.STDOUT
+    assert captured["text"] is True

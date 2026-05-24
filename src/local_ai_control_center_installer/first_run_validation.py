@@ -15,6 +15,9 @@ from local_ai_control_center_installer.opencode_bootstrap import (
 )
 from local_ai_control_center_installer.opencode_verification import (
     OPENCODE_SMOKE_TIMEOUT_SECONDS,
+    RelayProofState,
+    start_verification_relay,
+    stop_verification_relay,
 )
 from local_ai_control_center_installer.reporting import build_run_paths
 from local_ai_control_center_installer.runtime_bootstrap import load_runtime_endpoint_config
@@ -62,6 +65,8 @@ def apply_first_run_validation(
     runtime_server_factory=None,
     stop_process=None,
     stop_runtime=None,
+    relay_factory=None,
+    stop_relay=None,
     port_is_free=None,
     is_managed_runtime_port_owned_by_installation=None,
     stop_managed_runtime_on_port=None,
@@ -73,6 +78,8 @@ def apply_first_run_validation(
     runtime_server_factory = runtime_server_factory or start_first_run_runtime_server
     stop_process = stop_process or stop_first_run_process
     stop_runtime = stop_runtime or stop_temporary_runtime
+    relay_factory = relay_factory or start_verification_relay
+    stop_relay = stop_relay or stop_verification_relay
     port_is_free = port_is_free or is_loopback_port_free
     managed_port_owner_check = (
         is_managed_runtime_port_owned_by_installation
@@ -126,7 +133,9 @@ def apply_first_run_validation(
         return session
 
     runtime_handle = None
+    relay_handle = None
     process = None
+    proof_state = RelayProofState()
     verification_succeeded = False
 
     try:
@@ -148,12 +157,43 @@ def apply_first_run_validation(
         session.error_message = str(exc)
         return session
 
+    try:
+        relay_base_url = (
+            runtime_handle.base_url if runtime_handle is not None else target.runtime_base_url
+        )
+        relay_handle = relay_factory(
+            upstream_base_url=relay_base_url,
+            marker=FIRST_RUN_PROMPT,
+            now_fn=now_fn,
+            sleep_fn=sleep_fn,
+        )
+        proof_state = relay_handle.proof_state
+    except Exception as exc:
+        cleanup_error = _cleanup_first_run_resources(
+            process,
+            relay_handle,
+            runtime_handle,
+            stop_process=stop_process,
+            stop_relay=stop_relay,
+            stop_runtime=stop_runtime,
+            now_fn=now_fn,
+            sleep_fn=sleep_fn,
+        )
+        session.first_run_status = "failed"
+        session.first_run_process_status = "skipped"
+        session.first_run_connection_status = "skipped"
+        session.failing_step = "first-run-relay-start"
+        session.error_message = str(exc)
+        if cleanup_error is not None:
+            session.error_message = f"{session.error_message}; {cleanup_error}"
+        return session
+
     command = _build_first_run_command(
         target.executable_path,
         verification_args=target.verification_args,
         public_model_name=target.public_model_name,
     )
-    env = _build_first_run_env(target)
+    env = _build_first_run_env(target, relay_base_url=relay_handle.base_url)
 
     try:
         process = process_factory(
@@ -172,6 +212,7 @@ def apply_first_run_validation(
             session,
             process_returncode=process.returncode,
             output_text=output_text,
+            proof_state=proof_state,
         )
     except subprocess.TimeoutExpired as exc:
         log_write_error = _try_write_log_text(
@@ -200,8 +241,10 @@ def apply_first_run_validation(
     finally:
         cleanup_error = _cleanup_first_run_resources(
             process,
+            relay_handle,
             runtime_handle,
             stop_process=stop_process,
+            stop_relay=stop_relay,
             stop_runtime=stop_runtime,
             now_fn=now_fn,
             sleep_fn=sleep_fn,
@@ -411,6 +454,7 @@ def launch_first_run_process(
         command,
         cwd=str(cwd),
         env=env,
+        stdin=subprocess.DEVNULL,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
@@ -470,10 +514,29 @@ def stop_temporary_runtime(
         _close_process_log_handle(handle.process)
 
 
-def _build_first_run_env(target: FirstRunValidationTarget) -> dict[str, str]:
+def _build_first_run_env(
+    target: FirstRunValidationTarget,
+    *,
+    relay_base_url: str,
+) -> dict[str, str]:
+    override_payload = {
+        "autoupdate": False,
+        "model": f"local-lacc/{target.public_model_name}",
+        "enabled_providers": ["local-lacc"],
+        "provider": {
+            "local-lacc": {
+                "npm": "@ai-sdk/openai-compatible",
+                "options": {"baseURL": f"{relay_base_url}/v1"},
+                "models": {
+                    target.public_model_name: {"name": target.public_model_name}
+                },
+            }
+        },
+    }
     env = os.environ.copy()
     env.update(target.extra_env)
     env["OPENCODE_CONFIG"] = str(target.managed_config_path)
+    env["OPENCODE_CONFIG_CONTENT"] = json.dumps(override_payload)
     env["OPENCODE_DISABLE_MODELS_FETCH"] = "true"
     return env
 
@@ -497,6 +560,7 @@ def _apply_process_output_result(
     *,
     process_returncode: int | None,
     output_text: str,
+    proof_state: RelayProofState | None = None,
 ) -> bool:
     if process_returncode != 0:
         session.first_run_status = "failed"
@@ -510,7 +574,7 @@ def _apply_process_output_result(
 
     response_payload = _parse_json_output(output_text)
     assistant_text = _extract_first_nonempty_assistant_text(response_payload)
-    if assistant_text is None:
+    if assistant_text is None and not _has_valid_first_run_live_route_proof(proof_state):
         session.first_run_status = "failed"
         session.first_run_process_status = "ready"
         session.first_run_connection_status = "failed"
@@ -661,9 +725,11 @@ def _probe_runtime_health_during_startup(
 
 def _cleanup_first_run_resources(
     process,
+    relay_handle,
     runtime_handle,
     *,
     stop_process,
+    stop_relay,
     stop_runtime,
     now_fn,
     sleep_fn,
@@ -675,6 +741,17 @@ def _cleanup_first_run_resources(
             process,
             stop_process,
             failure_label="failed to stop first-run OpenCode process",
+            now_fn=now_fn,
+            sleep_fn=sleep_fn,
+        )
+        if cleanup_error is not None:
+            cleanup_errors.append(cleanup_error)
+
+    if relay_handle is not None:
+        cleanup_error = _cleanup_with_optional_clock(
+            relay_handle,
+            stop_relay,
+            failure_label="failed to stop first-run verification relay",
             now_fn=now_fn,
             sleep_fn=sleep_fn,
         )
@@ -827,6 +904,18 @@ def _close_process_log_handle(process) -> None:
         log_handle.close()
     except Exception:
         pass
+
+
+def _has_valid_first_run_live_route_proof(
+    proof_state: RelayProofState | None,
+) -> bool:
+    if proof_state is None:
+        return False
+    return (
+        proof_state.marker_seen
+        and proof_state.upstream_success
+        and proof_state.response_has_assistant_content
+    )
 
 
 def _require_path(raw_path: str | None, error_message: str) -> Path:
