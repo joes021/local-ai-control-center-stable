@@ -1,0 +1,26 @@
+{
+  "opencode_artifact": {
+    "id": "ubuntu-x64-opencode",
+    "url": "https://github.com/anomalyco/opencode/releases/download/v1.15.7/opencode-linux-x64.tar.gz",
+    "sha256": "6f7f95f13917b9aab8421dbb7e121abf2fecfecdccd16fd5b497f522f454f928",
+    "archive_type": "tar.gz",
+    "required_files": [
+      "opencode"
+    ],
+    "required_file_sha256": {
+      "opencode": "618fceb27432af2ea399f3ba660138c593c31b62a812b9aca63cbaabd136575d"
+    },
+    "install_subdir": "tools/opencode",
+    "launch": {
+      "executable_relative_path": "opencode",
+      "verification_args": [
+        "--pure",
+        "run",
+        "--format",
+        "json",
+        "--model"
+      ],
+      "extra_env": {}
+    }
+  }
+}

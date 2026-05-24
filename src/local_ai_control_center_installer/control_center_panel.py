@@ -16,6 +16,10 @@ from local_ai_control_center_installer.control_center_backend.config import get_
 from local_ai_control_center_installer.control_center_backend.services.server_service import (
     ensure_runtime_ready,
 )
+from local_ai_control_center_installer.platform_paths import (
+    build_open_url_command,
+    hidden_subprocess_creationflags,
+)
 
 
 DEFAULT_UI_HOST = "127.0.0.1"
@@ -69,18 +73,11 @@ def _open_when_ready(url: str, *, timeout_seconds: float = 30.0) -> None:
 
 def _open_url(url: str) -> None:
     subprocess.Popen(
-        [
-            "powershell",
-            "-NoProfile",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-Command",
-            f"Start-Process '{url}'",
-        ],
+        list(build_open_url_command(url)),
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
         stdin=subprocess.DEVNULL,
-        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        creationflags=hidden_subprocess_creationflags(),
         close_fds=False,
     )
 

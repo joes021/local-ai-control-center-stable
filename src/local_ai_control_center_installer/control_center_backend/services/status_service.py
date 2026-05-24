@@ -462,18 +462,18 @@ def _read_json_file(path: Path) -> dict:
 
 
 def _detect_version(config: ControlCenterConfig | None = None) -> str:
-    try:
-        return package_version("local-ai-control-center-installer")
-    except PackageNotFoundError:
-        pass
+    report_version = _read_version_from_install_report((config or get_config()).install_root)
+    if report_version:
+        return report_version
 
     installed_version = _query_windows_display_version()
     if installed_version:
         return installed_version
 
-    report_version = _read_version_from_install_report((config or get_config()).install_root)
-    if report_version:
-        return report_version
+    try:
+        return package_version("local-ai-control-center-installer")
+    except PackageNotFoundError:
+        pass
 
     return "unknown"
 

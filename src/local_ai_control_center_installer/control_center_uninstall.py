@@ -6,6 +6,8 @@ from pathlib import Path
 import subprocess
 import tempfile
 
+from local_ai_control_center_installer.platform_paths import is_windows_platform
+
 
 UNINSTALL_REGISTRY_KEY = r"HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\LocalAIControlCenter"
 START_MENU_FOLDER_NAME = "Local AI Control Center"
@@ -19,6 +21,10 @@ def run_control_center_uninstall_entry(
     *,
     output_fn=print,
 ) -> int:
+    if not is_windows_platform():
+        output_fn("Linux uninstall launcher jos nije implementiran.")
+        return 1
+
     parser = ArgumentParser(prog="LocalAIControlCenterPanel.exe --uninstall")
     parser.add_argument("--install-root", required=True)
     args = parser.parse_args(argv)

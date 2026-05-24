@@ -54,7 +54,7 @@ def test_updates_check_route_reports_available_update_and_persists_progress(
     progress = client.get("/api/updates/progress").json()
     assert progress["status"] == "available"
     assert progress["latestVersion"] == "0.4.6"
-    assert progress["currentVersion"] == "0.4.5"
+    assert progress["currentVersion"] == "0.4.4"
     assert progress["targetPath"].endswith("LocalAIControlCenterSetup-v0.4.6.exe")
 
 

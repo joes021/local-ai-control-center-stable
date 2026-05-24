@@ -29,6 +29,10 @@ from local_ai_control_center_installer.downloads import (
     DownloadProgress,
     download_file as shared_download_file,
 )
+from local_ai_control_center_installer.platform_paths import (
+    build_worker_launch_spec,
+    new_console_subprocess_creationflags,
+)
 
 
 GITHUB_RELEASES_LATEST_URL = (
@@ -598,40 +602,23 @@ def _normalize_update_progress_payload(
 
 
 def _spawn_update_worker(action_id: str, config: ControlCenterConfig):
-    environment = os.environ.copy()
-    if bool(getattr(sys, "frozen", False)):
-        command = [
-            sys.executable,
-            "--update-install-worker",
-            "--install-root",
-            str(config.install_root),
-            "--action-id",
-            action_id,
-        ]
-    else:
-        src_root = Path(__file__).resolve().parents[3]
-        existing_python_path = environment.get("PYTHONPATH", "").strip()
-        environment["PYTHONPATH"] = (
-            f"{src_root};{existing_python_path}" if existing_python_path else str(src_root)
-        )
-        command = [
-            sys.executable,
-            "-m",
-            "local_ai_control_center_installer.control_center_backend.workers.update_install_worker",
-            "--install-root",
-            str(config.install_root),
-            "--action-id",
-            action_id,
-        ]
-    creation_flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+    launch_spec = build_worker_launch_spec(
+        frozen=bool(getattr(sys, "frozen", False)),
+        executable=sys.executable,
+        src_root=Path(__file__).resolve().parents[3],
+        install_root=config.install_root,
+        worker_flag="--update-install-worker",
+        worker_module="local_ai_control_center_installer.control_center_backend.workers.update_install_worker",
+        worker_args=["--action-id", action_id],
+    )
     return subprocess.Popen(
-        command,
+        list(launch_spec.command),
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
         stdin=subprocess.DEVNULL,
-        env=environment,
+        env=launch_spec.env,
         close_fds=False,
-        creationflags=creation_flags,
+        creationflags=launch_spec.creationflags,
     )
 
 
@@ -649,7 +636,7 @@ def _launch_installer(installer_path: Path, config: ControlCenterConfig) -> None
         stderr=subprocess.DEVNULL,
         stdin=subprocess.DEVNULL,
         close_fds=False,
-        creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0),
+        creationflags=new_console_subprocess_creationflags(),
     )
 
 

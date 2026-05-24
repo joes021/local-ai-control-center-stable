@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 from local_ai_control_center_installer.download_plan import build_download_plan
+from local_ai_control_center_installer.opencode_bootstrap import load_opencode_manifest
 from local_ai_control_center_installer.session import InstallerSession
 
 
@@ -54,6 +55,27 @@ def _opencode_manifest() -> dict:
             },
         }
     }
+
+
+def test_load_opencode_manifest_selects_packaged_ubuntu_x64_resource_for_linux_x64():
+    manifest = load_opencode_manifest(
+        platform_system=lambda: "Linux",
+        platform_machine=lambda: "x86_64",
+    )
+
+    artifact = manifest["opencode_artifact"]
+    assert artifact["id"] == "ubuntu-x64-opencode"
+    assert (
+        artifact["url"]
+        == "https://github.com/anomalyco/opencode/releases/download/v1.15.7/opencode-linux-x64.tar.gz"
+    )
+    assert artifact["archive_type"] == "tar.gz"
+    assert artifact["required_files"] == ["opencode"]
+    assert artifact["launch"]["executable_relative_path"] == "opencode"
+    assert (
+        artifact["required_file_sha256"]["opencode"]
+        == "618fceb27432af2ea399f3ba660138c593c31b62a812b9aca63cbaabd136575d"
+    )
 
 
 def _turboquant_strategy() -> dict:

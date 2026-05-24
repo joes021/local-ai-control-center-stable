@@ -59,6 +59,38 @@ def test_load_runtime_manifest_keeps_pinned_size_and_digest_truth_for_starter_mo
     )
 
 
+def test_load_runtime_manifest_selects_packaged_ubuntu_x64_resource_for_linux_x64():
+    manifest = load_runtime_manifest(
+        platform_system=lambda: "Linux",
+        platform_machine=lambda: "x86_64",
+    )
+
+    assert manifest["runtime_artifact"]["id"] == "ubuntu-x64-llama-cpp-runtime"
+    assert (
+        manifest["runtime_artifact"]["url"]
+        == "https://github.com/ggml-org/llama.cpp/releases/download/b9254/llama-b9254-bin-ubuntu-x64.tar.gz"
+    )
+    assert manifest["runtime_artifact"]["archive_type"] == "tar.gz"
+    assert manifest["runtime_artifact"]["required_files"] == ["llama-server"]
+    assert (
+        manifest["runtime_artifact"]["required_file_sha256"]["llama-server"]
+        == "eb0726d558964531e1f3687f388fde9bc63d9864debadfe050cd4c3decb98cda"
+    )
+    assert [item.model_id for item in list_prompt_starter_models(manifest)] == [
+        "recommended-6gb",
+        "recommended-12gb",
+        "recommended-24gb",
+    ]
+
+
+def test_load_runtime_manifest_rejects_unsupported_linux_architecture():
+    with pytest.raises(ValueError, match="No packaged runtime manifest for platform"):
+        load_runtime_manifest(
+            platform_system=lambda: "Linux",
+            platform_machine=lambda: "armv7l",
+        )
+
+
 def test_load_runtime_manifest_rejects_duplicate_prompt_order(tmp_path):
     manifest_path = tmp_path / "windows-stable-runtime.json"
     manifest_path.write_text(

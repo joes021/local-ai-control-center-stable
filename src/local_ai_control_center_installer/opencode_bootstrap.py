@@ -4,6 +4,8 @@ from json import JSONDecodeError
 from pathlib import Path
 from tempfile import mkdtemp
 import inspect
+import platform as platform_module
+from typing import Callable
 
 from .downloads import (
     download_file as shared_download_file,
@@ -19,14 +21,25 @@ from .download_plan import (
     OPENCODE_ARTIFACT_DOWNLOAD_KEY,
     find_download_plan_item,
 )
+from .platform_paths import is_linux_x86_64_platform
 from .runtime_bootstrap import load_runtime_endpoint_config
 from .session import InstallerSession
 
 
-def load_opencode_manifest(manifest_path=None) -> dict:
+WINDOWS_OPENCODE_MANIFEST_NAME = "windows-stable-opencode.json"
+UBUNTU_X64_OPENCODE_MANIFEST_NAME = "ubuntu-x64-opencode.json"
+
+
+def load_opencode_manifest(
+    manifest_path=None,
+    *,
+    platform_system: Callable[[], str] | None = None,
+    platform_machine: Callable[[], str] | None = None,
+) -> dict:
     if manifest_path is None:
-        manifest_path = files("local_ai_control_center_installer.manifests").joinpath(
-            "windows-stable-opencode.json"
+        manifest_path = _resolve_packaged_opencode_manifest_path(
+            platform_system=platform_system,
+            platform_machine=platform_machine,
         )
 
     payload = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -37,6 +50,29 @@ def load_opencode_manifest(manifest_path=None) -> dict:
 
     _validate_opencode_artifact(payload["opencode_artifact"])
     return payload
+
+
+def _resolve_packaged_opencode_manifest_path(
+    *,
+    platform_system: Callable[[], str] | None,
+    platform_machine: Callable[[], str] | None,
+):
+    system = (platform_system or platform_module.system)().strip()
+    machine = (platform_machine or platform_module.machine)().strip()
+
+    if system.lower() == "windows":
+        manifest_name = WINDOWS_OPENCODE_MANIFEST_NAME
+    elif is_linux_x86_64_platform(
+        platform_system=system,
+        platform_machine=machine,
+    ):
+        manifest_name = UBUNTU_X64_OPENCODE_MANIFEST_NAME
+    else:
+        raise ValueError(
+            f"No packaged OpenCode manifest for platform: system={system or 'unknown'}, machine={machine or 'unknown'}"
+        )
+
+    return files("local_ai_control_center_installer.manifests").joinpath(manifest_name)
 
 
 def apply_opencode_bootstrap(

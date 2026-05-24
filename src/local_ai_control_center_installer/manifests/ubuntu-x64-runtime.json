@@ -1,0 +1,50 @@
+{
+  "runtime_artifact": {
+    "id": "ubuntu-x64-llama-cpp-runtime",
+    "url": "https://github.com/ggml-org/llama.cpp/releases/download/b9254/llama-b9254-bin-ubuntu-x64.tar.gz",
+    "sha256": "1f5c5e7faf279f29136ff62ff048cac29ac2b50d7ba5f807d23406e2aa03ef16",
+    "archive_type": "tar.gz",
+    "required_files": [
+      "llama-server"
+    ],
+    "required_file_sha256": {
+      "llama-server": "eb0726d558964531e1f3687f388fde9bc63d9864debadfe050cd4c3decb98cda"
+    },
+    "install_subdir": "runtime/llama.cpp"
+  },
+  "starter_models": {
+    "recommended-6gb": {
+      "id": "recommended-6gb",
+      "url": "https://huggingface.co/StageMind/gemma-4-e4b/resolve/142068e90ddd9c28566f6a16af9921351a5cd61d/gemma-4-E4B-it-Q4_K_M.gguf",
+      "sha256": "ced37f54b80068fe65e95c6dd79ac88cddc227e179fd1040b8f751b1e5bdf849",
+      "target_filename": "gemma-4-E4B-it-Q4_K_M.gguf",
+      "install_subdir": "models/recommended-6gb",
+      "size_bytes": 4977164416,
+      "prompt_order": 1,
+      "prompt_label": "gemma-4-E4B-it-Q4_K_M.gguf (recommended-6gb)",
+      "recommended_default": true
+    },
+    "recommended-12gb": {
+      "id": "recommended-12gb",
+      "url": "https://huggingface.co/Qwen/Qwen2.5-Coder-14B-Instruct-GGUF/resolve/d0a692ef765eefbf2fabb130b3cb2e8917e3d225/qwen2.5-coder-14b-instruct-q4_k_m.gguf",
+      "sha256": "f87bfd654aed5318df1819cc17b5204270b69d05d905c0fa6960d84e4843ba18",
+      "target_filename": "recommended-12gb.gguf",
+      "install_subdir": "models/recommended-12gb",
+      "size_bytes": 8988110272,
+      "prompt_order": 2,
+      "prompt_label": "Qwen2.5 Coder 14B Instruct Q4_K_M (recommended-12gb)",
+      "recommended_default": false
+    },
+    "recommended-24gb": {
+      "id": "recommended-24gb",
+      "url": "https://huggingface.co/Qwen/Qwen2.5-Coder-32B-Instruct-GGUF/resolve/9d3053fce650fe1cdbdb75998c2a87add9d178ef/qwen2.5-coder-32b-instruct-q4_k_m.gguf",
+      "sha256": "2687a00b84e7e35c652ea0024cb8747070b090e9f311ab9b6461b8a71c2bc50f",
+      "target_filename": "recommended-24gb.gguf",
+      "install_subdir": "models/recommended-24gb",
+      "size_bytes": 19851335872,
+      "prompt_order": 3,
+      "prompt_label": "Qwen2.5 Coder 32B Instruct Q4_K_M (recommended-24gb)",
+      "recommended_default": false
+    }
+  }
+}

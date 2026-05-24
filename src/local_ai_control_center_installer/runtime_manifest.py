@@ -1,6 +1,14 @@
 import json
 from dataclasses import dataclass
 from importlib.resources import files
+import platform as platform_module
+from typing import Callable
+
+from .platform_paths import is_linux_x86_64_platform
+
+
+WINDOWS_RUNTIME_MANIFEST_NAME = "windows-stable-runtime.json"
+UBUNTU_X64_RUNTIME_MANIFEST_NAME = "ubuntu-x64-runtime.json"
 
 
 @dataclass(frozen=True)
@@ -11,10 +19,16 @@ class StarterModelOption:
     recommended_default: bool
 
 
-def load_runtime_manifest(manifest_path=None) -> dict:
+def load_runtime_manifest(
+    manifest_path=None,
+    *,
+    platform_system: Callable[[], str] | None = None,
+    platform_machine: Callable[[], str] | None = None,
+) -> dict:
     if manifest_path is None:
-        manifest_path = files("local_ai_control_center_installer.manifests").joinpath(
-            "windows-stable-runtime.json"
+        manifest_path = _resolve_packaged_runtime_manifest_path(
+            platform_system=platform_system,
+            platform_machine=platform_machine,
         )
 
     payload = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -25,6 +39,29 @@ def load_runtime_manifest(manifest_path=None) -> dict:
     _validate_starter_models_container(payload["starter_models"])
     list_prompt_starter_models(payload)
     return payload
+
+
+def _resolve_packaged_runtime_manifest_path(
+    *,
+    platform_system: Callable[[], str] | None,
+    platform_machine: Callable[[], str] | None,
+):
+    system = (platform_system or platform_module.system)().strip()
+    machine = (platform_machine or platform_module.machine)().strip()
+
+    if system.lower() == "windows":
+        manifest_name = WINDOWS_RUNTIME_MANIFEST_NAME
+    elif is_linux_x86_64_platform(
+        platform_system=system,
+        platform_machine=machine,
+    ):
+        manifest_name = UBUNTU_X64_RUNTIME_MANIFEST_NAME
+    else:
+        raise ValueError(
+            f"No packaged runtime manifest for platform: system={system or 'unknown'}, machine={machine or 'unknown'}"
+        )
+
+    return files("local_ai_control_center_installer.manifests").joinpath(manifest_name)
 
 
 def list_prompt_starter_models(manifest: dict) -> list[StarterModelOption]:
