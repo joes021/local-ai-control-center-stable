@@ -8,6 +8,7 @@ $ErrorActionPreference = "Stop"
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).ProviderPath
 $distRoot = Join-Path $repoRoot "dist"
 $buildRoot = Join-Path $repoRoot "build"
+$packageRoot = Join-Path $repoRoot "src\\local_ai_control_center_installer"
 $frontendRoot = Join-Path $repoRoot "frontend"
 $frontendPackageDist = Join-Path $repoRoot "src\\local_ai_control_center_installer\\control_center_backend\\frontend_dist"
 $frontendTsc = Join-Path $frontendRoot "node_modules\\typescript\\bin\\tsc"
@@ -95,15 +96,41 @@ try {
         Remove-Item -Force $specPath
     }
 
-    & $PythonExe -m PyInstaller `
-        --noconfirm `
-        --clean `
-        --onefile `
-        --console `
-        --name $setupBaseName `
-        --paths src `
-        --collect-data local_ai_control_center_installer `
-        packaging/windows_installer_entry.py
+    $packageDataMappings = @(
+        @{
+            Source = Join-Path $packageRoot "manifests"
+            Destination = "local_ai_control_center_installer/manifests"
+        },
+        @{
+            Source = Join-Path $packageRoot "control_center_backend\\frontend_dist"
+            Destination = "local_ai_control_center_installer/control_center_backend/frontend_dist"
+        },
+        @{
+            Source = Join-Path $packageRoot "turboquant_sidecars"
+            Destination = "local_ai_control_center_installer/turboquant_sidecars"
+        }
+    )
+    $pyinstallerArgs = @(
+        "-m",
+        "PyInstaller",
+        "--noconfirm",
+        "--clean",
+        "--onefile",
+        "--console",
+        "--name",
+        $setupBaseName,
+        "--paths",
+        "src"
+    )
+    foreach ($mapping in $packageDataMappings) {
+        $pyinstallerArgs += @(
+            "--add-data",
+            "$($mapping.Source);$($mapping.Destination)"
+        )
+    }
+    $pyinstallerArgs += "packaging/windows_installer_entry.py"
+
+    & $PythonExe @pyinstallerArgs
     if ($LASTEXITCODE -ne 0) {
         throw "PyInstaller build failed."
     }

@@ -26,6 +26,8 @@ from local_ai_control_center_installer.session import InstallerSession
 
 OPENCODE_SMOKE_TIMEOUT_SECONDS = 300.0
 OPENCODE_UPSTREAM_REQUEST_TIMEOUT_SECONDS = 270.0
+OPENCODE_UPSTREAM_MAX_ATTEMPTS = 2
+OPENCODE_UPSTREAM_RETRY_DELAY_SECONDS = 0.05
 
 
 @dataclass
@@ -626,18 +628,25 @@ def _forward_to_upstream(
         method="POST",
     )
 
-    try:
-        with urlopen(
-            request,
-            timeout=OPENCODE_UPSTREAM_REQUEST_TIMEOUT_SECONDS,
-        ) as response:
-            return response.status, response.headers, response.read()
-    except HTTPError as exc:
-        return exc.code, exc.headers, exc.read()
-    except (URLError, TimeoutError, OSError) as exc:
-        return 502, {"Content-Type": "text/plain; charset=utf-8"}, str(exc).encode(
-            "utf-8"
-        )
+    last_transport_error: Exception | None = None
+    for attempt_index in range(OPENCODE_UPSTREAM_MAX_ATTEMPTS):
+        try:
+            with urlopen(
+                request,
+                timeout=OPENCODE_UPSTREAM_REQUEST_TIMEOUT_SECONDS,
+            ) as response:
+                return response.status, response.headers, response.read()
+        except HTTPError as exc:
+            return exc.code, exc.headers, exc.read()
+        except (URLError, TimeoutError, OSError) as exc:
+            last_transport_error = exc
+            if attempt_index + 1 >= OPENCODE_UPSTREAM_MAX_ATTEMPTS:
+                break
+            time.sleep(OPENCODE_UPSTREAM_RETRY_DELAY_SECONDS)
+
+    return 502, {"Content-Type": "text/plain; charset=utf-8"}, str(
+        last_transport_error or "upstream transport failed"
+    ).encode("utf-8")
 
 
 def _apply_upstream_proof(

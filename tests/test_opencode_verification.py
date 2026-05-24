@@ -863,6 +863,45 @@ def test_forward_to_upstream_uses_extended_request_timeout(monkeypatch: pytest.M
     assert captured["timeout"] == 270.0
 
 
+def test_forward_to_upstream_retries_after_transient_transport_failure(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    response_bytes = b'{"choices":[{"message":{"role":"assistant","content":"READY"}}]}'
+    attempts: list[float] = []
+
+    class FakeResponse:
+        status = 200
+        headers = {"Content-Type": "application/json"}
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def read(self):
+            return response_bytes
+
+    def fake_urlopen(request, timeout):
+        attempts.append(timeout)
+        if len(attempts) == 1:
+            raise ov.URLError("temporary loopback race")
+        return FakeResponse()
+
+    monkeypatch.setattr(ov, "urlopen", fake_urlopen)
+    monkeypatch.setattr(ov.time, "sleep", lambda seconds: None)
+
+    status, headers, body = ov._forward_to_upstream(
+        upstream_base_url="http://127.0.0.1:8080",
+        request_body=b'{"messages":[]}',
+    )
+
+    assert attempts == [270.0, 270.0]
+    assert status == 200
+    assert headers["Content-Type"] == "application/json"
+    assert body == response_bytes
+
+
 @pytest.mark.parametrize("failure_site", ["end_headers", "write"])
 def test_write_forwarded_response_ignores_client_disconnect(failure_site: str):
     class BrokenWriter:
