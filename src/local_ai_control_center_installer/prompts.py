@@ -55,6 +55,13 @@ def count_questionnaire_steps(existing_install_detected: bool) -> int:
     return 7 if existing_install_detected else 6
 
 
+def path_looks_like_existing_install(install_root: str | None) -> bool:
+    normalized = normalize_prompt_input(install_root or "")
+    if not normalized:
+        return False
+    return Path(normalized).expanduser().exists()
+
+
 def build_step_title(step_index: int, total_steps: int, title: str) -> str:
     return f"[{step_index}/{total_steps}] {title}"
 
@@ -199,6 +206,29 @@ def collect_installer_answers(session, input_fn=input, output_fn=print):
         or default_install_root
     )
     step_index += 1
+
+    selected_root_has_existing_install = path_looks_like_existing_install(
+        draft_session.install_root
+    )
+    draft_session.existing_install_detected = selected_root_has_existing_install
+
+    if not session.existing_install_detected and selected_root_has_existing_install:
+        total_steps = count_questionnaire_steps(True)
+        install_mode = prompt_for_number(
+            build_numbered_prompt(
+                "Install mode",
+                [("1", "Upgrade"), ("2", "Fresh install")],
+                "1",
+                step_index=step_index,
+                total_steps=total_steps,
+            ),
+            "1",
+            {"1", "2"},
+            input_fn=input_fn,
+            output_fn=output_fn,
+        )
+        draft_session.install_mode = "upgrade" if install_mode == "1" else "fresh"
+        step_index += 1
 
     starter_model_options, starter_model_choices, starter_model_default = (
         build_starter_model_prompt_options()

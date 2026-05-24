@@ -158,6 +158,33 @@ def prepare_opencode_launcher(
 def detect_opencode_instances(executable_path: Path) -> list[dict[str, object]]:
     if not executable_path:
         return []
+    executable_token = _normalize_windows_path_token(str(executable_path))
+    if not executable_token:
+        return []
+    payloads = _query_opencode_processes()
+    if not payloads:
+        return []
+    instances: list[dict[str, object]] = []
+    for item in payloads:
+        if not isinstance(item, dict):
+            continue
+        pid = item.get("pid") or item.get("ProcessId")
+        if not isinstance(pid, int):
+            continue
+        command_line = str(item.get("commandLine") or item.get("CommandLine") or "")
+        if not _command_line_matches_executable(command_line, executable_token):
+            continue
+        instances.append(
+            {
+                "pid": pid,
+                "name": str(item.get("name") or item.get("Name") or ""),
+                "commandLine": command_line,
+            }
+        )
+    return instances
+
+
+def _query_opencode_processes() -> list[dict[str, object]]:
     completed = subprocess.run(
         [
             "powershell",
@@ -184,23 +211,18 @@ def detect_opencode_instances(executable_path: Path) -> list[dict[str, object]]:
         parsed = json.loads(completed.stdout)
     except json.JSONDecodeError:
         return []
+    return parsed if isinstance(parsed, list) else [parsed]
 
-    payloads = parsed if isinstance(parsed, list) else [parsed]
-    instances: list[dict[str, object]] = []
-    for item in payloads:
-        if not isinstance(item, dict):
-            continue
-        pid = item.get("ProcessId")
-        if not isinstance(pid, int):
-            continue
-        instances.append(
-            {
-                "pid": pid,
-                "name": str(item.get("Name", "") or ""),
-                "commandLine": str(item.get("CommandLine", "") or ""),
-            }
-        )
-    return instances
+
+def _normalize_windows_path_token(value: str) -> str:
+    return value.replace("/", "\\").strip().strip('"').lower()
+
+
+def _command_line_matches_executable(command_line: str, executable_token: str) -> bool:
+    if not command_line or not executable_token:
+        return False
+    normalized_command = _normalize_windows_path_token(command_line)
+    return executable_token in normalized_command
 
 
 def _resolve_opencode_executable_path(config: ControlCenterConfig) -> Path:

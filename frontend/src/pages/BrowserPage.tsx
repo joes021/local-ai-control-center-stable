@@ -180,6 +180,13 @@ function compactFitLabel(status: BrowserFitStatus): string {
   return "?";
 }
 
+function mtpDownloadOnlyGuidance(item: BrowserCatalogItem): string | null {
+  if (item.mtpStatus === "has-mtp") {
+    return "MTP modeli su trenutno download-only. Za runtime aktivaciju izaberi non-MTP GGUF varijantu.";
+  }
+  return null;
+}
+
 function formatDate(value: string | null): string {
   if (!value) {
     return "Unknown";
@@ -965,6 +972,9 @@ export function BrowserPage() {
             </div>
 
             {selectedItem.summary ? <p className="helper-text">{selectedItem.summary}</p> : null}
+            {mtpDownloadOnlyGuidance(selectedItem) ? (
+              <p className="helper-text">{mtpDownloadOnlyGuidance(selectedItem)}</p>
+            ) : null}
 
             {selectedItem.tags.length ? (
               <div className="browser-chip-row">

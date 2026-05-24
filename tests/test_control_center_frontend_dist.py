@@ -86,6 +86,15 @@ def test_browser_page_source_uses_compact_badges_for_mtp_and_fit_columns():
     assert "Fit: {item.fitLabel}" not in source
 
 
+def test_models_and_browser_source_explain_that_mtp_models_are_not_activatable():
+    models_source = Path("frontend/src/pages/ModelsPage.tsx").read_text(encoding="utf-8")
+    browser_source = Path("frontend/src/pages/BrowserPage.tsx").read_text(encoding="utf-8")
+
+    assert "non-MTP GGUF" in models_source
+    assert "MTP modeli su trenutno download-only" in models_source
+    assert "MTP modeli su trenutno download-only" in browser_source
+
+
 def test_packaged_browser_ui_contains_quant_sort_labels():
     dist_root = Path(
         "src/local_ai_control_center_installer/control_center_backend/frontend_dist"

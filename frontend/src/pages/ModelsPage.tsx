@@ -102,6 +102,17 @@ function buildCompatibilityRequest(item: ModelEntry): CompatibilityCheckRequest 
   };
 }
 
+function supportsRuntimeActivation(item: ModelEntry): boolean {
+  return item.mtpStatus !== "has-mtp";
+}
+
+function mtpActivationGuidance(item: ModelEntry): string | null {
+  if (!supportsRuntimeActivation(item)) {
+    return "MTP modeli su trenutno download-only. Za aktivaciju izaberi non-MTP GGUF varijantu.";
+  }
+  return null;
+}
+
 function FilterResultsCard({
   filter,
   items,
@@ -190,11 +201,15 @@ function FilterResultsCard({
                     {formatMiB(item.recommendedGpuMiB)} | RAM: {formatGiB(item.minimumRamGiB ?? null)}
                   </div>
                   <div className="helper-text">MTP status: {item.mtpStatusLabel ?? "nepoznato"}</div>
+                  {mtpActivationGuidance(item) ? (
+                    <div className="helper-text">{mtpActivationGuidance(item)}</div>
+                  ) : null}
                   {item.description ? <p className="helper-text">{item.description}</p> : null}
                 </div>
                 <div className="inline-actions">
                   <button
-                    disabled={Boolean(pendingAction)}
+                    disabled={Boolean(pendingAction) || !supportsRuntimeActivation(item)}
+                    title={mtpActivationGuidance(item) ?? undefined}
                     onClick={() => handleAction(`activate ${item.id}`, () => activateModel(item.id))}
                     type="button"
                   >
@@ -372,11 +387,15 @@ function ModelGroup({
                     {formatMiB(item.recommendedGpuMiB)} | RAM: {formatGiB(item.minimumRamGiB ?? null)}
                   </div>
                   <div className="helper-text">MTP status: {item.mtpStatusLabel ?? "nepoznato"}</div>
+                  {mtpActivationGuidance(item) ? (
+                    <div className="helper-text">{mtpActivationGuidance(item)}</div>
+                  ) : null}
                   {item.description ? <p className="helper-text">{item.description}</p> : null}
                 </div>
                   <div className="inline-actions">
                     <button
-                      disabled={Boolean(pendingAction)}
+                      disabled={Boolean(pendingAction) || !supportsRuntimeActivation(item)}
+                      title={mtpActivationGuidance(item) ?? undefined}
                       onClick={() => handleAction(`activate ${item.id}`, () => activateModel(item.id))}
                       type="button"
                     >
@@ -756,6 +775,9 @@ export function ModelsPage() {
           Activate menja aktivni Local Qwen model odmah, ali OpenCode taj novi model preuzima tek
           u novom session-u. Ako je OpenCode vec otvoren, zatvori ga i otvori ponovo.
         </p>
+        <p className="helper-text">
+          MTP modeli su trenutno download-only. Za aktivaciju izaberi non-MTP GGUF varijantu.
+        </p>
       </section>
 
         <FilterResultsCard
@@ -911,7 +933,7 @@ export function ModelsPage() {
       <section className="status-card wide-card">
         <span className="status-label">Unsloth GGUF preporuke</span>
         <p className="helper-text">
-          Ovo su preporuceni non-MTP izbori za RTX 3060 12 GB + llama.cpp + TurboQuant.
+          Ovo su preporuceni non-MTP GGUF izbori za RTX 3060 12 GB + llama.cpp + TurboQuant.
         </p>
         <p className="helper-text">
           Fokus je na Qwen3.6 35B A3B i Qwen3.6 27B varijantama kao sto su UD-IQ2_M i UD-IQ3_XXS.

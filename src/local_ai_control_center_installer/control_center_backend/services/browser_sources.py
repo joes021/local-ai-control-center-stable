@@ -65,7 +65,12 @@ def fetch_unsloth_catalog(limit: int = 80) -> SourceFetchResult:
     )
 
 
-def _fetch_hf_models(query: dict[str, str], *, source: str, max_files_per_repo: int = 64) -> SourceFetchResult:
+def _fetch_hf_models(
+    query: dict[str, str],
+    *,
+    source: str,
+    max_files_per_repo: int | None = None,
+) -> SourceFetchResult:
     url = f"{HF_API}?{urllib_parse.urlencode(query)}"
     try:
         payload = _read_json(url)
@@ -92,7 +97,7 @@ def _fetch_hf_models(query: dict[str, str], *, source: str, max_files_per_repo: 
         ]
         if not gguf_files:
             continue
-        if len(gguf_files) > max_files_per_repo:
+        if max_files_per_repo is not None and len(gguf_files) > max_files_per_repo:
             warnings.append(f"{repo_id}: prikazan je samo prvih {max_files_per_repo} GGUF fajlova.")
             gguf_files = gguf_files[:max_files_per_repo]
         for sibling in gguf_files:

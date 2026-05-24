@@ -7,6 +7,9 @@ from local_ai_control_center_installer.prompts import (
     collect_installer_answers,
     render_confirmation_summary,
 )
+from local_ai_control_center_installer.platform_paths import (
+    default_install_root_for_platform,
+)
 from local_ai_control_center_installer.runtime_manifest import StarterModelOption
 from local_ai_control_center_installer.session import InstallerSession
 
@@ -137,7 +140,15 @@ def test_collect_installer_answers_emits_summary_before_confirmation_prompt():
     assert prompts[-1].startswith("[6/6] Confirm choices")
 
 
-def test_collect_installer_answers_raises_prompt_cancelled_error_on_cancel():
+def test_collect_installer_answers_raises_prompt_cancelled_error_on_cancel(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        prompts_module,
+        "default_install_root_for_platform",
+        lambda platform=None: tmp_path / "fresh-install",
+    )
     answers = iter(["", "1", "1", "2", "", "2"])
 
     with pytest.raises(PromptCancelledError):
@@ -202,7 +213,15 @@ def test_collect_installer_answers_shows_numbered_options_and_defaults():
     assert "default: 1" in prompts[6]
 
 
-def test_collect_installer_answers_shows_compact_step_counts_when_no_existing_install():
+def test_collect_installer_answers_shows_compact_step_counts_when_no_existing_install(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        prompts_module,
+        "default_install_root_for_platform",
+        lambda platform=None: tmp_path / "fresh-install",
+    )
     prompts = []
     input_fn = make_capturing_input(["", "1", "1", "1", "", "1"], prompts)
 
@@ -217,6 +236,33 @@ def test_collect_installer_answers_shows_compact_step_counts_when_no_existing_in
     assert prompts[3].startswith("[4/6] Attempt TurboQuant")
     assert prompts[4].startswith("[5/6] Additional model paths")
     assert prompts[5].startswith("[6/6] Confirm choices")
+
+
+def test_collect_installer_answers_detects_existing_custom_install_root_and_prompts_for_mode(
+    tmp_path,
+):
+    existing_root = tmp_path / "existing-install"
+    existing_root.mkdir()
+    prompts = []
+    input_fn = make_capturing_input(
+        [str(existing_root), "1", "1", "1", "1", "", "1"],
+        prompts,
+    )
+
+    updated = collect_installer_answers(
+        InstallerSession(),
+        input_fn=input_fn,
+    )
+
+    assert updated.install_root == str(existing_root)
+    assert updated.existing_install_detected is True
+    assert updated.install_mode == "upgrade"
+    assert prompts[0].startswith(
+        f"[1/6] Install root (default: {default_install_root_for_platform().expanduser()})"
+    )
+    assert prompts[1].startswith("[2/7] Install mode")
+    assert prompts[2].startswith("[3/7] Starter model")
+    assert prompts[6].startswith("[7/7] Confirm choices")
 
 
 def test_collect_installer_answers_uses_ubuntu_default_install_root_for_linux_session(
@@ -242,7 +288,15 @@ def test_collect_installer_answers_uses_ubuntu_default_install_root_for_linux_se
     assert updated.install_root == str(expected_root)
 
 
-def test_collect_installer_answers_retries_invalid_confirmation_then_confirms():
+def test_collect_installer_answers_retries_invalid_confirmation_then_confirms(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        prompts_module,
+        "default_install_root_for_platform",
+        lambda platform=None: tmp_path / "fresh-install",
+    )
     answers = iter(["", "1", "2", "", "", "0", "1"])
     outputs = []
 
@@ -257,7 +311,15 @@ def test_collect_installer_answers_retries_invalid_confirmation_then_confirms():
     assert any("Please enter 1 or 2." in line for line in outputs)
 
 
-def test_collect_installer_answers_uses_manifest_default_prompt_choice(monkeypatch):
+def test_collect_installer_answers_uses_manifest_default_prompt_choice(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        prompts_module,
+        "default_install_root_for_platform",
+        lambda platform=None: tmp_path / "fresh-install",
+    )
     answers = iter(["", "", "1", "2", "", "1"])
 
     monkeypatch.setattr(

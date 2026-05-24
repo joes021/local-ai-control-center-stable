@@ -44,6 +44,51 @@ def test_fetch_hf_models_keeps_late_gguf_variants_in_large_repo(monkeypatch):
     assert "Qwen3.6-35B-A3B-UD-IQ2_XXS.gguf" in returned_filenames
 
 
+def test_fetch_hf_models_does_not_truncate_large_repo_gguf_lists(monkeypatch):
+    repo_id = "unsloth/Qwen3.6-35B-A3B-GGUF"
+    gguf_files = [
+        {"rfilename": f"Qwen3.6-35B-A3B-UD-Q3_K_{index}.gguf"}
+        for index in range(1, 81)
+    ] + [{"rfilename": "Qwen3.6-35B-A3B-UD-IQ2_XXS.gguf"}]
+
+    def fake_read_json(url: str):
+        if url.startswith(browser_sources.HF_API + "?"):
+            return [
+                {
+                    "id": repo_id,
+                    "siblings": gguf_files,
+                    "lastModified": "2026-05-24T00:00:00Z",
+                    "downloads": 3100,
+                    "likes": 88,
+                    "tags": ["gguf", "qwen"],
+                }
+            ]
+        if f"{browser_sources.HF_API}/{repo_id}/tree/main" in url:
+            return [{"path": entry["rfilename"], "size": 1024} for entry in gguf_files]
+        raise AssertionError(f"Unexpected URL: {url}")
+
+    monkeypatch.setattr(browser_sources, "_read_json", fake_read_json)
+
+    result = browser_sources._fetch_hf_models(
+        {
+            "author": "unsloth",
+            "search": "GGUF",
+            "limit": "80",
+            "sort": "lastModified",
+            "direction": "-1",
+            "full": "true",
+            "config": "false",
+        },
+        source="unsloth",
+    )
+
+    returned_filenames = [item["filename"] for item in result.models]
+
+    assert len(returned_filenames) == 81
+    assert "Qwen3.6-35B-A3B-UD-IQ2_XXS.gguf" in returned_filenames
+    assert result.warnings == []
+
+
 def test_browser_source_catalog_uses_broader_default_repo_limits(monkeypatch):
     captured: list[tuple[dict[str, str], str]] = []
 

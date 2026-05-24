@@ -87,6 +87,88 @@ def test_opencode_status_route_reports_app_only_when_runtime_is_not_connected(
     assert "nije pokrenut" in payload["sessionSummary"].lower()
 
 
+def test_opencode_status_route_ignores_instances_from_other_install_roots(
+    tmp_path: Path,
+    monkeypatch,
+):
+    install_root = tmp_path / "install-root"
+    _write_opencode_fixture(install_root)
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.opencode_service._query_opencode_processes",
+        lambda: [
+            {
+                "pid": 5151,
+                "name": "opencode.exe",
+                "commandLine": "\"C:\\\\Users\\\\OtherUser\\\\LocalAIControlCenter\\\\tools\\\\opencode\\\\opencode.exe\"",
+            }
+        ],
+    )
+
+    client = TestClient(app)
+    response = client.get("/api/opencode/status")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["active"] is False
+    assert payload["instanceCount"] == 0
+    assert payload["sessionState"] == "runtime-ready"
+
+
+def test_opencode_open_route_does_not_treat_foreign_instance_as_local_session(
+    tmp_path: Path,
+    monkeypatch,
+):
+    install_root = tmp_path / "install-root"
+    _write_opencode_fixture(install_root)
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+
+    captured: dict[str, object] = {}
+
+    def fake_popen(command, **kwargs):
+        captured["command"] = command
+        captured["kwargs"] = kwargs
+
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.opencode_service.subprocess.Popen",
+        fake_popen,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.opencode_service._query_opencode_processes",
+        lambda: [
+            {
+                "pid": 6161,
+                "name": "opencode.exe",
+                "commandLine": "\"C:\\\\Users\\\\OtherUser\\\\LocalAIControlCenter\\\\tools\\\\opencode\\\\opencode.exe\"",
+            }
+        ],
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.opencode_service.ensure_runtime_ready",
+        lambda config: {
+            "status": "ok",
+            "action": "ensure-runtime-ready",
+            "summary": "Runtime je spreman za OpenCode.",
+            "details": {
+                "returncode": 0,
+                "stdout": "Runtime je spreman za OpenCode.",
+                "stderr": "",
+            },
+        },
+        raising=False,
+    )
+
+    client = TestClient(app)
+    response = client.post("/api/opencode/open", json={"profile": "balanced"})
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "ok"
+    assert "pokrenut" in payload["summary"].lower()
+    launcher_path = install_root / "control-center" / "Open-OpenCode.cmd"
+    assert captured["command"] == ["cmd.exe", "/d", "/k", str(launcher_path)]
+
+
 def test_opencode_open_route_launches_visible_windows_launcher(
     tmp_path: Path,
     monkeypatch,

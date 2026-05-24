@@ -15,7 +15,7 @@ Primary end-user artifact:
 
 Current release:
 
-- [LocalAIControlCenterSetup-v0.4.6.exe](https://github.com/joes021/local-ai-control-center-stable/releases/download/v0.4.6/LocalAIControlCenterSetup-v0.4.6.exe)
+- [LocalAIControlCenterSetup-v0.4.8.exe](https://github.com/joes021/local-ai-control-center-stable/releases/download/v0.4.8/LocalAIControlCenterSetup-v0.4.8.exe)
 
 The Windows product is intended to be launched with a double-click. No ZIP extraction and no manual PowerShell command are required for the packaged installer path.
 
