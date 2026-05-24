@@ -65,6 +65,20 @@ def test_main_returns_non_zero_when_starter_model_catalog_setup_fails(
     assert "Traceback" not in captured.err
 
 
+def test_build_default_session_prefills_install_root_from_environment(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    install_root = tmp_path / "install-root"
+    install_root.mkdir()
+    monkeypatch.setenv("LOCAL_AI_CONTROL_CENTER_INSTALLER_PREFILL_ROOT", str(install_root))
+
+    session = main_module.build_default_session()
+
+    assert session.install_root == str(install_root.resolve())
+    assert session.existing_install_detected is True
+
+
 @pytest.mark.parametrize(
     ("side_effect", "expected_message"),
     [

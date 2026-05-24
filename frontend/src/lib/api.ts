@@ -383,7 +383,7 @@ export async function installUpdate(): Promise<ActionResult> {
 }
 
 export async function fetchUpdateProgress(): Promise<UpdateProgressPayload> {
-  const response = await fetch("/api/updates/progress");
+  const response = await fetch("/api/updates/progress", { cache: "no-store" });
   if (!response.ok) {
     throw new Error(`Update progress request failed: ${response.status}`);
   }

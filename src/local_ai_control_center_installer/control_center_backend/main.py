@@ -37,6 +37,9 @@ from local_ai_control_center_installer.control_center_backend.routes.browser imp
 from local_ai_control_center_installer.control_center_backend.routes.compatibility import (
     router as compatibility_router,
 )
+from local_ai_control_center_installer.control_center_backend.routes.updates import (
+    router as updates_router,
+)
 from local_ai_control_center_installer.control_center_backend.config import get_config
 
 app = FastAPI(title="Local AI Control Center")
@@ -88,6 +91,7 @@ app.include_router(system_router)
 app.include_router(runtime_router)
 app.include_router(browser_router)
 app.include_router(compatibility_router)
+app.include_router(updates_router)
 
 _packaged_assets = _package_root() / "frontend_dist" / "assets"
 if _packaged_assets.is_dir():

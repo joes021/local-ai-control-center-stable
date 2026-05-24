@@ -103,3 +103,27 @@ def test_api_source_disables_cache_for_download_progress_polling():
     source = Path("frontend/src/lib/api.ts").read_text(encoding="utf-8")
 
     assert 'fetch("/api/models/download-progress", { cache: "no-store" })' in source
+
+
+def test_app_source_and_packaged_frontend_include_updates_navigation():
+    source = Path("frontend/src/App.tsx").read_text(encoding="utf-8")
+
+    assert 'updates: "Updates"' in source
+    assert "UpdatesPage" in source
+
+    dist_root = Path(
+        "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
+    )
+    js_assets = list((dist_root / "assets").glob("index-*.js"))
+
+    assert js_assets
+    bundled_text = "\n".join(path.read_text(encoding="utf-8") for path in js_assets)
+
+    assert "Updates" in bundled_text
+    assert "Check updates" in bundled_text
+
+
+def test_api_source_disables_cache_for_update_progress_polling():
+    source = Path("frontend/src/lib/api.ts").read_text(encoding="utf-8")
+
+    assert 'fetch("/api/updates/progress", { cache: "no-store" })' in source

@@ -1,4 +1,5 @@
 import json
+import socket
 import subprocess
 import threading
 import time
@@ -924,6 +925,13 @@ def _start_loopback_server(handler_type: type[BaseHTTPRequestHandler]):
     server = ThreadingHTTPServer(("127.0.0.1", 0), handler_type)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
+    deadline = time.monotonic() + 2.0
+    while time.monotonic() < deadline:
+        try:
+            with socket.create_connection(("127.0.0.1", server.server_port), timeout=0.1):
+                break
+        except OSError:
+            time.sleep(0.01)
     return server, f"http://127.0.0.1:{server.server_port}", thread
 
 

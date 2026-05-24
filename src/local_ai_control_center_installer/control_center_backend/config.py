@@ -75,6 +75,14 @@ class ControlCenterConfig:
     def browser_catalog_cache_path(self) -> Path:
         return self.control_center_config_root / "browser-catalog-cache.json"
 
+    @property
+    def update_progress_path(self) -> Path:
+        return self.control_center_config_root / "update-progress.json"
+
+    @property
+    def updates_download_root(self) -> Path:
+        return self.install_root / "updates"
+
 
 def get_config() -> ControlCenterConfig:
     raw_port = os.environ.get("LACC_UI_PORT", "3210").strip() or "3210"

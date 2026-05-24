@@ -1,5 +1,7 @@
 from collections.abc import Callable
 from datetime import datetime, timezone
+import os
+from pathlib import Path
 import platform as platform_module
 import sys
 
@@ -16,9 +18,21 @@ ReportStep = Callable[[InstallerSession], None]
 
 
 def build_default_session() -> InstallerSession:
+    install_root = (
+        os.environ.get("LACC_INSTALLER_PREFILL_ROOT")
+        or os.environ.get("LOCAL_AI_CONTROL_CENTER_INSTALLER_PREFILL_ROOT")
+        or None
+    )
+    normalized_install_root = None
+    existing_install_detected = False
+    if install_root:
+        normalized_install_root = str(Path(install_root).expanduser().resolve())
+        existing_install_detected = Path(normalized_install_root).exists()
     return InstallerSession(
         platform=platform_module.system().lower(),
         started_at=datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
+        install_root=normalized_install_root,
+        existing_install_detected=existing_install_detected,
     )
 
 

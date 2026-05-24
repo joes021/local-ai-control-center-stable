@@ -11,6 +11,7 @@ import { OpenCodePage } from "./pages/OpenCodePage";
 import { RepairPage } from "./pages/RepairPage";
 import { ServerPage } from "./pages/ServerPage";
 import { SettingsPage } from "./pages/SettingsPage";
+import { UpdatesPage } from "./pages/UpdatesPage";
 
 const PAGES = {
   home: "Home",
@@ -21,6 +22,7 @@ const PAGES = {
   settings: "Settings",
   logs: "Logs",
   repair: "Repair",
+  updates: "Updates",
 } as const;
 
 type PageKey = keyof typeof PAGES;
@@ -79,6 +81,7 @@ export default function App() {
       {page === "settings" ? <SettingsPage /> : null}
       {page === "logs" ? <LogsPage /> : null}
       {page === "repair" ? <RepairPage /> : null}
+      {page === "updates" ? <UpdatesPage /> : null}
     </Layout>
   );
 }
