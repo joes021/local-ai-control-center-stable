@@ -75,7 +75,10 @@ def test_browser_page_source_groups_quant_filters_and_supports_quant_sort():
     assert "normalizeQuantFilterKey" in source
     assert "quant-asc" in source
     assert "quant-desc" in source
-    assert "item.quantFilterKey !== quantFilter" in source
+    assert "const browserQuery = useMemo<BrowserCatalogQuery>(" in source
+    assert "quant: quantFilter" in source
+    assert "sort: sortKey" in source
+    assert "const payload = await fetchBrowserCatalog(query);" in source
 
 
 def test_browser_page_source_uses_compact_badges_for_mtp_and_fit_columns():
@@ -112,6 +115,15 @@ def test_api_source_disables_cache_for_download_progress_polling():
     source = Path("frontend/src/lib/api.ts").read_text(encoding="utf-8")
 
     assert 'fetch("/api/models/download-progress", { cache: "no-store" })' in source
+
+
+def test_api_source_supports_browser_catalog_query_params():
+    source = Path("frontend/src/lib/api.ts").read_text(encoding="utf-8")
+
+    assert "export type BrowserCatalogQuery" in source
+    assert "new URLSearchParams()" in source
+    assert "params.toString()" in source
+    assert 'cache: "no-store"' in source
 
 
 def test_download_progress_card_source_explains_retry_without_resume():

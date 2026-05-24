@@ -12,17 +12,46 @@ from local_ai_control_center_installer.control_center_backend.config import (
 from local_ai_control_center_installer.control_center_backend.services.browser_sources import (
     fetch_source_catalog,
 )
+from local_ai_control_center_installer.control_center_backend.services.models_service import (
+    load_models_payload,
+)
 
 
 def load_catalog_payload(
     *,
     cache_path: Path | None = None,
     config: ControlCenterConfig | None = None,
+    source: str = "all",
+    search: str = "",
+    family: str = "all",
+    quant: str = "all",
+    size: str = "all",
+    mtp: str = "all",
+    date: str = "all",
+    sort: str = "updated-desc",
+    limit: int | None = None,
+    now_iso: str | None = None,
 ) -> dict[str, object]:
-    resolved_cache_path = _resolve_cache_path(cache_path=cache_path, config=config)
+    resolved_config = config if config is not None else (get_config() if cache_path is None else None)
+    resolved_cache_path = _resolve_cache_path(cache_path=cache_path, config=resolved_config)
     cache = _read_cache(resolved_cache_path)
-    models = [item for item in cache.get("models", []) if isinstance(item, dict)]
-    refresh = _normalize_refresh(cache.get("refresh"), models)
+    all_models = [item for item in cache.get("models", []) if isinstance(item, dict)]
+    models = _apply_filters(
+        all_models,
+        source=source,
+        search=search,
+        family=family,
+        quant=quant,
+        size=size,
+        mtp=mtp,
+        date=date,
+        now_iso=now_iso,
+    )
+    models = _annotate_local_catalog_state(models, config=resolved_config)
+    models = _sort_models(models, sort=sort)
+    if limit is not None and limit > 0:
+        models = models[:limit]
+    refresh = _normalize_refresh(cache.get("refresh"), all_models)
     return {"models": models, "refresh": refresh}
 
 
@@ -206,3 +235,254 @@ def _normalize_refresh(raw_refresh: object, models: list[dict[str, object]]) -> 
         "errors": errors,
         "sources": normalized_sources,
     }
+
+
+def _apply_filters(
+    models: list[dict[str, object]],
+    *,
+    source: str,
+    search: str,
+    family: str,
+    quant: str,
+    size: str,
+    mtp: str,
+    date: str,
+    now_iso: str | None,
+) -> list[dict[str, object]]:
+    normalized_source = _normalize_choice(source)
+    normalized_family = family.strip()
+    normalized_quant = _normalize_quant_filter_key(quant)
+    normalized_mtp = _normalize_choice(mtp)
+    normalized_size = _normalize_choice(size)
+    normalized_date = _normalize_choice(date)
+    query = search.strip().lower()
+    now = _parse_datetime(now_iso) or datetime.now(timezone.utc)
+
+    filtered: list[dict[str, object]] = []
+    for item in models:
+        item_source = _normalize_source(str(item.get("source", "") or ""))
+        if normalized_source != "all" and item_source != normalized_source:
+            continue
+        if normalized_family.lower() != "all" and str(item.get("family", "") or "") != normalized_family:
+            continue
+        if normalized_quant != "ALL" and _normalize_quant_filter_key(str(item.get("quantization", "") or "")) != normalized_quant:
+            continue
+        if normalized_mtp != "all" and _normalize_mtp_status(item.get("mtpStatus")) != normalized_mtp:
+            continue
+        if query and query not in _search_haystack(item):
+            continue
+        if normalized_size != "all" and not _matches_size_filter(item, normalized_size):
+            continue
+        if normalized_date != "all" and not _matches_date_filter(item, normalized_date, now):
+            continue
+        filtered.append(item)
+    return filtered
+
+
+def _sort_models(models: list[dict[str, object]], *, sort: str) -> list[dict[str, object]]:
+    normalized_sort = _normalize_choice(sort) or "updated-desc"
+    return sorted(models, key=lambda item: _sort_key(item, normalized_sort))
+
+
+def _sort_key(item: dict[str, object], sort: str) -> tuple[object, ...]:
+    model_name = str(item.get("model", "") or "")
+    family_name = str(item.get("family", "") or "")
+    source_name = _normalize_source(str(item.get("source", "") or ""))
+    fit_rank = _fit_rank(item.get("fitStatus") or _fit_status_from_fit(item.get("fit")))
+    updated_timestamp = _parse_datetime(str(item.get("updatedAt", "") or "")) or datetime.fromtimestamp(0, tz=timezone.utc)
+    size_bytes = _size_bytes(item)
+    if sort == "updated-asc":
+        return (updated_timestamp, model_name)
+    if sort == "updated-desc":
+        return (-updated_timestamp.timestamp(), model_name)
+    if sort == "quant-asc":
+        return (*_quant_sort_token(str(item.get("quantization", "") or "")), model_name)
+    if sort == "quant-desc":
+        token = _quant_sort_token(str(item.get("quantization", "") or ""))
+        return (-token[0], -token[1], _invert_sort_label(token[2]), model_name)
+    if sort == "size-desc":
+        return (-size_bytes, model_name)
+    if sort == "size-asc":
+        return (size_bytes if size_bytes >= 0 else float("inf"), model_name)
+    if sort == "family-asc":
+        return (family_name, model_name)
+    if sort == "fit-desc":
+        return (-fit_rank, model_name)
+    return (source_name, model_name)
+
+
+def _annotate_local_catalog_state(
+    models: list[dict[str, object]],
+    *,
+    config: ControlCenterConfig | None,
+) -> list[dict[str, object]]:
+    if config is None:
+        return models
+
+    payload = load_models_payload(config)
+    local_matches: dict[tuple[str, str, str], dict[str, object]] = {}
+    for group_name in ("huggingFace", "unsloth"):
+        for item in payload.get(group_name, []):
+            if not isinstance(item, dict):
+                continue
+            source = _normalize_source(str(item.get("source", "") or ""))
+            repo = str(item.get("repo", "") or item.get("repoId", "") or "").strip().lower()
+            filename = str(item.get("filename", "") or "").strip()
+            if not source or not repo or not filename:
+                continue
+            local_matches[(source, repo, filename)] = item
+
+    annotated: list[dict[str, object]] = []
+    for item in models:
+        source = _normalize_source(str(item.get("source", "") or ""))
+        repo = str(item.get("repoId", "") or item.get("repo", "") or "").strip().lower()
+        filename = str(item.get("filename", "") or "").strip()
+        match = local_matches.get((source, repo, filename))
+        clone = dict(item)
+        clone["addedToLocal"] = match is not None
+        clone["localModelId"] = str(match.get("id", "") or "") if match is not None else None
+        annotated.append(clone)
+    return annotated
+
+
+def _normalize_choice(value: str) -> str:
+    return str(value or "").strip().lower()
+
+
+def _normalize_source(value: str) -> str:
+    lowered = value.strip().lower()
+    if "hugging" in lowered:
+        return "huggingface"
+    if "unsloth" in lowered:
+        return "unsloth"
+    return lowered or "other"
+
+
+def _normalize_mtp_status(value: object) -> str:
+    lowered = str(value or "unknown").strip().lower()
+    if "no" in lowered or "bez" in lowered:
+        return "no-mtp"
+    if "has" in lowered or "mtp" in lowered:
+        return "has-mtp"
+    return "unknown"
+
+
+def _normalize_quant_filter_key(value: str) -> str:
+    upper = str(value or "Unknown").strip().upper()
+    if not upper:
+        return "UNKNOWN"
+    segments = upper.split("-")
+    quant_index = next(
+        (index for index, segment in enumerate(segments) if segment.startswith(("IQ", "Q", "BF16", "F16", "MXFP", "NVFP"))),
+        -1,
+    )
+    if quant_index > 0:
+        return "-".join(segments[quant_index:])
+    return upper
+
+
+def _search_haystack(item: dict[str, object]) -> str:
+    fields = [
+        item.get("model"),
+        item.get("family"),
+        item.get("source"),
+        item.get("quantization"),
+        item.get("repo"),
+        item.get("repoId"),
+        item.get("filename"),
+        item.get("summary"),
+    ]
+    return " ".join(str(field or "") for field in fields).lower()
+
+
+def _size_bytes(item: dict[str, object]) -> int:
+    for key in ("sizeBytes", "fileSizeBytes", "bytes", "approxSizeBytes"):
+        value = item.get(key)
+        if isinstance(value, (int, float)):
+            return int(value)
+        if isinstance(value, str):
+            try:
+                return int(float(value))
+            except ValueError:
+                continue
+    return -1
+
+
+def _matches_size_filter(item: dict[str, object], size: str) -> bool:
+    size_bytes = _size_bytes(item)
+    if size_bytes < 0:
+        return True
+    size_gib = size_bytes / (1024 ** 3)
+    if size == "small":
+        return size_gib < 4
+    if size == "medium":
+        return 4 <= size_gib <= 16
+    if size == "large":
+        return size_gib > 16
+    return True
+
+
+def _matches_date_filter(item: dict[str, object], date: str, now: datetime) -> bool:
+    updated_at = _parse_datetime(str(item.get("updatedAt", "") or ""))
+    if updated_at is None:
+        return True
+    age_days = (now - updated_at).total_seconds() / (60 * 60 * 24)
+    if date == "7d":
+        return age_days <= 7
+    if date == "30d":
+        return age_days <= 30
+    if date == "90d":
+        return age_days <= 90
+    return True
+
+
+def _parse_datetime(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    try:
+        return datetime.fromisoformat(text.replace("Z", "+00:00")).astimezone(timezone.utc)
+    except ValueError:
+        return None
+
+
+def _quant_sort_token(value: str) -> tuple[int, int, str]:
+    normalized = _normalize_quant_filter_key(value)
+    if normalized in {"BF16", "F16"}:
+        return (16, 3, normalized)
+    for prefix, family_rank in (("IQ", 0), ("Q", 1)):
+        if normalized.startswith(prefix):
+            digits = ""
+            for character in normalized[len(prefix) :]:
+                if character.isdigit():
+                    digits += character
+                else:
+                    break
+            if digits:
+                return (int(digits), family_rank, normalized)
+    if normalized.startswith(("MXFP", "NVFP")):
+        return (4, 2, normalized)
+    return (2**31 - 1, 4, normalized)
+
+
+def _invert_sort_label(label: str) -> str:
+    return "".join(chr(255 - ord(character)) for character in label)
+
+
+def _fit_status_from_fit(value: object) -> str:
+    if isinstance(value, dict):
+        return str(value.get("status", "") or "")
+    return ""
+
+
+def _fit_rank(value: object) -> int:
+    lowered = str(value or "").strip().lower()
+    if "radi" in lowered:
+        return 3
+    if "granic" in lowered:
+        return 2
+    if "ne radi" in lowered:
+        return 1
+    return 0

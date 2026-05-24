@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 
 import { ActionResultPanel } from "../components/ActionResultPanel";
 import { CompatibilityCalculatorModal } from "../components/CompatibilityCalculatorModal";
@@ -13,6 +13,7 @@ import {
   fetchDownloadProgress,
   refreshBrowserCatalog,
 } from "../lib/api";
+import type { BrowserCatalogQuery } from "../lib/api";
 import type {
   ActionResult,
   BrowserCatalogItem,
@@ -401,6 +402,7 @@ function compareItems(left: BrowserCatalogItem, right: BrowserCatalogItem, sortK
 export function BrowserPage() {
   const rowsPerPage = 25;
   const [catalog, setCatalog] = useState<BrowserCatalogPayload | null>(null);
+  const [catalogIndex, setCatalogIndex] = useState<BrowserCatalogPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [sourceFilter, setSourceFilter] = useState("all");
@@ -419,12 +421,33 @@ export function BrowserPage() {
   const [warningsExpanded, setWarningsExpanded] = useState(false);
   const [errorsExpanded, setErrorsExpanded] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const deferredSearch = useDeferredValue(search);
   const progressStatusRef = useRef<string | null>(null);
+  const catalogRequestRef = useRef(0);
+  const catalogIndexRequestRef = useRef(0);
 
-  async function loadCatalog() {
+  const browserQuery = useMemo<BrowserCatalogQuery>(
+    () => ({
+      source: sourceFilter,
+      search: deferredSearch.trim(),
+      family: familyFilter,
+      quant: quantFilter,
+      size: sizeFilter,
+      mtp: mtpFilter,
+      date: dateFilter,
+      sort: sortKey,
+    }),
+    [dateFilter, deferredSearch, familyFilter, mtpFilter, quantFilter, sizeFilter, sortKey, sourceFilter],
+  );
+
+  async function loadCatalog(query: BrowserCatalogQuery = browserQuery) {
+    const requestId = ++catalogRequestRef.current;
     try {
-      const payload = await fetchBrowserCatalog();
+      const payload = await fetchBrowserCatalog(query);
       const normalized = normalizeCatalogPayload(payload as BrowserCatalogEnvelope);
+      if (requestId != catalogRequestRef.current) {
+        return null;
+      }
       setCatalog(normalized);
       setError(null);
       const models = normalized.models.map((item) => buildItem(asRecord(item)));
@@ -437,8 +460,26 @@ export function BrowserPage() {
     }
   }
 
+  async function loadCatalogIndex() {
+    const requestId = ++catalogIndexRequestRef.current;
+    try {
+      const payload = await fetchBrowserCatalog();
+      const normalized = normalizeCatalogPayload(payload as BrowserCatalogEnvelope);
+      if (requestId != catalogIndexRequestRef.current) {
+        return null;
+      }
+      setCatalogIndex(normalized);
+      setError(null);
+      return normalized;
+    } catch (reason: unknown) {
+      const message = reason instanceof Error ? reason.message : "Browser catalog request failed.";
+      setError(message);
+      return null;
+    }
+  }
+
   useEffect(() => {
-    void loadCatalog();
+    void Promise.all([loadCatalogIndex(), loadCatalog()]);
     void fetchDownloadProgress()
       .then((payload) => {
         setDownloadProgress(payload);
@@ -446,6 +487,13 @@ export function BrowserPage() {
       })
       .catch(() => null);
   }, []);
+
+  useEffect(() => {
+    if (!catalogIndex) {
+      return;
+    }
+    void loadCatalog();
+  }, [browserQuery, catalogIndex]);
 
   useEffect(() => {
     let cancelled = false;
@@ -463,7 +511,7 @@ export function BrowserPage() {
           previousStatus !== payload.status &&
           (payload.status === "completed" || payload.status === "already-installed" || payload.status === "error")
         ) {
-          await loadCatalog();
+          await Promise.all([loadCatalogIndex(), loadCatalog()]);
         }
       } catch {
         if (!cancelled) {
@@ -484,94 +532,32 @@ export function BrowserPage() {
   }, []);
 
   const familyOptions = useMemo(() => {
-    if (!catalog) {
+    if (!catalogIndex) {
       return [];
     }
-    const items = catalog.models.map((item) => buildItem(asRecord(item)));
+    const items = catalogIndex.models
+      .map((item) => buildItem(asRecord(item)))
+      .filter((item) => sourceFilter === "all" || item.source === sourceFilter);
     return Array.from(new Set(items.map((item) => item.family).filter(Boolean))).sort();
-  }, [catalog]);
+  }, [catalogIndex, sourceFilter]);
 
   const quantOptions = useMemo(() => {
-    if (!catalog) {
+    if (!catalogIndex) {
       return [];
     }
-    const items = catalog.models.map((item) => buildItem(asRecord(item)));
+    const items = catalogIndex.models
+      .map((item) => buildItem(asRecord(item)))
+      .filter((item) => sourceFilter === "all" || item.source === sourceFilter)
+      .filter((item) => familyFilter === "all" || item.family === familyFilter);
     return Array.from(new Set(items.map((item) => item.quantFilterKey).filter(Boolean))).sort(compareQuantization);
-  }, [catalog]);
+  }, [catalogIndex, familyFilter, sourceFilter]);
 
   const filteredItems = useMemo(() => {
     if (!catalog) {
       return [];
     }
-
-    const query = search.trim().toLowerCase();
-    const now = Date.now();
-    const items = catalog.models.map((entry) => buildItem(asRecord(entry)));
-
-    return [...items]
-      .filter((item) => {
-        if (sourceFilter !== "all" && item.source !== sourceFilter) {
-          return false;
-        }
-        if (familyFilter !== "all" && item.family !== familyFilter) {
-          return false;
-        }
-        if (quantFilter !== "all" && item.quantFilterKey !== quantFilter) {
-          return false;
-        }
-        if (mtpFilter !== "all" && item.mtpStatus !== mtpFilter) {
-          return false;
-        }
-        if (query) {
-          const haystack = [
-            item.model,
-            item.family,
-            item.source,
-            item.quantization,
-            item.repo,
-            item.filename,
-            item.summary,
-          ]
-            .join(" ")
-            .toLowerCase();
-          if (!haystack.includes(query)) {
-            return false;
-          }
-        }
-
-        if (sizeFilter !== "all" && item.sizeBytes !== null) {
-          const sizeGiB = item.sizeBytes / 1024 ** 3;
-          if (sizeFilter === "small" && sizeGiB >= 4) {
-            return false;
-          }
-          if (sizeFilter === "medium" && (sizeGiB < 4 || sizeGiB > 16)) {
-            return false;
-          }
-          if (sizeFilter === "large" && sizeGiB <= 16) {
-            return false;
-          }
-        }
-
-        if (dateFilter !== "all" && item.updatedAt) {
-          const updatedAt = new Date(item.updatedAt).getTime();
-          if (!Number.isNaN(updatedAt)) {
-            const ageDays = (now - updatedAt) / (1000 * 60 * 60 * 24);
-            if (dateFilter === "7d" && ageDays > 7) {
-              return false;
-            }
-            if (dateFilter === "30d" && ageDays > 30) {
-              return false;
-            }
-            if (dateFilter === "90d" && ageDays > 90) {
-              return false;
-            }
-          }
-        }
-
-        return true;
-      })
-      .sort((left, right) => compareItems(left, right, sortKey));
-  }, [catalog, dateFilter, familyFilter, mtpFilter, quantFilter, search, sizeFilter, sortKey, sourceFilter]);
+    return catalog.models.map((entry) => buildItem(asRecord(entry)));
+  }, [catalog]);
 
   const totalPages = Math.max(1, Math.ceil(filteredItems.length / rowsPerPage));
   const pageStart = (currentPage - 1) * rowsPerPage;
@@ -579,7 +565,7 @@ export function BrowserPage() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [search, sourceFilter, familyFilter, quantFilter, sizeFilter, mtpFilter, dateFilter, sortKey]);
+  }, [deferredSearch, sourceFilter, familyFilter, quantFilter, sizeFilter, mtpFilter, dateFilter, sortKey]);
 
   useEffect(() => {
     if (currentPage > totalPages) {
@@ -613,7 +599,7 @@ export function BrowserPage() {
 
     try {
       const refreshPayload = normalizeCatalogPayload((await refreshBrowserCatalog(source)) as BrowserCatalogEnvelope);
-      setCatalog(refreshPayload);
+      await Promise.all([loadCatalogIndex(), loadCatalog()]);
       setResult(buildRefreshActionResult(source, refreshPayload));
       setError(null);
     } catch (reason: unknown) {

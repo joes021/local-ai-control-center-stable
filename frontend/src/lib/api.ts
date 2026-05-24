@@ -26,6 +26,18 @@ import type {
   UpdateProgressPayload,
 } from "./types";
 
+export type BrowserCatalogQuery = {
+  source?: string;
+  search?: string;
+  family?: string;
+  quant?: string;
+  size?: string;
+  mtp?: string;
+  date?: string;
+  sort?: string;
+  limit?: number;
+};
+
 export async function fetchStatus(): Promise<StatusPayload> {
   const response = await fetch("/api/status");
   if (!response.ok) {
@@ -95,8 +107,23 @@ export async function fetchModels(): Promise<ModelsPayload> {
   return response.json() as Promise<ModelsPayload>;
 }
 
-export async function fetchBrowserCatalog(): Promise<BrowserCatalogPayload> {
-  return getJsonFromCandidates<BrowserCatalogPayload>(["/api/browser/catalog"]);
+export async function fetchBrowserCatalog(query?: BrowserCatalogQuery): Promise<BrowserCatalogPayload> {
+  const params = new URLSearchParams();
+  if (query) {
+    for (const [key, value] of Object.entries(query)) {
+      if (value === undefined || value === null || value === "") {
+        continue;
+      }
+      params.set(key, String(value));
+    }
+  }
+
+  const endpoint = "/api/browser/catalog";
+  const response = await fetch(params.size ? `${endpoint}?${params.toString()}` : endpoint, { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(`GET ${endpoint} failed: ${response.status}`);
+  }
+  return response.json() as Promise<BrowserCatalogPayload>;
 }
 
 export async function refreshBrowserCatalog(source?: string): Promise<BrowserRefreshResult> {

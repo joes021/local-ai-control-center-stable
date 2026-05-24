@@ -22,8 +22,28 @@ router = APIRouter()
 
 
 @router.get("/api/browser/catalog")
-def browser_catalog() -> dict[str, object]:
-    return load_catalog_payload()
+def browser_catalog(
+    source: str = "all",
+    search: str = "",
+    family: str = "all",
+    quant: str = "all",
+    size: str = "all",
+    mtp: str = "all",
+    date: str = "all",
+    sort: str = "updated-desc",
+    limit: int | None = None,
+) -> dict[str, object]:
+    return load_catalog_payload(
+        source=source,
+        search=search,
+        family=family,
+        quant=quant,
+        size=size,
+        mtp=mtp,
+        date=date,
+        sort=sort,
+        limit=limit,
+    )
 
 
 class RefreshCatalogRequest(BaseModel):

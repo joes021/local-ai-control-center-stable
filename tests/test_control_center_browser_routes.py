@@ -10,12 +10,36 @@ def test_browser_catalog_route_returns_service_payload():
     with patch(
         "local_ai_control_center_installer.control_center_backend.routes.browser.load_catalog_payload",
         return_value=expected,
-    ):
+    ) as service:
         client = TestClient(app)
-        response = client.get("/api/browser/catalog")
+        response = client.get(
+            "/api/browser/catalog",
+            params={
+                "source": "unsloth",
+                "search": "qwen3",
+                "family": "Qwen",
+                "quant": "IQ2_XXS",
+                "size": "medium",
+                "mtp": "has-mtp",
+                "date": "30d",
+                "sort": "quant-asc",
+                "limit": 25,
+            },
+        )
 
     assert response.status_code == 200
     assert response.json() == expected
+    service.assert_called_once_with(
+        source="unsloth",
+        search="qwen3",
+        family="Qwen",
+        quant="IQ2_XXS",
+        size="medium",
+        mtp="has-mtp",
+        date="30d",
+        sort="quant-asc",
+        limit=25,
+    )
 
 
 def test_browser_refresh_route_passes_source():
