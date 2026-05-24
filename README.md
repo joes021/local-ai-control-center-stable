@@ -1,107 +1,84 @@
 # Local AI Control Center Stable
 
-Clean restart repo for building a stable `Local AI Control Center`.
+Windows installer and local control panel for running `llama.cpp`, `TurboQuant`, GGUF models, and `OpenCode` from one installer-managed product.
 
-This repository now prioritizes:
+[![Latest release](https://img.shields.io/github/v/release/joes021/local-ai-control-center-stable?display_name=tag&label=latest%20release)](https://github.com/joes021/local-ai-control-center-stable/releases/latest)
+[![Windows](https://img.shields.io/badge/platform-Windows-2ea043)](https://github.com/joes021/local-ai-control-center-stable/releases/latest)
+[![Repository scope](https://img.shields.io/badge/scope-installer%20%2B%20control%20panel-c58a1f)](https://github.com/joes021/local-ai-control-center-stable)
 
-- stable installer behavior
-- transparent runtime setup
-- reliable model bootstrap
-- reliable OpenCode integration
-- reliable local control panel behavior
-- clear logs and diagnostics
+## Download
 
-Working principle:
+Primary end-user artifact:
 
-- stable core first
-- shell and polish second
+- [Download the latest Windows installer](https://github.com/joes021/local-ai-control-center-stable/releases/latest)
 
-## Repository Layout
+Current release:
 
-- `docs/requirements/PRODUCT_REQUIREMENTS.md`
-  - locked product requirements
-- `docs/plans/2026-05-20-implementation-plan.md`
-  - initial execution plan
+- [LocalAIControlCenterSetup-v0.4.4.exe](https://github.com/joes021/local-ai-control-center-stable/releases/download/v0.4.4/LocalAIControlCenterSetup-v0.4.4.exe)
 
-## Current Scope
+The Windows product is intended to be launched with a double-click. No ZIP extraction and no manual PowerShell command are required for the packaged installer path.
 
-Priority order:
+## What You Get
 
-1. Windows
-2. Ubuntu x86_64
-3. Ubuntu arm64
+- a single Windows `.exe` installer
+- bundled runtime preparation for `llama.cpp`
+- packaged Windows `TurboQuant` path for supported NVIDIA x64 systems
+- installer-managed `OpenCode` bootstrap and launch
+- a local control panel at `http://127.0.0.1:3210/`
+- local model catalog plus an internet-backed GGUF browser
+- truthful logs, reports, and runtime status
 
-The current goal is a trustworthy installer, runtime, and local control panel product.
+## Product Screens
 
-## Development Setup
+### Home
 
-Use an editable install for local development:
+![Home overview](.github/assets/home-overview.png)
 
-```powershell
-python -m pip install -e .[dev]
-```
+### Browser
 
-Run the test suite with:
+![Browser catalog](.github/assets/browser-catalog.png)
 
-```powershell
-python -m pytest
-```
+### Settings
 
-## Manual Bootstrap From Checkout
+![Settings and profiles](.github/assets/settings-profiles.png)
 
-For a manual installer run straight from a clean checkout, use the PowerShell launcher:
+## What This Repository Delivers
 
-```powershell
-powershell -ExecutionPolicy Bypass -File .\bootstrap\install.ps1
-```
+This repository focuses on one product path:
 
-The launcher is intentionally thin. It should:
+1. install the Windows product reliably
+2. prepare runtime artifacts and starter models truthfully
+3. open a usable local control panel
+4. manage models and launch `OpenCode` against the installer-managed runtime
 
-- resolve the repo root from `bootstrap/`
-- find `python` or fall back to `py`
-- set a process-local `PYTHONPATH` that includes `src`
-- hand off to the Python installer module without an import error
+The current Windows milestone includes:
 
-Smoke checklist:
+- numbered installer prompts with clear final outcome reporting
+- starter model tiers for `recommended-6gb`, `recommended-12gb`, and `recommended-24gb`
+- pinned runtime payload setup and verification
+- durable runtime endpoint, active-model, and model-locations config
+- installer-managed `OpenCode` bootstrap and live-route verification
+- packaged Windows `TurboQuant` install path with required OpenSSL sidecar DLLs
+- Start Menu, Desktop, and uninstall shell integration
+- truthful runtime, model, `OpenCode`, and `TurboQuant` status in the panel
+- Browser table for `Hugging Face` and `Unsloth` GGUF discovery
+- installer-managed model download worker with progress tracking and error reporting
+- settings, presets, and runtime preferences persisted through the control panel
 
-- the launcher reaches the installer prompts from a repo checkout
-- if Python is missing, the launcher asks whether to attempt Python installation and then exits cleanly because this slice cannot continue without Python bootstrap
-- cancelling the questionnaire exits without a Python import traceback
+The current default `recommended-6gb` starter model is `gemma-4-E4B-it-Q4_K_M.gguf`.
 
-## Windows Release Installer
+## Installed Product Layout
 
-For end users on Windows, the preferred artifact is a single executable installer:
+After a successful Windows install, the product provides:
 
-- `LocalAIControlCenterSetup-v<version>.exe`
-
-That executable is intended to be launched with a double-click and should run the full installer flow without requiring ZIP extraction or a manual PowerShell command.
-
-The installer window should remain open at the end of the run so the user can read the final success or failure output and press Enter to close it.
-
-For the packaged Windows installer, the core installation path is based on bundled Python plus prebuilt runtime artifacts. It should not block on developer-only tools such as `git`, `Node.js`, or local C/C++ build toolchains.
-
-## Control Panel
-
-The installed Windows product now includes a local web control panel:
-
-- default URL: `http://127.0.0.1:3210/`
-- persistent launcher: `control-center/Open-Control-Center.cmd` inside the install root
-- persistent runtime host: `control-center/LocalAIControlCenterPanel.exe`
+- control panel URL: `http://127.0.0.1:3210/`
+- runtime endpoint: installer-managed local endpoint
+- panel launcher: `control-center/Open-Control-Center.cmd`
+- panel host: `control-center/LocalAIControlCenterPanel.exe`
+- `OpenCode` launcher: `control-center/Open-OpenCode.cmd`
 - Start Menu folder: `Local AI Control Center`
-- desktop launchers for the panel and installer-managed `OpenCode`
-- uninstall entry for the current-user Windows install
 
-The installer is expected to:
-
-- deploy the persistent control panel runtime into the install root
-- auto-launch the control panel after a successful installation
-- auto-start the installer-managed runtime in the background when the control panel boots
-- create persistent Start Menu and Desktop entry points for daily use
-- register an uninstall entry for the current-user Windows install
-- keep panel truth tied to installer-managed config, runtime, model, and OpenCode artifacts
-- ensure `OpenCode` launch does not proceed until the managed runtime is ready
-
-The control panel currently focuses on the reliable core path:
+The control panel currently exposes:
 
 - `Home`
 - `Server`
@@ -112,46 +89,71 @@ The control panel currently focuses on the reliable core path:
 - `Logs`
 - `Repair`
 
-Browser and Models now have distinct roles:
+## Models vs Browser
+
+The product keeps these flows separate on purpose:
 
 - `Models`
-  - installer-managed local catalog for active models, local imports, curated starter models, and direct registry management
+  - local catalog, active model switching, local GGUF import, and direct registry management
 - `Browser`
-  - internet-backed GGUF catalog for discovering models from `Hugging Face` and `Unsloth`, checking compatibility, and starting the same installer-managed download path used by the local catalog
+  - internet-backed GGUF discovery from `Hugging Face` and `Unsloth`, compatibility checks, and installer-managed download actions
 
-The stable panel still intentionally keeps unfinished `Benchmark` and `Updates` flows out of the main navigation.
+## Build From Source
 
-## Current Product Status
+Editable development install:
 
-The current Windows installer/control-panel milestone is complete for this repository scope.
+```powershell
+python -m pip install -e .[dev]
+```
 
-This repository now delivers:
+Run tests:
 
-- the numbered installer questionnaire contract
-- truthful dependency bootstrap and blocking/failure classification
-- three manifest-backed starter model tiers: `recommended-6gb`, `recommended-12gb`, and `recommended-24gb`
-- pinned `llama.cpp` runtime payload preparation
-- durable active-model, model-locations, and runtime-endpoint configuration in the install root
-- one planned sequential download queue with installer-managed progress output
-- canonical installer-managed runtime endpoint verification
-- installer-managed `OpenCode` artifact preparation
-- installer-managed `OpenCode` live-route verification against the active local runtime/model route
-- bounded first-run end-user `OpenCode` smoke against the persisted managed configuration
-- installer-managed packaged Windows `TurboQuant` installation for supported NVIDIA x64 systems, including bundled OpenSSL sidecar DLLs required by the packaged runtime
-- integrated local control panel packaging, deployment, and auto-launch
-- background runtime autostart on control-panel launch plus runtime-gated `OpenCode` launch
-- Start Menu, Desktop, and uninstall shell integration for the installed Windows product
-- truthful runtime/model/OpenCode/TurboQuant status views in the local control panel
-- reliable model activation, local/Hugging Face/Unsloth registration, and download progress in the control panel
-- unified Browser table for internet-backed `Hugging Face` and `Unsloth` GGUF discovery
-- compatibility checks and settings-apply actions directly from the Browser table
-- Browser `Download` actions routed through the canonical installer-managed model download worker and progress tracking
-- installer-truth-backed settings, OpenCode presets, and TurboQuant presets in the control panel
-- final installer/runtime completion gating through `product_installation_status`
-- human-readable logging and JSON reporting
+```powershell
+python -m pytest
+```
 
-The current `recommended-6gb` default is `gemma-4-E4B-it-Q4_K_M.gguf`, pinned from the public Hugging Face GGUF derivative at `StageMind/gemma-4-e4b` for the upstream `google/gemma-4-E4B-it` model family.
+Build the packaged Windows installer:
 
-This repository still does not claim:
+```powershell
+powershell -ExecutionPolicy Bypass -File .\packaging\build_windows_installer.ps1
+```
+
+Manual bootstrap from a clean checkout:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\bootstrap\install.ps1
+```
+
+## Repository Layout
+
+- `bootstrap/`
+  - thin PowerShell launcher for source checkout bootstrap
+- `frontend/`
+  - control panel frontend
+- `src/local_ai_control_center_installer/`
+  - installer, runtime orchestration, packaged backend, manifests, and release logic
+- `tests/`
+  - installer, runtime, control-panel, and packaging regression coverage
+- `docs/requirements/PRODUCT_REQUIREMENTS.md`
+  - locked product requirements
+
+## Current Scope
+
+Priority order:
+
+1. Windows
+2. Ubuntu x86_64
+3. Ubuntu arm64
+
+This repository currently claims a complete Windows installer + runtime + control-panel milestone for its own scope.
+
+This repository does not yet claim:
 
 - Linux parity
+- a finished Ubuntu product path
+- every possible GGUF runtime variant as production-safe by default
+
+## Working Principle
+
+- stable core first
+- shell and polish second
