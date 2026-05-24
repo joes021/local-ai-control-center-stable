@@ -20,6 +20,7 @@ from local_ai_control_center_installer.control_center_backend.services.status_se
     find_runtime_pid,
     load_runtime_state,
     probe_server_health,
+    runtime_supports_draft_mtp,
 )
 from local_ai_control_center_installer.server_verification import (
     _build_server_command,
@@ -177,6 +178,7 @@ def start_server(
         ),
         port,
         ctx_size=_resolve_runtime_context_size(config, runtime_state),
+        spec_type=_resolve_spec_type(runtime_state, binary_path),
     )
     log_path = config.install_root / "logs" / "runtime-server.log"
     log_path.parent.mkdir(parents=True, exist_ok=True)
@@ -396,6 +398,27 @@ def _positive_int_or_none(value: object) -> int | None:
     except (TypeError, ValueError):
         return None
     return parsed if parsed > 0 else None
+
+
+def _resolve_spec_type(
+    runtime_state: dict[str, object],
+    binary_path: Path,
+) -> str | None:
+    active_runtime = str(runtime_state.get("active_runtime", "") or "").strip().lower()
+    if active_runtime != "llama.cpp":
+        return None
+    active_model_id = str(runtime_state.get("active_model_id", "") or "").lower()
+    active_model_path = Path(str(runtime_state.get("active_model_path", "") or ""))
+    joined = " ".join(
+        part
+        for part in [active_model_id, active_model_path.name.lower(), active_model_path.parent.name.lower()]
+        if part
+    )
+    if "mtp" not in joined:
+        return None
+    if not runtime_supports_draft_mtp(binary_path):
+        return None
+    return "draft-mtp"
 
 
 def _build_start_capability(runtime_state: dict[str, object]) -> tuple[bool, str]:

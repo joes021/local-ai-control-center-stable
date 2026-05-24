@@ -358,7 +358,7 @@ def test_server_start_route_falls_back_to_llama_when_selected_turboquant_is_not_
     assert command[0].endswith("runtime\\llama.cpp\\llama-server.exe")
 
 
-def test_server_start_route_rejects_unsupported_mtp_active_model(
+def test_server_start_route_adds_draft_mtp_flag_for_supported_mtp_active_model(
     tmp_path: Path,
     monkeypatch,
 ):
@@ -401,15 +401,40 @@ def test_server_start_route_rejects_unsupported_mtp_active_model(
         "local_ai_control_center_installer.control_center_backend.services.status_service.find_runtime_pid",
         lambda *args, **kwargs: None,
     )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.status_service.runtime_supports_draft_mtp",
+        lambda path: True,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.server_service.runtime_supports_draft_mtp",
+        lambda path: True,
+        raising=False,
+    )
+    captured: dict[str, object] = {}
+
+    class FakeProcess:
+        pid = 7003
+
+    def fake_popen(command, **kwargs):
+        captured["command"] = command
+        captured["kwargs"] = kwargs
+        return FakeProcess()
+
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.server_service.subprocess.Popen",
+        fake_popen,
+    )
 
     client = TestClient(app)
     response = client.post("/api/server/start")
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["status"] == "error"
-    assert "MTP" in payload["summary"]
-    assert "non-MTP" in payload["summary"]
+    assert payload["status"] == "ok"
+    command = captured["command"]
+    assert "--spec-type" in command
+    assert "draft-mtp" in command
 
 
 def test_server_status_route_exposes_start_block_reason_for_unsupported_active_model(
@@ -458,6 +483,11 @@ def test_server_status_route_exposes_start_block_reason_for_unsupported_active_m
         "local_ai_control_center_installer.control_center_backend.services.server_service.detect_tailscale_ip",
         lambda: "",
     )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.status_service.runtime_supports_draft_mtp",
+        lambda path: False,
+        raising=False,
+    )
 
     client = TestClient(app)
     response = client.get("/api/server/status")
@@ -467,6 +497,75 @@ def test_server_status_route_exposes_start_block_reason_for_unsupported_active_m
     assert payload["canStart"] is False
     assert "MTP" in payload["startBlockedReason"]
     assert payload["canOpenWeb"] is False
+
+
+def test_status_route_falls_back_to_llama_for_mtp_model_when_turboquant_is_selected(
+    tmp_path: Path,
+    monkeypatch,
+):
+    install_root = tmp_path / "install-root"
+    llama_root = install_root / "runtime" / "llama.cpp"
+    turbo_root = install_root / "tools" / "turboquant" / "windows-x64-cuda12.4"
+    llama_root.mkdir(parents=True)
+    turbo_root.mkdir(parents=True, exist_ok=True)
+    (llama_root / "llama-server.exe").write_text("llama", encoding="utf-8")
+    (turbo_root / "llama-server.exe").write_text("turbo", encoding="utf-8")
+    config_root = install_root / "config"
+    config_root.mkdir(parents=True, exist_ok=True)
+    mtp_model_path = (
+        install_root
+        / "models"
+        / "unsloth"
+        / "unsloth-qwen3-6-27b-mtp-gguf"
+        / "Qwen3.6-27B-UD-IQ2_XXS.gguf"
+    )
+    mtp_model_path.parent.mkdir(parents=True, exist_ok=True)
+    mtp_model_path.write_text("mtp-model", encoding="utf-8")
+    (config_root / "active-model.json").write_text(
+        json.dumps(
+            {
+                "model_id": "unsloth-unsloth-qwen3-6-27b-mtp-gguf-qwen3-6-27b-ud-iq2-xxs",
+                "model_path": str(mtp_model_path),
+            }
+        ),
+        encoding="utf-8",
+    )
+    _write_runtime_endpoint_config(
+        install_root / "config" / "runtime-endpoint.json",
+        port=39281,
+    )
+    selection_path = install_root / "config" / "control-center" / "runtime-selection.json"
+    selection_path.parent.mkdir(parents=True, exist_ok=True)
+    selection_path.write_text(json.dumps({"runtime": "turboquant"}), encoding="utf-8")
+
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.server_service.probe_server_health",
+        lambda *args, **kwargs: "offline",
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.server_service.find_runtime_pid",
+        lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.server_service.detect_tailscale_ip",
+        lambda: "",
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.status_service.runtime_supports_draft_mtp",
+        lambda path: "runtime\\llama.cpp" in str(path).lower().replace("/", "\\"),
+        raising=False,
+    )
+
+    client = TestClient(app)
+    response = client.get("/api/server/status")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["activeRuntimeLabel"] == "llama.cpp"
+    assert payload["requestedRuntimeLabel"] == "TurboQuant"
+    assert payload["canStart"] is True
+    assert "MTP" in payload["warningSummary"] or "MTP" in payload["lastReason"] or "MTP" in payload["runtimeSelectionSummary"]
 
 
 def test_server_status_route_exposes_open_web_block_while_runtime_is_stopped(

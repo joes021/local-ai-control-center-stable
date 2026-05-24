@@ -183,7 +183,7 @@ function compactFitLabel(status: BrowserFitStatus): string {
 
 function mtpDownloadOnlyGuidance(item: BrowserCatalogItem): string | null {
   if (item.mtpStatus === "has-mtp") {
-    return "MTP modeli su trenutno download-only. Za runtime aktivaciju izaberi non-MTP GGUF varijantu.";
+    return "MTP modeli koriste llama.cpp draft-mtp put. Ako je TurboQuant izabran, panel ce za takav model pasti nazad na llama.cpp.";
   }
   return null;
 }

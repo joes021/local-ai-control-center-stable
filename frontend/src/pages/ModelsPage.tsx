@@ -823,7 +823,8 @@ export function ModelsPage() {
           u novom session-u. Ako je OpenCode vec otvoren, zatvori ga i otvori ponovo.
         </p>
         <p className="helper-text">
-          MTP modeli su trenutno download-only. Za aktivaciju izaberi non-MTP GGUF varijantu.
+          MTP modeli sada koriste llama.cpp draft-mtp put. Ako je TurboQuant izabran, panel ce
+          za takav model automatski pasti nazad na llama.cpp.
         </p>
       </section>
 
