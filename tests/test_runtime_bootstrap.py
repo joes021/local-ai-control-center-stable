@@ -229,6 +229,7 @@ def test_apply_runtime_payload_marks_ready_when_runtime_and_model_are_verified_i
         temp_root=tmp_path / "temp-runs",
         load_manifest=lambda: manifest,
         verify_model_file=lambda path, expected_sha256: True,
+        port_is_free=lambda host, port: True,
     )
 
     assert updated.runtime_payload_status == "ready"
@@ -393,6 +394,215 @@ def test_load_runtime_endpoint_config_reads_canonical_managed_endpoint(
     assert config.port == 39281
     assert config.base_url == "http://127.0.0.1:39281"
     assert config.installer_managed is True
+
+
+def test_apply_runtime_payload_chooses_free_managed_runtime_port_when_default_is_busy(
+    tmp_path: Path,
+):
+    install_root = tmp_path / "install-root"
+    runtime_root = install_root / "runtime" / "llama.cpp"
+    model_root = install_root / "models" / "recommended-6gb"
+    runtime_root.mkdir(parents=True)
+    model_root.mkdir(parents=True)
+    (runtime_root / "llama-server.exe").write_text("ok", encoding="utf-8")
+    (runtime_root / "runtime-artifact.json").write_text(
+        json.dumps(
+            {
+                "artifact_id": "windows-llama-cpp-runtime",
+                "source_sha256": "abc123",
+            }
+        ),
+        encoding="utf-8",
+    )
+    (model_root / "recommended-6gb.gguf").write_text("ok", encoding="utf-8")
+    session = InstallerSession(
+        bootstrap_status="ready",
+        install_root=str(install_root),
+        starter_model="recommended-6gb",
+    )
+    manifest = {
+        "runtime_artifact": {
+            "id": "windows-llama-cpp-runtime",
+            "url": "https://example.invalid/runtime.zip",
+            "sha256": "abc123",
+            "archive_type": "zip",
+            "required_files": ["llama-server.exe"],
+            "required_file_sha256": {"llama-server.exe": PINNED_OK_RUNTIME_SHA256},
+            "install_subdir": "runtime/llama.cpp",
+        },
+        "starter_models": {
+            "recommended-6gb": {
+                "id": "recommended-6gb",
+                "url": "https://example.invalid/model.gguf",
+                "sha256": "def456",
+                "target_filename": "recommended-6gb.gguf",
+                "install_subdir": "models/recommended-6gb",
+                "size_bytes": 123,
+            }
+        },
+    }
+
+    updated = apply_runtime_payload(
+        session,
+        temp_root=tmp_path / "temp-runs",
+        load_manifest=lambda: manifest,
+        verify_model_file=lambda path, expected_sha256: True,
+        port_is_free=lambda host, port: port != 39281,
+        choose_free_port=lambda host="127.0.0.1": 40123,
+    )
+
+    assert updated.runtime_payload_status == "ready"
+    assert updated.managed_runtime_port == 40123
+    runtime_endpoint_payload = json.loads(
+        Path(updated.runtime_endpoint_config_path).read_text(encoding="utf-8")
+    )
+    assert runtime_endpoint_payload == {
+        "base_url": "http://127.0.0.1:40123",
+        "port": 40123,
+        "installer_managed": True,
+    }
+
+
+def test_apply_runtime_payload_preserves_existing_managed_runtime_port_on_upgrade(
+    tmp_path: Path,
+):
+    install_root = tmp_path / "install-root"
+    runtime_root = install_root / "runtime" / "llama.cpp"
+    model_root = install_root / "models" / "recommended-6gb"
+    runtime_root.mkdir(parents=True)
+    model_root.mkdir(parents=True)
+    (runtime_root / "llama-server.exe").write_text("ok", encoding="utf-8")
+    (runtime_root / "runtime-artifact.json").write_text(
+        json.dumps(
+            {
+                "artifact_id": "windows-llama-cpp-runtime",
+                "source_sha256": "abc123",
+            }
+        ),
+        encoding="utf-8",
+    )
+    (model_root / "recommended-6gb.gguf").write_text("ok", encoding="utf-8")
+    existing_endpoint_path = _write_runtime_endpoint_config(
+        install_root / "config" / "runtime-endpoint.json",
+        port=41234,
+    )
+    session = InstallerSession(
+        bootstrap_status="ready",
+        install_root=str(install_root),
+        install_mode="upgrade",
+        starter_model="recommended-6gb",
+    )
+    manifest = {
+        "runtime_artifact": {
+            "id": "windows-llama-cpp-runtime",
+            "url": "https://example.invalid/runtime.zip",
+            "sha256": "abc123",
+            "archive_type": "zip",
+            "required_files": ["llama-server.exe"],
+            "required_file_sha256": {"llama-server.exe": PINNED_OK_RUNTIME_SHA256},
+            "install_subdir": "runtime/llama.cpp",
+        },
+        "starter_models": {
+            "recommended-6gb": {
+                "id": "recommended-6gb",
+                "url": "https://example.invalid/model.gguf",
+                "sha256": "def456",
+                "target_filename": "recommended-6gb.gguf",
+                "install_subdir": "models/recommended-6gb",
+                "size_bytes": 123,
+            }
+        },
+    }
+
+    updated = apply_runtime_payload(
+        session,
+        temp_root=tmp_path / "temp-runs",
+        load_manifest=lambda: manifest,
+        verify_model_file=lambda path, expected_sha256: True,
+        port_is_free=lambda host, port: False,
+        choose_free_port=lambda host="127.0.0.1": 49999,
+    )
+
+    assert updated.runtime_payload_status == "ready"
+    assert updated.managed_runtime_port == 41234
+    runtime_endpoint_payload = json.loads(existing_endpoint_path.read_text(encoding="utf-8"))
+    assert runtime_endpoint_payload == {
+        "base_url": "http://127.0.0.1:41234",
+        "port": 41234,
+        "installer_managed": True,
+    }
+
+
+def test_apply_runtime_payload_reassigns_stale_managed_runtime_port_on_fresh_reinstall(
+    tmp_path: Path,
+):
+    install_root = tmp_path / "install-root"
+    runtime_root = install_root / "runtime" / "llama.cpp"
+    model_root = install_root / "models" / "recommended-6gb"
+    runtime_root.mkdir(parents=True)
+    model_root.mkdir(parents=True)
+    (runtime_root / "llama-server.exe").write_text("ok", encoding="utf-8")
+    (runtime_root / "runtime-artifact.json").write_text(
+        json.dumps(
+            {
+                "artifact_id": "windows-llama-cpp-runtime",
+                "source_sha256": "abc123",
+            }
+        ),
+        encoding="utf-8",
+    )
+    (model_root / "recommended-6gb.gguf").write_text("ok", encoding="utf-8")
+    runtime_endpoint_path = _write_runtime_endpoint_config(
+        install_root / "config" / "runtime-endpoint.json",
+        port=39281,
+    )
+    session = InstallerSession(
+        bootstrap_status="ready",
+        install_root=str(install_root),
+        install_mode="fresh",
+        starter_model="recommended-6gb",
+    )
+    manifest = {
+        "runtime_artifact": {
+            "id": "windows-llama-cpp-runtime",
+            "url": "https://example.invalid/runtime.zip",
+            "sha256": "abc123",
+            "archive_type": "zip",
+            "required_files": ["llama-server.exe"],
+            "required_file_sha256": {"llama-server.exe": PINNED_OK_RUNTIME_SHA256},
+            "install_subdir": "runtime/llama.cpp",
+        },
+        "starter_models": {
+            "recommended-6gb": {
+                "id": "recommended-6gb",
+                "url": "https://example.invalid/model.gguf",
+                "sha256": "def456",
+                "target_filename": "recommended-6gb.gguf",
+                "install_subdir": "models/recommended-6gb",
+                "size_bytes": 123,
+            }
+        },
+    }
+
+    updated = apply_runtime_payload(
+        session,
+        temp_root=tmp_path / "temp-runs",
+        load_manifest=lambda: manifest,
+        verify_model_file=lambda path, expected_sha256: True,
+        port_is_free=lambda host, port: port != 39281,
+        choose_free_port=lambda host="127.0.0.1": 40123,
+    )
+
+    assert updated.runtime_payload_status == "ready"
+    assert updated.managed_runtime_port == 40123
+    runtime_endpoint_payload = json.loads(
+        runtime_endpoint_path.read_text(encoding="utf-8")
+    )
+    assert runtime_endpoint_payload == {
+        "base_url": "http://127.0.0.1:40123",
+        "port": 40123,
+        "installer_managed": True,
+    }
 
 
 def test_apply_runtime_payload_clears_stale_error_message_when_runtime_phase_succeeds(

@@ -222,6 +222,42 @@ def test_server_stop_route_reports_ok_when_runtime_is_already_stopped(
     assert "Runtime server je vec zaustavljen" in payload["summary"]
 
 
+def test_server_stop_route_cleans_orphaned_runtime_process_without_listener(
+    tmp_path: Path,
+    monkeypatch,
+):
+    install_root = tmp_path / "install-root"
+    runtime_root = install_root / "runtime" / "llama.cpp"
+    runtime_root.mkdir(parents=True)
+    (runtime_root / "llama-server.exe").write_text("llama", encoding="utf-8")
+    _write_active_model_config(
+        install_root,
+        filename="gemma-4-E4B-it-Q4_K_M.gguf",
+    )
+    _write_runtime_endpoint_config(
+        install_root / "config" / "runtime-endpoint.json",
+        port=39281,
+    )
+
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.server_service.find_runtime_pid",
+        lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.server_service._stop_orphaned_runtime_processes",
+        lambda install_root: True,
+    )
+
+    client = TestClient(app)
+    response = client.post("/api/server/stop")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "ok"
+    assert "preostali runtime procesi" in payload["summary"]
+
+
 def test_server_open_web_route_returns_local_runtime_url(
     tmp_path: Path,
     monkeypatch,

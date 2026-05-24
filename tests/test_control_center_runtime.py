@@ -137,25 +137,25 @@ def test_runtime_select_route_rolls_back_selection_when_restart_fails(
         },
     )
 
-    def fake_start_server(config):
+    def fake_ensure_runtime_ready(config):
         start_calls.append(str(config.install_root))
         if len(start_calls) == 1:
             return {
                 "status": "error",
-                "action": "start-server",
+                "action": "ensure-runtime-ready",
                 "summary": "Novi runtime nije uspeo da se pokrene.",
                 "details": {"returncode": 1, "stdout": "", "stderr": "Novi runtime nije uspeo da se pokrene."},
             }
         return {
             "status": "ok",
-            "action": "start-server",
+            "action": "ensure-runtime-ready",
             "summary": "Prethodni runtime je vracen.",
             "details": {"returncode": 0, "stdout": "", "stderr": ""},
         }
 
     monkeypatch.setattr(
-        "local_ai_control_center_installer.control_center_backend.services.runtime_service.start_server",
-        fake_start_server,
+        "local_ai_control_center_installer.control_center_backend.services.runtime_service.ensure_runtime_ready",
+        fake_ensure_runtime_ready,
     )
 
     client = TestClient(app)
@@ -167,3 +167,58 @@ def test_runtime_select_route_rolls_back_selection_when_restart_fails(
     assert "vracen" in payload["summary"].lower()
     assert json.loads(selection_path.read_text(encoding="utf-8"))["runtime"] == "llama.cpp"
     assert len(start_calls) == 2
+
+
+def test_runtime_select_route_stops_current_runtime_before_rewriting_selection(
+    tmp_path: Path,
+    monkeypatch,
+):
+    install_root = tmp_path / "install-root"
+    _write_runtime_fixture(install_root, include_turboquant=True)
+    selection_path = (
+        install_root / "config" / "control-center" / "runtime-selection.json"
+    )
+    selection_path.parent.mkdir(parents=True, exist_ok=True)
+    selection_path.write_text(json.dumps({"runtime": "turboquant"}), encoding="utf-8")
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+
+    selection_during_stop: list[str] = []
+
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.runtime_service.find_runtime_pid",
+        lambda *args, **kwargs: 4242,
+    )
+
+    def fake_stop_server(config):
+        selection_during_stop.append(
+            json.loads(selection_path.read_text(encoding="utf-8"))["runtime"]
+        )
+        return {
+            "status": "ok",
+            "action": "stop-server",
+            "summary": "Runtime server je zaustavljen.",
+            "details": {"returncode": 0, "stdout": "", "stderr": ""},
+        }
+
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.runtime_service.stop_server",
+        fake_stop_server,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.runtime_service.ensure_runtime_ready",
+        lambda config: {
+            "status": "ok",
+            "action": "ensure-runtime-ready",
+            "summary": "Aktivirani runtime je spreman.",
+            "details": {"returncode": 0, "stdout": "", "stderr": ""},
+        },
+    )
+
+    client = TestClient(app)
+    response = client.post("/api/runtime/select", json={"runtime": "llama.cpp"})
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "ok"
+    assert selection_during_stop == ["turboquant"]
+    assert json.loads(selection_path.read_text(encoding="utf-8"))["runtime"] == "llama.cpp"

@@ -9,7 +9,7 @@ from local_ai_control_center_installer.control_center_backend.config import (
     get_config,
 )
 from local_ai_control_center_installer.control_center_backend.services.server_service import (
-    start_server,
+    ensure_runtime_ready,
     stop_server,
 )
 from local_ai_control_center_installer.control_center_backend.services.status_service import (
@@ -52,21 +52,24 @@ def select_runtime(
 
     selection_path = config.control_center_config_root / RUNTIME_SELECTION_FILE
     selection_path.parent.mkdir(parents=True, exist_ok=True)
+    runtime_was_running = find_runtime_pid(int(runtime_state["port"])) is not None
+    if runtime_was_running:
+        stop_result = stop_server(config)
+        if stop_result.get("status") != "ok":
+            return stop_result
+
     previous_selection = _snapshot_selection_file(selection_path)
     selection_path.write_text(
         json.dumps({"runtime": normalized}, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
 
-    if find_runtime_pid(int(runtime_state["port"])) is not None:
-        stop_result = stop_server(config)
-        if stop_result.get("status") != "ok":
-            _restore_selection_file(selection_path, previous_selection)
-            return stop_result
-        start_result = start_server(config)
+    if runtime_was_running:
+        start_result = ensure_runtime_ready(config)
         if start_result.get("status") != "ok":
             _restore_selection_file(selection_path, previous_selection)
-            restore_result = start_server(config)
+            stop_server(config)
+            restore_result = ensure_runtime_ready(config)
             if restore_result.get("status") == "ok":
                 return _result(
                     "error",

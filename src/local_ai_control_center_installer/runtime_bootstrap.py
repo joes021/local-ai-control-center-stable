@@ -2,6 +2,7 @@ import json
 import os
 from dataclasses import dataclass
 from pathlib import Path
+import socket
 from tempfile import mkdtemp, mkstemp
 import inspect
 
@@ -49,6 +50,9 @@ def apply_runtime_payload(
     write_model_locations_config=None,
     write_runtime_endpoint_config=None,
     managed_runtime_port: int = DEFAULT_MANAGED_RUNTIME_PORT,
+    read_runtime_endpoint_config=None,
+    port_is_free=None,
+    choose_free_port=None,
 ) -> InstallerSession:
     if session.bootstrap_status != "ready":
         session.runtime_payload_status = "skipped"
@@ -110,8 +114,13 @@ def apply_runtime_payload(
         session.additional_model_paths
     )
     session.additional_model_paths = normalized_additional_paths
+    read_runtime_endpoint_config = (
+        read_runtime_endpoint_config or load_runtime_endpoint_config
+    )
+    port_is_free = port_is_free or is_loopback_port_free
+    choose_free_port = choose_free_port or choose_free_loopback_port
     try:
-        validated_managed_runtime_port = _validate_managed_runtime_port(
+        preferred_managed_runtime_port = _validate_managed_runtime_port(
             managed_runtime_port
         )
     except ValueError as exc:
@@ -125,7 +134,27 @@ def apply_runtime_payload(
         session.failing_step = "runtime-endpoint-config"
         session.error_message = str(exc)
         return session
-    session.managed_runtime_port = validated_managed_runtime_port
+    try:
+        resolved_managed_runtime_port = _resolve_managed_runtime_port(
+            runtime_endpoint_config_path,
+            preferred_port=preferred_managed_runtime_port,
+            read_runtime_endpoint_config=read_runtime_endpoint_config,
+            port_is_free=port_is_free,
+            choose_free_port=choose_free_port,
+            preserve_existing_config=session.install_mode == "upgrade",
+        )
+    except ValueError as exc:
+        session.runtime_payload_status = "failed"
+        session.runtime_artifact_status = "skipped"
+        session.starter_model_status = "skipped"
+        session.active_model_config_status = "skipped"
+        session.model_locations_config_status = "skipped"
+        session.runtime_endpoint_config_status = "failed"
+        session.managed_runtime_port = None
+        session.failing_step = "runtime-endpoint-config"
+        session.error_message = str(exc)
+        return session
+    session.managed_runtime_port = resolved_managed_runtime_port
 
     if not _runtime_artifact_ready(runtime_root, runtime_metadata_path, runtime_artifact):
         runtime_plan_item = _require_download_plan_item(
@@ -230,7 +259,7 @@ def apply_runtime_payload(
     try:
         write_runtime_endpoint_config(
             runtime_endpoint_config_path,
-            port=validated_managed_runtime_port,
+            port=resolved_managed_runtime_port,
         )
     except Exception as exc:
         session.runtime_payload_status = "failed"
@@ -399,6 +428,23 @@ def build_runtime_endpoint_base_url(port: int) -> str:
     return f"http://127.0.0.1:{port}"
 
 
+def choose_free_loopback_port(host: str = "127.0.0.1") -> int:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.bind((host, 0))
+        return int(sock.getsockname()[1])
+
+
+def is_loopback_port_free(host: str, port: int) -> bool:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        try:
+            sock.bind((host, port))
+        except OSError:
+            return False
+    return True
+
+
 def load_runtime_endpoint_config(
     runtime_endpoint_config_path: str | Path | None,
 ) -> RuntimeEndpointConfig:
@@ -465,6 +511,27 @@ def _validate_managed_runtime_port(port: object) -> int:
             "Managed runtime port must be an integer between 1 and 65535."
         )
     return port
+
+
+def _resolve_managed_runtime_port(
+    runtime_endpoint_config_path: Path,
+    *,
+    preferred_port: int,
+    read_runtime_endpoint_config,
+    port_is_free,
+    choose_free_port,
+    preserve_existing_config: bool,
+) -> int:
+    if preserve_existing_config and runtime_endpoint_config_path.is_file():
+        try:
+            return read_runtime_endpoint_config(runtime_endpoint_config_path).port
+        except (OSError, ValueError, UnicodeDecodeError, json.JSONDecodeError):
+            pass
+
+    if port_is_free("127.0.0.1", preferred_port):
+        return preferred_port
+
+    return _validate_managed_runtime_port(choose_free_port("127.0.0.1"))
 
 
 def _normalize_additional_model_paths(additional_paths: list[str]) -> list[str]:

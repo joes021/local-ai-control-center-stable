@@ -250,6 +250,12 @@ def stop_server(
     port = int(runtime_state["port"])
     pid = find_runtime_pid(port)
     if pid is None:
+        if _stop_orphaned_runtime_processes(config.install_root):
+            return _result(
+                "ok",
+                "stop-server",
+                "Zaustavljeni su preostali runtime procesi bez aktivnog listener-a.",
+            )
         return _result(
             "ok",
             "stop-server",
@@ -265,6 +271,8 @@ def stop_server(
         )
 
     if stop_managed_runtime_on_port(port, binary_path, config.install_root):
+        return _result("ok", "stop-server", "Runtime server je zaustavljen.")
+    if _stop_orphaned_runtime_processes(config.install_root) and find_runtime_pid(port) is None:
         return _result("ok", "stop-server", "Runtime server je zaustavljen.")
 
     return _result(
@@ -375,3 +383,46 @@ def _positive_int_or_none(value: object) -> int | None:
     except (TypeError, ValueError):
         return None
     return parsed if parsed > 0 else None
+
+
+def _stop_orphaned_runtime_processes(install_root: Path) -> bool:
+    runtime_targets = [
+        install_root / "runtime" / "llama.cpp" / "llama-server.exe",
+        *sorted((install_root / "tools" / "turboquant").glob("**/llama-server.exe")),
+    ]
+    existing_targets = [path for path in runtime_targets if path.is_file()]
+    if not existing_targets:
+        return False
+
+    target_list = ", ".join(_quote_powershell_string(str(path)) for path in existing_targets)
+    powershell_command = (
+        f"$targets = @({target_list}); "
+        "$matches = Get-CimInstance Win32_Process | Where-Object { "
+        "$_.ExecutablePath -and $targets -contains $_.ExecutablePath "
+        "}; "
+        "if (-not $matches) { exit 2 }; "
+        "$matches | ForEach-Object { "
+        "Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue "
+        "};"
+    )
+    completed = subprocess.run(
+        [
+            "powershell",
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-Command",
+            powershell_command,
+        ],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+    )
+    return completed.returncode == 0
+
+
+def _quote_powershell_string(value: str) -> str:
+    return "'" + value.replace("'", "''") + "'"

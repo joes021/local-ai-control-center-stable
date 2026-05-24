@@ -74,6 +74,14 @@ def test_runtime_repair_route_starts_runtime_when_server_is_not_running(
         "local_ai_control_center_installer.control_center_backend.services.server_service.detect_tailscale_ip",
         lambda: "",
     )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.server_service.probe_server_health",
+        lambda *args, **kwargs: "offline",
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.status_service.probe_server_health",
+        lambda *args, **kwargs: "offline",
+    )
 
     client = TestClient(app)
     response = client.post("/api/repair/runtime")

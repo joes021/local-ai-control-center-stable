@@ -59,6 +59,10 @@ try {
     New-Item -ItemType Directory -Force -Path $frontendPackageDist | Out-Null
     Copy-Item (Join-Path $frontendRoot "dist\\*") -Destination $frontendPackageDist -Recurse -Force
 
+    if (Test-Path $buildRoot) {
+        Remove-Item -Recurse -Force $buildRoot
+    }
+
     & $PythonExe -m pip install .[release]
     if ($LASTEXITCODE -ne 0) {
         throw "Failed to install release build dependencies."

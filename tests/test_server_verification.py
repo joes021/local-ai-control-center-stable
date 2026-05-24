@@ -218,6 +218,7 @@ def test_apply_server_verification_uses_persisted_managed_runtime_port(
         session,
         temp_root=tmp_path / "temp-runs",
         select_port=lambda host="127.0.0.1": 8080,
+        port_is_free=lambda host, port: True,
         process_factory=lambda command, log_path: process,
         health_probe=lambda base_url: next(health_states),
         stop_process=lambda proc: True,
