@@ -37,6 +37,7 @@ def test_turboquant_schema_route_exposes_recommended_models_and_persists_user_pr
     initial_payload = initial.json()
     assert initial_payload["builtInPresets"]
     assert initial_payload["recommendedModels"]
+    assert initial_payload["currentConfig"]["context"] == 131072
     assert initial_payload["currentConfig"]["runtimePreference"] == "turboquant"
 
     config_response = client.post(

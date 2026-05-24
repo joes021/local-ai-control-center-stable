@@ -594,7 +594,7 @@ def load_turboquant_config(
     config: ControlCenterConfig | None = None,
 ) -> dict[str, object]:
     config = config or get_config()
-    baseline = dict(TURBOQUANT_BUILTIN_PRESETS[1]["settings"])
+    baseline = dict(TURBOQUANT_BUILTIN_PRESETS[0]["settings"])
     payload = read_json_object(config.turboquant_config_path)
     if not payload:
         return baseline
