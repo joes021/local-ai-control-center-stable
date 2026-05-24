@@ -121,6 +121,99 @@ code {
   grid-column: 1 / -1;
 }
 
+.settings-page {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 16px;
+}
+
+.settings-cluster-card {
+  display: grid;
+  gap: 14px;
+}
+
+.settings-cluster-header {
+  margin-bottom: 0;
+}
+
+.settings-cluster-grid {
+  display: grid;
+  gap: 14px 16px;
+  align-items: start;
+}
+
+.settings-cluster-grid-profiles {
+  grid-template-columns: minmax(340px, 1.45fr) minmax(260px, 1fr);
+}
+
+.settings-cluster-grid-core {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.settings-field {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.settings-field-wide {
+  grid-column: 1 / -1;
+}
+
+.settings-field-label {
+  display: block;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #bda993;
+}
+
+.settings-control-block {
+  width: min(100%, 260px);
+  max-width: 100%;
+}
+
+.settings-control-block-wide {
+  width: min(100%, 360px);
+}
+
+.settings-action-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  width: fit-content;
+  max-width: 100%;
+}
+
+.settings-profile-name-input {
+  width: 280px;
+  max-width: 100%;
+}
+
+.settings-path-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  width: 100%;
+  max-width: 100%;
+}
+
+.settings-path-input {
+  flex: 1 1 460px;
+  min-width: 240px;
+}
+
+.settings-footer-actions {
+  margin-top: 0;
+}
+
 .error-panel {
   color: #ffd7d7;
   grid-column: 1 / -1;
@@ -153,7 +246,9 @@ code {
 }
 
 .inline-actions button,
-.form-grid button {
+.form-grid button,
+.settings-action-row button,
+.settings-path-row button {
   border: 1px solid rgba(255, 255, 255, 0.16);
   background: rgba(255, 255, 255, 0.08);
   color: #f5f2ea;
@@ -180,6 +275,27 @@ code {
 .form-grid {
   display: grid;
   gap: 10px;
+}
+
+.settings-number-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  width: fit-content;
+  max-width: 100%;
+}
+
+.settings-number-row .custom-select {
+  width: 148px;
+  min-width: 148px;
+  flex: 0 0 148px;
+}
+
+.settings-number-row input[type="number"] {
+  width: 152px;
+  min-width: 152px;
+  flex: 0 0 152px;
 }
 
 .form-grid input {
@@ -210,6 +326,30 @@ code {
 .status-card option {
   background: #2f241b;
   color: #f5f2ea;
+}
+
+.settings-field .helper-text {
+  margin: 0;
+  max-width: 54ch;
+  line-height: 1.4;
+}
+
+.settings-field .settings-control-block .custom-select,
+.settings-field .settings-control-block-wide .custom-select,
+.settings-field > .custom-select {
+  width: 100%;
+  min-width: 0;
+}
+
+.settings-field input:not([type]),
+.settings-field input[type="number"],
+.settings-field input[type="text"] {
+  width: auto;
+}
+
+.settings-field .settings-number-row {
+  width: fit-content;
+  max-width: 100%;
 }
 
 .status-card textarea {
@@ -1183,6 +1323,10 @@ select:-webkit-autofill {
 }
 
 @media (max-width: 860px) {
+  .settings-cluster-grid-profiles {
+    grid-template-columns: 1fr;
+  }
+
   .battery-editor-topline,
   .battery-editor-detail-grid,
   .battery-scenario-row,
@@ -1208,6 +1352,31 @@ select:-webkit-autofill {
 
   .benchmark-run-main {
     justify-content: start;
+  }
+
+  .settings-number-row {
+    width: 100%;
+  }
+
+  .settings-number-row .custom-select,
+  .settings-number-row input[type="number"] {
+    width: 100%;
+    min-width: 0;
+    flex: 1 1 100%;
+  }
+
+  .settings-control-block,
+  .settings-control-block-wide,
+  .settings-action-row,
+  .settings-path-row {
+    width: 100%;
+  }
+
+  .settings-profile-name-input,
+  .settings-path-input {
+    width: 100%;
+    min-width: 0;
+    flex: 1 1 100%;
   }
 
   .benchmark-range-segment {

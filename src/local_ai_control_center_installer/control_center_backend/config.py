@@ -56,6 +56,10 @@ class ControlCenterConfig:
         return self.control_center_config_root / "turboquant-presets.json"
 
     @property
+    def settings_profiles_path(self) -> Path:
+        return self.control_center_config_root / "settings-profiles.json"
+
+    @property
     def opencode_step_presets_path(self) -> Path:
         return self.control_center_config_root / "opencode-step-presets.json"
 

@@ -2,9 +2,11 @@ from fastapi import APIRouter
 
 from local_ai_control_center_installer.control_center_backend.services.settings_service import (
     apply_settings,
+    delete_settings_user_profile,
     delete_turboquant_user_preset,
     load_settings_payload,
     load_turboquant_schema,
+    save_settings_user_profile,
     save_turboquant_config,
     save_turboquant_user_preset,
 )
@@ -21,6 +23,28 @@ def settings() -> dict[str, object]:
 @router.post("/api/settings/apply")
 def settings_apply(payload: dict[str, object]) -> dict[str, object]:
     return apply_settings(payload)
+
+
+@router.post("/api/settings/profiles/save")
+def settings_profiles_save(payload: dict[str, object]) -> dict[str, object]:
+    try:
+        return save_settings_user_profile(payload)
+    except ValueError as exc:
+        return {
+            "status": "error",
+            "action": "save-settings-profile",
+            "summary": str(exc),
+            "details": {
+                "returncode": 1,
+                "stdout": "",
+                "stderr": str(exc),
+            },
+        }
+
+
+@router.post("/api/settings/profiles/delete")
+def settings_profiles_delete(payload: dict[str, object]) -> dict[str, object]:
+    return delete_settings_user_profile(str(payload.get("profileId", "") or ""))
 
 
 @router.get("/api/settings/turboquant")

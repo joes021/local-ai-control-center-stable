@@ -285,6 +285,53 @@ ALLOWED_CAPABILITY_MODES = {
     "auto-commands",
 }
 ALLOWED_PROFILES = {"speed", "balanced", "video"}
+SETTINGS_PROFILE_COMPARE_KEYS = (
+    "profile",
+    "context",
+    "outputTokens",
+    "workingDirectory",
+    "thinkingMode",
+    "buildSteps",
+    "planSteps",
+    "generalSteps",
+    "exploreSteps",
+    "accessMode",
+)
+SETTINGS_PROFILE_BUILTIN_SPECS = [
+    {
+        "id": "balanced",
+        "name": "balanced",
+        "settings": {
+            "profile": "balanced",
+            "context": 262144,
+            "outputTokens": 8192,
+            "thinkingMode": "mid",
+            "accessMode": "local-only",
+        },
+    },
+    {
+        "id": "speed",
+        "name": "speed",
+        "settings": {
+            "profile": "speed",
+            "context": 65536,
+            "outputTokens": 4096,
+            "thinkingMode": "low",
+            "accessMode": "local-only",
+        },
+    },
+    {
+        "id": "video",
+        "name": "video",
+        "settings": {
+            "profile": "video",
+            "context": 131072,
+            "outputTokens": 16384,
+            "thinkingMode": "high",
+            "accessMode": "local-only",
+        },
+    },
+]
 
 
 def load_effective_settings_state(
@@ -323,7 +370,9 @@ def load_effective_settings_state(
 def load_settings_payload(
     config: ControlCenterConfig | None = None,
 ) -> dict[str, object]:
+    config = config or get_config()
     effective = load_effective_settings_state(config)
+    profile_catalog = load_settings_profile_catalog(config, effective_settings=effective)
     return {
         "profile": effective["profile"],
         "context": effective["context"],
@@ -339,6 +388,10 @@ def load_settings_payload(
         "activeModelLabel": effective["activeModelLabel"],
         "modelOverrideExists": effective["modelOverrideExists"],
         "accessMode": effective["accessMode"],
+        "builtInSettingsProfiles": profile_catalog["builtInProfiles"],
+        "userSettingsProfiles": profile_catalog["userProfiles"],
+        "selectedSettingsProfileId": profile_catalog["selectedProfileId"],
+        "selectedSettingsProfileName": profile_catalog["selectedProfileName"],
     }
 
 
@@ -404,6 +457,124 @@ def apply_opencode_settings(
         "apply-opencode-settings",
         "OpenCode settings su sacuvani.",
     )
+
+
+def load_settings_profile_catalog(
+    config: ControlCenterConfig | None = None,
+    *,
+    effective_settings: dict[str, object] | None = None,
+) -> dict[str, object]:
+    config = config or get_config()
+    effective_settings = effective_settings or load_effective_settings_state(config)
+    built_in_profiles = _build_builtin_settings_profiles(config)
+    user_profiles = load_settings_user_profiles(config)
+    matched_profile = _match_settings_profile(
+        effective_settings,
+        [*built_in_profiles, *user_profiles],
+    )
+    return {
+        "builtInProfiles": built_in_profiles,
+        "userProfiles": user_profiles,
+        "selectedProfileId": matched_profile.get("id", "custom"),
+        "selectedProfileName": matched_profile.get("name", "custom"),
+    }
+
+
+def load_settings_user_profiles(
+    config: ControlCenterConfig | None = None,
+) -> list[dict[str, object]]:
+    config = config or get_config()
+    payload = read_json_object(config.settings_profiles_path)
+    presets = payload.get("profiles")
+    if not isinstance(presets, list):
+        return []
+    normalized: list[dict[str, object]] = []
+    baseline = _normalize_global_settings({}, config=config)
+    for item in presets:
+        if not isinstance(item, dict):
+            continue
+        preset_id = str(item.get("id", "") or "").strip()
+        name = str(item.get("name", "") or "").strip()
+        if not preset_id or not name:
+            continue
+        normalized_settings = _normalize_settings_payload(
+            item.get("settings", {}),
+            config=config,
+            current=baseline,
+            respect_explicit_steps=False,
+        )
+        normalized.append(
+            {
+                "id": preset_id,
+                "name": name,
+                "kind": "user",
+                "summary": _format_settings_profile_summary(normalized_settings),
+                "settings": _project_settings_profile_settings(normalized_settings),
+            }
+        )
+    return normalized
+
+
+def save_settings_user_profile(
+    payload: dict[str, object],
+    config: ControlCenterConfig | None = None,
+) -> dict[str, object]:
+    config = config or get_config()
+    name = str(payload.get("name", "") or "").strip()
+    if not name:
+        raise ValueError("Ime profila je obavezno.")
+    baseline = _normalize_global_settings({}, config=config)
+    normalized_settings = _normalize_settings_payload(
+        payload.get("settings", {}),
+        config=config,
+        current=baseline,
+        respect_explicit_steps=False,
+    )
+    preset = {
+        "id": _build_user_preset_id(name),
+        "name": name,
+        "settings": _project_settings_profile_settings(normalized_settings),
+    }
+    profiles = [
+        item
+        for item in load_settings_user_profiles(config)
+        if str(item.get("name", "") or "").strip().lower() != name.lower()
+    ]
+    profiles.append(
+        {
+            "id": preset["id"],
+            "name": preset["name"],
+            "settings": preset["settings"],
+        }
+    )
+    atomic_write_json(config.settings_profiles_path, {"profiles": profiles})
+    return action_result("ok", "save-settings-profile", f"Sacuvan settings profil: {name}")
+
+
+def delete_settings_user_profile(
+    profile_id: str,
+    config: ControlCenterConfig | None = None,
+) -> dict[str, object]:
+    config = config or get_config()
+    profiles = load_settings_user_profiles(config)
+    filtered = [item for item in profiles if str(item.get("id", "") or "") != str(profile_id)]
+    if len(filtered) == len(profiles):
+        return action_result(
+            "error",
+            "delete-settings-profile",
+            "Profil nije pronadjen.",
+            stderr="Profil nije pronadjen.",
+        )
+    persisted = [
+        {
+            "id": str(item.get("id", "") or ""),
+            "name": str(item.get("name", "") or ""),
+            "settings": item.get("settings", {}),
+        }
+        for item in filtered
+    ]
+    atomic_write_json(config.settings_profiles_path, {"profiles": persisted})
+    return action_result("ok", "delete-settings-profile", "Settings profil je obrisan.")
 
 
 def load_turboquant_schema(
@@ -604,6 +775,35 @@ def _normalize_global_settings(
     )
 
 
+def _build_builtin_settings_profiles(
+    config: ControlCenterConfig,
+) -> list[dict[str, object]]:
+    baseline = _normalize_global_settings({}, config=config)
+    profiles: list[dict[str, object]] = []
+    for spec in SETTINGS_PROFILE_BUILTIN_SPECS:
+        raw_payload = {
+            **baseline,
+            **spec["settings"],
+            "workingDirectory": str(config.install_root),
+        }
+        normalized = _normalize_settings_payload(
+            raw_payload,
+            config=config,
+            current=baseline,
+            respect_explicit_steps=False,
+        )
+        profiles.append(
+            {
+                "id": str(spec["id"]),
+                "name": str(spec["name"]),
+                "kind": "built-in",
+                "summary": _format_settings_profile_summary(normalized),
+                "settings": _project_settings_profile_settings(normalized),
+            }
+        )
+    return profiles
+
+
 def _normalize_settings_payload(
     payload: dict[str, object],
     *,
@@ -694,6 +894,36 @@ def _format_opencode_step_summary(steps: dict[str, int]) -> str:
         f"{int(steps['buildSteps'])} / {int(steps['planSteps'])} / "
         f"{int(steps['generalSteps'])} / {int(steps['exploreSteps'])}"
     )
+
+
+def _format_settings_profile_summary(settings: dict[str, object]) -> str:
+    context_value = int(settings["context"]) // 1024
+    output_value = int(settings["outputTokens"]) // 1024
+    return (
+        f"{settings['profile']} | {context_value}k ctx | "
+        f"{output_value}k out | {settings['thinkingMode']}"
+    )
+
+
+def _project_settings_profile_settings(settings: dict[str, object]) -> dict[str, object]:
+    return {
+        key: settings[key]
+        for key in SETTINGS_PROFILE_COMPARE_KEYS
+    }
+
+
+def _match_settings_profile(
+    settings: dict[str, object],
+    profiles: list[dict[str, object]],
+) -> dict[str, object]:
+    current_projection = _project_settings_profile_settings(settings)
+    for profile in profiles:
+        candidate = profile.get("settings")
+        if not isinstance(candidate, dict):
+            continue
+        if all(candidate.get(key) == current_projection.get(key) for key in SETTINGS_PROFILE_COMPARE_KEYS):
+            return profile
+    return {"id": "custom", "name": "custom"}
 
 
 def _positive_int(value: object, fallback: int) -> int:

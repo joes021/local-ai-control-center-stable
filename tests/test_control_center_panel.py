@@ -1,6 +1,8 @@
 from pathlib import Path
 
+from local_ai_control_center_installer import control_center_panel as panel_module
 from local_ai_control_center_installer.control_center_panel import (
+    _module_main,
     run_control_center_panel_entry,
 )
 
@@ -45,3 +47,13 @@ def test_panel_entry_starts_runtime_autostart_thread_when_launching_ui(
     assert captured["started"] is True
     assert captured["target"].__name__ == "_ensure_runtime_ready_after_panel_boot"
     assert captured["daemon"] is True
+
+
+def test_panel_module_main_delegates_to_entry(monkeypatch):
+    monkeypatch.setattr(
+        panel_module,
+        "run_control_center_panel_entry",
+        lambda argv=None: 7,
+    )
+
+    assert _module_main(["--install-root", "C:\\Test"]) == 7

@@ -36,6 +36,13 @@ def test_settings_route_persists_global_defaults_and_model_override(
     assert initial.status_code == 200
     assert initial.json()["settingsScope"] == "global"
     assert initial.json()["activeModelId"] == "recommended-6gb"
+    assert initial.json()["selectedSettingsProfileId"] == "balanced"
+    assert [item["id"] for item in initial.json()["builtInSettingsProfiles"]] == [
+        "balanced",
+        "speed",
+        "video",
+    ]
+    assert initial.json()["userSettingsProfiles"] == []
 
     response = client.post(
         "/api/settings/apply",
@@ -69,6 +76,7 @@ def test_settings_route_persists_global_defaults_and_model_override(
     assert payload["buildSteps"] == 40
     assert payload["planSteps"] == 30
     assert payload["settingsScope"] == "global"
+    assert payload["selectedSettingsProfileId"] == "custom"
 
     override_response = client.post(
         "/api/settings/apply",
@@ -100,3 +108,72 @@ def test_settings_route_persists_global_defaults_and_model_override(
     assert override_payload["context"] == 131072
     assert override_payload["workingDirectory"] == str(tmp_path / "workspace-override")
     assert override_payload["buildSteps"] == 160
+
+
+def test_settings_route_saves_and_deletes_custom_settings_profiles(
+    tmp_path: Path,
+    monkeypatch,
+):
+    install_root = tmp_path / "install-root"
+    _write_active_model_config(install_root)
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+
+    client = TestClient(app)
+
+    save_response = client.post(
+        "/api/settings/profiles/save",
+        json={
+            "name": "My deep profile",
+            "settings": {
+                "profile": "video",
+                "context": 65536,
+                "outputTokens": 4096,
+                "workingDirectory": str(tmp_path / "deep-workspace"),
+                "thinkingMode": "high",
+                "accessMode": "tailscale",
+            },
+        },
+    )
+    assert save_response.status_code == 200
+    assert save_response.json()["status"] == "ok"
+
+    payload = client.get("/api/settings").json()
+    assert len(payload["userSettingsProfiles"]) == 1
+    custom_profile = payload["userSettingsProfiles"][0]
+    assert custom_profile["name"] == "My deep profile"
+    assert custom_profile["summary"] == "video | 64k ctx | 4k out | high"
+    assert custom_profile["settings"]["profile"] == "video"
+    assert custom_profile["settings"]["context"] == 65536
+    assert custom_profile["settings"]["outputTokens"] == 4096
+    assert custom_profile["settings"]["workingDirectory"] == str(tmp_path / "deep-workspace")
+    assert custom_profile["settings"]["thinkingMode"] == "high"
+    assert custom_profile["settings"]["buildSteps"] == 160
+    assert custom_profile["settings"]["accessMode"] == "tailscale"
+
+    apply_response = client.post(
+        "/api/settings/apply",
+        json={
+            **custom_profile["settings"],
+            "settingsScope": "global",
+            "activeModelId": "recommended-6gb",
+            "activeModelLabel": "gemma-4-E4B-it-Q4_K_M.gguf",
+            "modelOverrideExists": False,
+        },
+    )
+    assert apply_response.status_code == 200
+    assert apply_response.json()["status"] == "ok"
+
+    matched = client.get("/api/settings").json()
+    assert matched["selectedSettingsProfileId"] == custom_profile["id"]
+    assert matched["selectedSettingsProfileName"] == "My deep profile"
+
+    delete_response = client.post(
+        "/api/settings/profiles/delete",
+        json={"profileId": custom_profile["id"]},
+    )
+    assert delete_response.status_code == 200
+    assert delete_response.json()["status"] == "ok"
+
+    deleted = client.get("/api/settings").json()
+    assert deleted["userSettingsProfiles"] == []
+    assert deleted["selectedSettingsProfileId"] == "custom"

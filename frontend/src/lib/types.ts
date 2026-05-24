@@ -394,6 +394,31 @@ export type SettingsPayload = {
   activeModelLabel: string;
   modelOverrideExists: boolean;
   accessMode: string;
+  builtInSettingsProfiles: SettingsProfilePreset[];
+  userSettingsProfiles: SettingsProfilePreset[];
+  selectedSettingsProfileId: string;
+  selectedSettingsProfileName: string;
+};
+
+export type SettingsProfileValues = {
+  profile: string;
+  context: number;
+  outputTokens: number;
+  workingDirectory: string;
+  thinkingMode: string;
+  buildSteps: number;
+  planSteps: number;
+  generalSteps: number;
+  exploreSteps: number;
+  accessMode: string;
+};
+
+export type SettingsProfilePreset = {
+  id: string;
+  name: string;
+  kind: "built-in" | "user";
+  summary: string;
+  settings: SettingsProfileValues;
 };
 
 export type TurboQuantConfig = {

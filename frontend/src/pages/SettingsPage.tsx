@@ -1,25 +1,52 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { ActionResultPanel } from "../components/ActionResultPanel";
 import { CustomSelect } from "../components/CustomSelect";
 import {
   applySettings,
+  deleteSettingsProfile,
   deleteTurboQuantPreset,
   fetchSettings,
   fetchTurboQuantSchema,
   pickWorkingDirectory,
+  saveSettingsProfile,
   saveTurboQuantConfig,
   saveTurboQuantPreset,
 } from "../lib/api";
 import type {
   ActionResult,
   SettingsPayload,
+  SettingsProfilePreset,
+  SettingsProfileValues,
   TurboQuantConfig,
   TurboQuantPreset,
   TurboQuantSchemaPayload,
 } from "../lib/types";
 
 const TURBOQUANT_DRAFT_STORAGE_KEY = "local-ai-control-center:turboquant-draft";
+const TOKEN_STEP_OPTIONS = [
+  { value: "1024", label: "1024" },
+  { value: "2048", label: "2048" },
+  { value: "4096", label: "4096" },
+  { value: "8192", label: "8192" },
+  { value: "16384", label: "16384" },
+  { value: "32768", label: "32768" },
+  { value: "65536", label: "65536" },
+  { value: "131072", label: "131072" },
+  { value: "262144", label: "262144" },
+] as const;
+const SETTINGS_PROFILE_COMPARE_KEYS: Array<keyof SettingsProfileValues> = [
+  "profile",
+  "context",
+  "outputTokens",
+  "workingDirectory",
+  "thinkingMode",
+  "buildSteps",
+  "planSteps",
+  "generalSteps",
+  "exploreSteps",
+  "accessMode",
+];
 
 function applyPresetToConfig(preset: TurboQuantPreset): TurboQuantConfig {
   return { ...preset.settings };
@@ -59,11 +86,51 @@ function clearDraft(key: string) {
   window.localStorage.removeItem(key);
 }
 
+function resolveTokenChoice(value: number): string {
+  const matched = TOKEN_STEP_OPTIONS.find((option) => Number(option.value) === value);
+  return matched?.value ?? "custom";
+}
+
+function matchesSettingsProfile(
+  settings: SettingsPayload,
+  profile: SettingsProfilePreset,
+): boolean {
+  return SETTINGS_PROFILE_COMPARE_KEYS.every(
+    (key) => settings[key] === profile.settings[key],
+  );
+}
+
+function mergeSettingsProfile(
+  settings: SettingsPayload,
+  profile: SettingsProfilePreset,
+): SettingsPayload {
+  return {
+    ...settings,
+    ...profile.settings,
+  };
+}
+
+function buildSettingsProfileDraft(settings: SettingsPayload): SettingsProfileValues {
+  return {
+    profile: settings.profile,
+    context: settings.context,
+    outputTokens: settings.outputTokens,
+    workingDirectory: settings.workingDirectory,
+    thinkingMode: settings.thinkingMode,
+    buildSteps: settings.buildSteps,
+    planSteps: settings.planSteps,
+    generalSteps: settings.generalSteps,
+    exploreSteps: settings.exploreSteps,
+    accessMode: settings.accessMode,
+  };
+}
+
 export function SettingsPage() {
   const [settings, setSettings] = useState<SettingsPayload | null>(null);
   const [settingsDefaults, setSettingsDefaults] = useState<SettingsPayload | null>(null);
   const [schema, setSchema] = useState<TurboQuantSchemaPayload | null>(null);
   const [turboConfig, setTurboConfig] = useState<TurboQuantConfig | null>(null);
+  const [settingsProfileName, setSettingsProfileName] = useState("");
   const [presetName, setPresetName] = useState("");
   const [presetDescription, setPresetDescription] = useState("");
   const [presetTargetPattern, setPresetTargetPattern] = useState("");
@@ -96,6 +163,22 @@ export function SettingsPage() {
     }
   }, [turboConfig]);
 
+  const settingsProfiles = useMemo(
+    () => (settings ? [...settings.builtInSettingsProfiles, ...settings.userSettingsProfiles] : []),
+    [settings],
+  );
+  const selectedSettingsProfileId = useMemo(() => {
+    if (!settings) {
+      return "custom";
+    }
+    const matched = settingsProfiles.find((profile) => matchesSettingsProfile(settings, profile));
+    return matched?.id ?? "custom";
+  }, [settings, settingsProfiles]);
+  const selectedSettingsProfile = useMemo(
+    () => settingsProfiles.find((profile) => profile.id === selectedSettingsProfileId) ?? null,
+    [selectedSettingsProfileId, settingsProfiles],
+  );
+
   if (error) {
     return <div className="error-panel">{error}</div>;
   }
@@ -104,161 +187,329 @@ export function SettingsPage() {
     return <div className="status-card wide-card">Ucitavam settings...</div>;
   }
 
-  const allPresets = [...schema.builtInPresets, ...schema.userPresets];
+  const allTurboPresets = [...schema.builtInPresets, ...schema.userPresets];
+  const profileOptions = [
+    ...settings.builtInSettingsProfiles.map((profile) => ({
+      value: profile.id,
+      label: `${profile.name} (${profile.summary})`,
+    })),
+    ...settings.userSettingsProfiles.map((profile) => ({
+      value: profile.id,
+      label: `${profile.name} (${profile.summary})`,
+    })),
+    { value: "custom", label: "custom (trenutne vrednosti)" },
+  ];
+  const contextChoice = resolveTokenChoice(settings.context);
+  const outputTokensChoice = resolveTokenChoice(settings.outputTokens);
 
   return (
-    <>
-      <section className="status-card wide-card">
-        <span className="status-label">Settings scope</span>
-        <strong className="status-value">
-          Aktivni model: {settings.activeModelLabel || "nema"} ({settings.activeModelId || "--"})
-        </strong>
-        <p className="helper-text">
-          Global defaults vaze za sve modele bez posebnog override-a. Active model override vazi
-          samo za trenutno aktivni model.
-        </p>
-        <CustomSelect
-          value={settings.settingsScope}
-          options={[
-            { value: "global", label: "Global defaults" },
-            { value: "model", label: "Active model override" },
-          ]}
-          onChange={(value) =>
-            setSettings({
-              ...settings,
-              settingsScope: value,
-            })
-          }
-          ariaLabel="Izaberi settings scope"
-        />
-        <p className="helper-text">
-          {settings.modelOverrideExists
-            ? "Za aktivni model vec postoji poseban override."
-            : "Za aktivni model trenutno nema posebnog override-a."}
-        </p>
-      </section>
-
-      <section className="status-card">
-        <span className="status-label">Access mode</span>
-        <CustomSelect
-          value={settings.accessMode}
-          options={[
-            { value: "local-only", label: "Local only" },
-            { value: "tailscale", label: "Tailscale" },
-          ]}
-          onChange={(value) =>
-            setSettings({
-              ...settings,
-              accessMode: value,
-            })
-          }
-          ariaLabel="Izaberi access mode"
-        />
-        <p className="helper-text">
-          Tailscale rezim podize backend tako da moze da se otvori i preko Tailscale adrese.
-        </p>
-      </section>
-
-      <section className="status-card">
-        <span className="status-label">Profil</span>
-        <CustomSelect
-          value={settings.profile}
-          options={[
-            { value: "speed", label: "speed" },
-            { value: "balanced", label: "balanced" },
-            { value: "video", label: "video" },
-          ]}
-          onChange={(value) =>
-            setSettings({
-              ...settings,
-              profile: value,
-            })
-          }
-          ariaLabel="Izaberi profil"
-        />
-      </section>
-
-      <section className="status-card">
-        <span className="status-label">Thinking mode</span>
-        <CustomSelect
-          value={settings.thinkingMode}
-          options={[
-            { value: "no-thinking", label: "No thinking" },
-            { value: "low", label: "Low" },
-            { value: "mid", label: "Mid" },
-            { value: "high", label: "High" },
-            { value: "extra-high", label: "Extra high" },
-          ]}
-          onChange={(value) =>
-            setSettings({
-              ...settings,
-              thinkingMode: value,
-            })
-          }
-          ariaLabel="Izaberi thinking mode"
-        />
-      </section>
-
-      <section className="status-card">
-        <span className="status-label">Context</span>
-        <input
-          type="number"
-          value={settings.context}
-          onChange={(event) =>
-            setSettings({
-              ...settings,
-              context: Number(event.target.value || 0),
-            })
-          }
-        />
-      </section>
-
-      <section className="status-card">
-        <span className="status-label">Output tokens</span>
-        <input
-          type="number"
-          value={settings.outputTokens}
-          onChange={(event) =>
-            setSettings({
-              ...settings,
-              outputTokens: Number(event.target.value || 0),
-            })
-          }
-        />
-      </section>
-
-      <section className="status-card wide-card">
-        <span className="status-label">Working directory</span>
-        <div className="form-grid">
-          <input
-            value={settings.workingDirectory}
-            onChange={(event) =>
-              setSettings({
-                ...settings,
-                workingDirectory: event.target.value,
-              })
-            }
-          />
-          <button
-            type="button"
-            onClick={() =>
-              pickWorkingDirectory().then((payload) => {
-                if (payload.path) {
+    <div className="settings-page">
+      <section className="status-card wide-card settings-cluster-card">
+        <div className="section-header settings-cluster-header">
+          <div>
+            <span className="status-label">Profiles & scope</span>
+            <strong className="status-value">
+              Aktivni model: {settings.activeModelLabel || "nema"} ({settings.activeModelId || "--"})
+            </strong>
+          </div>
+        </div>
+        <div className="settings-cluster-grid settings-cluster-grid-profiles">
+          <article className="settings-field settings-field-wide">
+            <span className="settings-field-label">Settings scope</span>
+            <p className="helper-text">
+              Global defaults vaze za sve modele bez posebnog override-a. Active model override vazi
+              samo za trenutno aktivni model.
+            </p>
+            <div className="settings-control-block">
+              <CustomSelect
+                value={settings.settingsScope}
+                options={[
+                  { value: "global", label: "Global defaults" },
+                  { value: "model", label: "Active model override" },
+                ]}
+                onChange={(value) =>
                   setSettings({
                     ...settings,
-                    workingDirectory: payload.path,
-                  });
+                    settingsScope: value,
+                  })
                 }
-              })
-            }
-          >
-            Browse
-          </button>
+                ariaLabel="Izaberi settings scope"
+              />
+            </div>
+            <p className="helper-text">
+              {settings.modelOverrideExists
+                ? "Za aktivni model vec postoji poseban override."
+                : "Za aktivni model trenutno nema posebnog override-a."}
+            </p>
+          </article>
+
+          <article className="settings-field">
+            <span className="settings-field-label">Profil</span>
+            <div className="settings-control-block settings-control-block-wide">
+              <CustomSelect
+                value={selectedSettingsProfileId}
+                options={profileOptions}
+                onChange={(value) => {
+                  if (value === "custom") {
+                    setResult({
+                      status: "ok",
+                      action: "select-settings-profile",
+                      summary: "Editor je ostao na custom vrednostima.",
+                      details: { returncode: 0, stdout: "", stderr: "" },
+                    });
+                    return;
+                  }
+                  const profile = settingsProfiles.find((item) => item.id === value);
+                  if (!profile) {
+                    return;
+                  }
+                  setSettings(mergeSettingsProfile(settings, profile));
+                  setResult({
+                    status: "ok",
+                    action: "load-settings-profile",
+                    summary: `Profil ${profile.name} je ucitan u editor.`,
+                    details: { returncode: 0, stdout: "", stderr: "" },
+                  });
+                }}
+                ariaLabel="Izaberi settings profil"
+              />
+            </div>
+            <p className="helper-text">
+              Profil puni editor za context, output tokens, access mode i OpenCode profil.
+            </p>
+          </article>
+
+          <article className="settings-field settings-field-wide">
+            <span className="settings-field-label">Sacuvaj trenutni custom profil</span>
+            <div className="settings-action-row">
+              <input
+                className="settings-profile-name-input"
+                placeholder="Ime novog profila"
+                value={settingsProfileName}
+                onChange={(event) => setSettingsProfileName(event.target.value)}
+              />
+              <button
+                type="button"
+                onClick={async () => {
+                  const actionResult = await saveSettingsProfile({
+                    name: settingsProfileName,
+                    settings: buildSettingsProfileDraft(settings),
+                  });
+                  setResult(actionResult);
+                  if (actionResult.status === "ok") {
+                    setSettingsProfileName("");
+                  }
+                  await reload();
+                }}
+              >
+                Sacuvaj profil
+              </button>
+              {selectedSettingsProfile && selectedSettingsProfile.kind === "user" ? (
+                <button
+                  type="button"
+                  className="danger-button"
+                  onClick={async () => {
+                    const actionResult = await deleteSettingsProfile(selectedSettingsProfile.id);
+                    setResult(actionResult);
+                    await reload();
+                  }}
+                >
+                  Obrisi izabrani profil
+                </button>
+              ) : null}
+            </div>
+            <p className="helper-text">
+              Trenutno aktivan izbor:{" "}
+              {selectedSettingsProfile
+                ? `${selectedSettingsProfile.name} (${selectedSettingsProfile.summary})`
+                : "custom"}
+            </p>
+          </article>
         </div>
       </section>
 
-      <section className="status-card wide-card">
-        <div className="inline-actions">
+      <section className="status-card wide-card settings-cluster-card">
+        <div className="section-header settings-cluster-header">
+          <div>
+            <span className="status-label">Core settings</span>
+          </div>
+        </div>
+        <div className="settings-cluster-grid settings-cluster-grid-core">
+          <article className="settings-field">
+            <span className="settings-field-label">Access mode</span>
+            <div className="settings-control-block">
+              <CustomSelect
+                value={settings.accessMode}
+                options={[
+                  { value: "local-only", label: "Local only" },
+                  { value: "tailscale", label: "Tailscale" },
+                ]}
+                onChange={(value) =>
+                  setSettings({
+                    ...settings,
+                    accessMode: value,
+                  })
+                }
+                ariaLabel="Izaberi access mode"
+              />
+            </div>
+            <p className="helper-text">Lokalno ili Tailscale izlaganje backend-a.</p>
+          </article>
+
+          <article className="settings-field">
+            <span className="settings-field-label">OpenCode profil</span>
+            <div className="settings-control-block">
+              <CustomSelect
+                value={settings.profile}
+                options={[
+                  { value: "speed", label: "speed" },
+                  { value: "balanced", label: "balanced" },
+                  { value: "video", label: "video" },
+                ]}
+                onChange={(value) =>
+                  setSettings({
+                    ...settings,
+                    profile: value,
+                  })
+                }
+                ariaLabel="Izaberi OpenCode profil"
+              />
+            </div>
+          </article>
+
+          <article className="settings-field">
+            <span className="settings-field-label">Thinking mode</span>
+            <div className="settings-control-block">
+              <CustomSelect
+                value={settings.thinkingMode}
+                options={[
+                  { value: "no-thinking", label: "No thinking" },
+                  { value: "low", label: "Low" },
+                  { value: "mid", label: "Mid" },
+                  { value: "high", label: "High" },
+                  { value: "extra-high", label: "Extra high" },
+                ]}
+                onChange={(value) =>
+                  setSettings({
+                    ...settings,
+                    thinkingMode: value,
+                  })
+                }
+                ariaLabel="Izaberi thinking mode"
+              />
+            </div>
+          </article>
+
+          <article className="settings-field">
+            <span className="settings-field-label">Context</span>
+            <div className="settings-number-row">
+              <CustomSelect
+                value={contextChoice}
+                options={[
+                  ...TOKEN_STEP_OPTIONS.map((option) => ({
+                    value: option.value,
+                    label: option.label,
+                  })),
+                  { value: "custom", label: "custom" },
+                ]}
+                onChange={(value) => {
+                  if (value === "custom") {
+                    return;
+                  }
+                  setSettings({
+                    ...settings,
+                    context: Number(value),
+                  });
+                }}
+                ariaLabel="Izaberi context velicinu"
+              />
+              {contextChoice === "custom" ? (
+                <input
+                  type="number"
+                  value={settings.context}
+                  aria-label="Unesi context velicinu"
+                  onChange={(event) =>
+                    setSettings({
+                      ...settings,
+                      context: Number(event.target.value || 0),
+                    })
+                  }
+                />
+              ) : null}
+            </div>
+          </article>
+
+          <article className="settings-field">
+            <span className="settings-field-label">Output tokens</span>
+            <div className="settings-number-row">
+              <CustomSelect
+                value={outputTokensChoice}
+                options={[
+                  ...TOKEN_STEP_OPTIONS.map((option) => ({
+                    value: option.value,
+                    label: option.label,
+                  })),
+                  { value: "custom", label: "custom" },
+                ]}
+                onChange={(value) => {
+                  if (value === "custom") {
+                    return;
+                  }
+                  setSettings({
+                    ...settings,
+                    outputTokens: Number(value),
+                  });
+                }}
+                ariaLabel="Izaberi output token limit"
+              />
+              {outputTokensChoice === "custom" ? (
+                <input
+                  type="number"
+                  value={settings.outputTokens}
+                  aria-label="Unesi output token limit"
+                  onChange={(event) =>
+                    setSettings({
+                      ...settings,
+                      outputTokens: Number(event.target.value || 0),
+                    })
+                  }
+                />
+              ) : null}
+            </div>
+          </article>
+
+          <article className="settings-field settings-field-wide">
+            <span className="settings-field-label">Working directory</span>
+            <div className="settings-path-row">
+              <input
+                className="settings-path-input"
+                value={settings.workingDirectory}
+                onChange={(event) =>
+                  setSettings({
+                    ...settings,
+                    workingDirectory: event.target.value,
+                  })
+                }
+              />
+              <button
+                type="button"
+                onClick={() =>
+                  pickWorkingDirectory().then((payload) => {
+                    if (payload.path) {
+                      setSettings({
+                        ...settings,
+                        workingDirectory: payload.path,
+                      });
+                    }
+                  })
+                }
+              >
+                Browse
+              </button>
+            </div>
+          </article>
+        </div>
+        <div className="inline-actions settings-footer-actions">
           <button
             type="button"
             onClick={async () => {
@@ -289,7 +540,7 @@ export function SettingsPage() {
           </button>
         </div>
         <p className="helper-text">
-          Dropdown izbori i ostale glavne promene postaju stvarno aktivni tek kada kliknes Save model settings.
+          Glavne promene postaju stvarno aktivne tek kada kliknes Save model settings.
         </p>
       </section>
 
@@ -302,7 +553,7 @@ export function SettingsPage() {
           juris sto duzi context.
         </p>
         <div className="model-list">
-          {allPresets.map((preset) => (
+          {allTurboPresets.map((preset) => (
             <article className="model-item" key={preset.id}>
               <div className="model-item-header">
                 <div>
@@ -479,6 +730,6 @@ export function SettingsPage() {
         </div>
       </section>
       <ActionResultPanel result={result} />
-    </>
+    </div>
   );
 }

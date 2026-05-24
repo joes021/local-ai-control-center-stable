@@ -18,6 +18,7 @@ import type {
   OpenCodeStepSchemaPayload,
   OpenCodeStepValues,
   ServerStatusPayload,
+  SettingsProfileValues,
   SettingsPayload,
   StatusPayload,
   TurboQuantConfig,
@@ -181,6 +182,17 @@ export async function fetchSettings(): Promise<SettingsPayload> {
 
 export async function applySettings(payload: SettingsPayload): Promise<ActionResult> {
   return postJson("/api/settings/apply", payload);
+}
+
+export async function saveSettingsProfile(payload: {
+  name: string;
+  settings: SettingsProfileValues;
+}): Promise<ActionResult> {
+  return postJson("/api/settings/profiles/save", payload);
+}
+
+export async function deleteSettingsProfile(profileId: string): Promise<ActionResult> {
+  return postJson("/api/settings/profiles/delete", { profileId });
 }
 
 export async function fetchTurboQuantSchema(): Promise<TurboQuantSchemaPayload> {

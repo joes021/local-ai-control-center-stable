@@ -27,3 +27,43 @@ def test_control_center_serves_built_frontend_asset():
     asset_response = client.get(asset_path)
 
     assert asset_response.status_code == 200
+
+
+def test_packaged_settings_ui_uses_numeric_preset_dropdowns_with_custom_inputs():
+    dist_root = Path(
+        "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
+    )
+    js_assets = list((dist_root / "assets").glob("index-*.js"))
+
+    assert js_assets
+    bundled_text = "\n".join(path.read_text(encoding="utf-8") for path in js_assets)
+
+    assert "Context" in bundled_text
+    assert "Output tokens" in bundled_text
+    assert "Izaberi context velicinu" in bundled_text
+    assert "Izaberi output token limit" in bundled_text
+    assert "Unesi context velicinu" in bundled_text
+    assert "Unesi output token limit" in bundled_text
+    assert "Standardni korak:" not in bundled_text
+
+
+def test_settings_page_source_shows_custom_numeric_fields_conditionally():
+    source = Path("frontend/src/pages/SettingsPage.tsx").read_text(encoding="utf-8")
+
+    assert "const contextChoice = resolveTokenChoice(settings.context);" in source
+    assert 'contextChoice === "custom" ? (' in source
+    assert "const outputTokensChoice = resolveTokenChoice(settings.outputTokens);" in source
+    assert 'outputTokensChoice === "custom" ? (' in source
+
+
+def test_packaged_settings_action_and_browse_buttons_use_panel_button_theme():
+    dist_root = Path(
+        "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
+    )
+    css_assets = list((dist_root / "assets").glob("index-*.css"))
+
+    assert css_assets
+    bundled_css = "\n".join(path.read_text(encoding="utf-8") for path in css_assets)
+
+    assert ".settings-action-row button" in bundled_css
+    assert ".settings-path-row button" in bundled_css

@@ -109,3 +109,11 @@ def _ensure_runtime_ready_after_panel_boot() -> None:
     summary = str(result.get("summary", "") or "Runtime autostart completed.")
     with log_path.open("a", encoding="utf-8") as handle:
         handle.write(f"{summary}\n")
+
+
+def _module_main(argv: list[str] | None = None) -> int:
+    return run_control_center_panel_entry(argv)
+
+
+if __name__ == "__main__":
+    raise SystemExit(_module_main())
