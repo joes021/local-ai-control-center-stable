@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 from local_ai_control_center_installer.control_center_backend.main import app
 from local_ai_control_center_installer.control_center_backend.services.updates_service import (
     load_update_progress_payload,
+    _launch_installer,
     run_update_install_worker,
 )
 from local_ai_control_center_installer.downloads import DownloadProgress
@@ -310,3 +311,45 @@ def test_run_update_install_worker_writes_error_state_on_download_failure(
     assert progress["status"] == "error"
     assert progress["isActive"] is False
     assert "network failed" in progress["message"]
+
+
+def test_launch_installer_opens_visible_console_window(
+    tmp_path: Path,
+    monkeypatch,
+):
+    install_root = tmp_path / "install-root"
+    _write_install_report(install_root, "0.4.4")
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+
+    installer_path = install_root / "updates" / "LocalAIControlCenterSetup-v0.4.13.exe"
+    installer_path.parent.mkdir(parents=True, exist_ok=True)
+    installer_path.write_bytes(b"exe")
+
+    captured: dict[str, object] = {}
+
+    def fake_popen(command, **kwargs):
+        captured["command"] = command
+        captured["kwargs"] = kwargs
+        class FakeProcess:
+            pid = 4567
+        return FakeProcess()
+
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.updates_service.subprocess.Popen",
+        fake_popen,
+    )
+
+    from local_ai_control_center_installer.control_center_backend.config import get_config
+
+    _launch_installer(installer_path, get_config())
+
+    assert captured["command"] == [str(installer_path)]
+    kwargs = captured["kwargs"]
+    assert kwargs["cwd"] == str(installer_path.parent)
+    assert kwargs["env"]["LACC_INSTALLER_PREFILL_ROOT"] == str(install_root.resolve())
+    assert kwargs["env"]["LOCAL_AI_CONTROL_CENTER_INSTALLER_PREFILL_ROOT"] == str(
+        install_root.resolve()
+    )
+    assert "stdin" not in kwargs
+    assert "stdout" not in kwargs
+    assert "stderr" not in kwargs

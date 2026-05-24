@@ -632,9 +632,6 @@ def _launch_installer(installer_path: Path, config: ControlCenterConfig) -> None
         [str(installer_path)],
         cwd=str(installer_path.parent),
         env=environment,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        stdin=subprocess.DEVNULL,
         close_fds=False,
         creationflags=new_console_subprocess_creationflags(),
     )
