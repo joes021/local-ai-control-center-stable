@@ -11,12 +11,20 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 src_root="${repo_root}/src"
 
 python_command=""
+python_candidates=(
+  python3.13
+  python3.12
+  python3.11
+  python3
+  python
+)
 
-if command -v python3 >/dev/null 2>&1 && test_python_requirement "$(command -v python3)"; then
-  python_command="$(command -v python3)"
-elif command -v python >/dev/null 2>&1 && test_python_requirement "$(command -v python)"; then
-  python_command="$(command -v python)"
-fi
+for candidate in "${python_candidates[@]}"; do
+  if command -v "${candidate}" >/dev/null 2>&1 && test_python_requirement "$(command -v "${candidate}")"; then
+    python_command="$(command -v "${candidate}")"
+    break
+  fi
+done
 
 if [[ -z "${python_command}" ]]; then
   echo "Python 3.11+ was not found on PATH." >&2
