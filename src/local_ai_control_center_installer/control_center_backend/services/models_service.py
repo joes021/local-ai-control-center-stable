@@ -813,20 +813,30 @@ def _restore_file_snapshot(path: Path, snapshot: tuple[bool, str]) -> None:
 
 def _spawn_model_download_worker(model_id: str, config: ControlCenterConfig):
     environment = os.environ.copy()
-    src_root = Path(__file__).resolve().parents[3]
-    existing_python_path = environment.get("PYTHONPATH", "").strip()
-    environment["PYTHONPATH"] = (
-        f"{src_root};{existing_python_path}" if existing_python_path else str(src_root)
-    )
-    command = [
-        sys.executable,
-        "-m",
-        "local_ai_control_center_installer.control_center_backend.workers.model_download_worker",
-        "--install-root",
-        str(config.install_root),
-        "--model-id",
-        model_id,
-    ]
+    if bool(getattr(sys, "frozen", False)):
+        command = [
+            sys.executable,
+            "--model-download-worker",
+            "--install-root",
+            str(config.install_root),
+            "--model-id",
+            model_id,
+        ]
+    else:
+        src_root = Path(__file__).resolve().parents[3]
+        existing_python_path = environment.get("PYTHONPATH", "").strip()
+        environment["PYTHONPATH"] = (
+            f"{src_root};{existing_python_path}" if existing_python_path else str(src_root)
+        )
+        command = [
+            sys.executable,
+            "-m",
+            "local_ai_control_center_installer.control_center_backend.workers.model_download_worker",
+            "--install-root",
+            str(config.install_root),
+            "--model-id",
+            model_id,
+        ]
     creation_flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
     return subprocess.Popen(
         command,

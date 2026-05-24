@@ -373,6 +373,71 @@ def test_browser_download_route_surfaces_worker_failure_in_progress_payload(
     assert "simulated browser download failure" in action_status_payload["summary"]
 
 
+def test_model_download_route_uses_frozen_worker_flag_when_running_from_panel_exe(
+    tmp_path: Path,
+    monkeypatch,
+):
+    install_root = tmp_path / "install-root"
+    _write_active_model_config(
+        install_root,
+        model_id="recommended-6gb",
+        model_path=install_root / "models" / "recommended-6gb" / "gemma-4-E4B-it-Q4_K_M.gguf",
+    )
+    _write_runtime_endpoint_config(
+        install_root / "config" / "runtime-endpoint.json",
+        port=39281,
+    )
+    _write_custom_registry(
+        install_root,
+        [
+            {
+                "id": "huggingface-qwen-qwen3-0-6b-gguf-qwen3-0-6b-q8-0",
+                "label": "Qwen 0.6B",
+                "filename": "Qwen3-0.6B-Q8_0.gguf",
+                "family": "Qwen",
+                "source": "huggingface",
+                "repo": "Qwen/Qwen3-0.6B-GGUF",
+                "download_url": "https://huggingface.co/Qwen/Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-Q8_0.gguf",
+            }
+        ],
+    )
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+
+    captured: dict[str, object] = {}
+
+    class FakeProcess:
+        pid = 9915
+
+    def fake_popen(command, **kwargs):
+        captured["command"] = command
+        captured["kwargs"] = kwargs
+        return FakeProcess()
+
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.models_service.subprocess.Popen",
+        fake_popen,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.models_service.sys.frozen",
+        True,
+        raising=False,
+    )
+
+    client = TestClient(app)
+    response = client.post(
+        "/api/models/download",
+        json={"modelId": "huggingface-qwen-qwen3-0-6b-gguf-qwen3-0-6b-q8-0"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "accepted"
+    command = captured["command"]
+    assert "-m" not in command
+    assert "--model-download-worker" in command
+    assert "--install-root" in command
+    assert "--model-id" in command
+
+
 def test_download_progress_marks_stale_active_snapshot_as_error(tmp_path: Path, monkeypatch):
     install_root = tmp_path / "install-root"
     progress_path = install_root / "config" / "control-center" / "model-download-progress.json"

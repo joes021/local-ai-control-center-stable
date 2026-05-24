@@ -63,7 +63,20 @@ try {
         Remove-Item -Recurse -Force $buildRoot
     }
 
-    & $PythonExe -m pip install .[release]
+    $releaseRequirementsOutput = & $PythonExe -c "from pathlib import Path; import tomllib; data = tomllib.loads(Path('pyproject.toml').read_text(encoding='utf-8')); requirements = list(data['project'].get('dependencies', [])) + list(data['project'].get('optional-dependencies', {}).get('release', [])); print('\n'.join(requirements))"
+    if ($LASTEXITCODE -ne 0) {
+        throw "Failed to resolve release build dependencies from pyproject.toml."
+    }
+    $releaseRequirements = @(
+        $releaseRequirementsOutput |
+            Where-Object { $_ -and $_.Trim() } |
+            ForEach-Object { $_.Trim() }
+    )
+    if ($releaseRequirements.Count -eq 0) {
+        throw "No release build dependencies were resolved from pyproject.toml."
+    }
+
+    & $PythonExe -m pip install @releaseRequirements
     if ($LASTEXITCODE -ne 0) {
         throw "Failed to install release build dependencies."
     }

@@ -14,7 +14,7 @@ Primary end-user artifact:
 
 Current release:
 
-- [LocalAIControlCenterSetup-v0.4.4.exe](https://github.com/joes021/local-ai-control-center-stable/releases/download/v0.4.4/LocalAIControlCenterSetup-v0.4.4.exe)
+- [LocalAIControlCenterSetup-v0.4.6.exe](https://github.com/joes021/local-ai-control-center-stable/releases/download/v0.4.6/LocalAIControlCenterSetup-v0.4.6.exe)
 
 The Windows product is intended to be launched with a double-click. No ZIP extraction and no manual PowerShell command are required for the packaged installer path.
 
@@ -152,6 +152,7 @@ This repository does not yet claim:
 - Linux parity
 - a finished Ubuntu product path
 - every possible GGUF runtime variant as production-safe by default
+- `MTP` GGUF variants as supported active runtime models in this Windows product
 
 ## Working Principle
 

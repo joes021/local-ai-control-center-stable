@@ -140,6 +140,54 @@ def test_updates_install_route_spawns_worker_and_writes_starting_progress(
     assert "--action-id" in command
 
 
+def test_updates_install_route_uses_frozen_worker_flag_when_running_from_panel_exe(
+    tmp_path: Path,
+    monkeypatch,
+):
+    install_root = tmp_path / "install-root"
+    _write_install_report(install_root, "0.4.4")
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.updates_service.fetch_latest_release_metadata",
+        lambda: _latest_release("0.4.6"),
+    )
+
+    captured: dict[str, object] = {}
+
+    class FakeProcess:
+        pid = 4322
+
+    def fake_popen(command, **kwargs):
+        captured["command"] = command
+        captured["kwargs"] = kwargs
+        return FakeProcess()
+
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.updates_service.subprocess.Popen",
+        fake_popen,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.updates_service._is_process_alive",
+        lambda pid: True,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.updates_service.sys.frozen",
+        True,
+        raising=False,
+    )
+
+    client = TestClient(app)
+    response = client.post("/api/updates/install")
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "accepted"
+    command = captured["command"]
+    assert "-m" not in command
+    assert "--update-install-worker" in command
+    assert "--install-root" in command
+    assert "--action-id" in command
+
+
 def test_updates_progress_route_marks_dead_active_worker_as_error(
     tmp_path: Path,
     monkeypatch,

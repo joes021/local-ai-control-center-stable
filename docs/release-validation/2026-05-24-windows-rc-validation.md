@@ -7,13 +7,14 @@ Ova beleska hvata trenutni Windows release-candidate validation pass za installe
 ## Code and build evidence
 
 - `python -m pytest -q`
-  - rezultat: `365 passed`
+  - rezultat: `369 passed`
 - `python -m build`
   - uspesni `sdist` i `wheel`
 - `packaging/build_windows_installer.ps1`
   - uspesan build installera
-  - izlaz: `dist/LocalAIControlCenterSetup-v0.4.5.exe`
+  - izlaz: `dist/LocalAIControlCenterSetup-v0.4.6.exe`
   - provereno i kada `build/` vec postoji od prethodnog `python -m build`
+  - provereno i kada frontend build, `python -m build`, pa tek onda installer build rade jedan za drugim
 
 ## Live workstation validation
 
@@ -118,35 +119,50 @@ Ovaj deo je posebno hardenovan zato sto je raniji validation pass otkrio realan 
 
 ### Browser direct download path
 
-Live provereno preko `POST /api/browser/catalog/download` za vec prisutni model:
-- `unsloth/Qwen3.6-35B-A3B-GGUF`
-- `Qwen3.6-35B-A3B-UD-IQ2_XXS.gguf`
+Live provereno preko `POST /api/browser/catalog/download` za mali stvarni remote GGUF:
+- `mradermacher/GRM-2.6-Plus-i1-GGUF`
+- `GRM-2.6-Plus.imatrix.gguf`
 
 Rezultat:
-- `status = ok`
-- `summary = Model je vec prisutan na disku.`
+- `status = accepted`
+- worker PID je dodeljen iz spakovanog panela
+- `GET /api/models/download-progress` je isao kroz:
+  - `downloading`
+  - realan percent/speed/ETA snapshot
+  - `completed`
 
-Time je potvrdjen installer-managed Browser download endpoint put i u live proizvodu, bez novog visegigabajtnog transfera.
+Time je potvrdjen installer-managed Browser download endpoint put i u live proizvodu, sa stvarnim frozen worker launch-om i zivim progress snapshotima.
 
 ### Local model import path
 
-Live provereno sa temp `.gguf` fajlom:
+Live provereno sa stvarnim malim `.gguf` fajlom kopiranim van install root-a:
 - `POST /api/models/add-local`
   - rezultat: `ok`
   - model je dodat u lokalni katalog
-- zatim `POST /api/models/delete`
-  - rezultat: `ok`
-  - temp unos je uklonjen iz kataloga
+  - ciljna putanja:
+    - `C:\Users\<user>\AppData\Local\Temp\lacc-rc-fresh-v0.4.5\models\local\GRM-2.6-Plus.imatrix.gguf`
 
-Time je potvrdjen `add-local -> catalog visible -> delete` lifecycle put.
+Time je potvrdjen `add-local -> copy into managed models/local -> catalog visible` lifecycle put.
 
 ### Update path
 
 - `GET /api/updates/check`
   - rezultat: `ok`
-  - summary: `Vec koristis najnoviju verziju (0.4.5).`
+  - summary: `Dostupna je nova verzija 0.4.5 (trenutno 0.4.4).`
+- `POST /api/updates/install`
+  - rezultat: `accepted`
+  - dodeljen je frozen worker PID
+- `GET /api/updates/progress`
+  - potvrden stvarni tok:
+    - `downloading`
+    - `completed`
+    - `phase = installer-launched`
+  - finalna poruka:
+    - `Installer je pokrenut. Prati installer prozor da bi update bio zavrsen.`
 
-Ovim je potvrdjen live `check-updates` path za trenutno "up to date" stanje.
+Ovim je zatvoren prethodni RC blocker:
+- frozen panel vise ne pokusava `python -m ...` worker launch za update
+- update worker iz spakovanog `.exe` sada realno preuzima installer i lansira ga
 
 ## Supported truth at this checkpoint
 
@@ -158,11 +174,11 @@ Ovim je potvrdjen live `check-updates` path za trenutno "up to date" stanje.
 - Runtime switch `llama.cpp <-> TurboQuant`: supported
 - OpenCode launch against managed runtime: supported
 - Browser catalog direct download route: supported
-- Local model import/delete: supported
+- Local model import path: supported
 - Update check route: supported
+- Update download + installer handoff route from frozen panel: supported
 
 ## Still explicit product boundaries
 
 - `MTP` modeli i dalje nisu podrzani kao aktivni runtime model i moraju ostati jasno blokirani.
-- Ovaj validation pass nije jos pokrivao pravi "new-version installer download + handoff" update tok, jer je validiran `up-to-date` put na trenutnoj verziji.
 - Ovaj validation pass nije jos radio poseban drugi fizicki Windows host; trenutni RC signal je zasnovan na clean-machine-style proveri iz ove workstation sesije.

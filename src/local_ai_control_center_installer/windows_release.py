@@ -9,6 +9,12 @@ from local_ai_control_center_installer.control_center_panel import (
 from local_ai_control_center_installer.control_center_uninstall import (
     run_control_center_uninstall_entry,
 )
+from local_ai_control_center_installer.control_center_backend.workers.model_download_worker import (
+    run_model_download_worker_entry,
+)
+from local_ai_control_center_installer.control_center_backend.workers.update_install_worker import (
+    run_update_install_worker_entry,
+)
 from local_ai_control_center_installer.main import main
 
 
@@ -26,6 +32,8 @@ def run_windows_installer_entry(
     main_fn: Callable[[], int] = main,
     panel_main_fn: Callable[[list[str] | None], int] = run_control_center_panel_entry,
     uninstall_main_fn: Callable[[list[str] | None], int] = run_control_center_uninstall_entry,
+    update_worker_main_fn: Callable[[list[str] | None], int] = run_update_install_worker_entry,
+    model_download_worker_main_fn: Callable[[list[str] | None], int] = run_model_download_worker_entry,
     pause_fn: Callable[[str], str] = input,
     output_fn: Callable[[str], None] = print,
     frozen: bool | None = None,
@@ -40,6 +48,12 @@ def run_windows_installer_entry(
     if "--uninstall" in argv:
         uninstall_index = argv.index("--uninstall")
         return uninstall_main_fn(argv[uninstall_index + 1 :])
+    if "--update-install-worker" in argv:
+        update_worker_index = argv.index("--update-install-worker")
+        return update_worker_main_fn(argv[update_worker_index + 1 :])
+    if "--model-download-worker" in argv:
+        model_download_worker_index = argv.index("--model-download-worker")
+        return model_download_worker_main_fn(argv[model_download_worker_index + 1 :])
     try:
         return main_fn()
     finally:

@@ -94,3 +94,51 @@ def test_run_windows_installer_entry_dispatches_uninstall_mode_without_pause():
     assert exit_code == 0
     assert calls == [("uninstall", ["--install-root", "C:\\AI"])]
     assert prompts == []
+
+
+def test_run_windows_installer_entry_dispatches_update_worker_mode_without_pause():
+    calls: list[tuple[str, list[str] | None]] = []
+    prompts: list[str] = []
+
+    exit_code = run_windows_installer_entry(
+        main_fn=lambda: 1,
+        update_worker_main_fn=lambda argv=None: calls.append(("update", argv)) or 0,
+        argv=[
+            "LocalAIControlCenterPanel.exe",
+            "--update-install-worker",
+            "--install-root",
+            "C:\\AI",
+            "--action-id",
+            "update-123",
+        ],
+        pause_fn=lambda prompt: prompts.append(prompt) or "",
+        frozen=True,
+    )
+
+    assert exit_code == 0
+    assert calls == [("update", ["--install-root", "C:\\AI", "--action-id", "update-123"])]
+    assert prompts == []
+
+
+def test_run_windows_installer_entry_dispatches_model_download_worker_mode_without_pause():
+    calls: list[tuple[str, list[str] | None]] = []
+    prompts: list[str] = []
+
+    exit_code = run_windows_installer_entry(
+        main_fn=lambda: 1,
+        model_download_worker_main_fn=lambda argv=None: calls.append(("download", argv)) or 0,
+        argv=[
+            "LocalAIControlCenterPanel.exe",
+            "--model-download-worker",
+            "--install-root",
+            "C:\\AI",
+            "--model-id",
+            "test-model",
+        ],
+        pause_fn=lambda prompt: prompts.append(prompt) or "",
+        frozen=True,
+    )
+
+    assert exit_code == 0
+    assert calls == [("download", ["--install-root", "C:\\AI", "--model-id", "test-model"])]
+    assert prompts == []
