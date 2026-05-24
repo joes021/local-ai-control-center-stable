@@ -79,6 +79,26 @@ def test_build_default_session_prefills_install_root_from_environment(
     assert session.existing_install_detected is True
 
 
+def test_build_default_session_uses_ubuntu_default_install_root_when_running_on_linux(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    install_root = tmp_path / "local-ai-control-center"
+    install_root.mkdir()
+    monkeypatch.setattr(main_module.platform_module, "system", lambda: "Linux")
+    monkeypatch.setattr(
+        main_module,
+        "default_install_root_for_platform",
+        lambda platform=None: install_root,
+    )
+
+    session = main_module.build_default_session()
+
+    assert session.platform == "linux"
+    assert session.install_root == str(install_root.resolve())
+    assert session.existing_install_detected is True
+
+
 @pytest.mark.parametrize(
     ("side_effect", "expected_message"),
     [

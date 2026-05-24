@@ -7,6 +7,9 @@ import os
 import subprocess
 import sys
 
+WINDOWS_INSTALL_ROOT_DIRNAME = "LocalAIControlCenter"
+LINUX_INSTALL_ROOT_DIRNAME = "local-ai-control-center"
+
 
 @dataclass(frozen=True)
 class WorkerLaunchSpec:
@@ -46,6 +49,18 @@ def new_console_subprocess_creationflags(platform: str | None = None) -> int:
     if not is_windows_platform(platform):
         return 0
     return getattr(subprocess, "CREATE_NEW_CONSOLE", 0)
+
+
+def default_install_root_for_platform(
+    platform: str | None = None,
+    *,
+    home_path: Path | None = None,
+) -> Path:
+    normalized_platform = (platform or sys.platform).strip().lower()
+    resolved_home = Path.home() if home_path is None else Path(home_path)
+    if normalized_platform == "linux":
+        return resolved_home / LINUX_INSTALL_ROOT_DIRNAME
+    return resolved_home / WINDOWS_INSTALL_ROOT_DIRNAME
 
 
 def prepend_pythonpath(

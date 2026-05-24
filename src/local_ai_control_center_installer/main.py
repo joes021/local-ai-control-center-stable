@@ -6,6 +6,9 @@ import platform as platform_module
 import sys
 
 import local_ai_control_center_installer.defaults as defaults_module
+from local_ai_control_center_installer.platform_paths import (
+    default_install_root_for_platform,
+)
 from local_ai_control_center_installer.prompts import (
     PromptCancelledError,
     StarterModelCatalogError,
@@ -18,6 +21,7 @@ ReportStep = Callable[[InstallerSession], None]
 
 
 def build_default_session() -> InstallerSession:
+    platform_name = platform_module.system().lower()
     install_root = (
         os.environ.get("LACC_INSTALLER_PREFILL_ROOT")
         or os.environ.get("LOCAL_AI_CONTROL_CENTER_INSTALLER_PREFILL_ROOT")
@@ -28,8 +32,13 @@ def build_default_session() -> InstallerSession:
     if install_root:
         normalized_install_root = str(Path(install_root).expanduser().resolve())
         existing_install_detected = Path(normalized_install_root).exists()
+    elif platform_name == "linux":
+        normalized_install_root = str(
+            default_install_root_for_platform(platform=platform_name).expanduser().resolve()
+        )
+        existing_install_detected = Path(normalized_install_root).exists()
     return InstallerSession(
-        platform=platform_module.system().lower(),
+        platform=platform_name,
         started_at=datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
         install_root=normalized_install_root,
         existing_install_detected=existing_install_detected,

@@ -1,13 +1,13 @@
 from copy import deepcopy
 from pathlib import Path
 
+from .platform_paths import default_install_root_for_platform
 from .runtime_manifest import (
     list_prompt_starter_models,
     load_runtime_manifest,
     resolve_requested_starter_model,
 )
 
-DEFAULT_INSTALL_ROOT = str(Path.home() / "LocalAIControlCenter")
 UTF8_BOM_MOJIBAKE = "\u00ef\u00bb\u00bf"
 
 
@@ -183,7 +183,9 @@ def collect_installer_answers(session, input_fn=input, output_fn=print):
     else:
         draft_session.install_mode = "fresh"
 
-    default_install_root = draft_session.install_root or DEFAULT_INSTALL_ROOT
+    default_install_root = draft_session.install_root or str(
+        default_install_root_for_platform(platform=draft_session.platform).expanduser()
+    )
     draft_session.install_root = (
         normalize_prompt_input(
             input_fn(

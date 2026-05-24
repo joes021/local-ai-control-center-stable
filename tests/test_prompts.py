@@ -1,5 +1,6 @@
 import pytest
 
+import local_ai_control_center_installer.prompts as prompts_module
 from local_ai_control_center_installer.prompts import (
     PromptCancelledError,
     StarterModelCatalogError,
@@ -216,6 +217,29 @@ def test_collect_installer_answers_shows_compact_step_counts_when_no_existing_in
     assert prompts[3].startswith("[4/6] Attempt TurboQuant")
     assert prompts[4].startswith("[5/6] Additional model paths")
     assert prompts[5].startswith("[6/6] Confirm choices")
+
+
+def test_collect_installer_answers_uses_ubuntu_default_install_root_for_linux_session(
+    tmp_path,
+    monkeypatch,
+):
+    prompts = []
+    input_fn = make_capturing_input(["", "1", "1", "1", "", "1"], prompts)
+    expected_root = tmp_path / "local-ai-control-center"
+
+    monkeypatch.setattr(
+        prompts_module,
+        "default_install_root_for_platform",
+        lambda platform=None: expected_root,
+    )
+
+    updated = collect_installer_answers(
+        InstallerSession(platform="linux"),
+        input_fn=input_fn,
+    )
+
+    assert prompts[0].startswith(f"[1/6] Install root (default: {expected_root})")
+    assert updated.install_root == str(expected_root)
 
 
 def test_collect_installer_answers_retries_invalid_confirmation_then_confirms():

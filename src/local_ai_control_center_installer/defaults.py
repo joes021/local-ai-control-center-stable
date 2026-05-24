@@ -88,7 +88,7 @@ def default_scan_dependencies(session: InstallerSession) -> InstallerSession:
     _attempt_missing_dependency_installs(
         session,
         probes=probes,
-        install_strategies=_build_dependency_install_strategies(),
+        install_strategies=_build_dependency_install_strategies(session.platform),
     )
     status = "ready" if all(
         dependency.status == "ready"
@@ -432,7 +432,11 @@ def _attempt_missing_dependency_installs(
             print(f"Automatic install failed: {record.name}")
 
 
-def _build_dependency_install_strategies() -> dict[str, callable]:
+def _build_dependency_install_strategies(
+    platform: str | None = None,
+) -> dict[str, callable]:
+    if (platform or "").strip().lower() == "linux":
+        return {}
     return {
         "git": _install_git_dependency,
         "node": _install_node_dependency,
