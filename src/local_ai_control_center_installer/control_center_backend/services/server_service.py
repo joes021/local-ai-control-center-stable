@@ -65,6 +65,13 @@ def load_server_status(
     elif has_warning:
         warning_summary = reason
     warning_severity = "warning" if has_warning else ""
+    can_start, start_blocked_reason = _build_start_capability(runtime_state)
+    can_open_web = status in {"started", "warming"}
+    open_web_blocked_reason = (
+        "" if can_open_web else "Runtime web nije spreman dok server nije pokrenut ili health ne odgovara."
+    )
+    can_stop = pid is not None or status in {"started", "warming", "degraded"}
+    stop_blocked_reason = "" if can_stop else "Runtime server je vec zaustavljen."
 
     return {
         "status": status,
@@ -90,6 +97,12 @@ def load_server_status(
         "hasWarning": has_warning,
         "warningSeverity": warning_severity,
         "warningSummary": warning_summary,
+        "canStart": can_start,
+        "startBlockedReason": start_blocked_reason,
+        "canStop": can_stop,
+        "stopBlockedReason": stop_blocked_reason,
+        "canOpenWeb": can_open_web,
+        "openWebBlockedReason": open_web_blocked_reason,
     }
 
 
@@ -383,6 +396,21 @@ def _positive_int_or_none(value: object) -> int | None:
     except (TypeError, ValueError):
         return None
     return parsed if parsed > 0 else None
+
+
+def _build_start_capability(runtime_state: dict[str, object]) -> tuple[bool, str]:
+    binary_path = Path(str(runtime_state.get("active_binary", "") or ""))
+    if not binary_path.is_file():
+        return False, "Aktivni runtime binar nije pronadjen."
+    model_path = Path(str(runtime_state.get("active_model_path", "") or ""))
+    if not model_path.is_file():
+        return False, "Aktivni model nije pronadjen."
+    if not bool(runtime_state.get("active_model_supported", True)):
+        return (
+            False,
+            str(runtime_state.get("active_model_reason", "") or "Aktivni model nije podrzan za runtime start."),
+        )
+    return True, ""
 
 
 def _stop_orphaned_runtime_processes(install_root: Path) -> bool:

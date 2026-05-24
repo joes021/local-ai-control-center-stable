@@ -47,6 +47,12 @@ def load_opencode_status_payload(
         runtime_connected=runtime_connected,
         runtime_reason=str(runtime_state.get("runtime_live_reason", "") or ""),
     )
+    can_open = executable_path.is_file() and config_path.is_file()
+    open_action_label, open_blocked_reason = _build_open_action_contract(
+        available=executable_path.is_file(),
+        config_exists=config_path.is_file(),
+        session_state=session_state,
+    )
 
     return {
         "available": executable_path.is_file(),
@@ -58,6 +64,9 @@ def load_opencode_status_payload(
         "runtimeLiveReason": str(runtime_state.get("runtime_live_reason", "") or ""),
         "sessionState": session_state,
         "sessionSummary": session_summary,
+        "canOpen": can_open,
+        "openActionLabel": open_action_label,
+        "openBlockedReason": open_blocked_reason,
         "configExists": config_path.is_file(),
         "configPath": str(config_path),
         "configDir": str(config_path.parent),
@@ -430,3 +439,20 @@ def _build_session_state(
         return "runtime-ready", "Runtime je spreman za novi OpenCode session."
     reason = runtime_reason or "Runtime trenutno nije pokrenut."
     return "idle", f"OpenCode je dostupan, ali backend jos nije spreman. {reason}"
+
+
+def _build_open_action_contract(
+    *,
+    available: bool,
+    config_exists: bool,
+    session_state: str,
+) -> tuple[str, str]:
+    if not available:
+        return "OpenCode nije instaliran", "OpenCode executable nije pronadjen."
+    if not config_exists:
+        return "OpenCode config nedostaje", "OpenCode managed config nije pronadjen."
+    if session_state == "app-only":
+        return "Pripremi backend za postojeci OpenCode", ""
+    if session_state == "connected":
+        return "OpenCode je vec otvoren", ""
+    return "Open OpenCode", ""

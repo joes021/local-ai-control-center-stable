@@ -48,6 +48,9 @@ def test_opencode_status_route_reports_packaged_installation(
     assert payload["configPath"].endswith("config\\opencode\\managed-config.json")
     assert payload["executablePath"].endswith("tools\\opencode\\opencode.exe")
     assert payload["profile"] == "balanced"
+    assert payload["canOpen"] is True
+    assert payload["openActionLabel"] == "Open OpenCode"
+    assert payload["openBlockedReason"] == ""
 
 
 def test_opencode_status_route_reports_app_only_when_runtime_is_not_connected(
@@ -85,6 +88,29 @@ def test_opencode_status_route_reports_app_only_when_runtime_is_not_connected(
     assert payload["runtimeConnected"] is False
     assert payload["sessionState"] == "app-only"
     assert "nije pokrenut" in payload["sessionSummary"].lower()
+    assert payload["canOpen"] is True
+    assert "Pripremi backend" in payload["openActionLabel"]
+
+
+def test_opencode_status_route_reports_blocked_open_when_executable_is_missing(
+    tmp_path: Path,
+    monkeypatch,
+):
+    install_root = tmp_path / "install-root"
+    config_root = install_root / "config" / "opencode"
+    config_root.mkdir(parents=True, exist_ok=True)
+    (config_root / "managed-config.json").write_text("{}", encoding="utf-8")
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+
+    client = TestClient(app)
+    response = client.get("/api/opencode/status")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["available"] is False
+    assert payload["canOpen"] is False
+    assert payload["openActionLabel"] == "OpenCode nije instaliran"
+    assert "nije pronadjen" in payload["openBlockedReason"].lower()
 
 
 def test_opencode_status_route_ignores_instances_from_other_install_roots(

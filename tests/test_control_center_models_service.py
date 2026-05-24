@@ -1,9 +1,14 @@
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi.testclient import TestClient
 
 from local_ai_control_center_installer.control_center_backend.main import app
+from local_ai_control_center_installer.control_center_backend.config import get_config
+from local_ai_control_center_installer.control_center_backend.services.models_service import (
+    _write_download_progress,
+)
 from local_ai_control_center_installer.runtime_bootstrap import (
     _write_runtime_endpoint_config,
 )
@@ -414,3 +419,219 @@ def test_activate_model_route_rolls_back_when_runtime_restart_fails(
     )
     assert active_model_payload["model_id"] == "recommended-6gb"
     assert active_model_payload["model_path"] == str(curated_model_path)
+
+
+def test_models_route_marks_remote_rows_as_downloadable_until_file_exists(
+    tmp_path: Path,
+    monkeypatch,
+):
+    install_root = tmp_path / "install-root"
+    curated_model_path = (
+        install_root / "models" / "recommended-6gb" / "gemma-4-E4B-it-Q4_K_M.gguf"
+    )
+    _write_active_model_config(
+        install_root,
+        model_id="recommended-6gb",
+        model_path=curated_model_path,
+    )
+    _write_runtime_endpoint_config(
+        install_root / "config" / "runtime-endpoint.json",
+        port=39281,
+    )
+    _write_custom_registry(
+        install_root,
+        [
+            {
+                "id": "huggingface-qwen-qwen3-0-6b-gguf-qwen3-0-6b-q8-0",
+                "label": "Qwen 0.6B",
+                "filename": "Qwen3-0.6B-Q8_0.gguf",
+                "family": "Qwen",
+                "source": "huggingface",
+                "repo": "Qwen/Qwen3-0.6B-GGUF",
+                "download_url": "https://huggingface.co/Qwen/Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-Q8_0.gguf",
+            }
+        ],
+    )
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+
+    client = TestClient(app)
+    response = client.get("/api/models")
+
+    assert response.status_code == 200
+    payload = response.json()
+    model = payload["huggingFace"][0]
+    assert model["installed"] is False
+    assert model["supportsActivation"] is False
+    assert model["lifecycleStatus"] == "downloadable"
+    assert model["lifecycleLabel"] == "Spreman za download"
+    assert "Download" in model["lifecycleSummary"]
+    assert "Skini model" in model["activationSummary"]
+
+
+def test_models_route_marks_active_download_on_matching_model(
+    tmp_path: Path,
+    monkeypatch,
+):
+    install_root = tmp_path / "install-root"
+    curated_model_path = (
+        install_root / "models" / "recommended-6gb" / "gemma-4-E4B-it-Q4_K_M.gguf"
+    )
+    _write_active_model_config(
+        install_root,
+        model_id="recommended-6gb",
+        model_path=curated_model_path,
+    )
+    _write_runtime_endpoint_config(
+        install_root / "config" / "runtime-endpoint.json",
+        port=39281,
+    )
+    _write_custom_registry(
+        install_root,
+        [
+            {
+                "id": "huggingface-qwen-qwen3-0-6b-gguf-qwen3-0-6b-q8-0",
+                "label": "Qwen 0.6B",
+                "filename": "Qwen3-0.6B-Q8_0.gguf",
+                "family": "Qwen",
+                "source": "huggingface",
+                "repo": "Qwen/Qwen3-0.6B-GGUF",
+                "download_url": "https://huggingface.co/Qwen/Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-Q8_0.gguf",
+            }
+        ],
+    )
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    _write_download_progress(
+        get_config(),
+        {
+            "actionId": "model-action-live",
+            "status": "downloading",
+            "isActive": True,
+            "modelId": "huggingface-qwen-qwen3-0-6b-gguf-qwen3-0-6b-q8-0",
+            "fileName": "Qwen3-0.6B-Q8_0.gguf",
+            "source": "huggingface",
+            "percent": 42.5,
+            "downloadedGiB": 0.42,
+            "totalGiB": 1.0,
+            "speedMBps": 21.5,
+            "etaSeconds": 34,
+            "message": "Download je u toku za Qwen 0.6B",
+            "updatedAt": datetime.now(timezone.utc).isoformat(),
+            "workerPid": 5512,
+        },
+    )
+
+    client = TestClient(app)
+    response = client.get("/api/models")
+
+    assert response.status_code == 200
+    payload = response.json()
+    model = payload["huggingFace"][0]
+    assert model["downloadActive"] is True
+    assert model["downloadPercent"] == 42.5
+    assert model["lifecycleStatus"] == "downloading"
+    assert model["lifecycleLabel"] == "Skidanje u toku"
+    assert "42.5" in model["lifecycleSummary"]
+
+
+def test_models_route_marks_missing_local_file_truthfully(
+    tmp_path: Path,
+    monkeypatch,
+):
+    install_root = tmp_path / "install-root"
+    curated_model_path = (
+        install_root / "models" / "recommended-6gb" / "gemma-4-E4B-it-Q4_K_M.gguf"
+    )
+    missing_local_path = install_root / "models" / "local" / "missing.gguf"
+    _write_active_model_config(
+        install_root,
+        model_id="recommended-6gb",
+        model_path=curated_model_path,
+    )
+    _write_runtime_endpoint_config(
+        install_root / "config" / "runtime-endpoint.json",
+        port=39281,
+    )
+    _write_custom_registry(
+        install_root,
+        [
+            {
+                "id": "local-missing",
+                "label": "Missing local model",
+                "filename": "missing.gguf",
+                "family": "Custom",
+                "source": "local",
+                "absolute_path": str(missing_local_path),
+            }
+        ],
+    )
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+
+    client = TestClient(app)
+    response = client.get("/api/models")
+
+    assert response.status_code == 200
+    payload = response.json()
+    model = payload["local"][0]
+    assert model["installed"] is False
+    assert model["supportsActivation"] is False
+    assert model["lifecycleStatus"] == "missing"
+    assert model["lifecycleLabel"] == "Fajl nedostaje"
+    assert "nije pronadjen" in model["lifecycleSummary"]
+    assert "nije prisutan na disku" in model["activationSummary"]
+
+
+def test_models_route_marks_installed_mtp_variants_as_runtime_unsupported(
+    tmp_path: Path,
+    monkeypatch,
+):
+    install_root = tmp_path / "install-root"
+    curated_model_path = (
+        install_root / "models" / "recommended-6gb" / "gemma-4-E4B-it-Q4_K_M.gguf"
+    )
+    mtp_model_path = (
+        install_root
+        / "models"
+        / "unsloth"
+        / "unsloth-qwen3-6-27b-mtp-gguf"
+        / "Qwen3.6-27B-UD-IQ2_XXS.gguf"
+    )
+    mtp_model_path.parent.mkdir(parents=True, exist_ok=True)
+    mtp_model_path.write_text("mtp-model", encoding="utf-8")
+    _write_active_model_config(
+        install_root,
+        model_id="recommended-6gb",
+        model_path=curated_model_path,
+    )
+    _write_runtime_endpoint_config(
+        install_root / "config" / "runtime-endpoint.json",
+        port=39281,
+    )
+    _write_custom_registry(
+        install_root,
+        [
+            {
+                "id": "unsloth-unsloth-qwen3-6-27b-mtp-gguf-qwen3-6-27b-ud-iq2-xxs",
+                "label": "Qwen3.6 27B MTP",
+                "filename": "Qwen3.6-27B-UD-IQ2_XXS.gguf",
+                "family": "Qwen",
+                "source": "unsloth",
+                "repo": "unsloth/Qwen3.6-27B-MTP-GGUF",
+                "absolute_path": str(mtp_model_path),
+                "download_url": "https://huggingface.co/unsloth/Qwen3.6-27B-MTP-GGUF/resolve/main/Qwen3.6-27B-UD-IQ2_XXS.gguf",
+            }
+        ],
+    )
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+
+    client = TestClient(app)
+    response = client.get("/api/models")
+
+    assert response.status_code == 200
+    payload = response.json()
+    model = payload["unsloth"][0]
+    assert model["installed"] is True
+    assert model["supportsActivation"] is False
+    assert model["lifecycleStatus"] == "unsupported"
+    assert model["lifecycleLabel"] == "Nepodrzan za runtime"
+    assert "MTP" in model["lifecycleSummary"]
+    assert "non-MTP" in model["activationSummary"]

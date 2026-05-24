@@ -77,6 +77,7 @@ def load_models_payload(
     active_model_id = str(active_model.get("model_id", "") or "")
     model_roots = _load_model_roots(config)
     registry = _load_custom_registry(config)
+    download_progress = load_download_progress_payload(config)
 
     entries: list[dict[str, object]] = []
     seen_ids: set[str] = set()
@@ -113,6 +114,10 @@ def load_models_payload(
     if discovered is not None:
         entries.append(discovered)
 
+    entries = [
+        _annotate_model_entry_lifecycle(entry, download_progress=download_progress)
+        for entry in entries
+    ]
     return _group_model_entries(entries)
 
 
@@ -1069,6 +1074,111 @@ def _group_model_entries(entries: list[dict[str, object]]) -> dict[str, list[dic
         else:
             payload["curated"].append(entry)
     return payload
+
+
+def _annotate_model_entry_lifecycle(
+    entry: dict[str, object],
+    *,
+    download_progress: dict[str, object],
+) -> dict[str, object]:
+    annotated = dict(entry)
+    download_url = str(annotated.get("downloadUrl", "") or "").strip()
+    supports_activation, activation_summary = _evaluate_model_activation(annotated)
+    download_active = _is_model_download_active(annotated, download_progress)
+    annotated["supportsActivation"] = supports_activation
+    annotated["activationSummary"] = activation_summary
+    annotated["downloadActive"] = download_active
+    annotated["downloadPercent"] = (
+        _coerce_float(download_progress.get("percent")) if download_active else None
+    )
+    lifecycle_status, lifecycle_label, lifecycle_summary = _derive_model_lifecycle(
+        annotated,
+        supports_activation=supports_activation,
+        activation_summary=activation_summary,
+        download_progress=download_progress,
+        download_active=download_active,
+    )
+    annotated["lifecycleStatus"] = lifecycle_status
+    annotated["lifecycleLabel"] = lifecycle_label
+    annotated["lifecycleSummary"] = lifecycle_summary
+    annotated["canDownload"] = bool(download_url)
+    annotated["downloadSummary"] = (
+        "Download je vec u toku za ovaj model."
+        if download_active
+        else "Download je dostupan za ovaj model."
+        if download_url
+        else "Ovaj model nema direktan download put iz panela."
+    )
+    return annotated
+
+
+def _evaluate_model_activation(entry: dict[str, object]) -> tuple[bool, str]:
+    installed = bool(entry.get("installed"))
+    source = str(entry.get("source", "") or "")
+    download_url = str(entry.get("downloadUrl", "") or "").strip()
+    resolved_path_raw = str(entry.get("resolvedPath", "") or "").strip()
+    resolved_path = Path(resolved_path_raw).expanduser() if resolved_path_raw else None
+
+    if not installed or resolved_path is None or not resolved_path.is_file():
+        if source == "local":
+            return False, "Model nije prisutan na disku. Dodaj ispravnu putanju ili ponovo importuj model."
+        if download_url:
+            return False, "Skini model preko Download pre aktivacije."
+        return False, "Model nije prisutan na disku i nema upotrebljiv download izvor."
+
+    supported, reason = classify_runtime_model_support(
+        model_id=str(entry.get("id", "") or ""),
+        model_path=resolved_path,
+    )
+    if not supported:
+        return False, reason
+    if bool(entry.get("active")):
+        return True, "Aktivni model je spreman za runtime."
+    return True, "Model je spreman za aktivaciju."
+
+
+def _is_model_download_active(
+    entry: dict[str, object],
+    download_progress: dict[str, object],
+) -> bool:
+    if not bool(download_progress.get("isActive")):
+        return False
+    return str(download_progress.get("modelId", "") or "") == str(entry.get("id", "") or "")
+
+
+def _derive_model_lifecycle(
+    entry: dict[str, object],
+    *,
+    supports_activation: bool,
+    activation_summary: str,
+    download_progress: dict[str, object],
+    download_active: bool,
+) -> tuple[str, str, str]:
+    if download_active:
+        percent = _coerce_float(download_progress.get("percent"))
+        if percent is None:
+            return "downloading", "Skidanje u toku", "Download je aktivan za ovaj model."
+        return (
+            "downloading",
+            "Skidanje u toku",
+            f"Download je u toku za ovaj model ({percent:.1f}%).",
+        )
+
+    installed = bool(entry.get("installed"))
+    source = str(entry.get("source", "") or "")
+    download_url = str(entry.get("downloadUrl", "") or "").strip()
+
+    if bool(entry.get("active")) and supports_activation and installed:
+        return "active", "Aktivan", "Model je aktivan i spreman za runtime."
+    if supports_activation and installed:
+        return "ready", "Spreman", "Model je skinut i spreman za aktivaciju."
+    if installed and not supports_activation:
+        return "unsupported", "Nepodrzan za runtime", activation_summary
+    if source == "local":
+        return "missing", "Fajl nedostaje", "Lokalni model nije pronadjen na disku."
+    if download_url:
+        return "downloadable", "Spreman za download", "Download je dostupan za ovaj model."
+    return "unavailable", "Nedostupan", activation_summary
 
 
 def _resolve_custom_model_path(

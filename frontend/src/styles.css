@@ -238,6 +238,13 @@ code {
   padding-top: 0;
 }
 
+.model-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
 .inline-actions {
   display: flex;
   gap: 10px;

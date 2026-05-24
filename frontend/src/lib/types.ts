@@ -57,6 +57,12 @@ export type ServerStatusPayload = {
   hasWarning?: boolean;
   warningSeverity?: string;
   warningSummary?: string;
+  canStart?: boolean;
+  startBlockedReason?: string;
+  canStop?: boolean;
+  stopBlockedReason?: string;
+  canOpenWeb?: boolean;
+  openWebBlockedReason?: string;
 };
 
 export type BenchmarkHistoryItem = {
@@ -188,6 +194,15 @@ export type ModelEntry = {
   source: string;
   active: boolean;
   installed: boolean;
+  supportsActivation?: boolean;
+  activationSummary?: string;
+  lifecycleStatus?: string;
+  lifecycleLabel?: string;
+  lifecycleSummary?: string;
+  downloadActive?: boolean;
+  downloadPercent?: number | null;
+  canDownload?: boolean;
+  downloadSummary?: string;
   mtpStatus?: "no-mtp" | "has-mtp" | "unknown";
   mtpStatusLabel?: string;
   filename?: string;
@@ -487,6 +502,9 @@ export type OpenCodeStatusPayload = {
   runtimeLiveReason: string;
   sessionState: string;
   sessionSummary: string;
+  canOpen?: boolean;
+  openActionLabel?: string;
+  openBlockedReason?: string;
   instances: Array<{
     pid?: number | null;
     name?: string;

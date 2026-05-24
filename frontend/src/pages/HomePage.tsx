@@ -32,16 +32,6 @@ function renderOpenCodeState(opencode: OpenCodeStatusPayload | null) {
   return "Dostupan";
 }
 
-function renderOpenCodeActionLabel(opencode: OpenCodeStatusPayload | null) {
-  if (opencode?.sessionState === "app-only") {
-    return "Pripremi backend za OpenCode";
-  }
-  if (opencode?.sessionState === "connected") {
-    return "OpenCode je vec otvoren";
-  }
-  return "Open OpenCode";
-}
-
 export function HomePage() {
   const [status, setStatus] = useState<StatusPayload | null>(null);
   const [serverStatus, setServerStatus] = useState<ServerStatusPayload | null>(null);
@@ -135,9 +125,11 @@ export function HomePage() {
         <div className="inline-actions compact-actions">
           <button
             type="button"
+            disabled={opencode?.canOpen === false}
+            title={opencode?.openBlockedReason || undefined}
             onClick={() => void runAction(() => openOpenCode(status?.profile || opencode?.profile || "balanced"))}
           >
-            {renderOpenCodeActionLabel(opencode)}
+            {opencode?.openActionLabel || "Open OpenCode"}
           </button>
         </div>
       </section>

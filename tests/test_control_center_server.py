@@ -412,6 +412,104 @@ def test_server_start_route_rejects_unsupported_mtp_active_model(
     assert "non-MTP" in payload["summary"]
 
 
+def test_server_status_route_exposes_start_block_reason_for_unsupported_active_model(
+    tmp_path: Path,
+    monkeypatch,
+):
+    install_root = tmp_path / "install-root"
+    runtime_root = install_root / "runtime" / "llama.cpp"
+    runtime_root.mkdir(parents=True)
+    (runtime_root / "llama-server.exe").write_text("llama", encoding="utf-8")
+    config_root = install_root / "config"
+    config_root.mkdir(parents=True, exist_ok=True)
+    mtp_model_path = (
+        install_root
+        / "models"
+        / "unsloth"
+        / "unsloth-qwen3-6-27b-mtp-gguf"
+        / "Qwen3.6-27B-UD-IQ2_XXS.gguf"
+    )
+    mtp_model_path.parent.mkdir(parents=True, exist_ok=True)
+    mtp_model_path.write_text("mtp-model", encoding="utf-8")
+    (config_root / "active-model.json").write_text(
+        json.dumps(
+            {
+                "model_id": "unsloth-unsloth-qwen3-6-27b-mtp-gguf-qwen3-6-27b-ud-iq2-xxs",
+                "model_path": str(mtp_model_path),
+            }
+        ),
+        encoding="utf-8",
+    )
+    _write_runtime_endpoint_config(
+        install_root / "config" / "runtime-endpoint.json",
+        port=39281,
+    )
+
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.server_service.probe_server_health",
+        lambda *args, **kwargs: "offline",
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.server_service.find_runtime_pid",
+        lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.server_service.detect_tailscale_ip",
+        lambda: "",
+    )
+
+    client = TestClient(app)
+    response = client.get("/api/server/status")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["canStart"] is False
+    assert "MTP" in payload["startBlockedReason"]
+    assert payload["canOpenWeb"] is False
+
+
+def test_server_status_route_exposes_open_web_block_while_runtime_is_stopped(
+    tmp_path: Path,
+    monkeypatch,
+):
+    install_root = tmp_path / "install-root"
+    runtime_root = install_root / "runtime" / "llama.cpp"
+    runtime_root.mkdir(parents=True)
+    (runtime_root / "llama-server.exe").write_text("llama", encoding="utf-8")
+    _write_active_model_config(
+        install_root,
+        filename="gemma-4-E4B-it-Q4_K_M.gguf",
+    )
+    _write_runtime_endpoint_config(
+        install_root / "config" / "runtime-endpoint.json",
+        port=39281,
+    )
+
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.server_service.probe_server_health",
+        lambda *args, **kwargs: "offline",
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.server_service.find_runtime_pid",
+        lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.server_service.detect_tailscale_ip",
+        lambda: "",
+    )
+
+    client = TestClient(app)
+    response = client.get("/api/server/status")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "stopped"
+    assert payload["canOpenWeb"] is False
+    assert "nije spreman" in payload["openWebBlockedReason"].lower()
+
+
 def test_server_start_route_restarts_unhealthy_managed_runtime_listener(
     tmp_path: Path,
     monkeypatch,

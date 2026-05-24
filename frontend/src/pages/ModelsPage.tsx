@@ -103,14 +103,47 @@ function buildCompatibilityRequest(item: ModelEntry): CompatibilityCheckRequest 
 }
 
 function supportsRuntimeActivation(item: ModelEntry): boolean {
-  return item.mtpStatus !== "has-mtp";
+  return item.supportsActivation ?? item.mtpStatus !== "has-mtp";
 }
 
 function mtpActivationGuidance(item: ModelEntry): string | null {
+  if (item.activationSummary && !supportsRuntimeActivation(item)) {
+    return item.activationSummary;
+  }
   if (!supportsRuntimeActivation(item)) {
     return "MTP modeli su trenutno download-only. Za aktivaciju izaberi non-MTP GGUF varijantu.";
   }
   return null;
+}
+
+function lifecycleTone(status: string | undefined): string {
+  switch (status) {
+    case "active":
+      return "compat-badge compat-badge-ok";
+    case "ready":
+      return "compat-badge";
+    case "downloading":
+      return "compat-badge compat-badge-warn";
+    case "unsupported":
+    case "missing":
+    case "unavailable":
+      return "compat-badge compat-badge-error";
+    default:
+      return "compat-badge";
+  }
+}
+
+function downloadActionLabel(item: ModelEntry): string {
+  if (item.downloadActive) {
+    return "Downloading...";
+  }
+  if (item.installed && item.canDownload) {
+    return "Re-download";
+  }
+  if (item.canDownload) {
+    return "Download";
+  }
+  return "Nema download";
 }
 
 function FilterResultsCard({
@@ -180,7 +213,10 @@ function FilterResultsCard({
             <article className="model-item" key={`filtered-${item.id}`}>
               <div className="model-item-header">
                 <div>
-                  <strong>{item.label}</strong>
+                  <div className="model-title-row">
+                    <strong>{item.label}</strong>
+                    <span className={lifecycleTone(item.lifecycleStatus)}>{item.lifecycleLabel ?? "Status"}</span>
+                  </div>
                   <div className="muted-line">
                     {item.active ? "Aktivan" : "Nije aktivan"} |{" "}
                     {item.installed ? "Skinut" : "Nije skinut"} | {item.source}
@@ -188,6 +224,9 @@ function FilterResultsCard({
                   <div className="muted-line">
                     ID: <code>{item.id}</code>
                   </div>
+                  {item.lifecycleSummary ? (
+                    <div className="helper-text">{item.lifecycleSummary}</div>
+                  ) : null}
                   <div className="helper-text">
                     Velicina: {formatGiB(item.approxSizeGiB ?? null)} | Instalirano:{" "}
                     {item.installed ? formatGiB(item.installedSizeGiB ?? null) : "nije skinut"}
@@ -208,7 +247,7 @@ function FilterResultsCard({
                 </div>
                 <div className="inline-actions">
                   <button
-                    disabled={Boolean(pendingAction) || !supportsRuntimeActivation(item)}
+                    disabled={Boolean(pendingAction) || !supportsRuntimeActivation(item) || Boolean(item.downloadActive)}
                     title={mtpActivationGuidance(item) ?? undefined}
                     onClick={() => handleAction(`activate ${item.id}`, () => activateModel(item.id))}
                     type="button"
@@ -216,11 +255,12 @@ function FilterResultsCard({
                     Activate
                   </button>
                   <button
-                    disabled={Boolean(pendingAction)}
+                    disabled={Boolean(pendingAction) || !item.canDownload || Boolean(item.downloadActive)}
+                    title={item.downloadSummary ?? undefined}
                     onClick={() => handleAction(`download ${item.id}`, () => downloadModel(item.id))}
                     type="button"
                   >
-                    Download
+                    {downloadActionLabel(item)}
                   </button>
                   <button
                     disabled={Boolean(pendingAction)}
@@ -231,7 +271,7 @@ function FilterResultsCard({
                   </button>
                   <button
                     className="danger-button"
-                    disabled={Boolean(pendingAction)}
+                    disabled={Boolean(pendingAction) || Boolean(item.downloadActive)}
                     onClick={() => {
                       setDeleteTargetId(item.id);
                       setRemoveFile(true);
@@ -361,7 +401,10 @@ function ModelGroup({
               <article className="model-item" key={item.id}>
                 <div className="model-item-header">
                   <div>
-                    <strong>{item.label}</strong>
+                    <div className="model-title-row">
+                      <strong>{item.label}</strong>
+                      <span className={lifecycleTone(item.lifecycleStatus)}>{item.lifecycleLabel ?? "Status"}</span>
+                    </div>
                     <div className="muted-line">
                       {item.active ? "Aktivan" : "Nije aktivan"} |{" "}
                       {item.installed ? "Skinut" : "Nije skinut"} | {item.family ?? "Unknown"}
@@ -369,6 +412,9 @@ function ModelGroup({
                   <div className="muted-line">
                     ID: <code>{item.id}</code>
                   </div>
+                  {item.lifecycleSummary ? (
+                    <div className="helper-text">{item.lifecycleSummary}</div>
+                  ) : null}
                   <div className="helper-text">
                     Velicina: {formatGiB(item.approxSizeGiB ?? null)} | Instalirano:{" "}
                     {item.installed ? formatGiB(item.installedSizeGiB ?? null) : "nije skinut"}
@@ -394,7 +440,7 @@ function ModelGroup({
                 </div>
                   <div className="inline-actions">
                     <button
-                      disabled={Boolean(pendingAction) || !supportsRuntimeActivation(item)}
+                      disabled={Boolean(pendingAction) || !supportsRuntimeActivation(item) || Boolean(item.downloadActive)}
                       title={mtpActivationGuidance(item) ?? undefined}
                       onClick={() => handleAction(`activate ${item.id}`, () => activateModel(item.id))}
                       type="button"
@@ -402,11 +448,12 @@ function ModelGroup({
                       Activate
                     </button>
                     <button
-                      disabled={Boolean(pendingAction)}
+                      disabled={Boolean(pendingAction) || !item.canDownload || Boolean(item.downloadActive)}
+                      title={item.downloadSummary ?? undefined}
                       onClick={() => handleAction(`download ${item.id}`, () => downloadModel(item.id))}
                       type="button"
                     >
-                      Download
+                      {downloadActionLabel(item)}
                     </button>
                     <button
                       disabled={Boolean(pendingAction)}
@@ -417,7 +464,7 @@ function ModelGroup({
                     </button>
                     <button
                       className="danger-button"
-                      disabled={Boolean(pendingAction)}
+                      disabled={Boolean(pendingAction) || Boolean(item.downloadActive)}
                       onClick={() => {
                         setDeleteTargetId(item.id);
                         setRemoveFile(true);

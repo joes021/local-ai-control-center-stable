@@ -98,6 +98,17 @@ def test_models_and_browser_source_explain_that_mtp_models_are_not_activatable()
     assert "MTP modeli su trenutno download-only" in browser_source
 
 
+def test_models_page_source_uses_backend_lifecycle_truth_for_actions_and_badges():
+    source = Path("frontend/src/pages/ModelsPage.tsx").read_text(encoding="utf-8")
+
+    assert "lifecycleTone(item.lifecycleStatus)" in source
+    assert "item.lifecycleLabel ?? \"Status\"" in source
+    assert "item.lifecycleSummary" in source
+    assert "item.downloadActive" in source
+    assert "item.canDownload" in source
+    assert "downloadActionLabel(item)" in source
+
+
 def test_packaged_browser_ui_contains_quant_sort_labels():
     dist_root = Path(
         "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
@@ -163,4 +174,16 @@ def test_server_page_source_uses_runtime_generic_actions_and_labels():
     assert "Start runtime server" in source
     assert "Stop runtime server" in source
     assert "Open runtime web" in source
+    assert "serverStatus?.canStart === false" in source
+    assert "serverStatus?.canOpenWeb === false" in source
     assert "Start llama.cpp server" not in source
+
+
+def test_home_and_opencode_source_use_backend_open_action_contract():
+    home_source = Path("frontend/src/pages/HomePage.tsx").read_text(encoding="utf-8")
+    opencode_source = Path("frontend/src/pages/OpenCodePage.tsx").read_text(encoding="utf-8")
+
+    assert "opencode?.openActionLabel" in home_source
+    assert "opencode?.canOpen === false" in home_source
+    assert "opencode.openActionLabel" in opencode_source
+    assert "opencode.canOpen === false" in opencode_source

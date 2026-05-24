@@ -80,13 +80,28 @@ export function ServerPage() {
           {serverStatus?.runtimeSelectionSummary || "Nema dodatnih detalja o izboru runtime-a."}
         </p>
         <div className="inline-actions">
-          <button type="button" onClick={() => void runAction(startServer)}>
+          <button
+            type="button"
+            disabled={serverStatus?.canStart === false}
+            title={serverStatus?.startBlockedReason || undefined}
+            onClick={() => void runAction(startServer)}
+          >
             Start runtime server
           </button>
-          <button type="button" onClick={() => void runAction(stopServer)}>
+          <button
+            type="button"
+            disabled={serverStatus?.canStop === false}
+            title={serverStatus?.stopBlockedReason || undefined}
+            onClick={() => void runAction(stopServer)}
+          >
             Stop runtime server
           </button>
-          <button type="button" onClick={openServerWebNow}>
+          <button
+            type="button"
+            disabled={serverStatus?.canOpenWeb === false}
+            title={serverStatus?.openWebBlockedReason || undefined}
+            onClick={openServerWebNow}
+          >
             Open runtime web
           </button>
         </div>
