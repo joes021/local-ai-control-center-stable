@@ -95,6 +95,7 @@ def test_models_and_browser_source_explain_that_mtp_models_use_draft_mtp_runtime
 
     assert "draft-mtp" in models_source
     assert "TurboQuant" in models_source
+    assert "download-only" not in models_source
     assert "draft-mtp" in browser_source
     assert "TurboQuant" in browser_source
 

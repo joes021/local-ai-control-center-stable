@@ -31,9 +31,23 @@ Proveriti da li `MTP` GGUF modeli mogu stvarno da rade u ovom proizvodu, ili su 
 Izvrseno:
 
 - `python -m pytest -q`
-- rezultat: `408 passed`
+- rezultat: `410 passed`
 - `python -m build`
 - `powershell -ExecutionPolicy Bypass -File packaging/build_windows_installer.ps1 -PythonExe python`
+
+### Dodatni zivi smoke
+
+Na lokalnoj Windows instalaciji je odradjen i service-level smoke:
+
+1. aktivni model je privremeno prebacen na instalirani `Qwen3.6-27B-UD-IQ2_XXS.gguf` iz `...MTP-GGUF` repoa
+2. izbor runtime-a je namerno postavljen na `TurboQuant`
+3. panel/backend sloj je ispravno vratio:
+   - `requested_runtime = turboquant`
+   - `active_runtime = llama.cpp`
+   - summary: `TurboQuant ne podrzava MTP GGUF aktivaciju, pa se koristi llama.cpp draft-mtp put`
+4. health je ostao `ready`
+
+To potvrduje da fallback nije samo test stub logika, nego stvarno radi i nad installer-managed stanjem.
 
 ### Granice koje i dalje ostaju
 
