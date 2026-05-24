@@ -254,6 +254,54 @@ def test_opencode_open_route_reuses_existing_window_when_runtime_becomes_ready(
     assert launch_attempted is False
 
 
+def test_prepare_opencode_launcher_writes_linux_shell_launcher(
+    tmp_path: Path,
+    monkeypatch,
+):
+    from local_ai_control_center_installer.control_center_backend.config import ControlCenterConfig
+    from local_ai_control_center_installer.control_center_backend.services import opencode_service
+
+    install_root = tmp_path / "install-root"
+    config = ControlCenterConfig(
+        ui_host="127.0.0.1",
+        ui_port=3210,
+        install_root=install_root,
+        access_mode="local-only",
+    )
+    opencode_root = install_root / "tools" / "opencode"
+    opencode_root.mkdir(parents=True, exist_ok=True)
+    executable_path = opencode_root / "opencode"
+    executable_path.write_text("#!/usr/bin/env bash\n", encoding="utf-8")
+    config_root = install_root / "config" / "opencode"
+    config_root.mkdir(parents=True, exist_ok=True)
+    managed_config_path = config_root / "managed-config.json"
+    managed_config_path.write_text("{}", encoding="utf-8")
+
+    monkeypatch.setattr(
+        opencode_service,
+        "load_opencode_manifest",
+        lambda: {
+            "opencode_artifact": {
+                "install_subdir": "tools/opencode",
+                "launch": {"executable_relative_path": "opencode"},
+            }
+        },
+    )
+
+    launcher_path = opencode_service.prepare_opencode_launcher(
+        config=config,
+        profile="balanced",
+        platform="linux",
+    )
+
+    launcher_text = launcher_path.read_text(encoding="utf-8")
+
+    assert launcher_path.name == "Open-OpenCode.sh"
+    assert launcher_text.startswith("#!/usr/bin/env bash\n")
+    assert f'export OPENCODE_CONFIG="{managed_config_path}"' in launcher_text
+    assert f'exec "{executable_path}" "$@"' in launcher_text
+
+
 def test_opencode_steps_and_settings_routes_persist_panel_managed_values(
     tmp_path: Path,
     monkeypatch,

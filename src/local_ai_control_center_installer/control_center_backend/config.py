@@ -2,8 +2,9 @@ from dataclasses import dataclass
 import os
 from pathlib import Path
 
+from local_ai_control_center_installer.platform_paths import default_install_root_for_platform
 
-DEFAULT_INSTALL_ROOT = Path.home() / "LocalAIControlCenter"
+DEFAULT_INSTALL_ROOT = default_install_root_for_platform()
 
 
 @dataclass(frozen=True)

@@ -1,9 +1,10 @@
 # Local AI Control Center Stable
 
-Windows installer and local control panel for running `llama.cpp`, `TurboQuant`, GGUF models, and `OpenCode` from one installer-managed product.
+Installer-managed local control panel for running `llama.cpp`, `TurboQuant`, GGUF models, and `OpenCode`, with a finished Windows path and an Ubuntu x86_64 port in progress.
 
 [![Latest release](https://img.shields.io/github/v/release/joes021/local-ai-control-center-stable?display_name=tag&label=latest%20release)](https://github.com/joes021/local-ai-control-center-stable/releases/latest)
 [![Windows](https://img.shields.io/badge/platform-Windows-2ea043)](https://github.com/joes021/local-ai-control-center-stable/releases/latest)
+[![Ubuntu x86_64](https://img.shields.io/badge/platform-Ubuntu%20x86__64%20(in%20progress)-d29922)](https://github.com/joes021/local-ai-control-center-stable)
 [![Repository scope](https://img.shields.io/badge/scope-installer%20%2B%20control%20panel-c58a1f)](https://github.com/joes021/local-ai-control-center-stable)
 
 ## Download
@@ -124,6 +125,19 @@ Manual bootstrap from a clean checkout:
 powershell -ExecutionPolicy Bypass -File .\bootstrap\install.ps1
 ```
 
+Ubuntu x86_64 source bootstrap from a clean checkout:
+
+```bash
+chmod +x ./bootstrap/install.sh
+./bootstrap/install.sh
+```
+
+Ubuntu x86_64 shell launcher truth currently provided by the source-bootstrap path:
+
+- panel launcher: `control-center/Open-Control-Center.sh`
+- panel host wrapper: `control-center/local-ai-control-center-panel`
+- `OpenCode` launcher: `control-center/Open-OpenCode.sh`
+
 ## Repository Layout
 
 - `bootstrap/`
@@ -146,6 +160,14 @@ Priority order:
 3. Ubuntu arm64
 
 This repository currently claims a complete Windows installer + runtime + control-panel milestone for its own scope.
+
+The Ubuntu x86_64 path currently includes:
+
+- runtime and `OpenCode` manifest resolution
+- shell bootstrap via `bootstrap/install.sh`
+- Linux control-panel shell launchers and Linux picker integration
+
+The Ubuntu x86_64 path does not yet claim a finished release artifact or a completed release-validation checklist.
 
 This repository does not yet claim:
 

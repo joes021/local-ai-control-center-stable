@@ -3,7 +3,10 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+import shutil
+import stat
 import subprocess
+import shlex
 
 from local_ai_control_center_installer.control_center_backend.config import (
     ControlCenterConfig,
@@ -23,6 +26,10 @@ from local_ai_control_center_installer.control_center_backend.services.status_se
     load_runtime_state,
 )
 from local_ai_control_center_installer.opencode_bootstrap import load_opencode_manifest
+from local_ai_control_center_installer.platform_paths import (
+    is_windows_platform,
+    new_console_subprocess_creationflags,
+)
 
 
 def load_opencode_status_payload(
@@ -106,7 +113,10 @@ def open_opencode(
     launcher_path = prepare_opencode_launcher(config=config, profile=profile)
     with log_path.open("a", encoding="utf-8") as handle:
         handle.write(f"Launching OpenCode via {launcher_path}\n")
-    _launch_opencode_launcher(launcher_path)
+    try:
+        _launch_opencode_launcher(launcher_path)
+    except RuntimeError as exc:
+        return _result("error", "open-opencode", str(exc))
 
     return _result("ok", "open-opencode", "OpenCode je pokrenut u novom prozoru.")
 
@@ -114,6 +124,7 @@ def open_opencode(
 def prepare_opencode_launcher(
     config: ControlCenterConfig | None = None,
     profile: str = "",
+    platform: str | None = None,
 ) -> Path:
     config = config or get_config()
     executable_path = _resolve_opencode_executable_path(config)
@@ -131,13 +142,15 @@ def prepare_opencode_launcher(
         settings=settings,
         profile=profile,
     )
-    launcher_path = config.install_root / "control-center" / "Open-OpenCode.cmd"
+    launcher_name = "Open-OpenCode.cmd" if is_windows_platform(platform) else "Open-OpenCode.sh"
+    launcher_path = config.install_root / "control-center" / launcher_name
     launcher_path.parent.mkdir(parents=True, exist_ok=True)
     _write_opencode_launcher(
         launcher_path=launcher_path,
         executable_path=executable_path,
         working_directory=Path(str(settings["workingDirectory"])),
         env=env,
+        platform=platform,
     )
     return launcher_path
 
@@ -221,7 +234,31 @@ def _write_opencode_launcher(
     executable_path: Path,
     working_directory: Path,
     env: dict[str, str],
+    platform: str | None = None,
 ) -> None:
+    if not is_windows_platform(platform):
+        lines = [
+            "#!/usr/bin/env bash",
+            "set -euo pipefail",
+            f'cd {shlex.quote(str(working_directory))}',
+        ]
+        for key in [
+            "OPENCODE_CONFIG",
+            "LACC_PROFILE",
+            "LACC_OPENCODE_SECURITY_MODE",
+            "LACC_OPENCODE_CAPABILITY_MODE",
+            "LACC_OPENCODE_BUILD_STEPS",
+            "LACC_OPENCODE_PLAN_STEPS",
+            "LACC_OPENCODE_GENERAL_STEPS",
+            "LACC_OPENCODE_EXPLORE_STEPS",
+        ]:
+            value = str(env.get(key, ""))
+            lines.append(f'export {key}="{value}"')
+        lines.append(f'exec "{executable_path}" "$@"')
+        launcher_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        _ensure_executable_bit(launcher_path)
+        return
+
     lines = [
         "@echo off",
         "setlocal",
@@ -254,6 +291,19 @@ def _write_opencode_launcher(
 
 
 def _launch_opencode_launcher(launcher_path: Path) -> None:
+    if not is_windows_platform():
+        terminal_command = _build_linux_terminal_command(launcher_path)
+        if terminal_command is None:
+            raise RuntimeError(
+                "Linux OpenCode launcher zahteva podrzan terminal emulator (npr. x-terminal-emulator ili gnome-terminal)."
+            )
+        subprocess.Popen(
+            terminal_command,
+            cwd=str(launcher_path.parent),
+            close_fds=False,
+        )
+        return
+
     subprocess.Popen(
         [
             "cmd.exe",
@@ -262,8 +312,28 @@ def _launch_opencode_launcher(launcher_path: Path) -> None:
             str(launcher_path),
         ],
         cwd=str(launcher_path.parent),
-        creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0),
+        creationflags=new_console_subprocess_creationflags(),
     )
+
+
+def _build_linux_terminal_command(launcher_path: Path) -> list[str] | None:
+    launcher = str(launcher_path)
+    terminal_candidates = [
+        ["x-terminal-emulator", "-e", launcher],
+        ["gnome-terminal", "--", launcher],
+        ["konsole", "-e", launcher],
+        ["xfce4-terminal", "--command", launcher],
+        ["xterm", "-e", launcher],
+    ]
+    for candidate in terminal_candidates:
+        if shutil.which(candidate[0]):
+            return candidate
+    return None
+
+
+def _ensure_executable_bit(path: Path) -> None:
+    current_mode = path.stat().st_mode
+    path.chmod(current_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
 
 def load_opencode_step_schema_payload(

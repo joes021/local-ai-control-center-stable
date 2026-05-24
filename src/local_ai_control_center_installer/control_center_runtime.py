@@ -11,6 +11,9 @@ import socket
 import subprocess
 import sys
 import time
+import stat
+import shlex
+import re
 from urllib.error import URLError
 from urllib.request import urlopen
 
@@ -28,11 +31,20 @@ from local_ai_control_center_installer.control_center_uninstall import (
     UNINSTALL_REGISTRY_KEY,
     UNINSTALL_SHORTCUT_NAME,
 )
+from local_ai_control_center_installer.platform_paths import (
+    build_open_url_command,
+    hidden_subprocess_creationflags,
+    is_windows_platform,
+)
 from local_ai_control_center_installer.session import InstallerSession
 
 
-PANEL_EXECUTABLE_NAME = "LocalAIControlCenterPanel.exe"
-UNINSTALL_LAUNCHER_NAME = "Uninstall-LocalAIControlCenter.cmd"
+WINDOWS_PANEL_EXECUTABLE_NAME = "LocalAIControlCenterPanel.exe"
+LINUX_PANEL_HOST_NAME = "local-ai-control-center-panel"
+WINDOWS_UNINSTALL_LAUNCHER_NAME = "Uninstall-LocalAIControlCenter.cmd"
+LINUX_UNINSTALL_LAUNCHER_NAME = "Uninstall-LocalAIControlCenter.sh"
+PANEL_EXECUTABLE_NAME = WINDOWS_PANEL_EXECUTABLE_NAME
+UNINSTALL_LAUNCHER_NAME = WINDOWS_UNINSTALL_LAUNCHER_NAME
 DEFAULT_PANEL_PORT = 3210
 DEFAULT_PANEL_URL = f"http://127.0.0.1:{DEFAULT_PANEL_PORT}/"
 
@@ -60,6 +72,29 @@ class ControlCenterRuntimeDeployment:
     uninstall_registry_key: str | None = None
 
 
+def _is_windows_runtime_platform(platform: str | None = None) -> bool:
+    normalized = (platform or sys.platform).strip().lower()
+    return is_windows_platform(normalized)
+
+
+def _panel_host_name_for_platform(platform: str | None = None) -> str:
+    if _is_windows_runtime_platform(platform):
+        return WINDOWS_PANEL_EXECUTABLE_NAME
+    return LINUX_PANEL_HOST_NAME
+
+
+def _panel_launcher_name_for_platform(platform: str | None = None) -> str:
+    if _is_windows_runtime_platform(platform):
+        return "Open-Control-Center.cmd"
+    return "Open-Control-Center.sh"
+
+
+def _uninstall_launcher_name_for_platform(platform: str | None = None) -> str:
+    if _is_windows_runtime_platform(platform):
+        return WINDOWS_UNINSTALL_LAUNCHER_NAME
+    return LINUX_UNINSTALL_LAUNCHER_NAME
+
+
 def deploy_control_center_runtime(
     install_root: str | Path,
     *,
@@ -67,23 +102,30 @@ def deploy_control_center_runtime(
     current_python: str | None = None,
     frozen: bool | None = None,
     frozen_executable: str | Path | None = None,
+    platform: str | None = None,
 ) -> ControlCenterRuntimeDeployment:
     normalized_install_root = Path(install_root).expanduser().resolve()
     panel_root = normalized_install_root / "control-center"
     panel_root.mkdir(parents=True, exist_ok=True)
-    launcher_path = panel_root / "Open-Control-Center.cmd"
+    launcher_path = panel_root / _panel_launcher_name_for_platform(platform)
+    panel_host_path = panel_root / _panel_host_name_for_platform(platform)
     _stop_existing_panel_for_update(
         install_root=normalized_install_root,
         port=DEFAULT_PANEL_PORT,
-        panel_executable_path=panel_root / PANEL_EXECUTABLE_NAME,
+        panel_executable_path=panel_host_path,
+        platform=platform,
     )
 
     if frozen is None:
         frozen = bool(getattr(sys, "frozen", False))
 
     panel_executable_resource = panel_executable_resource or _resolve_panel_executable_resource()
-    if panel_executable_resource is not None and panel_executable_resource.is_file():
-        executable_path = panel_root / PANEL_EXECUTABLE_NAME
+    if (
+        panel_executable_resource is not None
+        and panel_executable_resource.is_file()
+        and _is_windows_runtime_platform(platform)
+    ):
+        executable_path = panel_host_path
         _copy_panel_executable(panel_executable_resource, executable_path)
         command = (
             str(executable_path),
@@ -101,6 +143,7 @@ def deploy_control_center_runtime(
             launcher_path,
             command,
             env_overrides=None,
+            platform=platform,
         )
         shell_assets = _ensure_windows_shell_assets(
             install_root=normalized_install_root,
@@ -137,8 +180,55 @@ def deploy_control_center_runtime(
         else Path(sys.executable).resolve()
     )
     if frozen and candidate_frozen_executable.is_file():
-        executable_path = panel_root / PANEL_EXECUTABLE_NAME
+        executable_path = panel_host_path
         _copy_panel_executable(candidate_frozen_executable, executable_path)
+        if not _is_windows_runtime_platform(platform):
+            command = (
+                str(executable_path),
+                "--panel",
+                "--install-root",
+                str(normalized_install_root),
+                "--host",
+                "127.0.0.1",
+                "--port",
+                str(DEFAULT_PANEL_PORT),
+                "--access-mode",
+                "local-only",
+                "--open-browser",
+            )
+            _write_launcher_script(
+                launcher_path,
+                command,
+                env_overrides=None,
+                platform=platform,
+            )
+            shell_assets = _ensure_linux_shell_assets(
+                install_root=normalized_install_root,
+                panel_root=panel_root,
+                launcher_path=launcher_path,
+                access_mode="local-only",
+            )
+            return ControlCenterRuntimeDeployment(
+                install_root=normalized_install_root,
+                panel_root=panel_root,
+                executable_path=executable_path,
+                launcher_path=launcher_path,
+                command=command,
+                url=DEFAULT_PANEL_URL,
+                port=DEFAULT_PANEL_PORT,
+                access_mode="local-only",
+                strategy="copied-frozen-linux",
+                opencode_launcher_path=shell_assets["opencode_launcher_path"],
+                uninstall_launcher_path=shell_assets["uninstall_launcher_path"],
+                start_menu_dir=None,
+                start_menu_panel_shortcut_path=None,
+                start_menu_opencode_shortcut_path=None,
+                start_menu_uninstall_shortcut_path=None,
+                desktop_panel_shortcut_path=None,
+                desktop_opencode_shortcut_path=None,
+                uninstall_registry_key=None,
+            )
+
         command = (
             str(executable_path),
             "--panel",
@@ -156,6 +246,7 @@ def deploy_control_center_runtime(
             launcher_path,
             command,
             env_overrides=None,
+            platform=platform,
         )
         shell_assets = _ensure_windows_shell_assets(
             install_root=normalized_install_root,
@@ -194,6 +285,60 @@ def deploy_control_center_runtime(
         "LACC_UI_ACCESS_MODE": "local-only",
         "PYTHONPATH": str(src_root),
     }
+    if not _is_windows_runtime_platform(platform):
+        executable_path = panel_host_path
+        _write_linux_panel_host_script(
+            executable_path=executable_path,
+            python_executable=python_executable,
+            install_root=normalized_install_root,
+            src_root=src_root,
+        )
+        command = (
+            str(executable_path),
+            "--install-root",
+            str(normalized_install_root),
+            "--host",
+            "127.0.0.1",
+            "--port",
+            str(DEFAULT_PANEL_PORT),
+            "--access-mode",
+            "local-only",
+            "--open-browser",
+        )
+        _write_launcher_script(
+            launcher_path,
+            command,
+            env_overrides=None,
+            platform=platform,
+        )
+        shell_assets = _ensure_linux_shell_assets(
+            install_root=normalized_install_root,
+            panel_root=panel_root,
+            launcher_path=launcher_path,
+            access_mode="local-only",
+        )
+        return ControlCenterRuntimeDeployment(
+            install_root=normalized_install_root,
+            panel_root=panel_root,
+            executable_path=executable_path,
+            launcher_path=launcher_path,
+            command=command,
+            url=DEFAULT_PANEL_URL,
+            port=DEFAULT_PANEL_PORT,
+            access_mode="local-only",
+            strategy="linux-python-host",
+            env_overrides=None,
+            opencode_launcher_path=shell_assets["opencode_launcher_path"],
+            uninstall_launcher_path=shell_assets["uninstall_launcher_path"],
+            start_menu_dir=None,
+            start_menu_panel_shortcut_path=None,
+            start_menu_opencode_shortcut_path=None,
+            start_menu_uninstall_shortcut_path=None,
+            desktop_panel_shortcut_path=None,
+            desktop_opencode_shortcut_path=None,
+            uninstall_registry_key=None,
+        )
+
     command = (
         python_executable,
         "-m",
@@ -208,16 +353,11 @@ def deploy_control_center_runtime(
         "local-only",
         "--open-browser",
     )
-    launcher_path.write_text(
-        "@echo off\r\n"
-        f"set \"LACC_INSTALL_ROOT={normalized_install_root}\"\r\n"
-        f"set \"LACC_UI_PORT={DEFAULT_PANEL_PORT}\"\r\n"
-        f"set \"LACC_UI_ACCESS_MODE=local-only\"\r\n"
-        f"set \"PYTHONPATH={src_root}\"\r\n"
-        f"start \"\" \"{python_executable}\" -m local_ai_control_center_installer.control_center_panel "
-        f"--install-root \"{normalized_install_root}\" --host 127.0.0.1 --port {DEFAULT_PANEL_PORT} "
-        "--access-mode local-only --open-browser\r\n",
-        encoding="utf-8",
+    _write_launcher_script(
+        launcher_path,
+        command,
+        env_overrides=env_overrides,
+        platform=platform,
     )
     shell_assets = _ensure_windows_shell_assets(
         install_root=normalized_install_root,
@@ -326,7 +466,7 @@ def launch_control_center(
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
         stdin=subprocess.DEVNULL,
-        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        creationflags=hidden_subprocess_creationflags(),
         close_fds=False,
     )
 
@@ -360,7 +500,22 @@ def _write_launcher_script(
     command: tuple[str, ...],
     *,
     env_overrides: dict[str, str] | None,
+    platform: str | None = None,
 ) -> None:
+    if not _is_windows_runtime_platform(platform):
+        launcher_path.parent.mkdir(parents=True, exist_ok=True)
+        quoted_command = " ".join(shlex.quote(part) for part in command)
+        lines = [
+            "#!/usr/bin/env bash",
+            "set -euo pipefail",
+        ]
+        for key, value in (env_overrides or {}).items():
+            lines.append(f'export {key}="{value}"')
+        lines.append(f"nohup {quoted_command} >/dev/null 2>&1 &")
+        launcher_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        _ensure_executable_bit(launcher_path)
+        return
+
     launcher_path.parent.mkdir(parents=True, exist_ok=True)
     lines = ["@echo off"]
     for key, value in (env_overrides or {}).items():
@@ -368,6 +523,72 @@ def _write_launcher_script(
     quoted_command = " ".join(_quote_windows_part(part) for part in command)
     lines.append(f"start \"\" {quoted_command}")
     launcher_path.write_text("\r\n".join(lines) + "\r\n", encoding="utf-8")
+
+
+def _write_linux_panel_host_script(
+    *,
+    executable_path: Path,
+    python_executable: str | Path,
+    install_root: Path,
+    src_root: Path,
+) -> None:
+    executable_path.parent.mkdir(parents=True, exist_ok=True)
+    python_command = (
+        python_executable
+        if isinstance(python_executable, str)
+        else str(python_executable)
+    )
+    lines = [
+        "#!/usr/bin/env bash",
+        "set -euo pipefail",
+        f'export LACC_INSTALL_ROOT="{install_root}"',
+        f'export LACC_UI_PORT="{DEFAULT_PANEL_PORT}"',
+        'export LACC_UI_ACCESS_MODE="local-only"',
+        f'export PYTHONPATH="{src_root}${{PYTHONPATH:+:${{PYTHONPATH}}}}"',
+        f'exec "{python_command}" -m local_ai_control_center_installer.control_center_panel "$@"',
+    ]
+    executable_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    _ensure_executable_bit(executable_path)
+
+
+def _ensure_linux_shell_assets(
+    *,
+    install_root: Path,
+    panel_root: Path,
+    launcher_path: Path,
+    access_mode: str,
+) -> dict[str, Path | str | None]:
+    config = ControlCenterConfig(
+        ui_host="127.0.0.1",
+        ui_port=DEFAULT_PANEL_PORT,
+        install_root=install_root,
+        access_mode=access_mode,
+    )
+    try:
+        opencode_launcher_path = _prepare_opencode_launcher_for_platform(
+            config=config,
+            platform="linux",
+        )
+    except FileNotFoundError:
+        opencode_launcher_path = None
+
+    uninstall_launcher_path = panel_root / _uninstall_launcher_name_for_platform("linux")
+    _write_linux_uninstall_launcher(uninstall_launcher_path, install_root=install_root)
+    return {
+        "opencode_launcher_path": opencode_launcher_path,
+        "uninstall_launcher_path": uninstall_launcher_path,
+    }
+
+
+def _prepare_opencode_launcher_for_platform(
+    *,
+    config: ControlCenterConfig,
+    platform: str,
+) -> Path:
+    try:
+        return prepare_opencode_launcher(config=config, platform=platform)
+    except TypeError:
+        return prepare_opencode_launcher(config=config)
 
 
 def _ensure_windows_shell_assets(
@@ -496,6 +717,22 @@ def _write_uninstall_launcher(
     uninstall_launcher_path.write_text("\r\n".join(lines) + "\r\n", encoding="utf-8")
 
 
+def _write_linux_uninstall_launcher(
+    uninstall_launcher_path: Path,
+    *,
+    install_root: Path,
+) -> None:
+    uninstall_launcher_path.parent.mkdir(parents=True, exist_ok=True)
+    lines = [
+        "#!/usr/bin/env bash",
+        "set -euo pipefail",
+        f'echo "Linux uninstall launcher jos nije implementiran za: {install_root}"',
+        "exit 1",
+    ]
+    uninstall_launcher_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    _ensure_executable_bit(uninstall_launcher_path)
+
+
 def _resolve_start_menu_programs_dir() -> Path:
     appdata = Path(os.environ.get("APPDATA", Path.home() / "AppData" / "Roaming"))
     return appdata / "Microsoft" / "Windows" / "Start Menu" / "Programs" / START_MENU_FOLDER_NAME
@@ -503,6 +740,11 @@ def _resolve_start_menu_programs_dir() -> Path:
 
 def _resolve_desktop_dir() -> Path:
     return Path.home() / "Desktop"
+
+
+def _ensure_executable_bit(path: Path) -> None:
+    current_mode = path.stat().st_mode
+    path.chmod(current_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
 
 def _create_windows_shortcut(
@@ -643,18 +885,11 @@ def _panel_health_ready(
 
 def _open_panel_url(url: str) -> None:
     subprocess.Popen(
-        [
-            "powershell",
-            "-NoProfile",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-Command",
-            f"Start-Process '{url}'",
-        ],
+        list(build_open_url_command(url)),
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
         stdin=subprocess.DEVNULL,
-        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        creationflags=hidden_subprocess_creationflags(),
         close_fds=False,
     )
 
@@ -665,14 +900,21 @@ def _stop_existing_panel_for_update(
     port: int,
     panel_executable_path: Path,
     timeout_seconds: float = 10.0,
+    platform: str | None = None,
 ) -> None:
     panel_url = f"http://127.0.0.1:{port}/"
     if not _panel_health_ready(panel_url, expected_install_root=str(install_root)):
         return
 
-    pids = _find_panel_process_ids(panel_executable_path)
+    try:
+        pids = _find_panel_process_ids(panel_executable_path, platform=platform)
+    except TypeError:
+        pids = _find_panel_process_ids(panel_executable_path)
     if not pids:
-        listening_pid = _find_listening_pid(port)
+        try:
+            listening_pid = _find_listening_pid(port, platform=platform)
+        except TypeError:
+            listening_pid = _find_listening_pid(port)
         if listening_pid is not None:
             pids = [listening_pid]
 
@@ -682,17 +924,8 @@ def _stop_existing_panel_for_update(
         )
 
     for pid in pids:
-        completed = subprocess.run(
-            ["taskkill", "/PID", str(pid), "/F"],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            check=False,
-            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-        )
-        if completed.returncode != 0:
-            detail = completed.stderr.strip() or completed.stdout.strip() or f"exit code {completed.returncode}"
+        detail = _stop_process_id(pid, platform=platform)
+        if detail is not None:
             raise RuntimeError(f"Control Center panel nije mogao da se zaustavi: {detail}")
 
     deadline = time.monotonic() + timeout_seconds
@@ -712,9 +945,37 @@ def _copy_panel_executable(source: Path, destination: Path) -> None:
     except PermissionError:
         _wait_for_path_replaceable(destination)
         shutil.copy2(source, destination)
+    if destination.suffix.lower() != ".exe":
+        _ensure_executable_bit(destination)
 
 
-def _find_panel_process_ids(executable_path: Path) -> list[int]:
+def _find_panel_process_ids(executable_path: Path, *, platform: str | None = None) -> list[int]:
+    if not _is_windows_runtime_platform(platform):
+        result = subprocess.run(
+            ["ps", "-eo", "pid=,args="],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+        )
+        if result.returncode != 0:
+            return []
+        process_ids: list[int] = []
+        target = str(executable_path)
+        for raw_line in result.stdout.splitlines():
+            line = raw_line.strip()
+            if not line or target not in line:
+                continue
+            parts = line.split(None, 1)
+            if not parts:
+                continue
+            try:
+                process_ids.append(int(parts[0]))
+            except ValueError:
+                continue
+        return process_ids
+
     powershell_command = (
         "$target = "
         + _quote_powershell_string(str(executable_path))
@@ -752,7 +1013,13 @@ def _find_panel_process_ids(executable_path: Path) -> list[int]:
     return process_ids
 
 
-def _find_listening_pid(port: int) -> int | None:
+def _find_listening_pid(port: int, *, platform: str | None = None) -> int | None:
+    if not _is_windows_runtime_platform(platform):
+        listener_pid = _find_linux_listening_pid_with_ss(port)
+        if listener_pid is not None:
+            return listener_pid
+        return _find_linux_listening_pid_with_lsof(port)
+
     result = subprocess.run(
         ["netstat", "-ano", "-p", "tcp"],
         capture_output=True,
@@ -780,6 +1047,80 @@ def _find_listening_pid(port: int) -> int | None:
         except ValueError:
             return None
     return None
+
+
+def _find_linux_listening_pid_with_ss(port: int) -> int | None:
+    result = subprocess.run(
+        ["ss", "-ltnp"],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+    )
+    if result.returncode != 0:
+        return None
+
+    for raw_line in result.stdout.splitlines():
+        if f":{port}" not in raw_line:
+            continue
+        match = re.search(r"pid=(\d+)", raw_line)
+        if match:
+            return int(match.group(1))
+    return None
+
+
+def _find_linux_listening_pid_with_lsof(port: int) -> int | None:
+    if shutil.which("lsof") is None:
+        return None
+    result = subprocess.run(
+        ["lsof", "-tiTCP", str(port), "-sTCP:LISTEN"],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+    )
+    if result.returncode != 0:
+        return None
+    for raw_line in result.stdout.splitlines():
+        candidate = raw_line.strip()
+        if not candidate:
+            continue
+        try:
+            return int(candidate)
+        except ValueError:
+            continue
+    return None
+
+
+def _stop_process_id(pid: int, *, platform: str | None = None) -> str | None:
+    if not _is_windows_runtime_platform(platform):
+        completed = subprocess.run(
+            ["kill", str(pid)],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+        )
+        if completed.returncode == 0:
+            return None
+        detail = completed.stderr.strip() or completed.stdout.strip() or f"exit code {completed.returncode}"
+        return detail
+
+    completed = subprocess.run(
+        ["taskkill", "/PID", str(pid), "/F"],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+        creationflags=hidden_subprocess_creationflags(),
+    )
+    if completed.returncode == 0:
+        return None
+    return completed.stderr.strip() or completed.stdout.strip() or f"exit code {completed.returncode}"
 
 
 def _port_in_use(host: str, port: int) -> bool:

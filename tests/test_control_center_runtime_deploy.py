@@ -283,3 +283,77 @@ def test_deploy_control_center_runtime_creates_shell_shortcuts_and_uninstall_ent
     uninstall_text = deployment.uninstall_launcher_path.read_text(encoding="utf-8")
     assert "Local AI Control Center uninstall je pokrenut." in uninstall_text
     assert str(install_root.resolve()) in uninstall_text
+
+
+def test_deploy_control_center_runtime_creates_linux_python_host_and_launcher(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    install_root = tmp_path / "install-root"
+    opencode_launcher_path = install_root / "control-center" / "Open-OpenCode.sh"
+
+    def fake_prepare_opencode_launcher(config, platform=None):
+        opencode_launcher_path.parent.mkdir(parents=True, exist_ok=True)
+        opencode_launcher_path.write_text("#!/usr/bin/env bash\n", encoding="utf-8")
+        return opencode_launcher_path
+
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_runtime.prepare_opencode_launcher",
+        fake_prepare_opencode_launcher,
+    )
+
+    deployment = deploy_control_center_runtime(
+        install_root,
+        current_python="/usr/bin/python3",
+        frozen=False,
+        platform="linux",
+    )
+
+    host_path = install_root / "control-center" / "local-ai-control-center-panel"
+    launcher_path = install_root / "control-center" / "Open-Control-Center.sh"
+    host_text = host_path.read_text(encoding="utf-8")
+    launcher_text = launcher_path.read_text(encoding="utf-8")
+
+    assert deployment.strategy == "linux-python-host"
+    assert deployment.executable_path == host_path
+    assert deployment.launcher_path == launcher_path
+    assert deployment.command[0] == str(host_path)
+    assert deployment.opencode_launcher_path == opencode_launcher_path
+    assert deployment.start_menu_dir is None
+    assert deployment.desktop_panel_shortcut_path is None
+    assert deployment.uninstall_registry_key is None
+    assert host_text.startswith("#!/usr/bin/env bash\n")
+    assert 'export LACC_INSTALL_ROOT="' in host_text
+    assert 'exec "/usr/bin/python3" -m local_ai_control_center_installer.control_center_panel "$@"' in host_text
+    assert launcher_text.startswith("#!/usr/bin/env bash\n")
+    assert "nohup " in launcher_text
+    assert "--open-browser" in launcher_text
+
+
+def test_deploy_control_center_runtime_copies_linux_frozen_host_binary(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    install_root = tmp_path / "install-root"
+    current_executable = tmp_path / "local-ai-control-center-panel.bin"
+    current_executable.write_bytes(b"panel-runtime")
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_runtime.prepare_opencode_launcher",
+        lambda config: None,
+    )
+
+    deployment = deploy_control_center_runtime(
+        install_root,
+        panel_executable_resource=None,
+        frozen=True,
+        frozen_executable=str(current_executable),
+        platform="linux",
+    )
+
+    copied_executable = install_root / "control-center" / "local-ai-control-center-panel"
+    assert deployment.strategy == "copied-frozen-linux"
+    assert deployment.executable_path == copied_executable
+    assert copied_executable.read_bytes() == b"panel-runtime"
+    assert deployment.command[0] == str(copied_executable)
+    assert deployment.command[1] == "--panel"
+    assert deployment.launcher_path.name == "Open-Control-Center.sh"
