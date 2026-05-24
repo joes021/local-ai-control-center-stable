@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
+from pathlib import Path
 import socket
 import subprocess
 import threading
@@ -40,7 +42,7 @@ def run_control_center_panel_entry(argv: list[str] | None = None) -> int:
     os.environ["LACC_UI_ACCESS_MODE"] = args.access_mode
     url = f"http://{args.host}:{args.port}/"
 
-    if _health_ready(url):
+    if _health_ready_for_install_root(url, expected_install_root=args.install_root):
         if args.open_browser:
             _open_url(url)
         return 0
@@ -90,6 +92,29 @@ def _health_ready(url: str) -> bool:
         return False
     except OSError:
         return False
+
+
+def _health_ready_for_install_root(url: str, *, expected_install_root: str) -> bool:
+    try:
+        with urlopen(f"{url}health", timeout=1.0) as response:
+            if response.status != 200:
+                return False
+            payload = json.loads(response.read().decode("utf-8"))
+    except (URLError, OSError, UnicodeDecodeError, ValueError, json.JSONDecodeError):
+        return False
+
+    install_root = str(payload.get("installRoot", "") or "").strip()
+    app_name = str(payload.get("app", "") or "").strip()
+    status = str(payload.get("status", "") or "").strip()
+    if status.lower() != "ok" or app_name != "local-ai-control-center-stable":
+        return False
+    if not install_root:
+        return False
+    return _normalized_install_root(install_root) == _normalized_install_root(expected_install_root)
+
+
+def _normalized_install_root(value: str) -> str:
+    return str(Path(value).expanduser().resolve()).casefold()
 
 
 def _port_in_use(host: str, port: int) -> bool:

@@ -4,9 +4,11 @@ import subprocess
 import pytest
 
 from local_ai_control_center_installer.control_center_runtime import (
+    ControlCenterRuntimeDeployment,
     PANEL_EXECUTABLE_NAME,
     _panel_health_ready,
     deploy_control_center_runtime,
+    launch_control_center,
 )
 
 
@@ -50,6 +52,43 @@ def test_deploy_control_center_runtime_copies_current_frozen_executable_for_pane
     assert deployment.command[0] == str(copied_executable)
     assert deployment.command[1] == "--panel"
     assert deployment.launcher_path.is_file()
+
+
+def test_launch_control_center_fails_fast_when_foreign_listener_occupies_ui_port(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    install_root = tmp_path / "install-root"
+    deployment = ControlCenterRuntimeDeployment(
+        install_root=install_root,
+        panel_root=install_root / "control-center",
+        executable_path=install_root / "control-center" / PANEL_EXECUTABLE_NAME,
+        launcher_path=install_root / "control-center" / "Open-Control-Center.cmd",
+        command=("fake-panel.exe", "--panel"),
+        url="http://127.0.0.1:3210/",
+        port=3210,
+        access_mode="local-only",
+        strategy="packaged-exe",
+    )
+    popen_calls: list[tuple[str, ...]] = []
+
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_runtime._panel_health_ready",
+        lambda *args, **kwargs: False,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_runtime._port_in_use",
+        lambda host, port: True,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_runtime.subprocess.Popen",
+        lambda command, **kwargs: popen_calls.append(tuple(command)),
+    )
+
+    with pytest.raises(RuntimeError, match="UI port 3210 je vec zauzet drugim procesom."):
+        launch_control_center(deployment, timeout_seconds=0.1)
+
+    assert popen_calls == []
 
 
 def test_panel_health_ready_rejects_foreign_service_payload(monkeypatch: pytest.MonkeyPatch):

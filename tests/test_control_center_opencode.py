@@ -130,6 +130,14 @@ def test_opencode_status_route_ignores_instances_from_other_install_roots(
             }
         ],
     )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.opencode_service.load_runtime_state",
+        lambda config: {
+            "runtime_live_status": "started",
+            "runtime_live_reason": "Runtime je spreman za novi OpenCode session.",
+        },
+        raising=False,
+    )
 
     client = TestClient(app)
     response = client.get("/api/opencode/status")

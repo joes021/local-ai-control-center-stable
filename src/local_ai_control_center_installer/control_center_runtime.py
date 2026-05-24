@@ -455,6 +455,8 @@ def launch_control_center(
     ):
         _open_panel_url(deployment.url)
         return deployment
+    if _port_in_use("127.0.0.1", deployment.port):
+        raise RuntimeError(f"UI port {deployment.port} je vec zauzet drugim procesom.")
 
     environment = os.environ.copy()
     if deployment.env_overrides:
