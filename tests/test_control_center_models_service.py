@@ -189,7 +189,71 @@ def test_activate_model_route_updates_active_model_and_managed_opencode_config(
         )
     )
     assert managed_config["model"] == "local-lacc/Qwen3-0.6B-Q8_0.gguf"
+    assert managed_config["enabled_providers"] == ["local-lacc", "opencode"]
     assert managed_config["provider"]["local-lacc"]["options"]["baseURL"] == "http://127.0.0.1:39281/v1"
     assert managed_config["provider"]["local-lacc"]["models"] == {
         "Qwen3-0.6B-Q8_0.gguf": {"name": "Qwen3-0.6B-Q8_0.gguf"}
     }
+
+
+def test_activate_model_route_rejects_mtp_variant_for_runtime_activation(
+    tmp_path: Path,
+    monkeypatch,
+):
+    install_root = tmp_path / "install-root"
+    curated_model_path = (
+        install_root / "models" / "recommended-6gb" / "gemma-4-E4B-it-Q4_K_M.gguf"
+    )
+    mtp_model_path = (
+        install_root
+        / "models"
+        / "unsloth"
+        / "unsloth-qwen3-6-27b-mtp-gguf"
+        / "Qwen3.6-27B-UD-IQ2_XXS.gguf"
+    )
+    mtp_model_path.parent.mkdir(parents=True, exist_ok=True)
+    mtp_model_path.write_text("mtp-model", encoding="utf-8")
+    _write_active_model_config(
+        install_root,
+        model_id="recommended-6gb",
+        model_path=curated_model_path,
+    )
+    _write_runtime_endpoint_config(
+        install_root / "config" / "runtime-endpoint.json",
+        port=39281,
+    )
+    _write_custom_registry(
+        install_root,
+        [
+            {
+                "id": "unsloth-unsloth-qwen3-6-27b-mtp-gguf-qwen3-6-27b-ud-iq2-xxs",
+                "label": "Qwen3.6 27B MTP",
+                "filename": "Qwen3.6-27B-UD-IQ2_XXS.gguf",
+                "family": "Qwen",
+                "source": "unsloth",
+                "repo": "unsloth/Qwen3.6-27B-MTP-GGUF",
+                "absolute_path": str(mtp_model_path),
+                "download_url": "https://huggingface.co/unsloth/Qwen3.6-27B-MTP-GGUF/resolve/main/Qwen3.6-27B-UD-IQ2_XXS.gguf",
+            }
+        ],
+    )
+
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+
+    client = TestClient(app)
+    response = client.post(
+        "/api/models/activate",
+        json={"modelId": "unsloth-unsloth-qwen3-6-27b-mtp-gguf-qwen3-6-27b-ud-iq2-xxs"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "error"
+    assert "MTP" in payload["summary"]
+    assert "non-MTP" in payload["summary"]
+
+    active_model_payload = json.loads(
+        (install_root / "config" / "active-model.json").read_text(encoding="utf-8")
+    )
+    assert active_model_payload["model_id"] == "recommended-6gb"
+    assert active_model_payload["model_path"] == str(curated_model_path)

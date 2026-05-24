@@ -502,7 +502,7 @@ def test_apply_opencode_bootstrap_marks_artifact_ready_when_valid_artifact_exist
     assert managed_config["autoupdate"] is False
     assert managed_config["model"] == "local-lacc/gemma-4-E4B-it-Q4_K_M.gguf"
     assert "installer_managed" not in managed_config
-    assert managed_config["enabled_providers"] == ["local-lacc"]
+    assert managed_config["enabled_providers"] == ["local-lacc", "opencode"]
     assert managed_config["provider"]["local-lacc"]["npm"] == "@ai-sdk/openai-compatible"
     assert managed_config["provider"]["local-lacc"]["models"] == {
         "gemma-4-E4B-it-Q4_K_M.gguf": {"name": "gemma-4-E4B-it-Q4_K_M.gguf"}
@@ -715,7 +715,7 @@ def test_apply_opencode_bootstrap_generated_config_uses_canonical_runtime_endpoi
     managed_config = json.loads(Path(updated.opencode_config_path).read_text(encoding="utf-8"))
 
     assert updated.opencode_artifact_status == "ready"
-    assert managed_config["enabled_providers"] == ["local-lacc"]
+    assert managed_config["enabled_providers"] == ["local-lacc", "opencode"]
     assert managed_config["provider"]["local-lacc"]["npm"] == "@ai-sdk/openai-compatible"
     assert managed_config["provider"]["local-lacc"]["options"]["baseURL"] == "http://127.0.0.1:39281/v1"
     assert managed_config["provider"]["local-lacc"]["models"] == {

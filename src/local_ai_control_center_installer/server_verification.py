@@ -543,8 +543,10 @@ def _require_non_empty_string(value: object, error_message: str) -> str:
 def _build_server_command(
     target: ServerVerificationTarget,
     port: int,
+    *,
+    ctx_size: int | None = None,
 ) -> list[str]:
-    return [
+    command = [
         str(target.server_executable),
         "--host",
         "127.0.0.1",
@@ -553,6 +555,9 @@ def _build_server_command(
         "--model",
         str(target.model_path),
     ]
+    if isinstance(ctx_size, int) and ctx_size > 0:
+        command.extend(["--ctx-size", str(ctx_size)])
+    return command
 
 
 def stop_server_process(

@@ -67,3 +67,39 @@ def test_packaged_settings_action_and_browse_buttons_use_panel_button_theme():
 
     assert ".settings-action-row button" in bundled_css
     assert ".settings-path-row button" in bundled_css
+
+
+def test_browser_page_source_groups_quant_filters_and_supports_quant_sort():
+    source = Path("frontend/src/pages/BrowserPage.tsx").read_text(encoding="utf-8")
+
+    assert "normalizeQuantFilterKey" in source
+    assert "quant-asc" in source
+    assert "quant-desc" in source
+    assert "item.quantFilterKey !== quantFilter" in source
+
+
+def test_browser_page_source_uses_compact_badges_for_mtp_and_fit_columns():
+    source = Path("frontend/src/pages/BrowserPage.tsx").read_text(encoding="utf-8")
+
+    assert "compactMtpLabel" in source
+    assert "compactFitLabel" in source
+    assert "Fit: {item.fitLabel}" not in source
+
+
+def test_packaged_browser_ui_contains_quant_sort_labels():
+    dist_root = Path(
+        "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
+    )
+    js_assets = list((dist_root / "assets").glob("index-*.js"))
+
+    assert js_assets
+    bundled_text = "\n".join(path.read_text(encoding="utf-8") for path in js_assets)
+
+    assert "Quant smallest first" in bundled_text
+    assert "Quant largest first" in bundled_text
+
+
+def test_api_source_disables_cache_for_download_progress_polling():
+    source = Path("frontend/src/lib/api.ts").read_text(encoding="utf-8")
+
+    assert 'fetch("/api/models/download-progress", { cache: "no-store" })' in source

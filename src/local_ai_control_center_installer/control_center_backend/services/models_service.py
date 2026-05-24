@@ -27,6 +27,7 @@ from local_ai_control_center_installer.control_center_backend.services.state_hel
     slugify_token,
 )
 from local_ai_control_center_installer.control_center_backend.services.status_service import (
+    classify_runtime_model_support,
     find_runtime_pid,
 )
 from local_ai_control_center_installer.downloads import (
@@ -59,6 +60,8 @@ IDLE_DOWNLOAD_PROGRESS = {
     "message": "Nema aktivnog download-a.",
     "updatedAt": "",
 }
+
+DOWNLOAD_PROGRESS_STALE_SECONDS = 120
 
 
 def load_models_payload(
@@ -125,6 +128,17 @@ def activate_model(
             "activate-model",
             f"Model nije prisutan na disku: {model_id}",
             stderr=f"Model nije prisutan na disku: {model_id}",
+        )
+    model_supported, model_reason = classify_runtime_model_support(
+        model_id=str(model["id"]),
+        model_path=model_path,
+    )
+    if not model_supported:
+        return action_result(
+            "error",
+            "activate-model",
+            model_reason,
+            stderr=model_reason,
         )
 
     _write_active_model_config(
@@ -569,7 +583,7 @@ def load_download_progress_payload(
         return dict(IDLE_DOWNLOAD_PROGRESS)
 
     status = str(payload.get("status", "idle") or "idle")
-    return {
+    normalized = {
         "status": status,
         "isActive": bool(payload.get("isActive", False)),
         "modelId": str(payload.get("modelId", "") or ""),
@@ -583,6 +597,17 @@ def load_download_progress_payload(
         "message": str(payload.get("message", "") or _default_download_message(status)),
         "updatedAt": str(payload.get("updatedAt", "") or ""),
     }
+    if _is_stale_active_download(normalized):
+        normalized = {
+            **normalized,
+            "status": "error",
+            "isActive": False,
+            "speedMBps": None,
+            "etaSeconds": None,
+            "message": "Download worker vise nije aktivan. Pokreni download ponovo.",
+        }
+        _write_download_progress(config, normalized)
+    return normalized
 
 
 def get_model_action_status(
@@ -944,7 +969,105 @@ def _write_download_progress(
     config: ControlCenterConfig,
     payload: dict[str, object],
 ) -> None:
-    atomic_write_json(config.model_download_progress_path, payload)
+    previous = read_json_object(config.model_download_progress_path)
+    atomic_write_json(
+        config.model_download_progress_path,
+        _merge_download_progress_payload(previous, payload),
+    )
+
+
+def _merge_download_progress_payload(
+    previous: dict[str, object],
+    incoming: dict[str, object],
+) -> dict[str, object]:
+    if not _is_same_active_download(previous, incoming):
+        return incoming
+
+    merged = dict(incoming)
+    previous_status = str(previous.get("status", "") or "")
+    incoming_status = str(incoming.get("status", "") or "")
+    if previous_status == "downloading" and incoming_status == "starting":
+        merged["status"] = "downloading"
+
+    merged["percent"] = _prefer_non_regressing_number(
+        previous.get("percent"),
+        incoming.get("percent"),
+    )
+    merged["downloadedGiB"] = _prefer_non_regressing_number(
+        previous.get("downloadedGiB"),
+        incoming.get("downloadedGiB"),
+    )
+    merged["totalGiB"] = _prefer_non_regressing_number(
+        previous.get("totalGiB"),
+        incoming.get("totalGiB"),
+    )
+    merged["speedMBps"] = _prefer_existing_number(
+        previous.get("speedMBps"),
+        incoming.get("speedMBps"),
+    )
+    merged["etaSeconds"] = _prefer_existing_number(
+        previous.get("etaSeconds"),
+        incoming.get("etaSeconds"),
+    )
+    return merged
+
+
+def _is_same_active_download(
+    previous: dict[str, object],
+    incoming: dict[str, object],
+) -> bool:
+    if not isinstance(previous, dict) or not isinstance(incoming, dict):
+        return False
+    if not bool(previous.get("isActive")) or not bool(incoming.get("isActive")):
+        return False
+    previous_status = str(previous.get("status", "") or "")
+    incoming_status = str(incoming.get("status", "") or "")
+    if previous_status not in {"starting", "downloading"}:
+        return False
+    if incoming_status not in {"starting", "downloading"}:
+        return False
+    previous_model = str(previous.get("modelId", "") or "")
+    incoming_model = str(incoming.get("modelId", "") or "")
+    if not previous_model or previous_model != incoming_model:
+        return False
+    previous_source = str(previous.get("source", "") or "")
+    incoming_source = str(incoming.get("source", "") or "")
+    return previous_source == incoming_source
+
+
+def _prefer_non_regressing_number(previous: object, incoming: object) -> object:
+    previous_number = _coerce_float(previous)
+    incoming_number = _coerce_float(incoming)
+    if incoming_number is None:
+        return previous_number
+    if previous_number is None:
+        return incoming_number
+    return incoming_number if incoming_number >= previous_number else previous_number
+
+
+def _prefer_existing_number(previous: object, incoming: object) -> object:
+    incoming_number = _coerce_float(incoming)
+    if incoming_number is not None:
+        return incoming_number
+    return _coerce_float(previous)
+
+
+def _is_stale_active_download(payload: dict[str, object]) -> bool:
+    if not bool(payload.get("isActive")):
+        return False
+    status = str(payload.get("status", "") or "")
+    if status not in {"starting", "downloading"}:
+        return False
+    updated_at = str(payload.get("updatedAt", "") or "")
+    if not updated_at:
+        return False
+    try:
+        normalized = updated_at.replace("Z", "+00:00")
+        updated_at_dt = datetime.fromisoformat(normalized)
+    except ValueError:
+        return False
+    age_seconds = (datetime.now(timezone.utc) - updated_at_dt.astimezone(timezone.utc)).total_seconds()
+    return age_seconds >= DOWNLOAD_PROGRESS_STALE_SECONDS
 
 
 def _utc_now() -> str:

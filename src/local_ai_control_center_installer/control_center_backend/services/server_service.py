@@ -12,6 +12,10 @@ from local_ai_control_center_installer.control_center_backend.config import (
 from local_ai_control_center_installer.control_center_backend.services.network_service import (
     detect_tailscale_ip,
 )
+from local_ai_control_center_installer.control_center_backend.services.settings_service import (
+    load_effective_settings_state,
+    load_turboquant_config,
+)
 from local_ai_control_center_installer.control_center_backend.services.status_service import (
     find_runtime_pid,
     load_runtime_state,
@@ -40,6 +44,12 @@ def load_server_status(
         health_status,
         pid,
     )
+    if not bool(runtime_state.get("active_model_supported", True)) and pid is None:
+        reason = str(runtime_state.get("active_model_reason", "") or reason)
+        status = "stopped"
+        health = "offline"
+        runtime_live_status = "stopped"
+        runtime_live_reason = reason
 
     tailscale_ip = detect_tailscale_ip()
     tailscale_url = ""
@@ -102,6 +112,12 @@ def start_server(
             "start-server",
             "Aktivni model nije pronadjen.",
         )
+    if not bool(runtime_state.get("active_model_supported", True)):
+        return _result(
+            "error",
+            "start-server",
+            str(runtime_state.get("active_model_reason", "") or "Aktivni model nije podrzan za runtime start."),
+        )
 
     command = _build_server_command(
         ServerVerificationTarget(
@@ -111,6 +127,7 @@ def start_server(
             active_model_config_path=config.install_root / "config" / "active-model.json",
         ),
         port,
+        ctx_size=_resolve_runtime_context_size(config, runtime_state),
     )
     log_path = config.install_root / "logs" / "runtime-server.log"
     log_path.parent.mkdir(parents=True, exist_ok=True)
@@ -302,3 +319,23 @@ def _result(status: str, action: str, summary: str) -> dict[str, object]:
             "stderr": "" if status == "ok" else summary,
         },
     }
+
+
+def _resolve_runtime_context_size(
+    config: ControlCenterConfig,
+    runtime_state: dict[str, object],
+) -> int | None:
+    active_runtime = str(runtime_state.get("active_runtime", "") or "").strip().lower()
+    if active_runtime == "turboquant":
+        turbo_config = load_turboquant_config(config)
+        return _positive_int_or_none(turbo_config.get("context"))
+    settings = load_effective_settings_state(config)
+    return _positive_int_or_none(settings.get("context"))
+
+
+def _positive_int_or_none(value: object) -> int | None:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed > 0 else None

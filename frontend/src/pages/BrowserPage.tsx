@@ -35,6 +35,8 @@ type BrowserCatalogEnvelope =
     };
 
 type SortKey =
+  | "quant-asc"
+  | "quant-desc"
   | "updated-desc"
   | "updated-asc"
   | "size-desc"
@@ -114,6 +116,19 @@ function sourceLabel(source: string): string {
   return source;
 }
 
+function normalizeQuantFilterKey(value: string): string {
+  const upper = readString(value, "Unknown").trim().toUpperCase();
+  if (!upper) {
+    return "UNKNOWN";
+  }
+  const segments = upper.split("-");
+  const quantIndex = segments.findIndex((segment) => /^(IQ\d|Q\d|BF16|F16|MXFP|NVFP)/.test(segment));
+  if (quantIndex > 0) {
+    return segments.slice(quantIndex).join("-");
+  }
+  return upper;
+}
+
 function normalizeFitStatus(value: unknown): BrowserFitStatus {
   const lowered = readString(value, "unknown").trim().toLowerCase();
   if (lowered.includes("radi")) {
@@ -139,6 +154,29 @@ function fitLabel(status: BrowserFitStatus): string {
     return "Ne radi";
   }
   return "Nije provereno";
+}
+
+function compactMtpLabel(status: BrowserMtpStatus): string {
+  if (status === "has-mtp") {
+    return "MTP";
+  }
+  if (status === "no-mtp") {
+    return "No";
+  }
+  return "?";
+}
+
+function compactFitLabel(status: BrowserFitStatus): string {
+  if (status === "radi") {
+    return "OK";
+  }
+  if (status === "granicno") {
+    return "~";
+  }
+  if (status === "ne radi") {
+    return "No";
+  }
+  return "?";
 }
 
 function formatDate(value: string | null): string {
@@ -173,6 +211,38 @@ function formatCount(value: number | null): string {
   return new Intl.NumberFormat("en-US").format(value);
 }
 
+function quantSortToken(value: string): { bits: number; familyRank: number; label: string } {
+  const normalized = normalizeQuantFilterKey(value);
+  if (normalized === "BF16" || normalized === "F16") {
+    return { bits: 16, familyRank: 3, label: normalized };
+  }
+  const numericMatch = normalized.match(/(IQ|Q)(\d+)/);
+  if (numericMatch) {
+    return {
+      bits: Number(numericMatch[2]),
+      familyRank: numericMatch[1] === "IQ" ? 0 : 1,
+      label: normalized,
+    };
+  }
+  if (normalized.startsWith("MXFP")) {
+    return { bits: 4, familyRank: 2, label: normalized };
+  }
+  if (normalized.startsWith("NVFP")) {
+    return { bits: 4, familyRank: 2, label: normalized };
+  }
+  return { bits: Number.MAX_SAFE_INTEGER, familyRank: 4, label: normalized };
+}
+
+function compareQuantization(left: string, right: string): number {
+  const leftToken = quantSortToken(left);
+  const rightToken = quantSortToken(right);
+  return (
+    leftToken.bits - rightToken.bits ||
+    leftToken.familyRank - rightToken.familyRank ||
+    leftToken.label.localeCompare(rightToken.label)
+  );
+}
+
 function buildItem(record: Record<string, unknown>): BrowserCatalogItem {
   const source = normalizeSource(
     readString(record.source || record.provider || record.catalogSource || record.origin, "other"),
@@ -203,6 +273,7 @@ function buildItem(record: Record<string, unknown>): BrowserCatalogItem {
     source,
     repoId: repo,
     quantization,
+    quantFilterKey: normalizeQuantFilterKey(quantization),
     sizeLabel,
     sizeBytes,
     updatedAt: readString(record.updatedAt || record.lastUpdated || record.publishedAt || record.date) || null,
@@ -256,6 +327,16 @@ function buildRefreshActionResult(source: string | undefined, payload: BrowserCa
   };
 }
 
+function nextSortKey(current: SortKey, column: "quant" | "size" | "updated"): SortKey {
+  if (column === "quant") {
+    return current === "quant-asc" ? "quant-desc" : "quant-asc";
+  }
+  if (column === "size") {
+    return current === "size-desc" ? "size-asc" : "size-desc";
+  }
+  return current === "updated-desc" ? "updated-asc" : "updated-desc";
+}
+
 function normalizeCatalogPayload(payload: BrowserCatalogEnvelope): BrowserCatalogPayload {
   const envelope = asRecord(payload);
   const itemsSource = readArray(envelope.items ?? envelope.models ?? envelope.catalog);
@@ -287,6 +368,12 @@ function compareItems(left: BrowserCatalogItem, right: BrowserCatalogItem, sortK
   }
   if (sortKey === "updated-asc") {
     return (new Date(left.updatedAt ?? 0).getTime() || 0) - (new Date(right.updatedAt ?? 0).getTime() || 0);
+  }
+  if (sortKey === "quant-asc") {
+    return compareQuantization(left.quantization, right.quantization) || left.model.localeCompare(right.model);
+  }
+  if (sortKey === "quant-desc") {
+    return compareQuantization(right.quantization, left.quantization) || left.model.localeCompare(right.model);
   }
   if (sortKey === "size-desc") {
     return (right.sizeBytes ?? -1) - (left.sizeBytes ?? -1);
@@ -401,7 +488,7 @@ export function BrowserPage() {
       return [];
     }
     const items = catalog.models.map((item) => buildItem(asRecord(item)));
-    return Array.from(new Set(items.map((item) => item.quantization).filter(Boolean))).sort();
+    return Array.from(new Set(items.map((item) => item.quantFilterKey).filter(Boolean))).sort(compareQuantization);
   }, [catalog]);
 
   const filteredItems = useMemo(() => {
@@ -421,7 +508,7 @@ export function BrowserPage() {
         if (familyFilter !== "all" && item.family !== familyFilter) {
           return false;
         }
-        if (quantFilter !== "all" && item.quantization !== quantFilter) {
+        if (quantFilter !== "all" && item.quantFilterKey !== quantFilter) {
           return false;
         }
         if (mtpFilter !== "all" && item.mtpStatus !== mtpFilter) {
@@ -689,6 +776,8 @@ export function BrowserPage() {
     { value: "90d", label: "Last 90 days" },
   ];
   const sortOptions = [
+    { value: "quant-asc", label: "Quant smallest first" },
+    { value: "quant-desc", label: "Quant largest first" },
     { value: "updated-desc", label: "Latest first" },
     { value: "updated-asc", label: "Oldest first" },
     { value: "fit-desc", label: "Best Fit first" },
@@ -940,9 +1029,42 @@ export function BrowserPage() {
                   <th>Model</th>
                   <th>Family</th>
                   <th>Source</th>
-                  <th>Quant</th>
-                  <th>Size</th>
-                  <th>Last update</th>
+                  <th>
+                    <button
+                      type="button"
+                      className={`browser-sort-button ${sortKey === "quant-asc" || sortKey === "quant-desc" ? "browser-sort-button-active" : ""}`}
+                      onClick={() => setSortKey((current) => nextSortKey(current, "quant"))}
+                    >
+                      Quant
+                      <span className="browser-sort-indicator">
+                        {sortKey === "quant-asc" ? "↑" : sortKey === "quant-desc" ? "↓" : "↕"}
+                      </span>
+                    </button>
+                  </th>
+                  <th>
+                    <button
+                      type="button"
+                      className={`browser-sort-button ${sortKey === "size-desc" || sortKey === "size-asc" ? "browser-sort-button-active" : ""}`}
+                      onClick={() => setSortKey((current) => nextSortKey(current, "size"))}
+                    >
+                      Size
+                      <span className="browser-sort-indicator">
+                        {sortKey === "size-desc" ? "↓" : sortKey === "size-asc" ? "↑" : "↕"}
+                      </span>
+                    </button>
+                  </th>
+                  <th>
+                    <button
+                      type="button"
+                      className={`browser-sort-button ${sortKey === "updated-desc" || sortKey === "updated-asc" ? "browser-sort-button-active" : ""}`}
+                      onClick={() => setSortKey((current) => nextSortKey(current, "updated"))}
+                    >
+                      Last update
+                      <span className="browser-sort-indicator">
+                        {sortKey === "updated-desc" ? "↓" : sortKey === "updated-asc" ? "↑" : "↕"}
+                      </span>
+                    </button>
+                  </th>
                   <th>MTP</th>
                   <th>Fit</th>
                 </tr>
@@ -991,14 +1113,22 @@ export function BrowserPage() {
                         {sourceLabel(item.source)}
                       </span>
                     </td>
-                    <td>{item.quantization}</td>
+                    <td title={item.quantization}>{item.quantization}</td>
                     <td>{formatSize(item)}</td>
                     <td>{formatDate(item.updatedAt)}</td>
                     <td>
-                      <span className={`browser-badge browser-mtp-${item.mtpStatus}`}>{item.mtpLabel}</span>
+                      <span className={`browser-badge browser-badge-compact browser-mtp-${item.mtpStatus}`} title={item.mtpLabel} aria-label={item.mtpLabel}>
+                        {compactMtpLabel(item.mtpStatus)}
+                      </span>
                     </td>
                     <td>
-                      <span className={`browser-badge browser-fit-${item.fitStatus.replace(/\s+/g, "-")}`}>Fit: {item.fitLabel}</span>
+                      <span
+                        className={`browser-badge browser-badge-compact browser-fit-${item.fitStatus.replace(/\s+/g, "-")}`}
+                        title={item.fitLabel}
+                        aria-label={item.fitLabel}
+                      >
+                        {compactFitLabel(item.fitStatus)}
+                      </span>
                     </td>
                   </tr>
                 ))}

@@ -356,7 +356,7 @@ def _write_managed_config(
             {
                 "autoupdate": False,
                 "model": f"local-lacc/{resolved_public_model_name}",
-                "enabled_providers": ["local-lacc"],
+                "enabled_providers": ["local-lacc", "opencode"],
                 "provider": {
                     "local-lacc": {
                         "npm": "@ai-sdk/openai-compatible",

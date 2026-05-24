@@ -4,6 +4,10 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from local_ai_control_center_installer.control_center_backend.main import app
+from local_ai_control_center_installer.control_center_backend.services.models_service import (
+    _write_download_progress,
+)
+from local_ai_control_center_installer.control_center_backend.config import get_config
 from local_ai_control_center_installer.downloads import DownloadProgress
 from local_ai_control_center_installer.runtime_bootstrap import (
     _write_runtime_endpoint_config,
@@ -330,3 +334,96 @@ def test_browser_download_route_surfaces_worker_failure_in_progress_payload(
     assert progress_payload["status"] == "error"
     assert progress_payload["isActive"] is False
     assert "simulated browser download failure" in progress_payload["message"]
+
+
+def test_download_progress_marks_stale_active_snapshot_as_error(tmp_path: Path, monkeypatch):
+    install_root = tmp_path / "install-root"
+    progress_path = install_root / "config" / "control-center" / "model-download-progress.json"
+    progress_path.parent.mkdir(parents=True, exist_ok=True)
+    progress_path.write_text(
+        json.dumps(
+            {
+                "status": "downloading",
+                "isActive": True,
+                "modelId": "unsloth-qwen-iq2-xxs",
+                "fileName": "Qwen3.6-35B-A3B-UD-IQ2_XXS.gguf",
+                "source": "unsloth",
+                "percent": 0.4,
+                "downloadedGiB": 0.04,
+                "totalGiB": 10.02,
+                "speedMBps": 40.7,
+                "etaSeconds": 251,
+                "message": "Download je u toku",
+                "updatedAt": "2026-05-24T00:00:00+00:00",
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+
+    client = TestClient(app)
+    response = client.get("/api/models/download-progress")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "error"
+    assert payload["isActive"] is False
+    assert "Pokreni download ponovo" in payload["message"]
+
+    persisted = json.loads(progress_path.read_text(encoding="utf-8"))
+    assert persisted["status"] == "error"
+    assert persisted["isActive"] is False
+
+
+def test_write_download_progress_keeps_stronger_active_snapshot_for_same_model(
+    tmp_path: Path,
+    monkeypatch,
+):
+    install_root = tmp_path / "install-root"
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    config = get_config()
+
+    _write_download_progress(
+        config,
+        {
+            "status": "downloading",
+            "isActive": True,
+            "modelId": "unsloth-qwen",
+            "fileName": "Qwen.gguf",
+            "source": "unsloth",
+            "percent": 12.4,
+            "downloadedGiB": 1.24,
+            "totalGiB": 10.0,
+            "speedMBps": 48.2,
+            "etaSeconds": 201,
+            "message": "Download je u toku",
+            "updatedAt": "2026-05-24T01:00:00+00:00",
+        },
+    )
+
+    _write_download_progress(
+        config,
+        {
+            "status": "starting",
+            "isActive": True,
+            "modelId": "unsloth-qwen",
+            "fileName": "Qwen.gguf",
+            "source": "unsloth",
+            "percent": None,
+            "downloadedGiB": None,
+            "totalGiB": None,
+            "speedMBps": None,
+            "etaSeconds": None,
+            "message": "Download je u toku",
+            "updatedAt": "2026-05-24T01:00:01+00:00",
+        },
+    )
+
+    persisted = json.loads(config.model_download_progress_path.read_text(encoding="utf-8"))
+    assert persisted["status"] == "downloading"
+    assert persisted["percent"] == 12.4
+    assert persisted["downloadedGiB"] == 1.24
+    assert persisted["totalGiB"] == 10.0
+    assert persisted["speedMBps"] == 48.2
+    assert persisted["etaSeconds"] == 201

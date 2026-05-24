@@ -1030,7 +1030,7 @@ select:-webkit-autofill {
 
 .browser-table th,
 .browser-table td {
-  padding: 14px 16px;
+  padding: 12px 10px;
   text-align: left;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   vertical-align: top;
@@ -1047,6 +1047,29 @@ select:-webkit-autofill {
   font-size: 0.74rem;
 }
 
+.browser-sort-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+}
+
+.browser-sort-button-active {
+  color: #f2c76c;
+}
+
+.browser-sort-indicator {
+  font-size: 0.7rem;
+  opacity: 0.88;
+}
+
 .browser-table th:nth-child(1),
 .browser-table td:nth-child(1) {
   width: 38%;
@@ -1054,37 +1077,43 @@ select:-webkit-autofill {
 
 .browser-table th:nth-child(2),
 .browser-table td:nth-child(2) {
-  width: 11%;
+  width: 10%;
 }
 
 .browser-table th:nth-child(3),
 .browser-table td:nth-child(3) {
-  width: 12%;
+  width: 10%;
 }
 
 .browser-table th:nth-child(4),
 .browser-table td:nth-child(4) {
-  width: 11%;
+  width: 10%;
 }
 
 .browser-table th:nth-child(5),
 .browser-table td:nth-child(5) {
-  width: 9%;
+  width: 8%;
 }
 
 .browser-table th:nth-child(6),
 .browser-table td:nth-child(6) {
-  width: 9%;
+  width: 10%;
 }
 
 .browser-table th:nth-child(7),
 .browser-table td:nth-child(7) {
-  width: 5%;
+  width: 4%;
+  padding-left: 6px;
+  padding-right: 6px;
+  text-align: center;
 }
 
 .browser-table th:nth-child(8),
 .browser-table td:nth-child(8) {
-  width: 5%;
+  width: 4%;
+  padding-left: 6px;
+  padding-right: 6px;
+  text-align: center;
 }
 
 .browser-source-cell {
@@ -1157,6 +1186,14 @@ select:-webkit-autofill {
   font-size: 0.74rem;
   white-space: nowrap;
   width: fit-content;
+}
+
+.browser-badge-compact {
+  min-width: 30px;
+  padding: 3px 6px;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
 }
 
 .browser-chip-row {

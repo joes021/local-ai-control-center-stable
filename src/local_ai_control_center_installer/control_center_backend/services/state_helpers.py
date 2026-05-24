@@ -6,8 +6,13 @@ import os
 from pathlib import Path
 import re
 from tempfile import mkstemp
+import time
 from typing import Any
 from uuid import uuid4
+
+
+ATOMIC_WRITE_RETRY_ATTEMPTS = 8
+ATOMIC_WRITE_RETRY_DELAY_SECONDS = 0.05
 
 
 def read_json_object(path: Path) -> dict[str, Any]:
@@ -46,7 +51,14 @@ def atomic_write_json(path: Path, payload: object) -> Path:
     try:
         with os.fdopen(file_descriptor, "w", encoding="utf-8") as handle:
             json.dump(payload, handle, ensure_ascii=False, indent=2)
-        staged_path.replace(path)
+        for attempt in range(ATOMIC_WRITE_RETRY_ATTEMPTS):
+            try:
+                staged_path.replace(path)
+                break
+            except OSError as exc:
+                if not _is_retryable_atomic_write_error(exc) or attempt == ATOMIC_WRITE_RETRY_ATTEMPTS - 1:
+                    raise
+                time.sleep(ATOMIC_WRITE_RETRY_DELAY_SECONDS)
     except Exception:
         try:
             staged_path.unlink()
@@ -54,6 +66,10 @@ def atomic_write_json(path: Path, payload: object) -> Path:
             pass
         raise
     return path
+
+
+def _is_retryable_atomic_write_error(exc: OSError) -> bool:
+    return getattr(exc, "winerror", None) in {5, 32}
 
 
 def action_result(

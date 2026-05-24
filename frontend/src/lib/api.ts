@@ -157,7 +157,7 @@ export async function applyCompatibilityAction(payload: {
 }
 
 export async function fetchDownloadProgress(): Promise<DownloadProgressPayload> {
-  const response = await fetch("/api/models/download-progress");
+  const response = await fetch("/api/models/download-progress", { cache: "no-store" });
   if (!response.ok) {
     throw new Error(`Download progress request failed: ${response.status}`);
   }

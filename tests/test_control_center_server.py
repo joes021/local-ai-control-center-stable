@@ -26,6 +26,18 @@ def _write_active_model_config(install_root: Path, *, filename: str) -> None:
     )
 
 
+def _write_settings(install_root: Path, payload: dict[str, object]) -> None:
+    settings_path = install_root / "config" / "control-center" / "settings.json"
+    settings_path.parent.mkdir(parents=True, exist_ok=True)
+    settings_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def _write_turboquant_config(install_root: Path, payload: dict[str, object]) -> None:
+    config_path = install_root / "config" / "control-center" / "turboquant-config.json"
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    config_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
 def test_server_status_route_reports_started_runtime_snapshot(
     tmp_path: Path,
     monkeypatch,
@@ -308,3 +320,224 @@ def test_server_start_route_falls_back_to_llama_when_selected_turboquant_is_not_
     assert payload["status"] == "ok"
     command = captured["command"]
     assert command[0].endswith("runtime\\llama.cpp\\llama-server.exe")
+
+
+def test_server_start_route_rejects_unsupported_mtp_active_model(
+    tmp_path: Path,
+    monkeypatch,
+):
+    install_root = tmp_path / "install-root"
+    runtime_root = install_root / "runtime" / "llama.cpp"
+    runtime_root.mkdir(parents=True)
+    executable = runtime_root / "llama-server.exe"
+    executable.write_text("llama", encoding="utf-8")
+    config_root = install_root / "config"
+    config_root.mkdir(parents=True, exist_ok=True)
+    mtp_model_path = (
+        install_root
+        / "models"
+        / "unsloth"
+        / "unsloth-qwen3-6-27b-mtp-gguf"
+        / "Qwen3.6-27B-UD-IQ2_XXS.gguf"
+    )
+    mtp_model_path.parent.mkdir(parents=True, exist_ok=True)
+    mtp_model_path.write_text("mtp-model", encoding="utf-8")
+    (config_root / "active-model.json").write_text(
+        json.dumps(
+            {
+                "model_id": "unsloth-unsloth-qwen3-6-27b-mtp-gguf-qwen3-6-27b-ud-iq2-xxs",
+                "model_path": str(mtp_model_path),
+            }
+        ),
+        encoding="utf-8",
+    )
+    _write_runtime_endpoint_config(
+        install_root / "config" / "runtime-endpoint.json",
+        port=39281,
+    )
+
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.server_service.find_runtime_pid",
+        lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.status_service.find_runtime_pid",
+        lambda *args, **kwargs: None,
+    )
+
+    client = TestClient(app)
+    response = client.post("/api/server/start")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "error"
+    assert "MTP" in payload["summary"]
+    assert "non-MTP" in payload["summary"]
+
+
+def test_server_start_route_uses_saved_global_context_for_llama_runtime(
+    tmp_path: Path,
+    monkeypatch,
+):
+    install_root = tmp_path / "install-root"
+    runtime_root = install_root / "runtime" / "llama.cpp"
+    runtime_root.mkdir(parents=True)
+    executable = runtime_root / "llama-server.exe"
+    executable.write_text("llama", encoding="utf-8")
+    _write_active_model_config(
+        install_root,
+        filename="gemma-4-E4B-it-Q4_K_M.gguf",
+    )
+    _write_runtime_endpoint_config(
+        install_root / "config" / "runtime-endpoint.json",
+        port=39281,
+    )
+    _write_settings(
+        install_root,
+        {
+            "profile": "balanced",
+            "context": 65536,
+            "outputTokens": 8192,
+            "workingDirectory": str(install_root),
+            "thinkingMode": "mid",
+            "buildSteps": 140,
+            "planSteps": 100,
+            "generalSteps": 110,
+            "exploreSteps": 80,
+            "accessMode": "local-only",
+            "securityMode": "strict",
+            "capabilityMode": "confirm-commands",
+        },
+    )
+
+    captured: dict[str, object] = {}
+
+    class FakeProcess:
+        pid = 7003
+
+    def fake_popen(command, **kwargs):
+        captured["command"] = command
+        captured["kwargs"] = kwargs
+        return FakeProcess()
+
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.server_service.find_runtime_pid",
+        lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.status_service.find_runtime_pid",
+        lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.status_service.probe_runtime_binary_launchable",
+        lambda path: (True, "launch probe passed."),
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.server_service.subprocess.Popen",
+        fake_popen,
+    )
+
+    client = TestClient(app)
+    response = client.post("/api/server/start")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "ok"
+    command = captured["command"]
+    assert "--ctx-size" in command
+    assert command[command.index("--ctx-size") + 1] == "65536"
+
+
+def test_server_start_route_uses_saved_turboquant_context_for_turboquant_runtime(
+    tmp_path: Path,
+    monkeypatch,
+):
+    install_root = tmp_path / "install-root"
+    runtime_root = install_root / "runtime" / "llama.cpp"
+    runtime_root.mkdir(parents=True)
+    (runtime_root / "llama-server.exe").write_text("llama", encoding="utf-8")
+    turbo_root = install_root / "tools" / "turboquant" / "windows-x64-cuda12.4"
+    turbo_root.mkdir(parents=True, exist_ok=True)
+    (turbo_root / "llama-server.exe").write_text("turbo", encoding="utf-8")
+    _write_active_model_config(
+        install_root,
+        filename="gemma-4-E4B-it-Q4_K_M.gguf",
+    )
+    _write_runtime_endpoint_config(
+        install_root / "config" / "runtime-endpoint.json",
+        port=39281,
+    )
+    _write_settings(
+        install_root,
+        {
+            "profile": "balanced",
+            "context": 262144,
+            "outputTokens": 8192,
+            "workingDirectory": str(install_root),
+            "thinkingMode": "mid",
+            "buildSteps": 140,
+            "planSteps": 100,
+            "generalSteps": 110,
+            "exploreSteps": 80,
+            "accessMode": "local-only",
+            "securityMode": "strict",
+            "capabilityMode": "confirm-commands",
+        },
+    )
+    _write_turboquant_config(
+        install_root,
+        {
+            "context": 131072,
+            "ctk": "turbo4",
+            "ctv": "turbo3",
+            "ncmoe": 20,
+            "flashAttention": True,
+            "mlock": True,
+            "mmapMode": "mmap",
+            "runtimePreference": "turboquant",
+        },
+    )
+    selection_path = install_root / "config" / "control-center" / "runtime-selection.json"
+    selection_path.parent.mkdir(parents=True, exist_ok=True)
+    selection_path.write_text(json.dumps({"runtime": "turboquant"}), encoding="utf-8")
+
+    captured: dict[str, object] = {}
+
+    class FakeProcess:
+        pid = 7004
+
+    def fake_popen(command, **kwargs):
+        captured["command"] = command
+        captured["kwargs"] = kwargs
+        return FakeProcess()
+
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.server_service.find_runtime_pid",
+        lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.status_service.find_runtime_pid",
+        lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.status_service.probe_runtime_binary_launchable",
+        lambda path: (True, "launch probe passed."),
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.server_service.subprocess.Popen",
+        fake_popen,
+    )
+
+    client = TestClient(app)
+    response = client.post("/api/server/start")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "ok"
+    command = captured["command"]
+    assert command[0].endswith("tools\\turboquant\\windows-x64-cuda12.4\\llama-server.exe")
+    assert "--ctx-size" in command
+    assert command[command.index("--ctx-size") + 1] == "131072"

@@ -36,7 +36,7 @@ def fetch_source_catalog(source: str) -> dict[str, object]:
     return {"models": [], "errors": [f"Nepoznat source za refresh: {source}"], "warnings": []}
 
 
-def fetch_huggingface_catalog(limit: int = 24) -> SourceFetchResult:
+def fetch_huggingface_catalog(limit: int = 80) -> SourceFetchResult:
     return _fetch_hf_models(
         {
             "search": "GGUF",
@@ -50,7 +50,7 @@ def fetch_huggingface_catalog(limit: int = 24) -> SourceFetchResult:
     )
 
 
-def fetch_unsloth_catalog(limit: int = 24) -> SourceFetchResult:
+def fetch_unsloth_catalog(limit: int = 80) -> SourceFetchResult:
     return _fetch_hf_models(
         {
             "author": "unsloth",
@@ -65,7 +65,7 @@ def fetch_unsloth_catalog(limit: int = 24) -> SourceFetchResult:
     )
 
 
-def _fetch_hf_models(query: dict[str, str], *, source: str) -> SourceFetchResult:
+def _fetch_hf_models(query: dict[str, str], *, source: str, max_files_per_repo: int = 64) -> SourceFetchResult:
     url = f"{HF_API}?{urllib_parse.urlencode(query)}"
     try:
         payload = _read_json(url)
@@ -92,9 +92,9 @@ def _fetch_hf_models(query: dict[str, str], *, source: str) -> SourceFetchResult
         ]
         if not gguf_files:
             continue
-        if len(gguf_files) > 16:
-            warnings.append(f"{repo_id}: prikazan je samo prvih 16 GGUF fajlova.")
-            gguf_files = gguf_files[:16]
+        if len(gguf_files) > max_files_per_repo:
+            warnings.append(f"{repo_id}: prikazan je samo prvih {max_files_per_repo} GGUF fajlova.")
+            gguf_files = gguf_files[:max_files_per_repo]
         for sibling in gguf_files:
             filename = str(sibling.get("rfilename", "") or "")
             size_bytes = sibling.get("size")

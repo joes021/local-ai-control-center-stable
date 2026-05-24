@@ -219,6 +219,7 @@ export type BrowserCatalogItem = {
   source: BrowserCatalogSource | string;
   repoId?: string;
   quantization: string;
+  quantFilterKey: string;
   sizeLabel: string;
   sizeBytes: number | null;
   updatedAt: string | null;

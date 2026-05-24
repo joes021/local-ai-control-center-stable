@@ -103,8 +103,13 @@ def load_runtime_state(
 
     active_model_payload = _read_json_file(install_root / "config" / "active-model.json")
     active_model_path = Path(str(active_model_payload.get("model_path", "") or "")).expanduser()
+    active_model_id = str(active_model_payload.get("model_id", "unknown") or "unknown")
     active_model_label = active_model_path.name if active_model_path.name else str(
-        active_model_payload.get("model_id", "unknown") or "unknown"
+        active_model_id
+    )
+    active_model_supported, active_model_reason = classify_runtime_model_support(
+        model_id=active_model_id,
+        model_path=active_model_path,
     )
 
     endpoint_path = install_root / "config" / "runtime-endpoint.json"
@@ -148,13 +153,18 @@ def load_runtime_state(
         health_status,
         runtime_pid,
     )
+    if not active_model_supported and runtime_pid is None:
+        runtime_live_status = "stopped"
+        runtime_live_reason = active_model_reason
 
     return {
         "install_root": install_root,
         "profile": _load_profile(config),
         "active_model": active_model_label or "unknown",
-        "active_model_id": str(active_model_payload.get("model_id", "unknown") or "unknown"),
+        "active_model_id": active_model_id,
         "active_model_path": str(active_model_path) if active_model_path else "",
+        "active_model_supported": active_model_supported,
+        "active_model_reason": active_model_reason,
         "port": port,
         "base_url": base_url,
         "llama_binary": str(llama_binary),
@@ -171,6 +181,25 @@ def load_runtime_state(
         "llama_reason": llama_reason,
         "turbo_reason": turbo_reason,
     }
+
+
+def classify_runtime_model_support(*, model_id: str, model_path: Path | str) -> tuple[bool, str]:
+    resolved_path = model_path if isinstance(model_path, Path) else Path(str(model_path or ""))
+    joined = " ".join(
+        part
+        for part in [
+            str(model_id or ""),
+            resolved_path.name,
+            str(resolved_path.parent.name or ""),
+        ]
+        if part
+    ).lower()
+    if "mtp" in joined:
+        return (
+            False,
+            "Aktivni model je MTP GGUF varijanta koja trenutno nije podrzana za runtime start. Izaberi non-MTP model.",
+        )
+    return True, ""
 
 
 def probe_server_health(base_url: str) -> str:
