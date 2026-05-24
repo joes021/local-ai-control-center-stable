@@ -115,7 +115,7 @@ def load_models_payload(
         entries.append(discovered)
 
     entries = [
-        _annotate_model_entry_lifecycle(entry, download_progress=download_progress)
+        _annotate_model_entry_lifecycle(entry, config=config, download_progress=download_progress)
         for entry in entries
     ]
     return _group_model_entries(entries)
@@ -141,6 +141,8 @@ def activate_model(
     model_supported, model_reason = classify_runtime_model_support(
         model_id=str(model["id"]),
         model_path=model_path,
+        runtime_name="llama.cpp",
+        runtime_binary_path=_resolve_llama_runtime_binary(config),
     )
     if not model_supported:
         return action_result(
@@ -1079,11 +1081,12 @@ def _group_model_entries(entries: list[dict[str, object]]) -> dict[str, list[dic
 def _annotate_model_entry_lifecycle(
     entry: dict[str, object],
     *,
+    config: ControlCenterConfig,
     download_progress: dict[str, object],
 ) -> dict[str, object]:
     annotated = dict(entry)
     download_url = str(annotated.get("downloadUrl", "") or "").strip()
-    supports_activation, activation_summary = _evaluate_model_activation(annotated)
+    supports_activation, activation_summary = _evaluate_model_activation(annotated, config=config)
     download_active = _is_model_download_active(annotated, download_progress)
     annotated["supportsActivation"] = supports_activation
     annotated["activationSummary"] = activation_summary
@@ -1112,7 +1115,11 @@ def _annotate_model_entry_lifecycle(
     return annotated
 
 
-def _evaluate_model_activation(entry: dict[str, object]) -> tuple[bool, str]:
+def _evaluate_model_activation(
+    entry: dict[str, object],
+    *,
+    config: ControlCenterConfig,
+) -> tuple[bool, str]:
     installed = bool(entry.get("installed"))
     source = str(entry.get("source", "") or "")
     download_url = str(entry.get("downloadUrl", "") or "").strip()
@@ -1126,15 +1133,29 @@ def _evaluate_model_activation(entry: dict[str, object]) -> tuple[bool, str]:
             return False, "Skini model preko Download pre aktivacije."
         return False, "Model nije prisutan na disku i nema upotrebljiv download izvor."
 
+    model_id = str(entry.get("id", "") or "")
+    llama_binary = _resolve_llama_runtime_binary(config)
     supported, reason = classify_runtime_model_support(
-        model_id=str(entry.get("id", "") or ""),
+        model_id=model_id,
         model_path=resolved_path,
+        runtime_name="llama.cpp",
+        runtime_binary_path=llama_binary,
     )
     if not supported:
         return False, reason
+    if "mtp" in model_id.lower() or "mtp" in resolved_path.name.lower() or "mtp" in str(resolved_path.parent.name).lower():
+        if bool(entry.get("active")):
+            return True, "Aktivni MTP model je spreman za llama.cpp draft-mtp runtime put."
+        return True, "MTP model je spreman za aktivaciju preko llama.cpp draft-mtp puta."
     if bool(entry.get("active")):
         return True, "Aktivni model je spreman za runtime."
     return True, "Model je spreman za aktivaciju."
+
+
+def _resolve_llama_runtime_binary(config: ControlCenterConfig) -> Path:
+    runtime_manifest = load_runtime_manifest()
+    install_subdir = str(runtime_manifest["runtime_artifact"]["install_subdir"] or "").strip()
+    return config.install_root / install_subdir / "llama-server.exe"
 
 
 def _is_model_download_active(

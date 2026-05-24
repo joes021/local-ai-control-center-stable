@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 from fastapi.testclient import TestClient
 
@@ -312,3 +313,59 @@ def test_probe_runtime_binary_launchable_reports_missing_sidecar_dlls_without_sp
     assert launchable is False
     assert "libssl-3-x64.dll" in reason
     assert "libcrypto-3-x64.dll" in reason
+
+
+def test_runtime_supports_draft_mtp_returns_true_when_help_advertises_capability(
+    tmp_path: Path,
+    monkeypatch,
+):
+    binary_path = tmp_path / "runtime" / "llama.cpp" / "llama-server.exe"
+    binary_path.parent.mkdir(parents=True, exist_ok=True)
+    binary_path.write_text("binary", encoding="utf-8")
+    status_service._runtime_supports_draft_mtp_cached.cache_clear()
+
+    monkeypatch.setattr(
+        status_service,
+        "detect_missing_sidecar_imports",
+        lambda path: (),
+        raising=False,
+    )
+
+    def _fake_run(*args, **kwargs):
+        return SimpleNamespace(
+            returncode=0,
+            stdout="--spec-type [none|draft-mtp]\n",
+            stderr="",
+        )
+
+    monkeypatch.setattr(status_service.subprocess, "run", _fake_run)
+
+    assert status_service.runtime_supports_draft_mtp(binary_path) is True
+
+
+def test_runtime_supports_draft_mtp_returns_false_without_advertised_capability(
+    tmp_path: Path,
+    monkeypatch,
+):
+    binary_path = tmp_path / "tools" / "turboquant" / "llama-server.exe"
+    binary_path.parent.mkdir(parents=True, exist_ok=True)
+    binary_path.write_text("binary", encoding="utf-8")
+    status_service._runtime_supports_draft_mtp_cached.cache_clear()
+
+    monkeypatch.setattr(
+        status_service,
+        "detect_missing_sidecar_imports",
+        lambda path: (),
+        raising=False,
+    )
+
+    def _fake_run(*args, **kwargs):
+        return SimpleNamespace(
+            returncode=0,
+            stdout="--spec-type [none|ngram-cache|ngram-simple]\n",
+            stderr="",
+        )
+
+    monkeypatch.setattr(status_service.subprocess, "run", _fake_run)
+
+    assert status_service.runtime_supports_draft_mtp(binary_path) is False

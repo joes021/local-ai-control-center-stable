@@ -201,7 +201,7 @@ def test_activate_model_route_updates_active_model_and_managed_opencode_config(
     }
 
 
-def test_activate_model_route_rejects_mtp_variant_for_runtime_activation(
+def test_activate_model_route_accepts_mtp_variant_when_llama_supports_draft_mtp(
     tmp_path: Path,
     monkeypatch,
 ):
@@ -209,6 +209,9 @@ def test_activate_model_route_rejects_mtp_variant_for_runtime_activation(
     curated_model_path = (
         install_root / "models" / "recommended-6gb" / "gemma-4-E4B-it-Q4_K_M.gguf"
     )
+    runtime_root = install_root / "runtime" / "llama.cpp"
+    runtime_root.mkdir(parents=True, exist_ok=True)
+    (runtime_root / "llama-server.exe").write_text("llama", encoding="utf-8")
     mtp_model_path = (
         install_root
         / "models"
@@ -244,6 +247,15 @@ def test_activate_model_route_rejects_mtp_variant_for_runtime_activation(
     )
 
     monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.status_service.runtime_supports_draft_mtp",
+        lambda path: True,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.models_service.find_runtime_pid",
+        lambda *args, **kwargs: None,
+    )
 
     client = TestClient(app)
     response = client.post(
@@ -253,15 +265,17 @@ def test_activate_model_route_rejects_mtp_variant_for_runtime_activation(
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["status"] == "error"
-    assert "MTP" in payload["summary"]
-    assert "non-MTP" in payload["summary"]
+    assert payload["status"] == "ok"
+    assert "OpenCode config je osvezen" in payload["summary"]
 
     active_model_payload = json.loads(
         (install_root / "config" / "active-model.json").read_text(encoding="utf-8")
     )
-    assert active_model_payload["model_id"] == "recommended-6gb"
-    assert active_model_payload["model_path"] == str(curated_model_path)
+    assert (
+        active_model_payload["model_id"]
+        == "unsloth-unsloth-qwen3-6-27b-mtp-gguf-qwen3-6-27b-ud-iq2-xxs"
+    )
+    assert active_model_payload["model_path"] == str(mtp_model_path)
 
 
 def test_activate_model_route_rolls_back_when_managed_opencode_write_fails(
@@ -580,7 +594,7 @@ def test_models_route_marks_missing_local_file_truthfully(
     assert "nije prisutan na disku" in model["activationSummary"]
 
 
-def test_models_route_marks_installed_mtp_variants_as_runtime_unsupported(
+def test_models_route_marks_installed_mtp_variants_as_runtime_ready_when_llama_supports_draft_mtp(
     tmp_path: Path,
     monkeypatch,
 ):
@@ -588,6 +602,9 @@ def test_models_route_marks_installed_mtp_variants_as_runtime_unsupported(
     curated_model_path = (
         install_root / "models" / "recommended-6gb" / "gemma-4-E4B-it-Q4_K_M.gguf"
     )
+    runtime_root = install_root / "runtime" / "llama.cpp"
+    runtime_root.mkdir(parents=True, exist_ok=True)
+    (runtime_root / "llama-server.exe").write_text("llama", encoding="utf-8")
     mtp_model_path = (
         install_root
         / "models"
@@ -622,6 +639,11 @@ def test_models_route_marks_installed_mtp_variants_as_runtime_unsupported(
         ],
     )
     monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.status_service.runtime_supports_draft_mtp",
+        lambda path: True,
+        raising=False,
+    )
 
     client = TestClient(app)
     response = client.get("/api/models")
@@ -630,8 +652,8 @@ def test_models_route_marks_installed_mtp_variants_as_runtime_unsupported(
     payload = response.json()
     model = payload["unsloth"][0]
     assert model["installed"] is True
-    assert model["supportsActivation"] is False
-    assert model["lifecycleStatus"] == "unsupported"
-    assert model["lifecycleLabel"] == "Nepodrzan za runtime"
-    assert "MTP" in model["lifecycleSummary"]
-    assert "non-MTP" in model["activationSummary"]
+    assert model["supportsActivation"] is True
+    assert model["lifecycleStatus"] == "ready"
+    assert model["lifecycleLabel"] == "Spreman"
+    assert "spreman za aktivaciju" in model["lifecycleSummary"].lower()
+    assert "draft-mtp" in model["activationSummary"].lower()

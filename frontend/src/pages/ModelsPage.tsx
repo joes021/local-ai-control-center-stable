@@ -110,8 +110,11 @@ function mtpActivationGuidance(item: ModelEntry): string | null {
   if (item.activationSummary && !supportsRuntimeActivation(item)) {
     return item.activationSummary;
   }
+  if (item.mtpStatus === "has-mtp") {
+    return "MTP modeli koriste llama.cpp draft-mtp put. Ako je TurboQuant izabran, panel ce za takav model automatski pasti nazad na llama.cpp.";
+  }
   if (!supportsRuntimeActivation(item)) {
-    return "MTP modeli su trenutno download-only. Za aktivaciju izaberi non-MTP GGUF varijantu.";
+    return "Model trenutno nije spreman za aktivaciju. Proveri lifecycle status i runtime razlog iznad.";
   }
   return null;
 }
@@ -823,7 +826,8 @@ export function ModelsPage() {
           u novom session-u. Ako je OpenCode vec otvoren, zatvori ga i otvori ponovo.
         </p>
         <p className="helper-text">
-          MTP modeli su trenutno download-only. Za aktivaciju izaberi non-MTP GGUF varijantu.
+          MTP modeli sada koriste llama.cpp draft-mtp put. Ako je TurboQuant izabran, panel ce
+          za takav model automatski pasti nazad na llama.cpp.
         </p>
       </section>
 

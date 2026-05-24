@@ -545,6 +545,7 @@ def _build_server_command(
     port: int,
     *,
     ctx_size: int | None = None,
+    spec_type: str | None = None,
 ) -> list[str]:
     command = [
         str(target.server_executable),
@@ -557,6 +558,8 @@ def _build_server_command(
     ]
     if isinstance(ctx_size, int) and ctx_size > 0:
         command.extend(["--ctx-size", str(ctx_size)])
+    if isinstance(spec_type, str) and spec_type.strip():
+        command.extend(["--spec-type", spec_type.strip()])
     return command
 
 

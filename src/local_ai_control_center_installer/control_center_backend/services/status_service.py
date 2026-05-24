@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from functools import lru_cache
 from importlib.metadata import PackageNotFoundError, version as package_version
 import json
 import os
@@ -110,10 +111,6 @@ def load_runtime_state(
     active_model_label = active_model_path.name if active_model_path.name else str(
         active_model_id
     )
-    active_model_supported, active_model_reason = classify_runtime_model_support(
-        model_id=active_model_id,
-        model_path=active_model_path,
-    )
 
     endpoint_path = install_root / "config" / "runtime-endpoint.json"
     try:
@@ -141,6 +138,10 @@ def load_runtime_state(
         config,
         llama_available=llama_available,
         turbo_available=turbo_available,
+        active_model_id=active_model_id,
+        active_model_path=active_model_path,
+        llama_binary=llama_binary,
+        turbo_binary=turbo_binary,
     )
     requested_runtime = selection_state["requested_runtime"]
     selection_source = selection_state["selection_source"]
@@ -152,6 +153,18 @@ def load_runtime_state(
         active_binary = str(llama_binary)
     elif active_runtime == "turboquant" and turbo_available:
         active_binary = str(turbo_binary)
+
+    active_binary_path = (
+        Path(active_binary)
+        if active_binary
+        else (llama_binary if active_runtime == "llama.cpp" else turbo_binary)
+    )
+    active_model_supported, active_model_reason = classify_runtime_model_support(
+        model_id=active_model_id,
+        model_path=active_model_path,
+        runtime_name=active_runtime,
+        runtime_binary_path=active_binary_path,
+    )
 
     health_status = probe_server_health(base_url)
     runtime_pid = find_runtime_pid(port)
@@ -191,23 +204,73 @@ def load_runtime_state(
     }
 
 
-def classify_runtime_model_support(*, model_id: str, model_path: Path | str) -> tuple[bool, str]:
+def classify_runtime_model_support(
+    *,
+    model_id: str,
+    model_path: Path | str,
+    runtime_name: str = "llama.cpp",
+    runtime_binary_path: Path | str | None = None,
+) -> tuple[bool, str]:
     resolved_path = model_path if isinstance(model_path, Path) else Path(str(model_path or ""))
-    joined = " ".join(
-        part
-        for part in [
-            str(model_id or ""),
-            resolved_path.name,
-            str(resolved_path.parent.name or ""),
-        ]
-        if part
-    ).lower()
-    if "mtp" in joined:
-        return (
-            False,
-            "Aktivni model je MTP GGUF varijanta koja trenutno nije podrzana za runtime start. Izaberi non-MTP model.",
+    normalized_runtime = str(runtime_name or "").strip().lower() or "llama.cpp"
+    if _is_mtp_model(model_id=model_id, model_path=resolved_path):
+        if normalized_runtime == "turboquant":
+            return (
+                False,
+                "TurboQuant runtime trenutno ne podrzava MTP GGUF aktivaciju. Koristi llama.cpp draft-mtp put.",
+            )
+        runtime_binary = (
+            runtime_binary_path if isinstance(runtime_binary_path, Path) else Path(str(runtime_binary_path or ""))
         )
+        if not runtime_binary.is_file():
+            return (
+                False,
+                "llama.cpp runtime binar za MTP put nije pronadjen.",
+            )
+        if not runtime_supports_draft_mtp(runtime_binary):
+            return (
+                False,
+                "Aktivni llama.cpp runtime trenutno nema draft-mtp podrsku za MTP GGUF model.",
+            )
+        return True, "MTP model je spreman za llama.cpp draft-mtp runtime put."
     return True, ""
+
+
+def runtime_supports_draft_mtp(binary_path: Path | str) -> bool:
+    resolved = binary_path if isinstance(binary_path, Path) else Path(str(binary_path or ""))
+    if not resolved.is_file():
+        return False
+    try:
+        stat = resolved.stat()
+    except OSError:
+        return False
+    return _runtime_supports_draft_mtp_cached(str(resolved), stat.st_size, stat.st_mtime_ns)
+
+
+@lru_cache(maxsize=16)
+def _runtime_supports_draft_mtp_cached(
+    binary_path: str,
+    file_size: int,
+    file_mtime_ns: int,
+) -> bool:
+    del file_size
+    del file_mtime_ns
+    resolved = Path(binary_path)
+    if detect_missing_sidecar_imports(resolved):
+        return False
+    completed = subprocess.run(
+        [str(resolved), "--help"],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+    )
+    if completed.returncode != 0:
+        return False
+    output = f"{completed.stdout}\n{completed.stderr}".lower()
+    return "--spec-type" in output and "draft-mtp" in output
 
 
 def probe_server_health(base_url: str) -> str:
@@ -307,6 +370,10 @@ def _resolve_selected_runtime(
     *,
     llama_available: bool,
     turbo_available: bool,
+    active_model_id: str,
+    active_model_path: Path,
+    llama_binary: Path,
+    turbo_binary: Path,
 ) -> dict[str, str]:
     selection_payload = _read_json_file(
         config.control_center_config_root / RUNTIME_SELECTION_FILE
@@ -322,22 +389,50 @@ def _resolve_selected_runtime(
     active_runtime = requested
     selection_summary = f"Koristi se izabrani runtime: {_runtime_label(requested)}."
 
-    if requested == "turboquant" and not turbo_available:
-        if llama_available:
-            active_runtime = "llama.cpp"
-            source = "fallback"
-            selection_summary = "Izabrani runtime TurboQuant trenutno nije dostupan, pa se koristi llama.cpp."
-        else:
-            selection_summary = "TurboQuant je izabran, ali trenutno nema potvrde da je dostupan."
-    if requested == "llama.cpp" and not llama_available and turbo_available:
-        active_runtime = "turboquant"
+    requested_available = turbo_available if requested == "turboquant" else llama_available
+    requested_binary = turbo_binary if requested == "turboquant" else llama_binary
+    requested_supports, requested_reason = _runtime_candidate_supports_model(
+        runtime_name=requested,
+        available=requested_available,
+        binary_path=requested_binary,
+        model_id=active_model_id,
+        model_path=active_model_path,
+    )
+    alternate = "llama.cpp" if requested == "turboquant" else "turboquant"
+    alternate_available = llama_available if alternate == "llama.cpp" else turbo_available
+    alternate_binary = llama_binary if alternate == "llama.cpp" else turbo_binary
+    alternate_supports, alternate_reason = _runtime_candidate_supports_model(
+        runtime_name=alternate,
+        available=alternate_available,
+        binary_path=alternate_binary,
+        model_id=active_model_id,
+        model_path=active_model_path,
+    )
+
+    if requested_supports:
+        return {
+            "requested_runtime": requested,
+            "active_runtime": active_runtime,
+            "selection_source": source,
+            "selection_summary": selection_summary,
+        }
+
+    if alternate_supports:
+        active_runtime = alternate
         source = "fallback"
-        if defaulted:
+        if _is_mtp_model(model_id=active_model_id, model_path=active_model_path):
+            selection_summary = (
+                f"Izabrani runtime {_runtime_label(requested)} ne podrzava MTP GGUF aktivaciju, "
+                f"pa se koristi {_runtime_label(alternate)} draft-mtp put."
+            )
+        elif requested == "turboquant":
+            selection_summary = "Izabrani runtime TurboQuant trenutno nije dostupan, pa se koristi llama.cpp."
+        elif defaulted:
             selection_summary = "Runtime nije bio eksplicitno izabran; llama.cpp nije dostupan, pa se koristi TurboQuant."
         else:
             selection_summary = "Izabrani runtime llama.cpp trenutno nije dostupan, pa se koristi TurboQuant."
-    if requested == "llama.cpp" and not llama_available and not turbo_available:
-        selection_summary = "llama.cpp je izabran, ali trenutno nema potvrde da je dostupan."
+    else:
+        selection_summary = requested_reason or alternate_reason or selection_summary
 
     return {
         "requested_runtime": requested,
@@ -345,6 +440,38 @@ def _resolve_selected_runtime(
         "selection_source": source,
         "selection_summary": selection_summary,
     }
+
+
+def _runtime_candidate_supports_model(
+    *,
+    runtime_name: str,
+    available: bool,
+    binary_path: Path,
+    model_id: str,
+    model_path: Path,
+) -> tuple[bool, str]:
+    if not available:
+        return False, f"{_runtime_label(runtime_name)} trenutno nije dostupan."
+    return classify_runtime_model_support(
+        model_id=model_id,
+        model_path=model_path,
+        runtime_name=runtime_name,
+        runtime_binary_path=binary_path,
+    )
+
+
+def _is_mtp_model(*, model_id: str, model_path: Path | str) -> bool:
+    resolved_path = model_path if isinstance(model_path, Path) else Path(str(model_path or ""))
+    joined = " ".join(
+        part
+        for part in [
+            str(model_id or ""),
+            resolved_path.name,
+            str(resolved_path.parent.name or ""),
+        ]
+        if part
+    ).lower()
+    return "mtp" in joined
 
 
 def _build_runtime_live_signal(
