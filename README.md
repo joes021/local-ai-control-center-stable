@@ -15,7 +15,7 @@ Primary end-user artifact:
 
 Current release:
 
-- [LocalAIControlCenterSetup-v0.4.13.exe](https://github.com/joes021/local-ai-control-center-stable/releases/download/v0.4.13/LocalAIControlCenterSetup-v0.4.13.exe)
+- [LocalAIControlCenterSetup-v0.4.14.exe](https://github.com/joes021/local-ai-control-center-stable/releases/download/v0.4.14/LocalAIControlCenterSetup-v0.4.14.exe)
 
 The Windows product is intended to be launched with a double-click. No ZIP extraction and no manual PowerShell command are required for the packaged installer path.
 
@@ -27,6 +27,7 @@ The Windows product is intended to be launched with a double-click. No ZIP extra
 - installer-managed `OpenCode` bootstrap and launch
 - a local control panel at `http://127.0.0.1:3210/`
 - local model catalog plus an internet-backed GGUF browser
+- live benchmark throughput, averages, and history inside the control panel
 - truthful logs, reports, and runtime status
 
 ## Product Screens
@@ -65,6 +66,7 @@ The current Windows milestone includes:
 - Browser table for `Hugging Face` and `Unsloth` GGUF discovery
 - installer-managed model download worker with progress tracking and error reporting
 - settings, presets, and runtime preferences persisted through the control panel
+- Benchmark tab with live throughput, averages, historical trend, and benchmark batteries
 
 The current default `recommended-6gb` starter model is `gemma-4-E4B-it-Q4_K_M.gguf`.
 
@@ -86,6 +88,7 @@ The control panel currently exposes:
 - `OpenCode`
 - `Models`
 - `Browser`
+- `Benchmark`
 - `Settings`
 - `Logs`
 - `Repair`

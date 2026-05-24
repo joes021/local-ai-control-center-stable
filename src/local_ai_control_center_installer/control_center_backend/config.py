@@ -81,6 +81,30 @@ class ControlCenterConfig:
         return self.control_center_config_root / "update-progress.json"
 
     @property
+    def benchmark_history_path(self) -> Path:
+        return self.control_center_config_root / "benchmark-history.json"
+
+    @property
+    def benchmark_live_history_path(self) -> Path:
+        return self.control_center_config_root / "benchmark-live-history.json"
+
+    @property
+    def benchmark_live_slots_snapshot_path(self) -> Path:
+        return self.control_center_config_root / "benchmark-live-slots.json"
+
+    @property
+    def benchmark_run_state_path(self) -> Path:
+        return self.control_center_config_root / "benchmark-run-state.json"
+
+    @property
+    def benchmark_batteries_path(self) -> Path:
+        return self.control_center_config_root / "benchmark-batteries.json"
+
+    @property
+    def benchmark_saved_runs_path(self) -> Path:
+        return self.control_center_config_root / "benchmark-saved-runs.json"
+
+    @property
     def updates_download_root(self) -> Path:
         return self.install_root / "updates"
 

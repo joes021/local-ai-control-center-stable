@@ -170,6 +170,24 @@ def test_api_source_disables_cache_for_update_progress_polling():
     assert 'fetch("/api/updates/progress", { cache: "no-store" })' in source
 
 
+def test_app_source_and_packaged_frontend_include_benchmark_navigation():
+    source = Path("frontend/src/App.tsx").read_text(encoding="utf-8")
+
+    assert 'benchmark: "Benchmark"' in source
+    assert "BenchmarkPage" in source
+
+    dist_root = Path(
+        "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
+    )
+    js_assets = list((dist_root / "assets").glob("index-*.js"))
+
+    assert js_assets
+    bundled_text = "\n".join(path.read_text(encoding="utf-8") for path in js_assets)
+
+    assert "Benchmark" in bundled_text
+    assert "LIVE THROUGHPUT" in bundled_text
+
+
 def test_server_page_source_uses_runtime_generic_actions_and_labels():
     source = Path("frontend/src/pages/ServerPage.tsx").read_text(encoding="utf-8")
 

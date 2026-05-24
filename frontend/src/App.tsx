@@ -4,6 +4,7 @@ import { Layout } from "./components/Layout";
 import { fetchStatus } from "./lib/api";
 import type { StatusPayload } from "./lib/types";
 import { BrowserPage } from "./pages/BrowserPage";
+import { BenchmarkPage } from "./pages/BenchmarkPage";
 import { HomePage } from "./pages/HomePage";
 import { LogsPage } from "./pages/LogsPage";
 import { ModelsPage } from "./pages/ModelsPage";
@@ -19,6 +20,7 @@ const PAGES = {
   opencode: "OpenCode",
   models: "Models",
   browser: "Browser",
+  benchmark: "Benchmark",
   settings: "Settings",
   logs: "Logs",
   repair: "Repair",
@@ -78,6 +80,7 @@ export default function App() {
       {page === "opencode" ? <OpenCodePage /> : null}
       {page === "models" ? <ModelsPage /> : null}
       {page === "browser" ? <BrowserPage /> : null}
+      {page === "benchmark" ? <BenchmarkPage onOpenLogs={() => setPage("logs")} /> : null}
       {page === "settings" ? <SettingsPage /> : null}
       {page === "logs" ? <LogsPage /> : null}
       {page === "repair" ? <RepairPage /> : null}
