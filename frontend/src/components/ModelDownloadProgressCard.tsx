@@ -43,6 +43,12 @@ export function ModelDownloadProgressCard({ progress }: { progress: DownloadProg
   }
 
   const percent = valueOrNull(progress.percent);
+  const nextStepNote =
+    progress.status === "error"
+      ? "Posle greske mozes odmah ponovo kliknuti Download. Resume nije podrzan; pravi se nov pokusaj od pocetka."
+      : progress.status === "completed" || progress.status === "already-installed"
+        ? "Ako zelis novi pokusaj, klik na Download pokrece novi provereni tok za izabrani model."
+        : "Add HF i Add Unsloth samo dodaju model u spisak. Pravo skidanje krece tek na Download.";
 
   return (
     <section className="status-card wide-card">
@@ -81,8 +87,7 @@ export function ModelDownloadProgressCard({ progress }: { progress: DownloadProg
         </div>
       ) : null}
       <div className="helper-text">
-        <strong>Napomena:</strong> Add HF i Add Unsloth samo dodaju model u spisak. Pravo skidanje krece tek na{" "}
-        <strong>Download</strong>.
+        <strong>Napomena:</strong> {nextStepNote}
       </div>
     </section>
   );

@@ -257,3 +257,160 @@ def test_activate_model_route_rejects_mtp_variant_for_runtime_activation(
     )
     assert active_model_payload["model_id"] == "recommended-6gb"
     assert active_model_payload["model_path"] == str(curated_model_path)
+
+
+def test_activate_model_route_rolls_back_when_managed_opencode_write_fails(
+    tmp_path: Path,
+    monkeypatch,
+):
+    install_root = tmp_path / "install-root"
+    curated_model_path = (
+        install_root / "models" / "recommended-6gb" / "gemma-4-E4B-it-Q4_K_M.gguf"
+    )
+    hf_model_path = (
+        install_root
+        / "models"
+        / "huggingface"
+        / "qwen-qwen3-0-6b-gguf"
+        / "Qwen3-0.6B-Q8_0.gguf"
+    )
+    hf_model_path.parent.mkdir(parents=True, exist_ok=True)
+    hf_model_path.write_text("hf-model", encoding="utf-8")
+    _write_active_model_config(
+        install_root,
+        model_id="recommended-6gb",
+        model_path=curated_model_path,
+    )
+    _write_runtime_endpoint_config(
+        install_root / "config" / "runtime-endpoint.json",
+        port=39281,
+    )
+    managed_config_path = install_root / "config" / "opencode" / "managed-config.json"
+    managed_config_path.parent.mkdir(parents=True, exist_ok=True)
+    managed_config_path.write_text(json.dumps({"model": "local-lacc/gemma-4-E4B-it-Q4_K_M.gguf"}), encoding="utf-8")
+    _write_custom_registry(
+        install_root,
+        [
+            {
+                "id": "huggingface-qwen-qwen3-0-6b-gguf-qwen3-0-6b-q8-0",
+                "label": "Qwen 0.6B",
+                "filename": "Qwen3-0.6B-Q8_0.gguf",
+                "family": "Qwen",
+                "source": "huggingface",
+                "repo": "Qwen/Qwen3-0.6B-GGUF",
+                "absolute_path": str(hf_model_path),
+                "download_url": "https://huggingface.co/Qwen/Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-Q8_0.gguf",
+            }
+        ],
+    )
+
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.models_service._write_managed_config",
+        lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("managed config boom")),
+    )
+
+    client = TestClient(app)
+    response = client.post(
+        "/api/models/activate",
+        json={"modelId": "huggingface-qwen-qwen3-0-6b-gguf-qwen3-0-6b-q8-0"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "error"
+    assert "vracena" in payload["summary"]
+
+    active_model_payload = json.loads(
+        (install_root / "config" / "active-model.json").read_text(encoding="utf-8")
+    )
+    assert active_model_payload["model_id"] == "recommended-6gb"
+    assert active_model_payload["model_path"] == str(curated_model_path)
+
+    managed_config = json.loads(managed_config_path.read_text(encoding="utf-8"))
+    assert managed_config["model"] == "local-lacc/gemma-4-E4B-it-Q4_K_M.gguf"
+
+
+def test_activate_model_route_rolls_back_when_runtime_restart_fails(
+    tmp_path: Path,
+    monkeypatch,
+):
+    install_root = tmp_path / "install-root"
+    curated_model_path = (
+        install_root / "models" / "recommended-6gb" / "gemma-4-E4B-it-Q4_K_M.gguf"
+    )
+    hf_model_path = (
+        install_root
+        / "models"
+        / "huggingface"
+        / "qwen-qwen3-0-6b-gguf"
+        / "Qwen3-0.6B-Q8_0.gguf"
+    )
+    hf_model_path.parent.mkdir(parents=True, exist_ok=True)
+    hf_model_path.write_text("hf-model", encoding="utf-8")
+    _write_active_model_config(
+        install_root,
+        model_id="recommended-6gb",
+        model_path=curated_model_path,
+    )
+    _write_runtime_endpoint_config(
+        install_root / "config" / "runtime-endpoint.json",
+        port=39281,
+    )
+    _write_custom_registry(
+        install_root,
+        [
+            {
+                "id": "huggingface-qwen-qwen3-0-6b-gguf-qwen3-0-6b-q8-0",
+                "label": "Qwen 0.6B",
+                "filename": "Qwen3-0.6B-Q8_0.gguf",
+                "family": "Qwen",
+                "source": "huggingface",
+                "repo": "Qwen/Qwen3-0.6B-GGUF",
+                "absolute_path": str(hf_model_path),
+                "download_url": "https://huggingface.co/Qwen/Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-Q8_0.gguf",
+            }
+        ],
+    )
+
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.models_service.find_runtime_pid",
+        lambda *args, **kwargs: 5150,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.models_service.stop_server",
+        lambda *args, **kwargs: {"status": "ok", "summary": "stopped", "details": {"stderr": ""}},
+    )
+
+    start_calls = {"count": 0}
+
+    def fake_start_server(*args, **kwargs):
+        start_calls["count"] += 1
+        if start_calls["count"] == 1:
+            return {"status": "error", "summary": "new runtime failed", "details": {"stderr": "new runtime failed"}}
+        return {"status": "ok", "summary": "previous runtime restored", "details": {"stderr": ""}}
+
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.models_service.start_server",
+        fake_start_server,
+    )
+
+    client = TestClient(app)
+    response = client.post(
+        "/api/models/activate",
+        json={"modelId": "huggingface-qwen-qwen3-0-6b-gguf-qwen3-0-6b-q8-0"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "error"
+    assert "vracena" in payload["summary"]
+    assert "prethodni runtime je ponovo pokrenut" in payload["summary"]
+    assert start_calls["count"] == 2
+
+    active_model_payload = json.loads(
+        (install_root / "config" / "active-model.json").read_text(encoding="utf-8")
+    )
+    assert active_model_payload["model_id"] == "recommended-6gb"
+    assert active_model_payload["model_path"] == str(curated_model_path)

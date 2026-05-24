@@ -172,6 +172,48 @@ export async function fetchModelActionStatus(actionId: string): Promise<ModelAct
   return response.json() as Promise<ModelActionStatusPayload>;
 }
 
+export async function awaitModelActionResult(
+  initial: ActionResult,
+  onUpdate?: (result: ActionResult) => void,
+  maxAttempts = 60,
+  delayMs = 1000,
+): Promise<ActionResult> {
+  if (initial.status !== "accepted" || !initial.actionId) {
+    return initial;
+  }
+
+  onUpdate?.(initial);
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    await new Promise((resolve) => window.setTimeout(resolve, delayMs));
+    const statusPayload = await fetchModelActionStatus(initial.actionId);
+    const nextResult =
+      statusPayload.result ??
+      ({
+        status: statusPayload.status,
+        action: "models-action-status",
+        actionId: statusPayload.actionId,
+        summary: statusPayload.summary,
+        details: { returncode: statusPayload.status === "error" ? 1 : 0, stdout: "", stderr: "" },
+      } satisfies ActionResult);
+    onUpdate?.(nextResult);
+    if (statusPayload.isDone) {
+      return nextResult;
+    }
+  }
+
+  return {
+    status: "error",
+    action: "models-action-timeout",
+    actionId: initial.actionId,
+    summary: "Model akcija nije zavrsena na vreme. Probaj refresh liste.",
+    details: {
+      returncode: 1,
+      stdout: "",
+      stderr: "Model akcija nije zavrsena na vreme. Probaj refresh liste.",
+    },
+  };
+}
+
 export async function fetchSettings(): Promise<SettingsPayload> {
   const response = await fetch("/api/settings");
   if (!response.ok) {

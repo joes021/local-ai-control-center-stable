@@ -10,6 +10,7 @@ import sys
 import time
 from typing import Any
 from urllib.parse import quote
+from uuid import uuid4
 
 from local_ai_control_center_installer.control_center_backend.config import (
     ControlCenterConfig,
@@ -47,6 +48,7 @@ from local_ai_control_center_installer.runtime_manifest import (
 
 
 IDLE_DOWNLOAD_PROGRESS = {
+    "actionId": "",
     "status": "idle",
     "isActive": False,
     "modelId": "",
@@ -59,6 +61,7 @@ IDLE_DOWNLOAD_PROGRESS = {
     "etaSeconds": None,
     "message": "Nema aktivnog download-a.",
     "updatedAt": "",
+    "workerPid": None,
 }
 
 DOWNLOAD_PROGRESS_STALE_SECONDS = 120
@@ -141,6 +144,13 @@ def activate_model(
             stderr=model_reason,
         )
 
+    active_model_snapshot = _snapshot_file_contents(config.active_model_config_path)
+    managed_config_snapshot = _snapshot_file_contents(config.opencode_managed_config_path)
+
+    def rollback_activation_state() -> None:
+        _restore_file_snapshot(config.active_model_config_path, active_model_snapshot)
+        _restore_file_snapshot(config.opencode_managed_config_path, managed_config_snapshot)
+
     _write_active_model_config(
         config.active_model_config_path,
         model_id=str(model["id"]),
@@ -158,10 +168,11 @@ def activate_model(
         )
         summary_bits.append("OpenCode config je osvezen")
     except Exception as exc:  # noqa: BLE001
+        rollback_activation_state()
         return action_result(
             "error",
             "activate-model",
-            f"{summary_bits[0]}, ali OpenCode config nije osvezen.",
+            f"{summary_bits[0]}, ali OpenCode config nije osvezen. Promena aktivnog modela je vracena.",
             stdout=json.dumps(
                 {
                     "modelId": model["id"],
@@ -179,10 +190,30 @@ def activate_model(
     if runtime_endpoint is not None and find_runtime_pid(runtime_endpoint.port) is not None:
         stop_result = stop_server(config)
         if stop_result.get("status") != "ok":
-            return stop_result
+            rollback_activation_state()
+            return action_result(
+                "error",
+                "activate-model",
+                f"Runtime nije mogao bezbedno da se zaustavi za promenu modela. Promena aktivnog modela je vracena. {stop_result.get('summary', '')}".strip(),
+                stderr=str(stop_result.get("details", {}).get("stderr", "") or stop_result.get("summary", "")),
+            )
         start_result = start_server(config)
         if start_result.get("status") != "ok":
-            return start_result
+            rollback_activation_state()
+            restore_result = start_server(config)
+            if restore_result.get("status") == "ok":
+                return action_result(
+                    "error",
+                    "activate-model",
+                    "Novi model nije mogao da pokrene runtime. Promena aktivnog modela je vracena i prethodni runtime je ponovo pokrenut.",
+                    stderr=str(start_result.get("details", {}).get("stderr", "") or start_result.get("summary", "")),
+                )
+            return action_result(
+                "error",
+                "activate-model",
+                "Novi model nije mogao da pokrene runtime. Promena aktivnog modela je vracena, ali prethodni runtime nije mogao automatski da se vrati.",
+                stderr=str(start_result.get("details", {}).get("stderr", "") or start_result.get("summary", "")),
+            )
         summary_bits.append("runtime je restartovan")
 
     return action_result(
@@ -418,10 +449,28 @@ def download_model(
             stderr="Lokalni modeli se ne skidaju ponovo.",
         )
 
+    action_id = _build_model_action_id()
+    _write_model_action_state(
+        config,
+        action_id,
+        {
+            "actionId": action_id,
+            "status": "accepted",
+            "summary": f"Download je pokrenut za: {model.get('label', model_id)}",
+            "isDone": False,
+            "result": action_result(
+                "accepted",
+                "download-model",
+                f"Download je pokrenut za: {model.get('label', model_id)}",
+                action_id=action_id,
+            ),
+        },
+    )
     _write_download_progress(
         config,
         {
             **IDLE_DOWNLOAD_PROGRESS,
+            "actionId": action_id,
             "status": "starting",
             "isActive": True,
             "modelId": model_id,
@@ -431,11 +480,45 @@ def download_model(
             "updatedAt": _utc_now(),
         },
     )
-    process = _spawn_model_download_worker(model_id, config)
+    try:
+        process = _spawn_model_download_worker(model_id, config)
+    except Exception as exc:  # noqa: BLE001
+        failure = action_result(
+            "error",
+            "download-model",
+            f"Pokretanje model download worker-a nije uspelo: {exc}",
+            stderr=str(exc),
+        )
+        _write_model_action_state(
+            config,
+            action_id,
+            {
+                "actionId": action_id,
+                "status": "error",
+                "summary": str(failure["summary"]),
+                "isDone": True,
+                "result": failure,
+            },
+        )
+        _write_download_progress(
+            config,
+            {
+                **IDLE_DOWNLOAD_PROGRESS,
+                "actionId": action_id,
+                "status": "error",
+                "modelId": model_id,
+                "fileName": str(model.get("filename", "") or ""),
+                "source": str(model.get("source", "") or ""),
+                "message": str(failure["summary"]),
+                "updatedAt": _utc_now(),
+            },
+        )
+        return failure
     return action_result(
-        "ok",
+        "accepted",
         "download-model",
         f"Download je pokrenut za: {model.get('label', model_id)}",
+        action_id=action_id,
         stdout=json.dumps({"pid": getattr(process, "pid", None)}, ensure_ascii=False),
     )
 
@@ -447,19 +530,23 @@ def run_model_download_worker(
     download_file=shared_download_file,
 ) -> dict[str, object]:
     config = config or get_config()
+    current_progress = load_download_progress_payload(config)
+    action_id = str(current_progress.get("actionId", "") or "")
     model = _resolve_model_by_id(config, model_id)
     if model is None:
-        failure = action_result("error", "download-model-worker", f"Model nije pronadjen: {model_id}", stderr=f"Model nije pronadjen: {model_id}")
+        failure = action_result("error", "download-model", f"Model nije pronadjen: {model_id}", stderr=f"Model nije pronadjen: {model_id}")
         _write_download_progress(
             config,
             {
                 **IDLE_DOWNLOAD_PROGRESS,
+                "actionId": action_id,
                 "status": "error",
                 "modelId": model_id,
                 "message": str(failure["summary"]),
                 "updatedAt": _utc_now(),
             },
         )
+        _finalize_model_action_state(config, action_id, failure)
         return failure
 
     source = str(model.get("source", "") or "")
@@ -470,7 +557,7 @@ def run_model_download_worker(
     if not url or not destination:
         failure = action_result(
             "error",
-            "download-model-worker",
+            "download-model",
             f"Model nema validan download izvor: {model_id}",
             stderr="Model nema validan download izvor.",
         )
@@ -478,6 +565,7 @@ def run_model_download_worker(
             config,
             {
                 **IDLE_DOWNLOAD_PROGRESS,
+                "actionId": action_id,
                 "status": "error",
                 "modelId": model_id,
                 "fileName": filename,
@@ -486,6 +574,7 @@ def run_model_download_worker(
                 "updatedAt": _utc_now(),
             },
         )
+        _finalize_model_action_state(config, action_id, failure)
         return failure
 
     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -505,6 +594,7 @@ def run_model_download_worker(
         _write_download_progress(
             config,
             {
+                "actionId": action_id,
                 "status": "downloading",
                 "isActive": True,
                 "modelId": model_id,
@@ -517,6 +607,7 @@ def run_model_download_worker(
                 "etaSeconds": _coerce_eta(progress.eta_seconds),
                 "message": f"Download je u toku za {model.get('label', model_id)}",
                 "updatedAt": _utc_now(),
+                "workerPid": os.getpid(),
             },
         )
 
@@ -529,6 +620,7 @@ def run_model_download_worker(
         _write_download_progress(
             config,
             {
+                "actionId": action_id,
                 "status": "completed",
                 "isActive": False,
                 "modelId": model_id,
@@ -541,14 +633,17 @@ def run_model_download_worker(
                 "etaSeconds": 0,
                 "message": f"Download je zavrsen za {model.get('label', model_id)}",
                 "updatedAt": _utc_now(),
+                "workerPid": os.getpid(),
             },
         )
-        return action_result(
+        result = action_result(
             "ok",
-            "download-model-worker",
+            "download-model",
             f"Download je zavrsen za: {model.get('label', model_id)}",
             stdout=str(destination),
         )
+        _finalize_model_action_state(config, action_id, result)
+        return result
     except Exception as exc:  # noqa: BLE001
         try:
             temp_destination.unlink(missing_ok=True)
@@ -558,6 +653,7 @@ def run_model_download_worker(
             config,
             {
                 **IDLE_DOWNLOAD_PROGRESS,
+                "actionId": action_id,
                 "status": "error",
                 "modelId": model_id,
                 "fileName": filename,
@@ -566,12 +662,14 @@ def run_model_download_worker(
                 "updatedAt": _utc_now(),
             },
         )
-        return action_result(
+        result = action_result(
             "error",
-            "download-model-worker",
+            "download-model",
             str(exc),
             stderr=str(exc),
         )
+        _finalize_model_action_state(config, action_id, result)
+        return result
 
 
 def load_download_progress_payload(
@@ -584,6 +682,7 @@ def load_download_progress_payload(
 
     status = str(payload.get("status", "idle") or "idle")
     normalized = {
+        "actionId": str(payload.get("actionId", "") or ""),
         "status": status,
         "isActive": bool(payload.get("isActive", False)),
         "modelId": str(payload.get("modelId", "") or ""),
@@ -596,17 +695,38 @@ def load_download_progress_payload(
         "etaSeconds": _coerce_int(payload.get("etaSeconds")),
         "message": str(payload.get("message", "") or _default_download_message(status)),
         "updatedAt": str(payload.get("updatedAt", "") or ""),
+        "workerPid": _coerce_int(payload.get("workerPid")),
     }
     if _is_stale_active_download(normalized):
+        stale_message = "Download worker vise nije aktivan. Pokreni download ponovo."
         normalized = {
             **normalized,
             "status": "error",
             "isActive": False,
             "speedMBps": None,
             "etaSeconds": None,
-            "message": "Download worker vise nije aktivan. Pokreni download ponovo.",
+            "message": stale_message,
+            "workerPid": None,
         }
         _write_download_progress(config, normalized)
+        if normalized["actionId"]:
+            _write_model_action_state(
+                config,
+                str(normalized["actionId"]),
+                {
+                    "actionId": str(normalized["actionId"]),
+                    "status": "error",
+                    "summary": stale_message,
+                    "isDone": True,
+                    "result": action_result(
+                        "error",
+                        "download-model",
+                        stale_message,
+                        action_id=str(normalized["actionId"]),
+                        stderr=stale_message,
+                    ),
+                },
+            )
     return normalized
 
 
@@ -631,6 +751,64 @@ def get_model_action_status(
         "isDone": bool(payload.get("isDone", False)),
         "result": payload.get("result"),
     }
+
+
+def _build_model_action_id() -> str:
+    return f"model-action-{uuid4().hex[:10]}"
+
+
+def _write_model_action_state(
+    config: ControlCenterConfig,
+    action_id: str,
+    payload: dict[str, object],
+) -> None:
+    if not action_id:
+        return
+    atomic_write_json(
+        config.model_action_state_root / f"{action_id}.json",
+        {
+            "actionId": action_id,
+            "status": str(payload.get("status", "missing") or "missing"),
+            "summary": str(payload.get("summary", "") or ""),
+            "isDone": bool(payload.get("isDone", False)),
+            "result": payload.get("result"),
+        },
+    )
+
+
+def _finalize_model_action_state(
+    config: ControlCenterConfig,
+    action_id: str,
+    result: dict[str, object],
+) -> None:
+    if not action_id:
+        return
+    _write_model_action_state(
+        config,
+        action_id,
+        {
+            "actionId": action_id,
+            "status": str(result.get("status", "missing") or "missing"),
+            "summary": str(result.get("summary", "") or ""),
+            "isDone": True,
+            "result": result,
+        },
+    )
+
+
+def _snapshot_file_contents(path: Path) -> tuple[bool, str]:
+    if not path.exists():
+        return False, ""
+    return True, path.read_text(encoding="utf-8")
+
+
+def _restore_file_snapshot(path: Path, snapshot: tuple[bool, str]) -> None:
+    existed, contents = snapshot
+    if not existed:
+        path.unlink(missing_ok=True)
+        return
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(contents, encoding="utf-8")
 
 
 def _spawn_model_download_worker(model_id: str, config: ControlCenterConfig):
@@ -988,6 +1166,8 @@ def _merge_download_progress_payload(
     incoming_status = str(incoming.get("status", "") or "")
     if previous_status == "downloading" and incoming_status == "starting":
         merged["status"] = "downloading"
+    merged["actionId"] = str(incoming.get("actionId", "") or previous.get("actionId", "") or "")
+    merged["workerPid"] = _coerce_int(incoming.get("workerPid")) or _coerce_int(previous.get("workerPid"))
 
     merged["percent"] = _prefer_non_regressing_number(
         previous.get("percent"),

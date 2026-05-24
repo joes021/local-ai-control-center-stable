@@ -112,15 +112,25 @@ def test_model_download_route_persists_completed_progress_and_installed_state(
     )
 
     assert response.status_code == 200
-    assert response.json()["status"] == "ok"
+    action_payload = response.json()
+    assert action_payload["status"] == "accepted"
+    action_id = action_payload["actionId"]
 
     progress_response = client.get("/api/models/download-progress")
     assert progress_response.status_code == 200
     progress_payload = progress_response.json()
     assert progress_payload["status"] == "completed"
     assert progress_payload["isActive"] is False
+    assert progress_payload["actionId"] == action_id
     assert progress_payload["modelId"] == "huggingface-qwen-qwen3-0-6b-gguf-qwen3-0-6b-q8-0"
     assert progress_payload["percent"] == 100.0
+
+    action_status_response = client.get(f"/api/models/action-status/{action_id}")
+    assert action_status_response.status_code == 200
+    action_status_payload = action_status_response.json()
+    assert action_status_payload["status"] == "ok"
+    assert action_status_payload["isDone"] is True
+    assert action_status_payload["result"]["status"] == "ok"
 
     models_response = client.get("/api/models")
     assert models_response.status_code == 200
@@ -184,13 +194,22 @@ def test_model_download_route_surfaces_worker_failure_in_progress_payload(
     )
 
     assert response.status_code == 200
-    assert response.json()["status"] == "ok"
+    action_payload = response.json()
+    assert action_payload["status"] == "accepted"
+    action_id = action_payload["actionId"]
 
     progress_response = client.get("/api/models/download-progress")
     progress_payload = progress_response.json()
     assert progress_payload["status"] == "error"
     assert progress_payload["isActive"] is False
+    assert progress_payload["actionId"] == action_id
     assert "simulated download failure" in progress_payload["message"]
+
+    action_status_response = client.get(f"/api/models/action-status/{action_id}")
+    action_status_payload = action_status_response.json()
+    assert action_status_payload["status"] == "error"
+    assert action_status_payload["isDone"] is True
+    assert "simulated download failure" in action_status_payload["summary"]
 
 
 def test_browser_download_route_persists_completed_progress_and_installed_state(
@@ -263,15 +282,24 @@ def test_browser_download_route_persists_completed_progress_and_installed_state(
     )
 
     assert response.status_code == 200
-    assert response.json()["status"] == "ok"
+    action_payload = response.json()
+    assert action_payload["status"] == "accepted"
+    action_id = action_payload["actionId"]
 
     progress_response = client.get("/api/models/download-progress")
     assert progress_response.status_code == 200
     progress_payload = progress_response.json()
     assert progress_payload["status"] == "completed"
     assert progress_payload["isActive"] is False
+    assert progress_payload["actionId"] == action_id
     assert progress_payload["modelId"] == "huggingface-qwen-qwen3-0-6b-gguf-qwen3-0-6b-q8-0"
     assert progress_payload["percent"] == 100.0
+
+    action_status_response = client.get(f"/api/models/action-status/{action_id}")
+    action_status_payload = action_status_response.json()
+    assert action_status_payload["status"] == "ok"
+    assert action_status_payload["isDone"] is True
+    assert action_status_payload["result"]["status"] == "ok"
 
     models_response = client.get("/api/models")
     assert models_response.status_code == 200
@@ -327,13 +355,22 @@ def test_browser_download_route_surfaces_worker_failure_in_progress_payload(
     )
 
     assert response.status_code == 200
-    assert response.json()["status"] == "ok"
+    action_payload = response.json()
+    assert action_payload["status"] == "accepted"
+    action_id = action_payload["actionId"]
 
     progress_response = client.get("/api/models/download-progress")
     progress_payload = progress_response.json()
     assert progress_payload["status"] == "error"
     assert progress_payload["isActive"] is False
+    assert progress_payload["actionId"] == action_id
     assert "simulated browser download failure" in progress_payload["message"]
+
+    action_status_response = client.get(f"/api/models/action-status/{action_id}")
+    action_status_payload = action_status_response.json()
+    assert action_status_payload["status"] == "error"
+    assert action_status_payload["isDone"] is True
+    assert "simulated browser download failure" in action_status_payload["summary"]
 
 
 def test_download_progress_marks_stale_active_snapshot_as_error(tmp_path: Path, monkeypatch):
@@ -343,6 +380,7 @@ def test_download_progress_marks_stale_active_snapshot_as_error(tmp_path: Path, 
     progress_path.write_text(
         json.dumps(
             {
+                "actionId": "model-action-stale123",
                 "status": "downloading",
                 "isActive": True,
                 "modelId": "unsloth-qwen-iq2-xxs",
@@ -369,11 +407,18 @@ def test_download_progress_marks_stale_active_snapshot_as_error(tmp_path: Path, 
     payload = response.json()
     assert payload["status"] == "error"
     assert payload["isActive"] is False
+    assert payload["actionId"] == "model-action-stale123"
     assert "Pokreni download ponovo" in payload["message"]
 
     persisted = json.loads(progress_path.read_text(encoding="utf-8"))
     assert persisted["status"] == "error"
     assert persisted["isActive"] is False
+
+    action_status_response = client.get("/api/models/action-status/model-action-stale123")
+    action_status_payload = action_status_response.json()
+    assert action_status_payload["status"] == "error"
+    assert action_status_payload["isDone"] is True
+    assert "Pokreni download ponovo" in action_status_payload["summary"]
 
 
 def test_write_download_progress_keeps_stronger_active_snapshot_for_same_model(

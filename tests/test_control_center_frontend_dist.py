@@ -105,6 +105,13 @@ def test_api_source_disables_cache_for_download_progress_polling():
     assert 'fetch("/api/models/download-progress", { cache: "no-store" })' in source
 
 
+def test_download_progress_card_source_explains_retry_without_resume():
+    source = Path("frontend/src/components/ModelDownloadProgressCard.tsx").read_text(encoding="utf-8")
+
+    assert "Resume nije podrzan" in source
+    assert "ponovo kliknuti Download" in source
+
+
 def test_app_source_and_packaged_frontend_include_updates_navigation():
     source = Path("frontend/src/App.tsx").read_text(encoding="utf-8")
 

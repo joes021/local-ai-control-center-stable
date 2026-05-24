@@ -7,6 +7,9 @@ from local_ai_control_center_installer.control_center_backend.services.browser_c
     load_catalog_payload,
     refresh_catalog,
 )
+from local_ai_control_center_installer.control_center_backend.services.state_helpers import (
+    action_result,
+)
 from local_ai_control_center_installer.control_center_backend.services.models_service import (
     add_hf_model,
     add_unsloth_model,
@@ -85,12 +88,12 @@ def browser_download(payload: DownloadCatalogModelRequest) -> dict[str, object]:
     )
     local_model_id = str(add_result.get("localModelId", "") or "")
     if not local_model_id:
-        return {
-            "status": "error",
-            "action": "browser-download",
-            "summary": "Model je dodat u katalog, ali lokalni model ID nije razresen za download.",
-            "details": {"returncode": 1, "stdout": "", "stderr": "localModelId missing"},
-        }
+        return action_result(
+            "error",
+            "browser-download",
+            "Model je dodat u katalog, ali lokalni model ID nije razresen za download.",
+            stderr="localModelId missing",
+        )
     return download_model(local_model_id)
 
 

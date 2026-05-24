@@ -348,6 +348,7 @@ export type BrowserAddToLocalResult = ActionResult & {
 };
 
 export type DownloadProgressPayload = {
+  actionId?: string;
   status: string;
   isActive: boolean;
   modelId: string;
@@ -360,6 +361,7 @@ export type DownloadProgressPayload = {
   etaSeconds: number | null;
   message: string;
   updatedAt: string;
+  workerPid?: number | null;
 };
 
 export type UpdateProgressPayload = {

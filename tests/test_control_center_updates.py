@@ -40,7 +40,7 @@ def test_updates_check_route_reports_available_update_and_persists_progress(
     monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
     monkeypatch.setattr(
         "local_ai_control_center_installer.control_center_backend.services.updates_service.fetch_latest_release_metadata",
-        lambda: _latest_release("0.4.5"),
+        lambda: _latest_release("0.4.6"),
     )
 
     client = TestClient(app)
@@ -49,13 +49,13 @@ def test_updates_check_route_reports_available_update_and_persists_progress(
     assert response.status_code == 200
     payload = response.json()
     assert payload["status"] == "ok"
-    assert "0.4.5" in payload["summary"]
+    assert "0.4.6" in payload["summary"]
 
     progress = client.get("/api/updates/progress").json()
     assert progress["status"] == "available"
-    assert progress["latestVersion"] == "0.4.5"
-    assert progress["currentVersion"] == "0.4.4"
-    assert progress["targetPath"].endswith("LocalAIControlCenterSetup-v0.4.5.exe")
+    assert progress["latestVersion"] == "0.4.6"
+    assert progress["currentVersion"] == "0.4.5"
+    assert progress["targetPath"].endswith("LocalAIControlCenterSetup-v0.4.6.exe")
 
 
 def test_updates_check_route_reports_up_to_date_when_latest_matches_current(
@@ -93,7 +93,7 @@ def test_updates_install_route_spawns_worker_and_writes_starting_progress(
     monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
     monkeypatch.setattr(
         "local_ai_control_center_installer.control_center_backend.services.updates_service.fetch_latest_release_metadata",
-        lambda: _latest_release("0.4.5"),
+        lambda: _latest_release("0.4.6"),
     )
 
     captured: dict[str, object] = {}
@@ -121,15 +121,15 @@ def test_updates_install_route_spawns_worker_and_writes_starting_progress(
     assert response.status_code == 200
     payload = response.json()
     assert payload["status"] == "accepted"
-    assert "0.4.5" in payload["summary"]
+    assert "0.4.6" in payload["summary"]
 
     progress = load_update_progress_payload()
     assert progress["status"] == "starting"
     assert progress["phase"] == "queued"
     assert progress["isActive"] is True
     assert progress["workerPid"] == 4321
-    assert progress["latestVersion"] == "0.4.5"
-    assert progress["targetPath"].endswith("LocalAIControlCenterSetup-v0.4.5.exe")
+    assert progress["latestVersion"] == "0.4.6"
+    assert progress["targetPath"].endswith("LocalAIControlCenterSetup-v0.4.6.exe")
 
     command = captured["command"]
     assert "-m" in command
@@ -226,7 +226,7 @@ def test_run_update_install_worker_downloads_installer_and_marks_completed(
 
     result = run_update_install_worker(
         "update-123",
-        latest_release_fetcher=lambda: _latest_release("0.4.5"),
+        latest_release_fetcher=lambda: _latest_release("0.4.6"),
         download_file=fake_download,
         launch_installer=fake_launch,
     )
@@ -252,7 +252,7 @@ def test_run_update_install_worker_writes_error_state_on_download_failure(
 
     result = run_update_install_worker(
         "update-err",
-        latest_release_fetcher=lambda: _latest_release("0.4.5"),
+        latest_release_fetcher=lambda: _latest_release("0.4.6"),
         download_file=lambda *args, **kwargs: (_ for _ in ()).throw(OSError("network failed")),
         launch_installer=lambda *args, **kwargs: None,
     )

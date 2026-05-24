@@ -8,10 +8,10 @@ import {
   addHfModel,
   addLocalModel,
   addUnslothModel,
+  awaitModelActionResult,
   deleteModel,
   downloadModel,
   fetchDownloadProgress,
-  fetchModelActionStatus,
   fetchModels,
   fetchTurboQuantSchema,
   pickLocalGguf,
@@ -129,7 +129,8 @@ function FilterResultsCard({
     });
     try {
       const actionResult = await run();
-      setResult(actionResult);
+      const finalResult = await awaitModelActionResult(actionResult, setResult);
+      setResult(finalResult);
       await onChanged();
     } catch (reason: unknown) {
       const message = reason instanceof Error ? reason.message : "Model akcija nije uspela.";
@@ -314,7 +315,8 @@ function ModelGroup({
     });
     try {
       const actionResult = await run();
-      setResult(actionResult);
+      const finalResult = await awaitModelActionResult(actionResult, setResult);
+      setResult(finalResult);
       await onChanged();
     } catch (reason: unknown) {
       const message = reason instanceof Error ? reason.message : "Model akcija nije uspela.";
@@ -635,32 +637,8 @@ export function ModelsPage() {
     try {
       showPendingAction(label);
       const actionResult = await run();
-      if (actionResult.status === "accepted" && actionResult.actionId) {
-        setResult(actionResult);
-        for (let attempt = 0; attempt < 30; attempt += 1) {
-          await new Promise((resolve) => window.setTimeout(resolve, 1000));
-          const statusPayload = await fetchModelActionStatus(actionResult.actionId);
-          if (statusPayload.result) {
-            setResult(statusPayload.result);
-          } else {
-            setResult({
-              status: statusPayload.status,
-              action: "models-action-status",
-              actionId: statusPayload.actionId,
-              summary: statusPayload.summary,
-              details: { returncode: 0, stdout: "", stderr: "" },
-            });
-          }
-          if (statusPayload.isDone) {
-            await reloadModels();
-            return;
-          }
-        }
-        showClientError("Model akcija nije zavrsena na vreme. Probaj refresh liste.");
-        return;
-      }
-
-      setResult(actionResult);
+      const finalResult = await awaitModelActionResult(actionResult, setResult);
+      setResult(finalResult);
       await reloadModels();
     } catch (reason: unknown) {
       showClientError(reason instanceof Error ? reason.message : "Model akcija nije uspela.");

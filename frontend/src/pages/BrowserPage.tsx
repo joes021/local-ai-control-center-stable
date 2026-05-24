@@ -6,6 +6,7 @@ import { CustomSelect } from "../components/CustomSelect";
 import { ModelDownloadProgressCard } from "../components/ModelDownloadProgressCard";
 import {
   addBrowserModelToLocal,
+  awaitModelActionResult,
   downloadBrowserModel,
   downloadBrowserCatalogModel,
   fetchBrowserCatalog,
@@ -638,7 +639,8 @@ export function BrowserPage() {
         label: item.model,
         family: item.family,
       });
-      setResult(addResult);
+      const finalResult = await awaitModelActionResult(addResult, setResult);
+      setResult(finalResult);
       setDownloadOffer({
         modelId: addResult.localModelId || item.localModelId || item.id,
         label: item.model,
@@ -683,7 +685,8 @@ export function BrowserPage() {
 
     try {
       const downloadResult = await downloadBrowserModel(modelId);
-      setResult(downloadResult);
+      const finalResult = await awaitModelActionResult(downloadResult, setResult);
+      setResult(finalResult);
       setDownloadOffer(null);
     } catch (reason: unknown) {
       const message = reason instanceof Error ? reason.message : "Download failed.";
@@ -715,7 +718,8 @@ export function BrowserPage() {
         label: item.model,
         family: item.family,
       });
-      setResult(downloadResult);
+      const finalResult = await awaitModelActionResult(downloadResult, setResult);
+      setResult(finalResult);
       setDownloadOffer(null);
       await loadCatalog();
     } catch (reason: unknown) {
