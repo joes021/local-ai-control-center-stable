@@ -93,6 +93,13 @@ def open_opencode(
             "open-opencode",
             f"OpenCode nije pokrenut. {summary}",
         )
+    existing_instances = detect_opencode_instances(executable_path)
+    if existing_instances:
+        return _result(
+            "ok",
+            "open-opencode",
+            "OpenCode je vec otvoren; backend je pripremljen za postojecu sesiju.",
+        )
 
     log_path = config.install_root / "logs" / "opencode-launch.log"
     log_path.parent.mkdir(parents=True, exist_ok=True)

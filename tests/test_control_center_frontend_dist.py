@@ -134,3 +134,12 @@ def test_api_source_disables_cache_for_update_progress_polling():
     source = Path("frontend/src/lib/api.ts").read_text(encoding="utf-8")
 
     assert 'fetch("/api/updates/progress", { cache: "no-store" })' in source
+
+
+def test_server_page_source_uses_runtime_generic_actions_and_labels():
+    source = Path("frontend/src/pages/ServerPage.tsx").read_text(encoding="utf-8")
+
+    assert "Start runtime server" in source
+    assert "Stop runtime server" in source
+    assert "Open runtime web" in source
+    assert "Start llama.cpp server" not in source

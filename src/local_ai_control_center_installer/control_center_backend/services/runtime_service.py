@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 from local_ai_control_center_installer.control_center_backend.config import (
     ControlCenterConfig,
@@ -51,6 +52,7 @@ def select_runtime(
 
     selection_path = config.control_center_config_root / RUNTIME_SELECTION_FILE
     selection_path.parent.mkdir(parents=True, exist_ok=True)
+    previous_selection = _snapshot_selection_file(selection_path)
     selection_path.write_text(
         json.dumps({"runtime": normalized}, ensure_ascii=False, indent=2),
         encoding="utf-8",
@@ -59,13 +61,48 @@ def select_runtime(
     if find_runtime_pid(int(runtime_state["port"])) is not None:
         stop_result = stop_server(config)
         if stop_result.get("status") != "ok":
+            _restore_selection_file(selection_path, previous_selection)
             return stop_result
         start_result = start_server(config)
         if start_result.get("status") != "ok":
-            return start_result
+            _restore_selection_file(selection_path, previous_selection)
+            restore_result = start_server(config)
+            if restore_result.get("status") == "ok":
+                return _result(
+                    "error",
+                    "select-runtime",
+                    f"{start_result.get('summary', 'Novi runtime nije uspeo da se pokrene.')} Aktivni runtime izbor je vracen i prethodni runtime je ponovo pokrenut.",
+                )
+            return _result(
+                "error",
+                "select-runtime",
+                f"{start_result.get('summary', 'Novi runtime nije uspeo da se pokrene.')} Aktivni runtime izbor je vracen, ali prethodni runtime nije mogao automatski da se vrati.",
+            )
 
     chosen_label = "TurboQuant" if normalized == "turboquant" else "llama.cpp"
     return _result("ok", "select-runtime", f"Aktiviran runtime: {chosen_label}")
+
+
+def _snapshot_selection_file(path: Path) -> dict[str, Any] | None:
+    if not path.exists():
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8-sig"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return None
+    if not isinstance(payload, dict):
+        return None
+    return payload
+
+
+def _restore_selection_file(path: Path, snapshot: dict[str, Any] | None) -> None:
+    if snapshot is None:
+        try:
+            path.unlink()
+        except OSError:
+            pass
+        return
+    path.write_text(json.dumps(snapshot, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 def _result(status: str, action: str, summary: str) -> dict[str, object]:

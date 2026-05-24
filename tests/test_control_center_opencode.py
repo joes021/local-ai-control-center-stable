@@ -124,6 +124,10 @@ def test_opencode_open_route_launches_visible_windows_launcher(
         fake_ensure_runtime_ready,
         raising=False,
     )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.opencode_service.detect_opencode_instances",
+        lambda executable_path: [],
+    )
 
     client = TestClient(app)
     response = client.post("/api/opencode/open", json={"profile": "balanced"})
@@ -194,6 +198,59 @@ def test_opencode_open_route_returns_error_when_runtime_cannot_be_prepared(
     payload = response.json()
     assert payload["status"] == "error"
     assert "runtime" in payload["summary"].lower()
+    assert launch_attempted is False
+
+
+def test_opencode_open_route_reuses_existing_window_when_runtime_becomes_ready(
+    tmp_path: Path,
+    monkeypatch,
+):
+    install_root = tmp_path / "install-root"
+    _write_opencode_fixture(install_root)
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+
+    launch_attempted = False
+
+    def fake_popen(command, **kwargs):
+        nonlocal launch_attempted
+        launch_attempted = True
+
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.opencode_service.subprocess.Popen",
+        fake_popen,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.opencode_service.detect_opencode_instances",
+        lambda executable_path: [
+            {
+                "pid": 4242,
+                "name": "opencode.exe",
+                "commandLine": "\"C:\\\\opencode.exe\"",
+            }
+        ],
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.opencode_service.ensure_runtime_ready",
+        lambda config: {
+            "status": "ok",
+            "action": "ensure-runtime-ready",
+            "summary": "Runtime je spreman za OpenCode.",
+            "details": {
+                "returncode": 0,
+                "stdout": "Runtime je spreman za OpenCode.",
+                "stderr": "",
+            },
+        },
+        raising=False,
+    )
+
+    client = TestClient(app)
+    response = client.post("/api/opencode/open", json={"profile": "balanced"})
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "ok"
+    assert "vec otvoren" in payload["summary"].lower()
     assert launch_attempted is False
 
 

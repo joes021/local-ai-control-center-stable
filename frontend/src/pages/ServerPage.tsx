@@ -70,20 +70,24 @@ export function ServerPage() {
     <>
       {error ? <div className="error-panel">{error}</div> : null}
       <section className="status-card wide-card">
-        <span className="status-label">llama.cpp server</span>
+        <span className="status-label">Runtime server</span>
         <strong className="status-value">{serverStatus?.lastReason || "Ucitavam server status..."}</strong>
         <p className="helper-text">
           Ovo je mesto za kontrolu rada servera. Home prikazuje samo kratak summary.
         </p>
+        <p className="helper-text">
+          Izabrani runtime: {serverStatus?.requestedRuntimeLabel || "--"} |{" "}
+          {serverStatus?.runtimeSelectionSummary || "Nema dodatnih detalja o izboru runtime-a."}
+        </p>
         <div className="inline-actions">
           <button type="button" onClick={() => void runAction(startServer)}>
-            Start llama.cpp server
+            Start runtime server
           </button>
           <button type="button" onClick={() => void runAction(stopServer)}>
-            Stop llama.cpp server
+            Stop runtime server
           </button>
           <button type="button" onClick={openServerWebNow}>
-            Run llama.cpp web
+            Open runtime web
           </button>
         </div>
       </section>

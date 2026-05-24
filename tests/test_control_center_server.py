@@ -376,6 +376,72 @@ def test_server_start_route_rejects_unsupported_mtp_active_model(
     assert "non-MTP" in payload["summary"]
 
 
+def test_server_start_route_restarts_unhealthy_managed_runtime_listener(
+    tmp_path: Path,
+    monkeypatch,
+):
+    install_root = tmp_path / "install-root"
+    runtime_root = install_root / "runtime" / "llama.cpp"
+    runtime_root.mkdir(parents=True)
+    executable = runtime_root / "llama-server.exe"
+    executable.write_text("llama", encoding="utf-8")
+    _write_active_model_config(
+        install_root,
+        filename="gemma-4-E4B-it-Q4_K_M.gguf",
+    )
+    _write_runtime_endpoint_config(
+        install_root / "config" / "runtime-endpoint.json",
+        port=39281,
+    )
+
+    captured: dict[str, object] = {}
+
+    class FakeProcess:
+        pid = 7010
+
+    def fake_popen(command, **kwargs):
+        captured["command"] = command
+        captured["kwargs"] = kwargs
+        return FakeProcess()
+
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.server_service.find_runtime_pid",
+        lambda *args, **kwargs: 5150,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.status_service.find_runtime_pid",
+        lambda *args, **kwargs: 5150,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.server_service.probe_server_health",
+        lambda *args, **kwargs: "offline",
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.server_service.is_managed_runtime_port_owned_by_installation",
+        lambda *args, **kwargs: True,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.server_service.stop_managed_runtime_on_port",
+        lambda *args, **kwargs: True,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.server_service.subprocess.Popen",
+        fake_popen,
+    )
+
+    client = TestClient(app)
+    response = client.post("/api/server/start")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "ok"
+    assert "restart" in payload["summary"].lower()
+    command = captured["command"]
+    assert command[0].endswith("llama-server.exe")
+    assert "39281" in command
+
+
 def test_server_start_route_uses_saved_global_context_for_llama_runtime(
     tmp_path: Path,
     monkeypatch,

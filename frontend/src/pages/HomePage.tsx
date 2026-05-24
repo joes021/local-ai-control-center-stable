@@ -32,6 +32,16 @@ function renderOpenCodeState(opencode: OpenCodeStatusPayload | null) {
   return "Dostupan";
 }
 
+function renderOpenCodeActionLabel(opencode: OpenCodeStatusPayload | null) {
+  if (opencode?.sessionState === "app-only") {
+    return "Pripremi backend za OpenCode";
+  }
+  if (opencode?.sessionState === "connected") {
+    return "OpenCode je vec otvoren";
+  }
+  return "Open OpenCode";
+}
+
 export function HomePage() {
   const [status, setStatus] = useState<StatusPayload | null>(null);
   const [serverStatus, setServerStatus] = useState<ServerStatusPayload | null>(null);
@@ -97,6 +107,12 @@ export function HomePage() {
           <span>Health: {serverStatus?.health ?? "--"}</span>
           <span>Runtime: {serverStatus?.activeRuntimeLabel ?? "--"}</span>
         </div>
+        {serverStatus?.requestedRuntimeLabel ? (
+          <p className="helper-text">
+            Izabrani runtime: {serverStatus.requestedRuntimeLabel} |{" "}
+            {serverStatus.runtimeSelectionSummary || "Nema dodatnih detalja o izboru runtime-a."}
+          </p>
+        ) : null}
         {serverWarning ? <div className="warning-badge">Server warning: {serverWarning}</div> : null}
       </section>
       <StatusCard label="Aktivan runtime" value={status?.activeRuntimeLabel ?? "--"} />
@@ -121,7 +137,7 @@ export function HomePage() {
             type="button"
             onClick={() => void runAction(() => openOpenCode(status?.profile || opencode?.profile || "balanced"))}
           >
-            Open OpenCode
+            {renderOpenCodeActionLabel(opencode)}
           </button>
         </div>
       </section>
@@ -149,6 +165,10 @@ export function HomePage() {
         </strong>
         <p className="helper-text">
           Izvor potvrde: {status?.activeRuntimeBinarySource || "nema potvrde"}
+        </p>
+        <p className="helper-text">
+          Izabrani runtime: {status?.requestedRuntimeLabel || "--"} |{" "}
+          {status?.runtimeSelectionSummary || "Nema dodatnih detalja o izboru runtime-a."}
         </p>
         <p className="helper-text">
           Runtime health: {status?.runtimeLiveReason || "Nema dodatnih detalja."}

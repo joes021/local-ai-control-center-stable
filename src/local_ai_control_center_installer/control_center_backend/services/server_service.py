@@ -23,6 +23,7 @@ from local_ai_control_center_installer.control_center_backend.services.status_se
 )
 from local_ai_control_center_installer.server_verification import (
     _build_server_command,
+    is_managed_runtime_port_owned_by_installation,
     stop_managed_runtime_on_port,
     stop_server_process,
     ServerVerificationTarget,
@@ -56,8 +57,13 @@ def load_server_status(
     if config.access_mode == "tailscale" and tailscale_ip:
         tailscale_url = f"http://{tailscale_ip}:{runtime_state['port']}/"
 
-    has_warning = status != "started"
-    warning_summary = reason if has_warning else ""
+    selection_warning = str(runtime_state.get("active_binary_source", "") or "") == "fallback"
+    has_warning = status != "started" or selection_warning
+    warning_summary = ""
+    if selection_warning:
+        warning_summary = str(runtime_state.get("runtime_selection_summary", "") or "")
+    elif has_warning:
+        warning_summary = reason
     warning_severity = "warning" if has_warning else ""
 
     return {
@@ -71,6 +77,8 @@ def load_server_status(
         "activeModel": runtime_state["active_model"],
         "activeRuntime": runtime_state["active_runtime"],
         "activeRuntimeLabel": _runtime_label(str(runtime_state["active_runtime"])),
+        "requestedRuntimeLabel": _runtime_label(str(runtime_state["requested_runtime"])),
+        "runtimeSelectionSummary": str(runtime_state.get("runtime_selection_summary", "") or ""),
         "runtimeLiveStatus": runtime_live_status,
         "runtimeLiveReason": runtime_live_reason,
         "lastReason": reason,
@@ -91,12 +99,8 @@ def start_server(
     config = config or get_config()
     runtime_state = load_runtime_state(config)
     port = int(runtime_state["port"])
-    if find_runtime_pid(port) is not None:
-        return _result(
-            "ok",
-            "start-server",
-            "Runtime server je vec pokrenut.",
-        )
+    health_status = probe_server_health(str(runtime_state["base_url"]))
+    existing_pid = find_runtime_pid(port)
 
     binary_path = Path(str(runtime_state["active_binary"] or ""))
     model_path = Path(str(runtime_state["active_model_path"] or ""))
@@ -118,6 +122,38 @@ def start_server(
             "start-server",
             str(runtime_state.get("active_model_reason", "") or "Aktivni model nije podrzan za runtime start."),
         )
+
+    restart_summary = "Pokretanje runtime servera je poslato. Status ce se osveziti automatski."
+    if existing_pid is not None:
+        if health_status == "ready":
+            return _result(
+                "ok",
+                "start-server",
+                "Runtime server je vec pokrenut i health endpoint odgovara.",
+            )
+        if health_status == "loading":
+            return _result(
+                "ok",
+                "start-server",
+                "Runtime server je vec u fazi zagrevanja i health jos nije spreman.",
+            )
+        if not is_managed_runtime_port_owned_by_installation(
+            port,
+            binary_path,
+            config.install_root,
+        ):
+            return _result(
+                "error",
+                "start-server",
+                f"Port {port} je zauzet procesom koji ne pripada ovoj instalaciji, a runtime health ne odgovara.",
+            )
+        if not stop_managed_runtime_on_port(port, binary_path, config.install_root):
+            return _result(
+                "error",
+                "start-server",
+                "Postojeci runtime proces nije odgovarao na health proveru i nije mogao bezbedno da se restartuje.",
+            )
+        restart_summary = "Neodgovarajuci runtime proces je zaustavljen i restartovan."
 
     command = _build_server_command(
         ServerVerificationTarget(
@@ -142,7 +178,7 @@ def start_server(
     return _result(
         "ok",
         "start-server",
-        "Pokretanje runtime servera je poslato. Status ce se osveziti automatski.",
+        restart_summary,
     )
 
 
@@ -170,7 +206,7 @@ def ensure_runtime_ready(
             "Runtime je vec spreman za OpenCode.",
         )
 
-    if health_status == "offline" and runtime_pid is None:
+    if health_status == "offline":
         start_result = start_server(config)
         if start_result.get("status") != "ok":
             return {
@@ -194,7 +230,7 @@ def ensure_runtime_ready(
         if health_status == "loading":
             last_summary = "Runtime se jos ucitava za OpenCode."
         elif runtime_pid is not None:
-            last_summary = "Runtime proces postoji, ali health jos nije spreman."
+            last_summary = "Runtime proces postoji, ali health endpoint jos ne odgovara."
         else:
             last_summary = "Runtime nije ostao pokrenut tokom pripreme za OpenCode."
         sleep_fn(poll_interval_seconds)
@@ -284,7 +320,7 @@ def _build_server_state(
     if health_status == "loading":
         return "warming", "loading", "Runtime endpoint odgovara, ali model se jos loading."
     if pid is not None:
-        return "warming", "loading", "Runtime proces postoji, ali health jos nije spreman."
+        return "degraded", "offline", "Runtime proces postoji, ali health endpoint ne odgovara."
     return "stopped", "offline", "Runtime trenutno nije pokrenut."
 
 
@@ -297,7 +333,7 @@ def _build_runtime_live_signal(
     if health_status == "loading":
         return "warming", "Runtime odgovara, ali model se jos ucitava."
     if pid is not None:
-        return "warming", "Runtime proces postoji, ali health jos nije spreman."
+        return "degraded", "Runtime proces postoji, ali health endpoint ne odgovara."
     return "stopped", "Runtime trenutno nije pokrenut."
 
 

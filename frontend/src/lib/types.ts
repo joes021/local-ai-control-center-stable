@@ -15,6 +15,9 @@ export type StatusPayload = {
   runtimeStatus: string;
   runtimeSummary: string;
   activeRuntimeLabel: string;
+  requestedRuntimeLabel: string;
+  runtimeSelectionSummary: string;
+  runtimeSelectionSource: string;
   availableRuntimes: string[];
   llamaRuntimeAvailable: boolean;
   turboQuantRuntimeAvailable: boolean;
@@ -41,6 +44,8 @@ export type ServerStatusPayload = {
   activeModel: string;
   activeRuntime: string;
   activeRuntimeLabel: string;
+  requestedRuntimeLabel: string;
+  runtimeSelectionSummary: string;
   runtimeLiveStatus: string;
   runtimeLiveReason: string;
   lastReason: string;

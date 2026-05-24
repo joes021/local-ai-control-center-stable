@@ -73,6 +73,9 @@ def load_status_payload(
         "runtimeStatus": runtime_state["active_runtime"],
         "runtimeSummary": _build_runtime_summary(runtime_state),
         "activeRuntimeLabel": _runtime_label(runtime_state["active_runtime"]),
+        "requestedRuntimeLabel": _runtime_label(runtime_state["requested_runtime"]),
+        "runtimeSelectionSummary": runtime_state["runtime_selection_summary"],
+        "runtimeSelectionSource": runtime_state["active_binary_source"],
         "availableRuntimes": _build_available_runtimes(runtime_state),
         "llamaRuntimeAvailable": runtime_state["llama_available"],
         "turboQuantRuntimeAvailable": runtime_state["turbo_available"],
@@ -134,12 +137,15 @@ def load_runtime_state(
     turbo_installed = turbo_binary.is_file()
     llama_available, llama_reason = probe_runtime_binary_launchable(llama_binary)
     turbo_available, turbo_reason = probe_runtime_binary_launchable(turbo_binary)
-    selected_runtime, selection_source = _resolve_selected_runtime(
+    selection_state = _resolve_selected_runtime(
         config,
         llama_available=llama_available,
         turbo_available=turbo_available,
     )
-    active_runtime = selected_runtime
+    requested_runtime = selection_state["requested_runtime"]
+    selection_source = selection_state["selection_source"]
+    active_runtime = selection_state["active_runtime"]
+    runtime_selection_summary = selection_state["selection_summary"]
 
     active_binary = ""
     if active_runtime == "llama.cpp" and llama_available:
@@ -173,7 +179,9 @@ def load_runtime_state(
         "turbo_installed": turbo_installed,
         "llama_available": llama_available,
         "turbo_available": turbo_available,
+        "requested_runtime": requested_runtime,
         "active_runtime": active_runtime,
+        "runtime_selection_summary": runtime_selection_summary,
         "active_binary": active_binary,
         "active_binary_source": selection_source,
         "runtime_live_status": runtime_live_status,
@@ -299,26 +307,44 @@ def _resolve_selected_runtime(
     *,
     llama_available: bool,
     turbo_available: bool,
-) -> tuple[str, str]:
+) -> dict[str, str]:
     selection_payload = _read_json_file(
         config.control_center_config_root / RUNTIME_SELECTION_FILE
     )
     requested = str(selection_payload.get("runtime", "") or "").strip().lower()
+    defaulted = requested not in SUPPORTED_RUNTIMES
     if requested not in SUPPORTED_RUNTIMES:
         requested = "llama.cpp"
         source = "default"
     else:
         source = "selection"
 
+    active_runtime = requested
+    selection_summary = f"Koristi se izabrani runtime: {_runtime_label(requested)}."
+
     if requested == "turboquant" and not turbo_available:
-        requested = "llama.cpp" if llama_available else requested
-        source = "fallback"
+        if llama_available:
+            active_runtime = "llama.cpp"
+            source = "fallback"
+            selection_summary = "Izabrani runtime TurboQuant trenutno nije dostupan, pa se koristi llama.cpp."
+        else:
+            selection_summary = "TurboQuant je izabran, ali trenutno nema potvrde da je dostupan."
     if requested == "llama.cpp" and not llama_available and turbo_available:
-        requested = "turboquant"
+        active_runtime = "turboquant"
         source = "fallback"
-    if requested not in SUPPORTED_RUNTIMES:
-        requested = "unknown"
-    return requested, source
+        if defaulted:
+            selection_summary = "Runtime nije bio eksplicitno izabran; llama.cpp nije dostupan, pa se koristi TurboQuant."
+        else:
+            selection_summary = "Izabrani runtime llama.cpp trenutno nije dostupan, pa se koristi TurboQuant."
+    if requested == "llama.cpp" and not llama_available and not turbo_available:
+        selection_summary = "llama.cpp je izabran, ali trenutno nema potvrde da je dostupan."
+
+    return {
+        "requested_runtime": requested,
+        "active_runtime": active_runtime,
+        "selection_source": source,
+        "selection_summary": selection_summary,
+    }
 
 
 def _build_runtime_live_signal(
@@ -330,18 +356,26 @@ def _build_runtime_live_signal(
     if health_status == "loading":
         return "warming", "Runtime odgovara, ali model se jos ucitava."
     if runtime_pid is not None:
-        return "warming", "Runtime proces postoji, ali health jos nije spreman."
+        return "degraded", "Runtime proces postoji, ali health endpoint ne odgovara."
     return "stopped", "Runtime trenutno nije pokrenut."
 
 
 def _build_runtime_summary(runtime_state: dict[str, object]) -> str:
     parts = [f"Aktivan runtime: {_runtime_label(str(runtime_state['active_runtime']))}"]
+    requested_runtime = str(runtime_state.get("requested_runtime", "") or "")
+    if requested_runtime and requested_runtime != runtime_state["active_runtime"]:
+        parts.append(f"Izabrani runtime: {_runtime_label(requested_runtime)}")
+    elif str(runtime_state.get("active_binary_source", "") or "") == "selection":
+        parts.append(f"Izabrani runtime: {_runtime_label(requested_runtime or str(runtime_state['active_runtime']))}")
     if runtime_state["llama_available"]:
         parts.append("llama.cpp dostupan")
     if runtime_state["turbo_available"]:
         parts.append("TurboQuant dostupan")
     if not runtime_state["llama_available"] and not runtime_state["turbo_available"]:
         parts.append("nema potvrde o dostupnom runtime-u")
+    selection_summary = str(runtime_state.get("runtime_selection_summary", "") or "").strip()
+    if selection_summary and str(runtime_state.get("active_binary_source", "") or "") in {"fallback", "default"}:
+        parts.append(selection_summary)
     return " | ".join(parts)
 
 

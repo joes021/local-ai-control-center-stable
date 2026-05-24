@@ -36,6 +36,16 @@ function renderOpenCodeState(opencode: OpenCodeStatusPayload | null) {
   return "Dostupan";
 }
 
+function renderOpenCodeActionLabel(opencode: OpenCodeStatusPayload | null) {
+  if (opencode?.sessionState === "app-only") {
+    return "Pripremi backend za postojeci OpenCode";
+  }
+  if (opencode?.sessionState === "connected") {
+    return "OpenCode je vec otvoren";
+  }
+  return "Open OpenCode";
+}
+
 function formatPresetLabel(preset: OpenCodeStepPreset) {
   return `${preset.name} (${preset.summary})`;
 }
@@ -134,7 +144,7 @@ export function OpenCodePage() {
               }
             }}
           >
-            Open OpenCode
+            {renderOpenCodeActionLabel(opencode)}
           </button>
         </div>
         <p className="helper-text">
