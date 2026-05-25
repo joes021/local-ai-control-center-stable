@@ -182,3 +182,32 @@ def test_calculate_compatibility_marks_turboquant_unavailable_when_installation_
 
     assert payload["runtimeBreakdown"]["turboquant"]["fitStatus"] == "ne radi"
     assert "nije dostupan" in payload["runtimeBreakdown"]["turboquant"]["summary"].lower()
+
+
+def test_calculate_compatibility_uses_installed_size_when_approx_size_is_missing():
+    payload = calculate_compatibility(
+        {
+            "id": "unsloth/Qwen3.6-35B-A3B-MTP-GGUF/Qwen3.6-35B-A3B-UD-IQ2_XXS.gguf",
+            "label": "Qwen3.6-35B-A3B-UD-IQ2_XXS.gguf",
+            "installedSizeGiB": 10.02,
+            "contextWindow": 262144,
+            "defaultOutputTokens": 4096,
+        },
+        system_info={
+            "ramGiB": 15.88,
+            "vramGiB": 6.0,
+            "turboQuantAvailable": True,
+            "context": 262144,
+            "outputTokens": 8192,
+            "turboQuantConfig": {
+                "ctk": "turbo4",
+                "ctv": "turbo3",
+                "ncmoe": 20,
+                "runtimePreference": "turboquant",
+            },
+        },
+    )
+
+    assert payload["overallFitStatus"] == "ne radi"
+    assert payload["bestRuntime"] == "llama.cpp"
+    assert payload["memoryBudget"]["vram"]["requiredGiB"] > 6.0

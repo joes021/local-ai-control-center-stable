@@ -9,6 +9,9 @@ from local_ai_control_center_installer.control_center_backend.config import (
     ControlCenterConfig,
     get_config,
 )
+from local_ai_control_center_installer.control_center_backend.services.compatibility_service import (
+    evaluate_model_hardware_fit,
+)
 from local_ai_control_center_installer.control_center_backend.services.network_service import (
     detect_tailscale_ip,
 )
@@ -135,6 +138,16 @@ def start_server(
             "error",
             "start-server",
             str(runtime_state.get("active_model_reason", "") or "Aktivni model nije podrzan za runtime start."),
+        )
+    hardware_fit_ok, hardware_fit_reason = _evaluate_runtime_hardware_fit(
+        runtime_state,
+        config=config,
+    )
+    if not hardware_fit_ok:
+        return _result(
+            "error",
+            "start-server",
+            hardware_fit_reason,
         )
 
     restart_summary = "Pokretanje runtime servera je poslato. Status ce se osveziti automatski."
@@ -419,6 +432,35 @@ def _resolve_spec_type(
     if not runtime_supports_draft_mtp(binary_path):
         return None
     return "draft-mtp"
+
+
+def _evaluate_runtime_hardware_fit(
+    runtime_state: dict[str, object],
+    *,
+    config: ControlCenterConfig,
+) -> tuple[bool, str]:
+    model_id = str(runtime_state.get("active_model_id", "") or "")
+    model = None
+    if model_id:
+        from local_ai_control_center_installer.control_center_backend.services.models_service import (
+            _resolve_model_by_id,
+        )
+
+        model = _resolve_model_by_id(config, model_id)
+
+    if model is None:
+        active_model_path = Path(str(runtime_state.get("active_model_path", "") or ""))
+        if active_model_path.is_file():
+            model = {
+                "id": model_id or active_model_path.name,
+                "label": str(runtime_state.get("active_model", "") or active_model_path.name),
+                "filename": active_model_path.name,
+                "resolvedPath": str(active_model_path),
+                "installedSizeGiB": round(active_model_path.stat().st_size / (1024**3), 2),
+            }
+
+    allowed, reason, _payload = evaluate_model_hardware_fit(model=model, config=config)
+    return allowed, reason
 
 
 def _build_start_capability(runtime_state: dict[str, object]) -> tuple[bool, str]:

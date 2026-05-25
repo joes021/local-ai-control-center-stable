@@ -437,6 +437,60 @@ def test_server_start_route_adds_draft_mtp_flag_for_supported_mtp_active_model(
     assert "draft-mtp" in command
 
 
+def test_server_start_route_rejects_hardware_incompatible_active_model_before_launch(
+    tmp_path: Path,
+    monkeypatch,
+):
+    install_root = tmp_path / "install-root"
+    runtime_root = install_root / "runtime" / "llama.cpp"
+    runtime_root.mkdir(parents=True)
+    executable = runtime_root / "llama-server.exe"
+    executable.write_text("llama", encoding="utf-8")
+    _write_active_model_config(
+        install_root,
+        filename="Qwen3.6-35B-A3B-UD-IQ2_XXS.gguf",
+    )
+    _write_runtime_endpoint_config(
+        install_root / "config" / "runtime-endpoint.json",
+        port=39281,
+    )
+
+    captured: dict[str, object] = {}
+
+    def fake_popen(command, **kwargs):
+        captured["command"] = command
+        captured["kwargs"] = kwargs
+        raise AssertionError("runtime launch should not be attempted")
+
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.server_service.find_runtime_pid",
+        lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.status_service.find_runtime_pid",
+        lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.server_service._evaluate_runtime_hardware_fit",
+        lambda *args, **kwargs: (False, "Model nije realno upotrebljiv na ovoj masini."),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.server_service.subprocess.Popen",
+        fake_popen,
+    )
+
+    client = TestClient(app)
+    response = client.post("/api/server/start")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "error"
+    assert "nije realno upotrebljiv" in payload["summary"]
+    assert captured == {}
+
+
 def test_server_status_route_exposes_start_block_reason_for_unsupported_active_model(
     tmp_path: Path,
     monkeypatch,

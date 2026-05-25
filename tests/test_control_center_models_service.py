@@ -278,6 +278,85 @@ def test_activate_model_route_accepts_mtp_variant_when_llama_supports_draft_mtp(
     assert active_model_payload["model_path"] == str(mtp_model_path)
 
 
+def test_activate_model_route_rejects_hardware_incompatible_model_before_state_change(
+    tmp_path: Path,
+    monkeypatch,
+):
+    install_root = tmp_path / "install-root"
+    curated_model_path = (
+        install_root / "models" / "recommended-6gb" / "gemma-4-E4B-it-Q4_K_M.gguf"
+    )
+    mtp_model_path = (
+        install_root
+        / "models"
+        / "unsloth"
+        / "unsloth-qwen3-6-35b-a3b-mtp-gguf"
+        / "Qwen3.6-35B-A3B-UD-IQ2_XXS.gguf"
+    )
+    mtp_model_path.parent.mkdir(parents=True, exist_ok=True)
+    mtp_model_path.write_text("mtp-model", encoding="utf-8")
+    runtime_root = install_root / "runtime" / "llama.cpp"
+    runtime_root.mkdir(parents=True, exist_ok=True)
+    (runtime_root / "llama-server.exe").write_text("llama", encoding="utf-8")
+    _write_active_model_config(
+        install_root,
+        model_id="recommended-6gb",
+        model_path=curated_model_path,
+    )
+    _write_runtime_endpoint_config(
+        install_root / "config" / "runtime-endpoint.json",
+        port=39281,
+    )
+    _write_custom_registry(
+        install_root,
+        [
+            {
+                "id": "unsloth-unsloth-qwen3-6-35b-a3b-mtp-gguf-qwen3-6-35b-a3b-ud-iq2-xxs",
+                "label": "Qwen3.6 35B A3B MTP",
+                "filename": "Qwen3.6-35B-A3B-UD-IQ2_XXS.gguf",
+                "family": "Qwen",
+                "source": "unsloth",
+                "repo": "unsloth/Qwen3.6-35B-A3B-MTP-GGUF",
+                "absolute_path": str(mtp_model_path),
+                "download_url": "https://huggingface.co/unsloth/Qwen3.6-35B-A3B-MTP-GGUF/resolve/main/Qwen3.6-35B-A3B-UD-IQ2_XXS.gguf",
+            }
+        ],
+    )
+
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.models_service.find_runtime_pid",
+        lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.status_service.runtime_supports_draft_mtp",
+        lambda path: True,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.models_service._evaluate_model_hardware_fit",
+        lambda *args, **kwargs: (False, "Model nije realno upotrebljiv na ovoj masini."),
+        raising=False,
+    )
+
+    client = TestClient(app)
+    response = client.post(
+        "/api/models/activate",
+        json={"modelId": "unsloth-unsloth-qwen3-6-35b-a3b-mtp-gguf-qwen3-6-35b-a3b-ud-iq2-xxs"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "error"
+    assert "nije realno upotrebljiv" in payload["summary"]
+
+    active_model_payload = json.loads(
+        (install_root / "config" / "active-model.json").read_text(encoding="utf-8")
+    )
+    assert active_model_payload["model_id"] == "recommended-6gb"
+    assert active_model_payload["model_path"] == str(curated_model_path)
+
+
 def test_activate_model_route_rolls_back_when_managed_opencode_write_fails(
     tmp_path: Path,
     monkeypatch,

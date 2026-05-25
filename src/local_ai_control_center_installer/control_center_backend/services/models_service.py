@@ -16,6 +16,9 @@ from local_ai_control_center_installer.control_center_backend.config import (
     ControlCenterConfig,
     get_config,
 )
+from local_ai_control_center_installer.control_center_backend.services.compatibility_service import (
+    evaluate_model_hardware_fit,
+)
 from local_ai_control_center_installer.control_center_backend.services.server_service import (
     start_server,
     stop_server,
@@ -150,6 +153,14 @@ def activate_model(
             "activate-model",
             model_reason,
             stderr=model_reason,
+        )
+    hardware_fit_ok, hardware_fit_reason = _evaluate_model_hardware_fit(model, config=config)
+    if not hardware_fit_ok:
+        return action_result(
+            "error",
+            "activate-model",
+            hardware_fit_reason,
+            stderr=hardware_fit_reason,
         )
 
     active_model_snapshot = _snapshot_file_contents(config.active_model_config_path)
@@ -1150,6 +1161,15 @@ def _evaluate_model_activation(
     if bool(entry.get("active")):
         return True, "Aktivni model je spreman za runtime."
     return True, "Model je spreman za aktivaciju."
+
+
+def _evaluate_model_hardware_fit(
+    entry: dict[str, object],
+    *,
+    config: ControlCenterConfig,
+) -> tuple[bool, str]:
+    allowed, reason, _payload = evaluate_model_hardware_fit(model=entry, config=config)
+    return allowed, reason
 
 
 def _resolve_llama_runtime_binary(config: ControlCenterConfig) -> Path:

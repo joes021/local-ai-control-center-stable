@@ -80,6 +80,36 @@ def run_compatibility_check(
     return calculate_compatibility(resolved_model, system_info=merged_system)
 
 
+def evaluate_model_hardware_fit(
+    *,
+    model: dict[str, object] | None,
+    config: ControlCenterConfig | None = None,
+) -> tuple[bool, str, dict[str, object]]:
+    if not model:
+        payload = _not_checked_result("Model nije pronadjen za hardversku proveru.")
+        return True, "", payload
+
+    payload = run_compatibility_check(model=model, config=config)
+    fit_status = str(payload.get("overallFitStatus", "") or payload.get("fitStatus", "") or "nije provereno")
+    if fit_status != "ne radi":
+        return True, "", payload
+
+    best_runtime_label = str(payload.get("bestRuntimeLabel", "") or payload.get("bestRuntime", "") or "llama.cpp")
+    summary = str(payload.get("summary", "") or "Model verovatno nije upotrebljiv na ovoj masini.")
+    vram_budget = dict(payload.get("memoryBudget", {}).get("vram", {}) or {})
+    ram_budget = dict(payload.get("memoryBudget", {}).get("ram", {}) or {})
+    details: list[str] = [summary, f"Najzdraviji runtime bi bio {best_runtime_label}."]
+    required_vram = _as_float(vram_budget.get("requiredGiB"))
+    available_vram = _as_float(vram_budget.get("availableGiB"))
+    if required_vram is not None and available_vram is not None:
+        details.append(f"VRAM procena je oko {required_vram:.1f} / {available_vram:.1f} GiB.")
+    required_ram = _as_float(ram_budget.get("requiredGiB"))
+    available_ram = _as_float(ram_budget.get("availableGiB"))
+    if required_ram is not None and available_ram is not None:
+        details.append(f"RAM procena je oko {required_ram:.1f} / {available_ram:.1f} GiB.")
+    return False, " ".join(details), payload
+
+
 def apply_compatibility_action(
     *,
     action: dict[str, object],
@@ -296,6 +326,8 @@ def _normalize_model(model: dict[str, object]) -> dict[str, object]:
     )
     family = str(model.get("family", "Unknown") or "Unknown")
     approx_size_gib = _as_float(model.get("approxSizeGiB"))
+    if approx_size_gib is None:
+        approx_size_gib = _as_float(model.get("installedSizeGiB"))
     min_vram = _as_float(model.get("minimumVramGiB"))
     if min_vram is None:
         min_gpu_mib = _as_float(model.get("minimumGpuMiB"))
