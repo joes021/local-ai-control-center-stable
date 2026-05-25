@@ -4,6 +4,7 @@ import { ActionResultPanel } from "../components/ActionResultPanel";
 import { CompatibilityCalculatorModal } from "../components/CompatibilityCalculatorModal";
 import { CustomSelect } from "../components/CustomSelect";
 import { ModelDownloadProgressCard } from "../components/ModelDownloadProgressCard";
+import type { CompatibilityLaunchTarget } from "../lib/compatibility";
 import {
   addBrowserModelToLocal,
   awaitModelActionResult,
@@ -399,7 +400,11 @@ function compareItems(left: BrowserCatalogItem, right: BrowserCatalogItem, sortK
   return left.source.localeCompare(right.source) || left.model.localeCompare(right.model);
 }
 
-export function BrowserPage() {
+export function BrowserPage({
+  onOpenCompatibilityTab,
+}: {
+  onOpenCompatibilityTab?: (target: CompatibilityLaunchTarget) => void;
+}) {
   const rowsPerPage = 25;
   const [catalog, setCatalog] = useState<BrowserCatalogPayload | null>(null);
   const [catalogIndex, setCatalogIndex] = useState<BrowserCatalogPayload | null>(null);
@@ -809,6 +814,22 @@ export function BrowserPage() {
             <button type="button" className="secondary-button" disabled={Boolean(pendingAction)} onClick={() => void handleRefresh("unsloth")}>
               Refresh Unsloth
             </button>
+            <button
+              type="button"
+              className="secondary-button"
+              disabled={!selectedItem}
+              onClick={() => {
+                if (!selectedItem) {
+                  return;
+                }
+                onOpenCompatibilityTab?.({
+                  title: selectedItem.model,
+                  request: { catalogModelId: selectedItem.id },
+                });
+              }}
+            >
+              Compatibility tab
+            </button>
           </div>
         </div>
         <div className="browser-toolbar">
@@ -1163,6 +1184,23 @@ export function BrowserPage() {
         title={selectedItem?.model || "Model"}
         request={compatibilityRequest}
         onClose={() => setCompatibilityRequest(null)}
+        headerActions={
+          compatibilityRequest && selectedItem ? (
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={() => {
+                onOpenCompatibilityTab?.({
+                  title: selectedItem.model,
+                  request: compatibilityRequest,
+                });
+                setCompatibilityRequest(null);
+              }}
+            >
+              Compatibility tab
+            </button>
+          ) : null
+        }
       />
 
       {result && result.action !== "browser-download" ? <ActionResultPanel result={result} /> : null}

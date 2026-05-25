@@ -227,7 +227,7 @@ def test_packaged_frontend_contains_benchmark_compare_export_copy():
 
 
 def test_compatibility_modal_source_and_packaged_frontend_include_runtime_breakdown_copy():
-    source = Path("frontend/src/components/CompatibilityCalculatorModal.tsx").read_text(encoding="utf-8")
+    source = Path("frontend/src/components/CompatibilityCalculatorPanel.tsx").read_text(encoding="utf-8")
 
     assert "Best runtime" in source
     assert "Runtime breakdown" in source
@@ -245,6 +245,44 @@ def test_compatibility_modal_source_and_packaged_frontend_include_runtime_breakd
     assert "Best runtime" in bundled_text
     assert "Runtime breakdown" in bundled_text
     assert "Output pressure" in bundled_text
+
+
+def test_app_source_and_packaged_frontend_include_compatibility_navigation():
+    source = Path("frontend/src/App.tsx").read_text(encoding="utf-8")
+
+    assert 'compatibility: "Compatibility"' in source
+    assert "CompatibilityPage" in source
+
+    dist_root = Path(
+        "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
+    )
+    js_assets = list((dist_root / "assets").glob("index-*.js"))
+
+    assert js_assets
+    bundled_text = "\n".join(path.read_text(encoding="utf-8") for path in js_assets)
+
+    assert "Compatibility" in bundled_text
+    assert "System snapshot" in bundled_text
+    assert "Remote catalog" in bundled_text
+
+
+def test_compatibility_page_source_uses_local_and_remote_model_inputs():
+    source = Path("frontend/src/pages/CompatibilityPage.tsx").read_text(encoding="utf-8")
+
+    assert "fetchModels" in source
+    assert "fetchBrowserCatalog" in source
+    assert "Active model" in source
+    assert "Local catalog" in source
+    assert "Remote catalog" in source
+    assert "Check compatibility" in source
+
+
+def test_models_and_browser_source_offer_compatibility_tab_handoff():
+    models_source = Path("frontend/src/pages/ModelsPage.tsx").read_text(encoding="utf-8")
+    browser_source = Path("frontend/src/pages/BrowserPage.tsx").read_text(encoding="utf-8")
+
+    assert "Compatibility tab" in models_source
+    assert "Compatibility tab" in browser_source
 
 
 def test_server_page_source_uses_runtime_generic_actions_and_labels():

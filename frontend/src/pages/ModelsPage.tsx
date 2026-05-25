@@ -16,6 +16,10 @@ import {
   fetchTurboQuantSchema,
   pickLocalGguf,
 } from "../lib/api";
+import {
+  buildCompatibilityRequestFromModelEntry,
+  type CompatibilityLaunchTarget,
+} from "../lib/compatibility";
 import type {
   ActionResult,
   CompatibilityCheckRequest,
@@ -70,36 +74,6 @@ function formatMiB(value: number | null | undefined) {
     return "nepoznato";
   }
   return `${value} MiB`;
-}
-
-function buildCompatibilityRequest(item: ModelEntry): CompatibilityCheckRequest {
-  const filename = item.filename || item.id;
-  const quantizationMatch = filename.match(/(UD-[A-Z0-9_]+|IQ[0-9A-Z_]+|Q[2-9]_[A-Z0-9_]+|Q[2-9][A-Z0-9_]+)/i);
-  const quantization = quantizationMatch ? quantizationMatch[1].toUpperCase() : "unknown";
-  const minimumVramGiB =
-    item.minimumGpuMiB === null || item.minimumGpuMiB === undefined ? null : Number((item.minimumGpuMiB / 1024).toFixed(2));
-  const recommendedVramGiB =
-    item.recommendedGpuMiB === null || item.recommendedGpuMiB === undefined
-      ? null
-      : Number((item.recommendedGpuMiB / 1024).toFixed(2));
-  const joined = `${item.id} ${item.label} ${filename}`.toLowerCase();
-  return {
-    model: {
-      id: item.id,
-      label: item.label,
-      filename,
-      family: item.family ?? "Unknown",
-      quantization,
-      approxSizeGiB: item.approxSizeGiB ?? null,
-      minimumRamGiB: item.minimumRamGiB ?? null,
-      minimumVramGiB,
-      recommendedVramGiB,
-      contextWindow: joined.includes("qwen3.6") ? 262144 : 131072,
-      defaultOutputTokens: 4096,
-      moe: joined.includes("a3b") || joined.includes("moe"),
-      turboQuantReady: /^(UD-|IQ|Q2|Q3|Q4)/.test(quantization),
-    },
-  };
 }
 
 function supportsRuntimeActivation(item: ModelEntry): boolean {
@@ -536,7 +510,11 @@ function ModelGroup({
   );
 }
 
-export function ModelsPage() {
+export function ModelsPage({
+  onOpenCompatibilityTab,
+}: {
+  onOpenCompatibilityTab?: (target: CompatibilityLaunchTarget) => void;
+}) {
   const [models, setModels] = useState<ModelsPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [localPath, setLocalPath] = useState("");
@@ -829,6 +807,27 @@ export function ModelsPage() {
           MTP modeli sada koriste llama.cpp draft-mtp put. Ako je TurboQuant izabran, panel ce
           za takav model automatski pasti nazad na llama.cpp.
         </p>
+        <div className="inline-actions compact-actions">
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={() => {
+              if (!models.local.length && !models.curated.length && !models.huggingFace.length && !models.unsloth.length) {
+                return;
+              }
+              const firstModel = filteredItems[0] ?? models.curated[0] ?? models.local[0] ?? models.huggingFace[0] ?? models.unsloth[0];
+              if (!firstModel) {
+                return;
+              }
+              onOpenCompatibilityTab?.({
+                title: firstModel.label,
+                request: buildCompatibilityRequestFromModelEntry(firstModel),
+              });
+            }}
+          >
+            Compatibility tab
+          </button>
+        </div>
       </section>
 
         <FilterResultsCard
@@ -837,7 +836,7 @@ export function ModelsPage() {
           onChanged={reloadModels}
           onCheckCompatibility={(item) => {
             setCompatibilityTitle(item.label);
-            setCompatibilityRequest(buildCompatibilityRequest(item));
+            setCompatibilityRequest(buildCompatibilityRequestFromModelEntry(item));
           }}
         />
       <CompatibilityCalculatorModal
@@ -845,6 +844,23 @@ export function ModelsPage() {
         title={compatibilityTitle}
         request={compatibilityRequest}
         onClose={() => setCompatibilityRequest(null)}
+        headerActions={
+          compatibilityRequest ? (
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={() => {
+                onOpenCompatibilityTab?.({
+                  title: compatibilityTitle,
+                  request: compatibilityRequest,
+                });
+                setCompatibilityRequest(null);
+              }}
+            >
+              Compatibility tab
+            </button>
+          ) : null
+        }
       />
       <ModelDownloadProgressCard progress={downloadProgress} />
 
@@ -1033,7 +1049,7 @@ export function ModelsPage() {
         onChanged={reloadModels}
         onCheckCompatibility={(item) => {
           setCompatibilityTitle(item.label);
-          setCompatibilityRequest(buildCompatibilityRequest(item));
+          setCompatibilityRequest(buildCompatibilityRequestFromModelEntry(item));
         }}
       />
       <ModelGroup
@@ -1047,7 +1063,7 @@ export function ModelsPage() {
         onChanged={reloadModels}
         onCheckCompatibility={(item) => {
           setCompatibilityTitle(item.label);
-          setCompatibilityRequest(buildCompatibilityRequest(item));
+          setCompatibilityRequest(buildCompatibilityRequestFromModelEntry(item));
         }}
       />
       <ModelGroup
@@ -1061,7 +1077,7 @@ export function ModelsPage() {
         onChanged={reloadModels}
         onCheckCompatibility={(item) => {
           setCompatibilityTitle(item.label);
-          setCompatibilityRequest(buildCompatibilityRequest(item));
+          setCompatibilityRequest(buildCompatibilityRequestFromModelEntry(item));
         }}
       />
       <ModelGroup
@@ -1075,7 +1091,7 @@ export function ModelsPage() {
         onChanged={reloadModels}
         onCheckCompatibility={(item) => {
           setCompatibilityTitle(item.label);
-          setCompatibilityRequest(buildCompatibilityRequest(item));
+          setCompatibilityRequest(buildCompatibilityRequestFromModelEntry(item));
         }}
       />
     </>

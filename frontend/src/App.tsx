@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import { Layout } from "./components/Layout";
 import { fetchStatus } from "./lib/api";
+import type { CompatibilityLaunchTarget } from "./lib/compatibility";
 import type { StatusPayload } from "./lib/types";
 import { BrowserPage } from "./pages/BrowserPage";
 import { BenchmarkPage } from "./pages/BenchmarkPage";
@@ -9,6 +10,7 @@ import { HomePage } from "./pages/HomePage";
 import { LogsPage } from "./pages/LogsPage";
 import { ModelsPage } from "./pages/ModelsPage";
 import { OpenCodePage } from "./pages/OpenCodePage";
+import { CompatibilityPage } from "./pages/CompatibilityPage";
 import { RepairPage } from "./pages/RepairPage";
 import { ServerPage } from "./pages/ServerPage";
 import { SettingsPage } from "./pages/SettingsPage";
@@ -20,6 +22,7 @@ const PAGES = {
   opencode: "OpenCode",
   models: "Models",
   browser: "Browser",
+  compatibility: "Compatibility",
   benchmark: "Benchmark",
   settings: "Settings",
   logs: "Logs",
@@ -32,6 +35,8 @@ type PageKey = keyof typeof PAGES;
 export default function App() {
   const [page, setPage] = useState<PageKey>("home");
   const [status, setStatus] = useState<StatusPayload | null>(null);
+  const [compatibilityLaunchTarget, setCompatibilityLaunchTarget] =
+    useState<CompatibilityLaunchTarget | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -78,8 +83,29 @@ export default function App() {
       {page === "home" ? <HomePage /> : null}
       {page === "server" ? <ServerPage /> : null}
       {page === "opencode" ? <OpenCodePage /> : null}
-      {page === "models" ? <ModelsPage /> : null}
-      {page === "browser" ? <BrowserPage /> : null}
+      {page === "models" ? (
+        <ModelsPage
+          onOpenCompatibilityTab={(target) => {
+            setCompatibilityLaunchTarget(target);
+            setPage("compatibility");
+          }}
+        />
+      ) : null}
+      {page === "browser" ? (
+        <BrowserPage
+          onOpenCompatibilityTab={(target) => {
+            setCompatibilityLaunchTarget(target);
+            setPage("compatibility");
+          }}
+        />
+      ) : null}
+      {page === "compatibility" ? (
+        <CompatibilityPage
+          onOpenModels={() => setPage("models")}
+          onOpenBrowser={() => setPage("browser")}
+          launchTarget={compatibilityLaunchTarget}
+        />
+      ) : null}
       {page === "benchmark" ? <BenchmarkPage onOpenLogs={() => setPage("logs")} /> : null}
       {page === "settings" ? <SettingsPage /> : null}
       {page === "logs" ? <LogsPage /> : null}
