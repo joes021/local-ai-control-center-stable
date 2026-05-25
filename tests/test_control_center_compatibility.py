@@ -211,3 +211,34 @@ def test_calculate_compatibility_uses_installed_size_when_approx_size_is_missing
     assert payload["overallFitStatus"] == "ne radi"
     assert payload["bestRuntime"] == "llama.cpp"
     assert payload["memoryBudget"]["vram"]["requiredGiB"] > 6.0
+
+
+def test_calculate_compatibility_treats_ud_iq_quant_as_turboquant_ready_for_non_mtp_models():
+    payload = calculate_compatibility(
+        {
+            "id": "unsloth-unsloth-qwen3-6-35b-a3b-gguf-qwen3-6-35b-a3b-ud-iq2-xxs",
+            "label": "Qwen3.6-35B-A3B-UD-IQ2_XXS.gguf",
+            "filename": "Qwen3.6-35B-A3B-UD-IQ2_XXS.gguf",
+            "family": "Qwen",
+            "installedSizeGiB": 10.02,
+            "repo": "unsloth/Qwen3.6-35B-A3B-GGUF",
+        },
+        system_info={
+            "ramGiB": 31.77,
+            "vramGiB": 12.0,
+            "turboQuantAvailable": True,
+            "context": 262144,
+            "outputTokens": 8192,
+            "turboQuantConfig": {
+                "ctk": "turbo4",
+                "ctv": "turbo3",
+                "ncmoe": 30,
+                "runtimePreference": "llama.cpp",
+            },
+        },
+    )
+
+    assert payload["overallFitStatus"] == "granicno"
+    assert payload["bestRuntime"] == "turboquant"
+    assert payload["runtimeBreakdown"]["turboquant"]["fitStatus"] == "granicno"
+    assert payload["runtimeBreakdown"]["turboquant"]["estimated"]["requiredVramGiB"] < 12.0

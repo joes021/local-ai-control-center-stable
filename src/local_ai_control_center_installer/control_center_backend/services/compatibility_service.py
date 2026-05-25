@@ -324,6 +324,7 @@ def _normalize_model(model: dict[str, object]) -> dict[str, object]:
         or _extract_quantization(str(model.get("filename", "") or str(model.get("label", "") or str(model.get("id", "")))))
         or "unknown"
     )
+    quantization_runtime_key = quantization[3:] if quantization.upper().startswith("UD-") else quantization
     family = str(model.get("family", "Unknown") or "Unknown")
     approx_size_gib = _as_float(model.get("approxSizeGiB"))
     if approx_size_gib is None:
@@ -353,7 +354,9 @@ def _normalize_model(model: dict[str, object]) -> dict[str, object]:
     ).lower()
     moe = bool(model.get("moe")) or "a3b" in combined_text or "moe" in combined_text
     mtp = bool(model.get("mtp")) or "-mtp" in combined_text or " mtp " in combined_text
-    turboquant_ready = bool(model.get("turboQuantReady")) or quantization.startswith(("IQ", "Q2", "Q3", "Q4"))
+    turboquant_ready = bool(model.get("turboQuantReady")) or quantization_runtime_key.upper().startswith(
+        ("IQ", "Q2", "Q3", "Q4")
+    )
 
     return {
         "id": str(model.get("id", "") or str(model.get("filename", "") or "unknown-model")),
