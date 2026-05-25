@@ -188,3 +188,74 @@ def test_benchmark_run_and_clear_routes_delegate_to_backend_actions(monkeypatch)
     clear_response = client.post("/api/benchmark/clear-history")
     assert clear_response.status_code == 200
     assert clear_response.json()["summary"] == "cleared"
+
+
+def test_benchmark_compare_route_returns_selected_runs(monkeypatch):
+    client = TestClient(app)
+
+    monkeypatch.setattr(
+        benchmark_routes,
+        "load_benchmark_compare",
+        lambda run_ids: {
+            "status": "ok",
+            "summary": "2 benchmark run-a su spremna za poredjenje.",
+            "runIds": run_ids,
+            "runs": [{"runId": "run-a"}, {"runId": "run-b"}],
+            "rows": [{"runId": "run-a"}, {"runId": "run-b"}],
+            "comparison": {
+                "totalTokensPerSecond": {"bestRunId": "run-a", "bestValue": 31.0, "average": 27.0}
+            },
+        },
+    )
+
+    response = client.get("/api/benchmark/compare", params=[("runIds", "run-a"), ("runIds", "run-b")])
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "ok"
+    assert payload["runIds"] == ["run-a", "run-b"]
+
+
+def test_benchmark_compare_route_rejects_missing_run_ids(monkeypatch):
+    client = TestClient(app)
+
+    monkeypatch.setattr(
+        benchmark_routes,
+        "load_benchmark_compare",
+        lambda run_ids: {
+            "status": "error",
+            "summary": "Benchmark run nije pronadjen: missing-run",
+        },
+    )
+
+    response = client.get("/api/benchmark/compare", params=[("runIds", "run-a"), ("runIds", "missing-run")])
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Benchmark run nije pronadjen: missing-run"
+
+
+def test_benchmark_export_route_returns_json_and_csv(monkeypatch):
+    client = TestClient(app)
+
+    monkeypatch.setattr(
+        benchmark_routes,
+        "export_benchmark_runs",
+        lambda export_format, run_ids=None: (
+            {
+                "exportedAt": "2026-05-25T10:00:00+00:00",
+                "runCount": len(run_ids or []),
+                "runs": [{"runId": "run-a"}],
+            }
+            if export_format == "json"
+            else "runId,mode,status\nrun-a,selected,done\n"
+        ),
+    )
+
+    json_response = client.get("/api/benchmark/export", params=[("format", "json"), ("runIds", "run-a")])
+    assert json_response.status_code == 200
+    assert json_response.json()["runCount"] == 1
+
+    csv_response = client.get("/api/benchmark/export", params=[("format", "csv"), ("runIds", "run-a")])
+    assert csv_response.status_code == 200
+    assert csv_response.text.startswith("runId,mode,status")
+    assert csv_response.headers["content-type"].startswith("text/csv")

@@ -188,6 +188,44 @@ def test_app_source_and_packaged_frontend_include_benchmark_navigation():
     assert "LIVE THROUGHPUT" in bundled_text
 
 
+def test_benchmark_page_source_includes_compare_export_and_idle_truth():
+    source = Path("frontend/src/pages/BenchmarkPage.tsx").read_text(encoding="utf-8")
+
+    assert "fetchBenchmarkCompare" in source
+    assert "exportBenchmarkRuns" in source
+    assert "Compare selected runs" in source
+    assert "Export JSON" in source
+    assert "Export CSV" in source
+    assert "benchmark.liveState.reason" in source
+    assert "Izaberi najmanje dva saved run-a da bi compare prikaz bio aktivan." in source
+    assert "Model:" in source
+    assert "Runtime:" in source
+
+
+def test_api_source_supports_benchmark_compare_and_export():
+    source = Path("frontend/src/lib/api.ts").read_text(encoding="utf-8")
+
+    assert "fetchBenchmarkCompare" in source
+    assert "/api/benchmark/compare" in source
+    assert "exportBenchmarkRuns" in source
+    assert "/api/benchmark/export" in source
+
+
+def test_packaged_frontend_contains_benchmark_compare_export_copy():
+    dist_root = Path(
+        "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
+    )
+    js_assets = list((dist_root / "assets").glob("index-*.js"))
+
+    assert js_assets
+    bundled_text = "\n".join(path.read_text(encoding="utf-8") for path in js_assets)
+
+    assert "Compare selected runs" in bundled_text
+    assert "Export JSON" in bundled_text
+    assert "Export CSV" in bundled_text
+    assert "Benchmark context" in bundled_text
+
+
 def test_server_page_source_uses_runtime_generic_actions_and_labels():
     source = Path("frontend/src/pages/ServerPage.tsx").read_text(encoding="utf-8")
 

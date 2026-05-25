@@ -91,6 +91,65 @@ def test_launch_control_center_fails_fast_when_foreign_listener_occupies_ui_port
     assert popen_calls == []
 
 
+def test_launch_control_center_reclaims_foreign_lacc_panel_port_and_starts_current_panel(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    install_root = tmp_path / "install-root"
+    deployment = ControlCenterRuntimeDeployment(
+        install_root=install_root,
+        panel_root=install_root / "control-center",
+        executable_path=install_root / "control-center" / PANEL_EXECUTABLE_NAME,
+        launcher_path=install_root / "control-center" / "Open-Control-Center.cmd",
+        command=("fake-panel.exe", "--panel"),
+        url="http://127.0.0.1:3210/",
+        port=3210,
+        access_mode="local-only",
+        strategy="packaged-exe",
+    )
+    popen_calls: list[tuple[str, ...]] = []
+    stop_calls: list[int] = []
+    port_checks = iter([True, False])
+    health_calls: list[str | None] = []
+
+    def fake_panel_health_ready(url, *, expected_install_root=None):
+        health_calls.append(expected_install_root)
+        if expected_install_root == str(install_root):
+            return len(health_calls) >= 3
+        return True
+
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_runtime._panel_health_ready",
+        fake_panel_health_ready,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_runtime._port_in_use",
+        lambda host, port: next(port_checks),
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_runtime._find_listening_pid",
+        lambda port, platform=None: 5151,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_runtime._stop_process_id",
+        lambda pid, platform=None: stop_calls.append(pid) or None,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_runtime.subprocess.Popen",
+        lambda command, **kwargs: popen_calls.append(tuple(command)),
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_runtime.time.sleep",
+        lambda seconds: None,
+    )
+
+    result = launch_control_center(deployment, timeout_seconds=0.1)
+
+    assert result == deployment
+    assert stop_calls == [5151]
+    assert popen_calls == [("fake-panel.exe", "--panel")]
+
+
 def test_panel_health_ready_rejects_foreign_service_payload(monkeypatch: pytest.MonkeyPatch):
     class FakeResponse:
         status = 200

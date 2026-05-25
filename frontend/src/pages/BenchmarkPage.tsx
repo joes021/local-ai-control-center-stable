@@ -3,14 +3,21 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { CustomSelect } from "../components/CustomSelect";
 import {
   clearBenchmarkHistory,
+  exportBenchmarkRuns,
   fetchBenchmark,
+  fetchBenchmarkCompare,
   loadBenchmarkBattery,
   restoreDefaultBenchmarkTests,
   runBatteryBenchmark,
   runSelectedBenchmark,
   saveBenchmarkBattery,
 } from "../lib/api";
-import type { BenchmarkHistoryItem, BenchmarkPayload, BenchmarkScenario } from "../lib/types";
+import type {
+  BenchmarkComparePayload,
+  BenchmarkHistoryItem,
+  BenchmarkPayload,
+  BenchmarkScenario,
+} from "../lib/types";
 
 const REALTIME_REFRESH_MS = 5000;
 const CHART_GAP_MS = REALTIME_REFRESH_MS + 1500;
@@ -82,6 +89,30 @@ function formatThroughput(value: number | undefined | null) {
     return "--";
   }
   return `${numericValue.toFixed(1)} tok/s`;
+}
+
+function formatCompactTokens(value: number | undefined | null) {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue) || numericValue <= 0) {
+    return "--";
+  }
+  if (numericValue % 1024 === 0) {
+    return `${numericValue / 1024}k`;
+  }
+  return `${numericValue}`;
+}
+
+function formatDateTimeLabel(value: string | undefined | null) {
+  const timestamp = parseTimestamp(value);
+  if (timestamp === null) {
+    return "--";
+  }
+  const date = new Date(timestamp);
+  return `${date.toLocaleDateString("sr-RS")} ${date.toLocaleTimeString("sr-RS", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  })}`;
 }
 
 function formatYAxisLabel(value: number) {
@@ -275,6 +306,9 @@ function findRangeByKey(rangeKey: RangeKey) {
 
 export function BenchmarkPage({ onOpenLogs }: { onOpenLogs: () => void }) {
   const [benchmark, setBenchmark] = useState<BenchmarkPayload | null>(null);
+  const [comparePayload, setComparePayload] = useState<BenchmarkComparePayload | null>(null);
+  const [compareError, setCompareError] = useState<string | null>(null);
+  const [selectedCompareRunIds, setSelectedCompareRunIds] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [selectedScenarioId, setSelectedScenarioId] = useState("");
   const [batteryName, setBatteryName] = useState("");
@@ -301,6 +335,9 @@ export function BenchmarkPage({ onOpenLogs }: { onOpenLogs: () => void }) {
       setSelectedScenarioId((current) => current || payload.selectedBattery?.scenarios?.[0]?.id || "");
       setBatteryName(payload.selectedBattery?.name ?? "");
       setScenariosDraft(payload.selectedBattery?.scenarios ?? []);
+      setSelectedCompareRunIds((current) =>
+        current.filter((runId) => payload.savedRuns.some((run) => run.runId === runId)),
+      );
     } catch (reason: unknown) {
       if (!isMountedRef.current || requestId !== requestIdRef.current) {
         return;
@@ -337,6 +374,35 @@ export function BenchmarkPage({ onOpenLogs }: { onOpenLogs: () => void }) {
     };
   }, []);
 
+  useEffect(() => {
+    if (selectedCompareRunIds.length < 2) {
+      setComparePayload(null);
+      setCompareError(null);
+      return;
+    }
+
+    let cancelled = false;
+    void fetchBenchmarkCompare(selectedCompareRunIds)
+      .then((payload) => {
+        if (cancelled) {
+          return;
+        }
+        setComparePayload(payload);
+        setCompareError(null);
+      })
+      .catch((reason: unknown) => {
+        if (cancelled) {
+          return;
+        }
+        setComparePayload(null);
+        setCompareError(reason instanceof Error ? reason.message : "Benchmark compare nije uspeo.");
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedCompareRunIds]);
+
   const selectedBattery = benchmark?.selectedBattery ?? {
     id: "default",
     name: "Default battery",
@@ -344,6 +410,7 @@ export function BenchmarkPage({ onOpenLogs }: { onOpenLogs: () => void }) {
     scenarios: [],
   };
   const activeRun = benchmark?.activeRun;
+  const benchmarkEnvironment = benchmark?.environment;
 
   const normalizedSignalHistory = useMemo<HistoryPoint[]>(
     () =>
@@ -521,6 +588,34 @@ export function BenchmarkPage({ onOpenLogs }: { onOpenLogs: () => void }) {
     await load();
   }
 
+  function toggleCompareRun(runId: string) {
+    setSelectedCompareRunIds((current) =>
+      current.includes(runId) ? current.filter((item) => item !== runId) : [...current, runId],
+    );
+  }
+
+  async function handleExport(format: "json" | "csv") {
+    const exportRunIds =
+      selectedCompareRunIds.length >= 1
+        ? selectedCompareRunIds
+        : (benchmark?.savedRuns ?? []).map((run) => run.runId);
+    const blob = await exportBenchmarkRuns(format, exportRunIds);
+    const url = window.URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    const suffix = format === "csv" ? "csv" : "json";
+    anchor.href = url;
+    anchor.download = `lacc-benchmark-${formatDateTimeLabel(new Date().toISOString()).replace(/[\\/: ]/g, "-")}.${suffix}`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    window.URL.revokeObjectURL(url);
+    setActionMessage(
+      format === "csv"
+        ? "CSV benchmark export je preuzet."
+        : "JSON benchmark export je preuzet.",
+    );
+  }
+
   function updateScenario(index: number, patch: Partial<BenchmarkScenario>) {
     setScenariosDraft((current) =>
       current.map((item, itemIndex) => (itemIndex === index ? { ...item, ...patch } : item)),
@@ -629,6 +724,29 @@ export function BenchmarkPage({ onOpenLogs }: { onOpenLogs: () => void }) {
       </section>
 
       <section className="status-card wide-card">
+        <span className="status-label">Benchmark context</span>
+        <div className="benchmark-context-grid">
+          <div className="benchmark-context-main">
+            <strong className="status-value">
+              Model: {benchmarkEnvironment?.modelLabel || "Nema aktivnog modela"}
+            </strong>
+            <p className="helper-text">
+              Runtime: {benchmarkEnvironment?.runtimeLabel || "--"} | Profil: {benchmarkEnvironment?.profile || "--"} |
+              Thinking: {benchmarkEnvironment?.thinkingMode || "--"}
+            </p>
+          </div>
+          <div className="browser-chip-row">
+            <span className="browser-badge">Context {formatCompactTokens(benchmarkEnvironment?.context)}</span>
+            <span className="browser-badge">Output {formatCompactTokens(benchmarkEnvironment?.outputTokens)}</span>
+            <span className="browser-badge">
+              Live state {benchmark?.liveState?.status || "idle"}
+            </span>
+          </div>
+        </div>
+        <p className="helper-text">{benchmark?.liveState?.reason}</p>
+      </section>
+
+      <section className="status-card wide-card">
         <span className="status-label">Benchmark run</span>
         <div className="benchmark-run-summary">
           <div className="benchmark-run-main">
@@ -667,11 +785,14 @@ export function BenchmarkPage({ onOpenLogs }: { onOpenLogs: () => void }) {
         <strong className="status-value">
           {benchmark.liveCurrent
             ? `${benchmark.liveCurrent.totalTokensPerSecond ?? 0} tok/s`
-            : "jos nema merenja"}
+            : "nema aktivnog live signala"}
         </strong>
         <p className="helper-text">
-          Signal: {benchmark.activity.throughputTrend.signal} {benchmark.activity.throughputTrend.label} |
-          latency {benchmark.activity.latencyTrend.signal} {benchmark.activity.latencyTrend.label}
+          {benchmark.liveState.reason}
+        </p>
+        <p className="helper-text">
+          Signal: {benchmark.activity.throughputTrend.signal} {benchmark.activity.throughputTrend.label} | latency{" "}
+          {benchmark.activity.latencyTrend.signal} {benchmark.activity.latencyTrend.label}
         </p>
       </section>
 
@@ -994,17 +1115,98 @@ export function BenchmarkPage({ onOpenLogs }: { onOpenLogs: () => void }) {
 
       <section className="status-card wide-card">
         <span className="status-label">Benchmark istorija</span>
+        <div className="inline-actions benchmark-export-row">
+          <button type="button" onClick={() => void handleExport("json")}>
+            Export JSON
+          </button>
+          <button type="button" onClick={() => void handleExport("csv")}>
+            Export CSV
+          </button>
+          <span className="helper-text">
+            Compare selected runs: {selectedCompareRunIds.length}
+          </span>
+        </div>
+        <div className="benchmark-compare-panel">
+          {compareError ? <p className="helper-text">{compareError}</p> : null}
+          {comparePayload ? (
+            <>
+              <div className="benchmark-compare-grid">
+                <article className="status-card">
+                  <span className="status-label">Best total tok/s</span>
+                  <strong className="status-value">
+                    {formatThroughput(comparePayload.comparison.totalTokensPerSecond.bestValue)}
+                  </strong>
+                  <p className="helper-text">
+                    Run: {comparePayload.comparison.totalTokensPerSecond.bestRunId || "--"}
+                  </p>
+                </article>
+                <article className="status-card">
+                  <span className="status-label">Best output tok/s</span>
+                  <strong className="status-value">
+                    {formatThroughput(comparePayload.comparison.completionTokensPerSecond.bestValue)}
+                  </strong>
+                  <p className="helper-text">
+                    Run: {comparePayload.comparison.completionTokensPerSecond.bestRunId || "--"}
+                  </p>
+                </article>
+                <article className="status-card">
+                  <span className="status-label">Fastest avg ms</span>
+                  <strong className="status-value">
+                    {comparePayload.comparison.totalMs.bestValue !== null
+                      ? `${comparePayload.comparison.totalMs.bestValue.toFixed(0)} ms`
+                      : "--"}
+                  </strong>
+                  <p className="helper-text">Run: {comparePayload.comparison.totalMs.bestRunId || "--"}</p>
+                </article>
+              </div>
+              <p className="helper-text">{comparePayload.summary}</p>
+            </>
+          ) : (
+            <p className="helper-text">
+              Izaberi najmanje dva saved run-a da bi compare prikaz bio aktivan.
+            </p>
+          )}
+        </div>
         <div className="model-list">
           {benchmark.savedRuns.length ? (
             benchmark.savedRuns.map((run) => (
-              <article className="model-item" key={run.runId}>
-                <strong>{run.mode === "battery" ? run.batteryName : run.scenarioName}</strong>
-                <div className="muted-line">
-                  {run.status} | {run.runtime} | {run.modelId}
+              <article className="model-item benchmark-saved-run-card" key={run.runId}>
+                <div className="section-header">
+                  <div>
+                    <strong>{run.mode === "battery" ? run.batteryName : run.scenarioName}</strong>
+                    <div className="muted-line">
+                      {run.status} | {run.runtimeLabel} | {run.modelLabel}
+                    </div>
+                  </div>
+                  <label className="benchmark-compare-toggle">
+                    <input
+                      type="checkbox"
+                      checked={selectedCompareRunIds.includes(run.runId)}
+                      onChange={() => toggleCompareRun(run.runId)}
+                    />
+                    Compare
+                  </label>
+                </div>
+                <div className="browser-chip-row">
+                  <span className="browser-badge">Context {formatCompactTokens(run.context)}</span>
+                  <span className="browser-badge">Output {formatCompactTokens(run.outputTokens)}</span>
+                  <span className="browser-badge">Profile {run.profile}</span>
+                  <span className="browser-badge">Thinking {run.thinkingMode}</span>
                 </div>
                 <div className="muted-line">
-                  {run.startedAt} {run.finishedAt ? `-> ${run.finishedAt}` : ""}
+                  Start {formatDateTimeLabel(run.startedAt)}{" "}
+                  {run.finishedAt ? `-> ${formatDateTimeLabel(run.finishedAt)}` : ""}
                 </div>
+                {run.currentMetric ? (
+                  <div className="summary-metrics">
+                    <span>Total {formatThroughput(run.currentMetric.totalTokensPerSecond)}</span>
+                    <span>Output {formatThroughput(run.currentMetric.completionTokensPerSecond)}</span>
+                    <span>
+                      Avg ms{" "}
+                      {run.currentMetric.totalMs !== undefined ? `${run.currentMetric.totalMs.toFixed(0)} ms` : "--"}
+                    </span>
+                  </div>
+                ) : null}
               </article>
             ))
           ) : (

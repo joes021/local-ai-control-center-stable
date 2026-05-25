@@ -26,6 +26,36 @@ def _write_active_model_config(install_root: Path, *, filename: str = "gemma-4-E
     )
 
 
+def _write_settings_config(
+    install_root: Path,
+    *,
+    profile: str = "video",
+    context: int = 131072,
+    output_tokens: int = 16384,
+    thinking_mode: str = "high",
+) -> None:
+    control_center_root = install_root / "config" / "control-center"
+    control_center_root.mkdir(parents=True, exist_ok=True)
+    (control_center_root / "settings.json").write_text(
+        json.dumps(
+            {
+                "profile": profile,
+                "context": context,
+                "outputTokens": output_tokens,
+                "thinkingMode": thinking_mode,
+                "buildSteps": 160,
+                "planSteps": 120,
+                "generalSteps": 130,
+                "exploreSteps": 90,
+                "accessMode": "local-only",
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+
 def test_control_center_config_exposes_benchmark_state_paths(tmp_path: Path, monkeypatch):
     install_root = tmp_path / "install-root"
     monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
@@ -52,6 +82,7 @@ def test_load_benchmark_summary_reads_installer_managed_history_and_defaults(
     monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
     _write_runtime_endpoint_config(install_root)
     _write_active_model_config(install_root)
+    _write_settings_config(install_root)
 
     config = get_config()
     config.control_center_config_root.mkdir(parents=True, exist_ok=True)
@@ -116,6 +147,30 @@ def test_load_benchmark_summary_reads_installer_managed_history_and_defaults(
     assert payload["savedRuns"][0]["runId"] == "run-1"
     assert payload["liveLog"]["lines"][-1] == "line-2"
     assert payload["activeRun"]["status"] == "idle"
+    assert payload["environment"] == {
+        "modelId": "recommended-6gb",
+        "modelLabel": "gemma-4-E4B-it-Q4_K_M.gguf",
+        "runtime": "llama.cpp",
+        "runtimeLabel": "llama.cpp",
+        "profile": "video",
+        "context": 131072,
+        "outputTokens": 16384,
+        "thinkingMode": "high",
+        "runtimeLiveStatus": "stopped",
+        "runtimeLiveReason": "Runtime trenutno nije pokrenut.",
+    }
+    assert payload["current"]["environment"]["modelLabel"] == "gemma-4-E4B-it-Q4_K_M.gguf"
+    assert payload["liveState"] == {
+        "status": "idle",
+        "hasLiveSignal": False,
+        "reason": "Runtime trenutno nema aktivan throughput signal. Pokreni benchmark ili OpenCode zahtev da bi se live tok/s pojavio.",
+    }
+    assert payload["savedRuns"][0]["modelLabel"] == "gemma-4-E4B-it-Q4_K_M.gguf"
+    assert payload["savedRuns"][0]["runtimeLabel"] == "llama.cpp"
+    assert payload["savedRuns"][0]["context"] == 131072
+    assert payload["savedRuns"][0]["outputTokens"] == 16384
+    assert payload["savedRuns"][0]["profile"] == "video"
+    assert payload["savedRuns"][0]["thinkingMode"] == "high"
 
 
 def test_load_benchmark_summary_merges_live_slots_signal_into_visible_history(
@@ -129,6 +184,7 @@ def test_load_benchmark_summary_merges_live_slots_signal_into_visible_history(
     monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
     _write_runtime_endpoint_config(install_root)
     _write_active_model_config(install_root)
+    _write_settings_config(install_root, profile="balanced", context=262144, output_tokens=8192, thinking_mode="mid")
 
     config = get_config()
     config.control_center_config_root.mkdir(parents=True, exist_ok=True)
@@ -171,6 +227,235 @@ def test_load_benchmark_summary_merges_live_slots_signal_into_visible_history(
     assert payload["history"][-1]["label"] == "opencode-live"
     assert payload["liveHistory"][-1]["label"] == "opencode-live"
     assert payload["activity"]["sources"]["opencode"] == 1
+    assert payload["liveState"] == {
+        "status": "active",
+        "hasLiveSignal": True,
+        "reason": "Live throughput signal dolazi iz aktivnog runtime /slots uzorka.",
+    }
+    assert payload["liveCurrent"]["environment"]["runtimeLabel"] == "llama.cpp"
+    assert payload["liveCurrent"]["environment"]["profile"] == "balanced"
+
+
+def test_benchmark_workers_persist_richer_run_metadata(
+    tmp_path: Path,
+    monkeypatch,
+):
+    from local_ai_control_center_installer.control_center_backend.services import benchmark_service
+
+    install_root = tmp_path / "install-root"
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    _write_runtime_endpoint_config(install_root)
+    _write_active_model_config(install_root, filename="Qwen3.6-35B-A3B-UD-IQ2_M.gguf")
+    _write_settings_config(install_root, profile="balanced", context=262144, output_tokens=8192, thinking_mode="mid")
+
+    config = get_config()
+    config.control_center_config_root.mkdir(parents=True, exist_ok=True)
+    benchmark_service._save_run_state(
+        config,
+        {
+            "runId": "bench-meta",
+            "status": "queued",
+            "mode": "selected",
+            "batteryId": "default",
+            "batteryName": "Default battery",
+            "scenarioId": "short",
+            "scenarioName": "Short",
+            "currentScenarioId": "short",
+            "currentScenarioName": "Short",
+            "currentIndex": 1,
+            "totalScenarios": 1,
+            "percent": 0,
+            "startedAt": "2026-05-25T00:00:00+00:00",
+            "finishedAt": "",
+            "message": "Pokrecem benchmark scenario: Short",
+            "scenarioStatuses": [
+                {
+                    "scenarioId": "short",
+                    "scenarioName": "Short",
+                    "status": "queued",
+                    "summary": "Ceka pokretanje.",
+                }
+            ],
+        },
+    )
+    monkeypatch.setattr(
+        benchmark_service,
+        "_execute_benchmark_prompt",
+        lambda *args, **kwargs: {
+            "status": "ok",
+            "summary": "Benchmark scenario je zavrsen.",
+            "metric": {
+                "measuredAt": "2026-05-25T00:00:10+00:00",
+                "label": "benchmark-short",
+                "promptTokensPerSecond": 11.0,
+                "completionTokensPerSecond": 22.0,
+                "totalTokensPerSecond": 18.0,
+                "totalMs": 1400.0,
+            },
+        },
+    )
+
+    benchmark_service._run_selected_worker(
+        config,
+        "bench-meta",
+        {
+            "id": "short",
+            "name": "Short",
+            "prompt": "Reply with exactly OK",
+        },
+    )
+
+    saved_runs = benchmark_service._load_saved_runs(config)
+    assert saved_runs[0]["modelId"] == "recommended-6gb"
+    assert saved_runs[0]["modelLabel"] == "Qwen3.6-35B-A3B-UD-IQ2_M.gguf"
+    assert saved_runs[0]["runtime"] == "llama.cpp"
+    assert saved_runs[0]["runtimeLabel"] == "llama.cpp"
+    assert saved_runs[0]["context"] == 262144
+    assert saved_runs[0]["outputTokens"] == 8192
+    assert saved_runs[0]["profile"] == "balanced"
+    assert saved_runs[0]["thinkingMode"] == "mid"
+    assert saved_runs[0]["currentMetric"]["environment"]["modelLabel"] == "Qwen3.6-35B-A3B-UD-IQ2_M.gguf"
+
+
+def test_load_benchmark_compare_summarizes_selected_runs(
+    tmp_path: Path,
+    monkeypatch,
+):
+    from local_ai_control_center_installer.control_center_backend.services.benchmark_service import (
+        load_benchmark_compare,
+    )
+
+    install_root = tmp_path / "install-root"
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    _write_runtime_endpoint_config(install_root)
+    _write_active_model_config(install_root)
+    _write_settings_config(install_root)
+
+    config = get_config()
+    config.control_center_config_root.mkdir(parents=True, exist_ok=True)
+    config.benchmark_saved_runs_path.write_text(
+        json.dumps(
+            [
+                {
+                    "runId": "run-fast",
+                    "mode": "selected",
+                    "batteryName": "Default battery",
+                    "scenarioName": "Short",
+                    "modelId": "recommended-6gb",
+                    "runtime": "llama.cpp",
+                    "status": "done",
+                    "startedAt": "2026-05-25T08:00:00+00:00",
+                    "finishedAt": "2026-05-25T08:00:30+00:00",
+                    "currentMetric": {
+                        "measuredAt": "2026-05-25T08:00:20+00:00",
+                        "label": "benchmark-short",
+                        "promptTokensPerSecond": 20.0,
+                        "completionTokensPerSecond": 40.0,
+                        "totalTokensPerSecond": 31.0,
+                        "totalMs": 1200.0,
+                    },
+                },
+                {
+                    "runId": "run-battery",
+                    "mode": "battery",
+                    "batteryName": "Daily battery",
+                    "scenarioName": "",
+                    "modelId": "recommended-6gb",
+                    "runtime": "llama.cpp",
+                    "status": "done",
+                    "startedAt": "2026-05-25T09:00:00+00:00",
+                    "finishedAt": "2026-05-25T09:03:00+00:00",
+                    "scenarioResults": [
+                        {
+                            "scenarioId": "short",
+                            "scenarioName": "Short",
+                            "status": "done",
+                            "summary": "ok",
+                            "metric": {
+                                "measuredAt": "2026-05-25T09:00:20+00:00",
+                                "label": "benchmark-short",
+                                "promptTokensPerSecond": 10.0,
+                                "completionTokensPerSecond": 30.0,
+                                "totalTokensPerSecond": 22.0,
+                                "totalMs": 1700.0,
+                            },
+                        },
+                        {
+                            "scenarioId": "medium",
+                            "scenarioName": "Medium",
+                            "status": "done",
+                            "summary": "ok",
+                            "metric": {
+                                "measuredAt": "2026-05-25T09:01:20+00:00",
+                                "label": "benchmark-medium",
+                                "promptTokensPerSecond": 12.0,
+                                "completionTokensPerSecond": 28.0,
+                                "totalTokensPerSecond": 20.0,
+                                "totalMs": 1900.0,
+                            },
+                        },
+                    ],
+                },
+            ],
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    payload = load_benchmark_compare(["run-fast", "run-battery"])
+
+    assert payload["status"] == "ok"
+    assert payload["runIds"] == ["run-fast", "run-battery"]
+    assert payload["rows"][0]["runId"] == "run-fast"
+    assert payload["rows"][0]["runtimeLabel"] == "llama.cpp"
+    assert payload["rows"][1]["scenarioCount"] == 2
+    assert payload["comparison"]["totalTokensPerSecond"]["bestRunId"] == "run-fast"
+    assert payload["comparison"]["totalMs"]["bestRunId"] == "run-fast"
+    assert payload["comparison"]["completionTokensPerSecond"]["average"] == 34.5
+
+
+def test_load_benchmark_compare_rejects_missing_run_ids(
+    tmp_path: Path,
+    monkeypatch,
+):
+    from local_ai_control_center_installer.control_center_backend.services.benchmark_service import (
+        load_benchmark_compare,
+    )
+
+    install_root = tmp_path / "install-root"
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    _write_runtime_endpoint_config(install_root)
+    _write_active_model_config(install_root)
+    _write_settings_config(install_root)
+
+    config = get_config()
+    config.control_center_config_root.mkdir(parents=True, exist_ok=True)
+    config.benchmark_saved_runs_path.write_text(
+        json.dumps(
+            [
+                {
+                    "runId": "run-fast",
+                    "mode": "selected",
+                    "batteryName": "Default battery",
+                    "scenarioName": "Short",
+                    "modelId": "recommended-6gb",
+                    "runtime": "llama.cpp",
+                    "status": "done",
+                    "startedAt": "2026-05-25T08:00:00+00:00",
+                    "finishedAt": "2026-05-25T08:00:30+00:00",
+                }
+            ],
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    payload = load_benchmark_compare(["run-fast", "missing-run"])
+
+    assert payload["status"] == "error"
+    assert payload["summary"] == "Benchmark run nije pronadjen: missing-run"
 
 
 def test_save_load_and_restore_benchmark_batteries(

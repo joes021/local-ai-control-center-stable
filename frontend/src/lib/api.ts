@@ -6,6 +6,7 @@ import type {
   BrowserCompatibilityPayload,
   BrowserRefreshResult,
   BenchmarkBattery,
+  BenchmarkComparePayload,
   BenchmarkPayload,
   BenchmarkScenario,
   BenchmarkRunStatusPayload,
@@ -52,6 +53,37 @@ export async function fetchBenchmark(): Promise<BenchmarkPayload> {
     throw new Error(`Benchmark request failed: ${response.status}`);
   }
   return response.json() as Promise<BenchmarkPayload>;
+}
+
+export async function fetchBenchmarkCompare(runIds: string[]): Promise<BenchmarkComparePayload> {
+  const params = new URLSearchParams();
+  runIds.forEach((runId) => {
+    if (runId) {
+      params.append("runIds", runId);
+    }
+  });
+  const response = await fetch(`/api/benchmark/compare?${params.toString()}`, { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(`Benchmark compare request failed: ${response.status}`);
+  }
+  return response.json() as Promise<BenchmarkComparePayload>;
+}
+
+export async function exportBenchmarkRuns(
+  format: "json" | "csv",
+  runIds: string[],
+): Promise<Blob> {
+  const params = new URLSearchParams({ format });
+  runIds.forEach((runId) => {
+    if (runId) {
+      params.append("runIds", runId);
+    }
+  });
+  const response = await fetch(`/api/benchmark/export?${params.toString()}`, { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(`Benchmark export request failed: ${response.status}`);
+  }
+  return response.blob();
 }
 
 export async function runSelectedBenchmark(scenarioId: string): Promise<{ status: string; summary: string; runId?: string }> {

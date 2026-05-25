@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from copy import deepcopy
+import csv
 from datetime import datetime, timezone
+from io import StringIO
 import json
 from pathlib import Path
 import threading
@@ -17,6 +19,9 @@ from local_ai_control_center_installer.control_center_backend.config import (
 )
 from local_ai_control_center_installer.control_center_backend.services.server_service import (
     ensure_runtime_ready,
+)
+from local_ai_control_center_installer.control_center_backend.services.settings_service import (
+    load_effective_settings_state,
 )
 from local_ai_control_center_installer.control_center_backend.services.state_helpers import (
     action_result,
@@ -69,6 +74,9 @@ def load_benchmark_summary(
     config: ControlCenterConfig | None = None,
 ) -> dict[str, Any]:
     config = config or get_config()
+    runtime_state = load_runtime_state(config)
+    settings_state = load_effective_settings_state(config)
+    environment = _build_benchmark_environment(runtime_state, settings_state)
     history = _load_history(config)
     live_sample = _load_live_slot_metric(config)
     live_history = _record_live_history_sample(config, live_sample)
@@ -79,20 +87,22 @@ def load_benchmark_summary(
     batteries_payload = _load_batteries(config)
     selected_battery = _selected_battery(batteries_payload)
     active_run = _load_run_state(config)
-    saved_runs = _load_saved_runs(config)
+    saved_runs = _normalize_saved_runs(_load_saved_runs(config), environment)
 
-    chart_history = [_attach_chart_label(item) for item in signal_history[-120:]]
-    live_chart_history = [_attach_chart_label(item) for item in live_history[-120:]]
+    chart_history = [_attach_chart_label(_attach_environment(item, environment)) for item in signal_history[-120:]]
+    live_chart_history = [_attach_chart_label(_attach_environment(item, environment)) for item in live_history[-120:]]
 
     return {
-        "current": _attach_chart_label(current) if current else None,
-        "liveCurrent": _attach_chart_label(live_current) if live_current else None,
+        "current": _attach_chart_label(_attach_environment(current, environment)) if current else None,
+        "liveCurrent": _attach_chart_label(_attach_environment(live_current, environment)) if live_current else None,
         "history": chart_history,
         "liveHistory": live_chart_history,
         "historyCount": len(history),
         "requestCount": len(history),
         "lastMeasuredAt": current.get("measuredAt") if current else None,
         "lastLabel": current.get("label") if current else None,
+        "environment": environment,
+        "liveState": _build_live_state(active_run=active_run, live_current=live_current),
         "activity": {
             "averageTotalMs": _average(history, "totalMs") or 0,
             "sources": source_counts,
@@ -121,6 +131,109 @@ def load_benchmark_run_status(
     config: ControlCenterConfig | None = None,
 ) -> dict[str, Any]:
     return _load_run_state(config or get_config())
+
+
+def load_benchmark_compare(
+    run_ids: list[str],
+    config: ControlCenterConfig | None = None,
+) -> dict[str, Any]:
+    config = config or get_config()
+    normalized_ids = [str(item or "").strip() for item in run_ids if str(item or "").strip()]
+    if len(normalized_ids) < 2:
+        return action_result(
+            "error",
+            "benchmark-compare",
+            "Izaberi najmanje dva benchmark run-a za poredjenje.",
+            stderr="Izaberi najmanje dva benchmark run-a za poredjenje.",
+        )
+
+    environment = _current_environment(config)
+    runs = _normalize_saved_runs(_load_saved_runs(config), environment)
+    indexed_runs = {
+        str(item.get("runId", "") or ""): item
+        for item in runs
+        if isinstance(item, dict) and str(item.get("runId", "") or "").strip()
+    }
+
+    selected_runs: list[dict[str, Any]] = []
+    for run_id in normalized_ids:
+        match = indexed_runs.get(run_id)
+        if match is None:
+            return action_result(
+                "error",
+                "benchmark-compare",
+                f"Benchmark run nije pronadjen: {run_id}",
+                stderr=f"Benchmark run nije pronadjen: {run_id}",
+            )
+        selected_runs.append(match)
+
+    rows = [_build_compare_row(run) for run in selected_runs]
+    return {
+        "status": "ok",
+        "summary": f"{len(rows)} benchmark run-a su spremna za poredjenje.",
+        "runIds": normalized_ids,
+        "runs": selected_runs,
+        "rows": rows,
+        "comparison": _build_compare_summary(rows),
+    }
+
+
+def export_benchmark_runs(
+    export_format: str,
+    run_ids: list[str] | None = None,
+    config: ControlCenterConfig | None = None,
+) -> dict[str, Any] | str:
+    config = config or get_config()
+    selected_runs = _select_export_runs(config, run_ids)
+    rows = [_build_compare_row(run) for run in selected_runs]
+    comparison = _build_compare_summary(rows)
+    normalized_format = str(export_format or "").strip().lower()
+
+    if normalized_format == "json":
+        return {
+            "exportedAt": _now_iso(),
+            "runCount": len(selected_runs),
+            "runs": selected_runs,
+            "rows": rows,
+            "comparison": comparison,
+        }
+
+    if normalized_format != "csv":
+        raise ValueError(f"Nepodrzan benchmark export format: {export_format}")
+
+    buffer = StringIO()
+    writer = csv.DictWriter(
+        buffer,
+        fieldnames=[
+            "runId",
+            "mode",
+            "batteryName",
+            "scenarioName",
+            "modelId",
+            "modelLabel",
+            "runtime",
+            "runtimeLabel",
+            "profile",
+            "context",
+            "outputTokens",
+            "thinkingMode",
+            "status",
+            "startedAt",
+            "finishedAt",
+            "metricScope",
+            "metricLabel",
+            "scenarioId",
+            "scenarioMetricStatus",
+            "promptTokensPerSecond",
+            "completionTokensPerSecond",
+            "totalTokensPerSecond",
+            "totalMs",
+        ],
+    )
+    writer.writeheader()
+    for row in _flatten_export_rows(selected_runs):
+        writer.writerow(row)
+    return buffer.getvalue()
 
 
 def list_batteries(
@@ -767,12 +880,11 @@ def _run_selected_worker(config: ControlCenterConfig, run_id: str, scenario: dic
             "mode": "selected",
             "batteryName": run_state.get("batteryName", ""),
             "scenarioName": run_state.get("scenarioName", ""),
-            "modelId": load_runtime_state(config).get("active_model_id", "unknown"),
-            "runtime": load_runtime_state(config).get("active_runtime", "unknown"),
+            **_saved_run_metadata(config),
             "status": final_status,
             "startedAt": run_state.get("startedAt", ""),
             "finishedAt": run_state.get("finishedAt", ""),
-            "currentMetric": metric if isinstance(metric, dict) else None,
+            "currentMetric": _attach_environment(metric, _current_environment(config)) if isinstance(metric, dict) else None,
         },
     )
 
@@ -841,7 +953,7 @@ def _run_battery_worker(
     )
     _save_run_state(config, run_state)
 
-    runtime_state = load_runtime_state(config)
+    environment = _current_environment(config)
     _append_saved_run(
         config,
         {
@@ -849,12 +961,19 @@ def _run_battery_worker(
             "mode": "battery",
             "batteryName": str(battery.get("name", "")),
             "scenarioName": "",
-            "modelId": runtime_state.get("active_model_id", "unknown"),
-            "runtime": runtime_state.get("active_runtime", "unknown"),
+            **_saved_run_metadata(config),
             "status": overall_status,
             "startedAt": run_state.get("startedAt", ""),
             "finishedAt": run_state.get("finishedAt", ""),
-            "scenarioResults": scenario_results,
+            "scenarioResults": [
+                {
+                    **item,
+                    "metric": _attach_environment(item.get("metric"), environment)
+                    if isinstance(item.get("metric"), dict)
+                    else item.get("metric"),
+                }
+                for item in scenario_results
+            ],
         },
     )
 
@@ -952,6 +1071,302 @@ def _build_metric_from_completion_response(
         "completionTokensPerSecond": completion_tps,
         "totalTokensPerSecond": total_tps,
     }
+
+
+def _build_benchmark_environment(
+    runtime_state: dict[str, Any],
+    settings_state: dict[str, Any],
+) -> dict[str, Any]:
+    return {
+        "modelId": str(runtime_state.get("active_model_id", "unknown") or "unknown"),
+        "modelLabel": str(runtime_state.get("active_model", "unknown") or "unknown"),
+        "runtime": str(runtime_state.get("active_runtime", "unknown") or "unknown"),
+        "runtimeLabel": _runtime_label(str(runtime_state.get("active_runtime", "unknown") or "unknown")),
+        "profile": str(settings_state.get("profile", runtime_state.get("profile", "balanced")) or "balanced"),
+        "context": int(settings_state.get("context", 0) or 0),
+        "outputTokens": int(settings_state.get("outputTokens", 0) or 0),
+        "thinkingMode": str(settings_state.get("thinkingMode", "mid") or "mid"),
+        "runtimeLiveStatus": str(runtime_state.get("runtime_live_status", "unknown") or "unknown"),
+        "runtimeLiveReason": str(runtime_state.get("runtime_live_reason", "") or ""),
+    }
+
+
+def _current_environment(config: ControlCenterConfig) -> dict[str, Any]:
+    runtime_state = load_runtime_state(config)
+    settings_state = load_effective_settings_state(config)
+    return _build_benchmark_environment(runtime_state, settings_state)
+
+
+def _saved_run_metadata(config: ControlCenterConfig) -> dict[str, Any]:
+    environment = _current_environment(config)
+    return {
+        "modelId": environment["modelId"],
+        "modelLabel": environment["modelLabel"],
+        "runtime": environment["runtime"],
+        "runtimeLabel": environment["runtimeLabel"],
+        "profile": environment["profile"],
+        "context": environment["context"],
+        "outputTokens": environment["outputTokens"],
+        "thinkingMode": environment["thinkingMode"],
+    }
+
+
+def _attach_environment(item: dict[str, Any] | None, environment: dict[str, Any]) -> dict[str, Any] | None:
+    if item is None:
+        return None
+    payload = dict(item)
+    payload["environment"] = dict(environment)
+    return payload
+
+
+def _normalize_saved_runs(
+    runs: list[dict[str, Any]],
+    environment: dict[str, Any],
+) -> list[dict[str, Any]]:
+    normalized: list[dict[str, Any]] = []
+    for item in runs:
+        payload = dict(item)
+        payload.setdefault("modelId", environment["modelId"])
+        payload.setdefault("modelLabel", environment["modelLabel"])
+        payload.setdefault("runtime", environment["runtime"])
+        payload.setdefault("runtimeLabel", environment["runtimeLabel"])
+        payload.setdefault("profile", environment["profile"])
+        payload.setdefault("context", environment["context"])
+        payload.setdefault("outputTokens", environment["outputTokens"])
+        payload.setdefault("thinkingMode", environment["thinkingMode"])
+        if isinstance(payload.get("currentMetric"), dict):
+            payload["currentMetric"] = _attach_environment(payload["currentMetric"], environment)
+        if isinstance(payload.get("scenarioResults"), list):
+            payload["scenarioResults"] = [
+                {
+                    **scenario,
+                    "metric": _attach_environment(scenario.get("metric"), environment)
+                    if isinstance(scenario, dict) and isinstance(scenario.get("metric"), dict)
+                    else (scenario.get("metric") if isinstance(scenario, dict) else None),
+                }
+                if isinstance(scenario, dict)
+                else scenario
+                for scenario in payload["scenarioResults"]
+            ]
+        normalized.append(payload)
+    return normalized
+
+
+def _select_export_runs(
+    config: ControlCenterConfig,
+    run_ids: list[str] | None,
+) -> list[dict[str, Any]]:
+    environment = _current_environment(config)
+    runs = _normalize_saved_runs(_load_saved_runs(config), environment)
+    if not run_ids:
+        return runs
+    normalized_ids = [str(item or "").strip() for item in run_ids if str(item or "").strip()]
+    indexed_runs = {
+        str(item.get("runId", "") or ""): item
+        for item in runs
+        if isinstance(item, dict) and str(item.get("runId", "") or "").strip()
+    }
+    selected_runs: list[dict[str, Any]] = []
+    for run_id in normalized_ids:
+        match = indexed_runs.get(run_id)
+        if match is None:
+            raise ValueError(f"Benchmark run nije pronadjen: {run_id}")
+        selected_runs.append(match)
+    return selected_runs
+
+
+def _build_compare_row(run: dict[str, Any]) -> dict[str, Any]:
+    scenario_results = run.get("scenarioResults")
+    scenario_metrics = [
+        item.get("metric")
+        for item in scenario_results
+        if isinstance(item, dict) and isinstance(item.get("metric"), dict)
+    ] if isinstance(scenario_results, list) else []
+    primary_metric = run.get("currentMetric") if isinstance(run.get("currentMetric"), dict) else None
+    metric = primary_metric or _aggregate_metrics(scenario_metrics)
+    return {
+        "runId": str(run.get("runId", "") or ""),
+        "label": _run_display_label(run),
+        "mode": str(run.get("mode", "") or ""),
+        "batteryName": str(run.get("batteryName", "") or ""),
+        "scenarioName": str(run.get("scenarioName", "") or ""),
+        "modelId": str(run.get("modelId", "") or ""),
+        "modelLabel": str(run.get("modelLabel", "") or ""),
+        "runtime": str(run.get("runtime", "") or ""),
+        "runtimeLabel": str(run.get("runtimeLabel", "") or ""),
+        "profile": str(run.get("profile", "") or ""),
+        "context": int(run.get("context", 0) or 0),
+        "outputTokens": int(run.get("outputTokens", 0) or 0),
+        "thinkingMode": str(run.get("thinkingMode", "") or ""),
+        "status": str(run.get("status", "") or ""),
+        "startedAt": str(run.get("startedAt", "") or ""),
+        "finishedAt": str(run.get("finishedAt", "") or ""),
+        "scenarioCount": len(scenario_results) if isinstance(scenario_results, list) else (1 if primary_metric else 0),
+        "metricSource": "current" if primary_metric else ("scenario-average" if scenario_metrics else "none"),
+        "promptTokensPerSecond": _metric_value(metric, "promptTokensPerSecond"),
+        "completionTokensPerSecond": _metric_value(metric, "completionTokensPerSecond"),
+        "totalTokensPerSecond": _metric_value(metric, "totalTokensPerSecond"),
+        "totalMs": _metric_value(metric, "totalMs"),
+    }
+
+
+def _build_compare_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    return {
+        "promptTokensPerSecond": _metric_summary(rows, "promptTokensPerSecond", higher_is_better=True),
+        "completionTokensPerSecond": _metric_summary(rows, "completionTokensPerSecond", higher_is_better=True),
+        "totalTokensPerSecond": _metric_summary(rows, "totalTokensPerSecond", higher_is_better=True),
+        "totalMs": _metric_summary(rows, "totalMs", higher_is_better=False),
+    }
+
+
+def _metric_summary(
+    rows: list[dict[str, Any]],
+    key: str,
+    *,
+    higher_is_better: bool,
+) -> dict[str, Any]:
+    values = [
+        (str(row.get("runId", "") or ""), _metric_value(row, key))
+        for row in rows
+    ]
+    present = [(run_id, value) for run_id, value in values if value is not None]
+    if not present:
+        return {"bestRunId": None, "bestValue": None, "average": None}
+    best_run_id, best_value = (
+        max(present, key=lambda item: item[1])
+        if higher_is_better
+        else min(present, key=lambda item: item[1])
+    )
+    average = round(sum(value for _, value in present) / len(present), 2)
+    return {
+        "bestRunId": best_run_id,
+        "bestValue": round(best_value, 2),
+        "average": average,
+    }
+
+
+def _aggregate_metrics(metrics: list[dict[str, Any]]) -> dict[str, Any] | None:
+    if not metrics:
+        return None
+    return {
+        "promptTokensPerSecond": _average(metrics, "promptTokensPerSecond"),
+        "completionTokensPerSecond": _average(metrics, "completionTokensPerSecond"),
+        "totalTokensPerSecond": _average(metrics, "totalTokensPerSecond"),
+        "totalMs": _average(metrics, "totalMs"),
+    }
+
+
+def _flatten_export_rows(runs: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    flattened: list[dict[str, Any]] = []
+    for run in runs:
+        current_metric = run.get("currentMetric") if isinstance(run.get("currentMetric"), dict) else None
+        if current_metric is not None:
+            flattened.append(_build_export_row(run, current_metric, metric_scope="current"))
+        scenario_results = run.get("scenarioResults")
+        if isinstance(scenario_results, list):
+            for scenario in scenario_results:
+                if not isinstance(scenario, dict):
+                    continue
+                metric = scenario.get("metric") if isinstance(scenario.get("metric"), dict) else None
+                flattened.append(
+                    _build_export_row(
+                        run,
+                        metric,
+                        metric_scope="scenario",
+                        scenario_id=str(scenario.get("scenarioId", "") or ""),
+                        scenario_name=str(scenario.get("scenarioName", "") or ""),
+                        scenario_status=str(scenario.get("status", "") or ""),
+                    )
+                )
+        if current_metric is None and not isinstance(scenario_results, list):
+            flattened.append(_build_export_row(run, None, metric_scope="run"))
+    return flattened
+
+
+def _build_export_row(
+    run: dict[str, Any],
+    metric: dict[str, Any] | None,
+    *,
+    metric_scope: str,
+    scenario_id: str = "",
+    scenario_name: str = "",
+    scenario_status: str = "",
+) -> dict[str, Any]:
+    return {
+        "runId": str(run.get("runId", "") or ""),
+        "mode": str(run.get("mode", "") or ""),
+        "batteryName": str(run.get("batteryName", "") or ""),
+        "scenarioName": scenario_name or str(run.get("scenarioName", "") or ""),
+        "modelId": str(run.get("modelId", "") or ""),
+        "modelLabel": str(run.get("modelLabel", "") or ""),
+        "runtime": str(run.get("runtime", "") or ""),
+        "runtimeLabel": str(run.get("runtimeLabel", "") or ""),
+        "profile": str(run.get("profile", "") or ""),
+        "context": int(run.get("context", 0) or 0),
+        "outputTokens": int(run.get("outputTokens", 0) or 0),
+        "thinkingMode": str(run.get("thinkingMode", "") or ""),
+        "status": str(run.get("status", "") or ""),
+        "startedAt": str(run.get("startedAt", "") or ""),
+        "finishedAt": str(run.get("finishedAt", "") or ""),
+        "metricScope": metric_scope,
+        "metricLabel": str(metric.get("label", "") or "") if isinstance(metric, dict) else "",
+        "scenarioId": scenario_id,
+        "scenarioMetricStatus": scenario_status,
+        "promptTokensPerSecond": _metric_value(metric, "promptTokensPerSecond"),
+        "completionTokensPerSecond": _metric_value(metric, "completionTokensPerSecond"),
+        "totalTokensPerSecond": _metric_value(metric, "totalTokensPerSecond"),
+        "totalMs": _metric_value(metric, "totalMs"),
+    }
+
+
+def _run_display_label(run: dict[str, Any]) -> str:
+    if str(run.get("mode", "") or "") == "battery":
+        return str(run.get("batteryName", "") or run.get("runId", "") or "battery-run")
+    return str(run.get("scenarioName", "") or run.get("runId", "") or "selected-run")
+
+
+def _metric_value(payload: dict[str, Any] | None, key: str) -> float | None:
+    if not isinstance(payload, dict):
+        return None
+    raw_value = payload.get(key)
+    if raw_value is None:
+        return None
+    try:
+        return round(float(raw_value), 2)
+    except (TypeError, ValueError):
+        return None
+
+
+def _build_live_state(
+    *,
+    active_run: dict[str, Any],
+    live_current: dict[str, Any] | None,
+) -> dict[str, Any]:
+    if live_current is not None:
+        return {
+            "status": "active",
+            "hasLiveSignal": True,
+            "reason": "Live throughput signal dolazi iz aktivnog runtime /slots uzorka.",
+        }
+    if str(active_run.get("status", "") or "") in {"queued", "running"}:
+        return {
+            "status": "warming",
+            "hasLiveSignal": False,
+            "reason": "Benchmark je pokrenut, ali runtime jos nije prijavio live throughput signal.",
+        }
+    return {
+        "status": "idle",
+        "hasLiveSignal": False,
+        "reason": "Runtime trenutno nema aktivan throughput signal. Pokreni benchmark ili OpenCode zahtev da bi se live tok/s pojavio.",
+    }
+
+
+def _runtime_label(runtime_name: str) -> str:
+    return {
+        "llama.cpp": "llama.cpp",
+        "turboquant": "TurboQuant",
+        "unknown": "unknown",
+    }.get(runtime_name, runtime_name)
 
 
 def _scenario_status_payload(scenarios: list[dict[str, Any]]) -> list[dict[str, Any]]:

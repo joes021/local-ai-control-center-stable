@@ -646,6 +646,16 @@ select:-webkit-autofill {
   margin-top: 0;
 }
 
+.benchmark-context-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.benchmark-context-main {
+  display: grid;
+  gap: 6px;
+}
+
 .benchmark-card-header {
   display: flex;
   justify-content: space-between;
@@ -744,6 +754,44 @@ select:-webkit-autofill {
   flex-direction: column;
   gap: 10px;
   min-width: 170px;
+}
+
+.benchmark-export-row {
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 14px;
+}
+
+.benchmark-export-row .helper-text {
+  margin-top: 0;
+}
+
+.benchmark-compare-panel {
+  margin-top: 14px;
+  display: grid;
+  gap: 12px;
+}
+
+.benchmark-compare-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.benchmark-saved-run-card {
+  display: grid;
+  gap: 10px;
+}
+
+.benchmark-compare-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #d7cfc2;
+}
+
+.benchmark-compare-toggle input[type="checkbox"] {
+  accent-color: #f2b84b;
 }
 
 .browser-toolbar {
@@ -1387,6 +1435,10 @@ select:-webkit-autofill {
   }
 
   .browser-metadata-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .benchmark-compare-grid {
     grid-template-columns: 1fr;
   }
 

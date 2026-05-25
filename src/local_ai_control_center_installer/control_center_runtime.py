@@ -456,7 +456,20 @@ def launch_control_center(
         _open_panel_url(deployment.url)
         return deployment
     if _port_in_use("127.0.0.1", deployment.port):
-        raise RuntimeError(f"UI port {deployment.port} je vec zauzet drugim procesom.")
+        if _panel_health_ready(deployment.url):
+            listening_pid = _find_listening_pid(deployment.port)
+            if listening_pid is None:
+                raise RuntimeError(
+                    f"UI port {deployment.port} je vec zauzet drugim Local AI Control Center procesom."
+                )
+            detail = _stop_process_id(listening_pid)
+            if detail is not None:
+                raise RuntimeError(
+                    f"Control Center panel nije mogao da preuzme port {deployment.port}: {detail}"
+                )
+            _wait_for_port_release("127.0.0.1", deployment.port)
+        else:
+            raise RuntimeError(f"UI port {deployment.port} je vec zauzet drugim procesom.")
 
     environment = os.environ.copy()
     if deployment.env_overrides:
@@ -1148,6 +1161,15 @@ def _wait_for_path_replaceable(path: Path, timeout_seconds: float = 10.0) -> Non
     if last_error is not None:
         raise last_error
     raise TimeoutError(f"Path did not become replaceable in time: {path}")
+
+
+def _wait_for_port_release(host: str, port: int, timeout_seconds: float = 10.0) -> None:
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() < deadline:
+        if not _port_in_use(host, port):
+            return
+        time.sleep(0.25)
+    raise TimeoutError(f"Control Center panel nije oslobodio port {port} u ocekivanom roku.")
 
 
 def _quote_powershell_string(value: str) -> str:

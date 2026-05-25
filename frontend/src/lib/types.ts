@@ -74,6 +74,26 @@ export type BenchmarkHistoryItem = {
   completionTokensPerSecond?: number | null;
   totalTokensPerSecond?: number | null;
   totalMs?: number;
+  environment?: BenchmarkEnvironment;
+};
+
+export type BenchmarkEnvironment = {
+  modelId: string;
+  modelLabel: string;
+  runtime: string;
+  runtimeLabel: string;
+  profile: string;
+  context: number;
+  outputTokens: number;
+  thinkingMode: string;
+  runtimeLiveStatus: string;
+  runtimeLiveReason: string;
+};
+
+export type BenchmarkLiveState = {
+  status: string;
+  hasLiveSignal: boolean;
+  reason: string;
 };
 
 export type BenchmarkScenario = {
@@ -123,7 +143,13 @@ export type SavedBenchmarkRun = {
   batteryName: string;
   scenarioName: string;
   modelId: string;
+  modelLabel: string;
   runtime: string;
+  runtimeLabel: string;
+  profile: string;
+  context: number;
+  outputTokens: number;
+  thinkingMode: string;
   status: string;
   startedAt: string;
   finishedAt: string;
@@ -146,6 +172,8 @@ export type BenchmarkPayload = {
   requestCount: number;
   lastMeasuredAt: string | null;
   lastLabel: string | null;
+  environment: BenchmarkEnvironment;
+  liveState: BenchmarkLiveState;
   activity: {
     averageTotalMs: number;
     sources: {
@@ -186,6 +214,51 @@ export type BenchmarkPayload = {
   selectedBattery: BenchmarkBattery;
   activeRun: BenchmarkRunStatusPayload;
   savedRuns: SavedBenchmarkRun[];
+};
+
+export type BenchmarkCompareRow = {
+  runId: string;
+  label: string;
+  mode: string;
+  batteryName: string;
+  scenarioName: string;
+  modelId: string;
+  modelLabel: string;
+  runtime: string;
+  runtimeLabel: string;
+  profile: string;
+  context: number;
+  outputTokens: number;
+  thinkingMode: string;
+  status: string;
+  startedAt: string;
+  finishedAt: string;
+  scenarioCount: number;
+  metricSource: string;
+  promptTokensPerSecond: number | null;
+  completionTokensPerSecond: number | null;
+  totalTokensPerSecond: number | null;
+  totalMs: number | null;
+};
+
+export type BenchmarkCompareMetricSummary = {
+  bestRunId: string | null;
+  bestValue: number | null;
+  average: number | null;
+};
+
+export type BenchmarkComparePayload = {
+  status: string;
+  summary: string;
+  runIds: string[];
+  runs: SavedBenchmarkRun[];
+  rows: BenchmarkCompareRow[];
+  comparison: {
+    promptTokensPerSecond: BenchmarkCompareMetricSummary;
+    completionTokensPerSecond: BenchmarkCompareMetricSummary;
+    totalTokensPerSecond: BenchmarkCompareMetricSummary;
+    totalMs: BenchmarkCompareMetricSummary;
+  };
 };
 
 export type ModelEntry = {
