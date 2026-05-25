@@ -52,6 +52,36 @@ export function SearchPage({ onOpenSettings }: SearchPageProps) {
     setSummary(payload);
   }
 
+  async function handleSearchOnly() {
+    setLoadingSearch(true);
+    setError(null);
+    try {
+      const payload = await runSearchQuery(query);
+      setSearchPayload(payload);
+      setAnswerPayload(null);
+      await loadSummary();
+    } catch (reason: unknown) {
+      setError(reason instanceof Error ? reason.message : "Web search nije uspeo.");
+    } finally {
+      setLoadingSearch(false);
+    }
+  }
+
+  async function handleAnswer() {
+    setLoadingAnswer(true);
+    setError(null);
+    try {
+      const payload = await answerWithLocalModel(query);
+      setAnswerPayload(payload);
+      setSearchPayload(payload);
+      await loadSummary();
+    } catch (reason: unknown) {
+      setError(reason instanceof Error ? reason.message : "Lokalni odgovor nije uspeo.");
+    } finally {
+      setLoadingAnswer(false);
+    }
+  }
+
   function updateProviderStatus(nextStatus: SearchProviderStatusPayload) {
     setSummary((current) =>
       current
@@ -179,51 +209,42 @@ export function SearchPage({ onOpenSettings }: SearchPageProps) {
             placeholder="Upisi pitanje ili temu za web search"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
+            onKeyDown={(event) => {
+              if (
+                event.key === "Enter" &&
+                !event.shiftKey &&
+                !loadingAnswer &&
+                summary.providerStatus.canQuery !== false &&
+                query.trim()
+              ) {
+                event.preventDefault();
+                void handleAnswer();
+              }
+            }}
           />
           <button
             type="button"
             disabled={loadingSearch || !query.trim() || summary.providerStatus.canQuery === false}
-            onClick={async () => {
-              setLoadingSearch(true);
-              setError(null);
-              try {
-                const payload = await runSearchQuery(query);
-                setSearchPayload(payload);
-                setAnswerPayload(null);
-                await loadSummary();
-              } catch (reason: unknown) {
-                setError(reason instanceof Error ? reason.message : "Web search nije uspeo.");
-              } finally {
-                setLoadingSearch(false);
-              }
+            onClick={() => {
+              void handleSearchOnly();
             }}
           >
-            {loadingSearch ? "Searching..." : "Search web"}
+            {loadingSearch ? "Searching..." : "Find web sources"}
           </button>
           <button
             type="button"
             disabled={loadingAnswer || !query.trim() || summary.providerStatus.canQuery === false}
-            onClick={async () => {
-              setLoadingAnswer(true);
-              setError(null);
-              try {
-                const payload = await answerWithLocalModel(query);
-                setAnswerPayload(payload);
-                setSearchPayload(payload);
-                await loadSummary();
-              } catch (reason: unknown) {
-                setError(reason instanceof Error ? reason.message : "Lokalni odgovor nije uspeo.");
-              } finally {
-                setLoadingAnswer(false);
-              }
+            onClick={() => {
+              void handleAnswer();
             }}
           >
-            {loadingAnswer ? "Answering..." : "Answer with local model"}
+            {loadingAnswer ? "Answering..." : "Search + answer locally"}
           </button>
         </div>
         <p className="helper-text">
-          `Search web` vraca rezultate. `Answer with local model` prvo radi isti web search, pa onda
-          salje rezultate kao dodatni context aktivnom lokalnom runtime-u.
+          `Find web sources` vraca samo izvore. `Search + answer locally` prvo radi isti web
+          search, pa onda salje rezultate kao dodatni context aktivnom lokalnom runtime-u i vraca
+          finalan odgovor.
         </p>
         {summary.providerStatus.canQuery === false ? (
           <p className="helper-text">
@@ -234,18 +255,48 @@ export function SearchPage({ onOpenSettings }: SearchPageProps) {
       </section>
 
       <section className="status-card wide-card">
-        <span className="status-label">Search results</span>
+        <span className="status-label">Web sources</span>
         <strong className="status-value">{searchPayload?.summary || "Jos nema rezultata."}</strong>
+        {searchPayload?.results?.length && !answerPayload ? (
+          <div className="inline-actions compact-actions">
+            <p className="helper-text">
+              Ovo su izvori, ne finalan odgovor. Klikni `Search + answer locally` da isti upit
+              odmah prosledis lokalnom modelu.
+            </p>
+            <button
+              type="button"
+              disabled={loadingAnswer || !query.trim() || summary.providerStatus.canQuery === false}
+              onClick={() => {
+                void handleAnswer();
+              }}
+            >
+              {loadingAnswer ? "Answering..." : "Answer from these results"}
+            </button>
+          </div>
+        ) : null}
         {searchPayload?.results?.length ? (
           <div className="model-list">
             {searchPayload.results.map((item) => (
               <article className="model-item" key={`${item.url}-${item.title}`}>
                 <div className="model-item-header">
                   <div>
-                    <strong>{item.title}</strong>
-                    <div className="muted-line">{item.url}</div>
+                    <strong>
+                      <a href={item.url} target="_blank" rel="noreferrer">
+                        {item.title}
+                      </a>
+                    </strong>
+                    <div className="muted-line">
+                      <a href={item.url} target="_blank" rel="noreferrer">
+                        {item.url}
+                      </a>
+                    </div>
                     <p className="helper-text">{item.snippet}</p>
-                    <div className="muted-line">Engine: {item.engine}</div>
+                    <div className="muted-line">
+                      Engine: {item.engine} |{" "}
+                      <a href={item.url} target="_blank" rel="noreferrer">
+                        Open source
+                      </a>
+                    </div>
                   </div>
                 </div>
               </article>
@@ -257,8 +308,11 @@ export function SearchPage({ onOpenSettings }: SearchPageProps) {
       </section>
 
       <section className="status-card wide-card">
-        <span className="status-label">Local answer</span>
-        <strong className="status-value">{answerPayload?.answer || "Jos nema lokalnog odgovora."}</strong>
+        <span className="status-label">Final answer from local model</span>
+        <strong className="status-value">
+          {answerPayload?.answer ||
+            "Jos nema finalnog odgovora. Koristi `Search + answer locally` za odgovor zasnovan na web izvorima."}
+        </strong>
         <div className="summary-metrics">
           <span>Runtime: {answerPayload?.answerRuntime || "--"}</span>
           <span>Model: {answerPayload?.answerModel || "--"}</span>

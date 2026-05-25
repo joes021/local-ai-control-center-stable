@@ -203,10 +203,14 @@ def test_app_source_and_packaged_frontend_include_search_navigation():
     bundled_text = "\n".join(path.read_text(encoding="utf-8") for path in js_assets)
 
     assert "Search workspace" in bundled_text
-    assert "Answer with local model" in bundled_text
+    assert "Find web sources" in bundled_text
+    assert "Search + answer locally" in bundled_text
+    assert "Final answer from local model" in bundled_text
     assert "Setup managed SearxNG (Windows + WSL)" in bundled_text
     assert "SearxNG nije podesen" in bundled_text
     assert "Managed local SearxNG (Windows + WSL)" in bundled_text
+    assert "Ovo su izvori, ne finalan odgovor." in bundled_text
+    assert "Open source" in bundled_text
 
 
 def test_app_source_and_packaged_frontend_include_knowledge_navigation():
@@ -244,6 +248,17 @@ def test_settings_and_opencode_source_include_web_search_controls_and_guidance()
     assert "local-lacc" in settings_source
     assert "local-lacc" in opencode_source
     assert "shared search sloj" in opencode_source
+
+
+def test_search_page_source_makes_web_results_clickable_and_guides_toward_answer():
+    source = Path("frontend/src/pages/SearchPage.tsx").read_text(encoding="utf-8")
+
+    assert "Find web sources" in source
+    assert "Search + answer locally" in source
+    assert "Final answer from local model" in source
+    assert "Ovo su izvori, ne finalan odgovor." in source
+    assert 'target="_blank"' in source
+    assert "Open source" in source
 
 
 def test_benchmark_page_source_includes_compare_export_and_idle_truth():
