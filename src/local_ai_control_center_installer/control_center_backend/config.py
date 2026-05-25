@@ -109,6 +109,18 @@ class ControlCenterConfig:
         return self.control_center_config_root / "search-history.json"
 
     @property
+    def knowledge_sources_path(self) -> Path:
+        return self.control_center_config_root / "knowledge-sources.json"
+
+    @property
+    def knowledge_history_path(self) -> Path:
+        return self.control_center_config_root / "knowledge-history.json"
+
+    @property
+    def knowledge_index_path(self) -> Path:
+        return self.control_center_config_root / "knowledge-index.sqlite3"
+
+    @property
     def updates_download_root(self) -> Path:
         return self.install_root / "updates"
 

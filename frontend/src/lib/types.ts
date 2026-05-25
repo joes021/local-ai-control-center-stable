@@ -696,6 +696,93 @@ export type SearchAnswerPayload = SearchQueryPayload & {
   };
 };
 
+export type KnowledgeSourceItem = {
+  id: string;
+  path: string;
+  kind: string;
+  exists: boolean;
+  documentCount: number;
+  indexedDocumentCount: number;
+  errorCount: number;
+  skippedCount: number;
+  lastIndexedAt: string;
+  lastError: string;
+};
+
+export type KnowledgeHistoryItem = {
+  query: string;
+  mode: string;
+  documentResultCount: number;
+  webResultCount: number;
+  askedAt: string;
+};
+
+export type KnowledgeDocumentResult = {
+  docId: string;
+  sourceId: string;
+  path: string;
+  name: string;
+  fileType: string;
+  charCount: number;
+  score: number;
+  snippet: string;
+};
+
+export type KnowledgeSummaryPayload = {
+  sources: KnowledgeSourceItem[];
+  sourceCount: number;
+  documentCount: number;
+  indexedDocumentCount: number;
+  errorCount: number;
+  history: KnowledgeHistoryItem[];
+  supportedExtensions: string[];
+  answerModes: string[];
+};
+
+export type KnowledgeSourceActionPayload = {
+  status: string;
+  summary: string;
+  source?: KnowledgeSourceItem;
+  removedSourceId?: string;
+};
+
+export type KnowledgeReindexPayload = {
+  status: string;
+  summary: string;
+  documentCount: number;
+  indexedDocumentCount: number;
+  sources?: KnowledgeSourceItem[];
+};
+
+export type KnowledgeQueryPayload = {
+  status: string;
+  query: string;
+  resultCount: number;
+  summary: string;
+  results: KnowledgeDocumentResult[];
+  history?: KnowledgeHistoryItem[];
+};
+
+export type KnowledgeAnswerPayload = {
+  status: string;
+  query: string;
+  mode: string;
+  summary: string;
+  answer: string;
+  answerModel: string;
+  answerRuntime: string;
+  usage: {
+    promptTokens: number | null;
+    completionTokens: number | null;
+    totalTokens: number | null;
+  };
+  documentResultCount: number;
+  documentResults: KnowledgeDocumentResult[];
+  webResultCount: number;
+  webResults: SearchResultItem[];
+  history?: KnowledgeHistoryItem[];
+};
+
 export type OpenCodeStepValues = {
   buildSteps: number;
   planSteps: number;

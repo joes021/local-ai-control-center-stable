@@ -11,6 +11,7 @@ import { LogsPage } from "./pages/LogsPage";
 import { ModelsPage } from "./pages/ModelsPage";
 import { OpenCodePage } from "./pages/OpenCodePage";
 import { CompatibilityPage } from "./pages/CompatibilityPage";
+import { KnowledgePage } from "./pages/KnowledgePage";
 import { RepairPage } from "./pages/RepairPage";
 import { SearchPage } from "./pages/SearchPage";
 import { ServerPage } from "./pages/ServerPage";
@@ -23,6 +24,7 @@ const PAGES = {
   opencode: "OpenCode",
   models: "Models",
   browser: "Browser",
+  knowledge: "Knowledge",
   search: "Search",
   compatibility: "Compatibility",
   benchmark: "Benchmark",
@@ -101,6 +103,7 @@ export default function App() {
           }}
         />
       ) : null}
+      {page === "knowledge" ? <KnowledgePage onOpenSearch={() => setPage("search")} /> : null}
       {page === "search" ? <SearchPage /> : null}
       {page === "compatibility" ? (
         <CompatibilityPage

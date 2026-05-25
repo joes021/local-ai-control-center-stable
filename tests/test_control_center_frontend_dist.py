@@ -206,6 +206,28 @@ def test_app_source_and_packaged_frontend_include_search_navigation():
     assert "Answer with local model" in bundled_text
 
 
+def test_app_source_and_packaged_frontend_include_knowledge_navigation():
+    source = Path("frontend/src/App.tsx").read_text(encoding="utf-8")
+    knowledge_source = Path("frontend/src/pages/KnowledgePage.tsx").read_text(encoding="utf-8")
+
+    assert 'knowledge: "Knowledge"' in source
+    assert "KnowledgePage" in source
+    assert "pickWorkingDirectory" in knowledge_source
+    assert "Browse" in knowledge_source
+
+    dist_root = Path(
+        "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
+    )
+    js_assets = list((dist_root / "assets").glob("index-*.js"))
+
+    assert js_assets
+    bundled_text = "\n".join(path.read_text(encoding="utf-8") for path in js_assets)
+
+    assert "Knowledge workspace" in bundled_text
+    assert "Documents + web" in bundled_text
+    assert "Browse" in bundled_text
+
+
 def test_settings_and_opencode_source_include_web_search_controls_and_guidance():
     settings_source = Path("frontend/src/pages/SettingsPage.tsx").read_text(encoding="utf-8")
     opencode_source = Path("frontend/src/pages/OpenCodePage.tsx").read_text(encoding="utf-8")

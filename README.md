@@ -15,7 +15,7 @@ Primary end-user artifact:
 
 Current release:
 
-- [LocalAIControlCenterSetup-v0.4.23.exe](https://github.com/joes021/local-ai-control-center-stable/releases/download/v0.4.23/LocalAIControlCenterSetup-v0.4.23.exe)
+- [LocalAIControlCenterSetup-v0.4.24.exe](https://github.com/joes021/local-ai-control-center-stable/releases/download/v0.4.24/LocalAIControlCenterSetup-v0.4.24.exe)
 
 The Windows product is intended to be launched with a double-click. No ZIP extraction and no manual PowerShell command are required for the packaged installer path.
 
@@ -29,6 +29,7 @@ The Windows product is intended to be launched with a double-click. No ZIP extra
 - local model catalog plus an internet-backed GGUF browser
 - live benchmark throughput, averages, and history inside the control panel
 - a shared `SearxNG` search workspace for local web results and local-model answers
+- a local `Knowledge` workspace for installer-managed document indexing, query, and answer flows
 - truthful logs, reports, and runtime status
 
 ## Product Screens
@@ -69,6 +70,7 @@ The current Windows milestone includes:
 - settings, presets, and runtime preferences persisted through the control panel
 - Benchmark tab with live throughput, averages, historical trend, and benchmark batteries
 - shared `SearxNG` search layer for the `Search` tab and `OpenCode` `local-lacc` provider path
+- installer-managed `Knowledge` workspace with local document indexing and `documents-only` / `documents+web` answer modes
 - visible `Compatibility` workspace instead of a hidden calculator modal
 
 The current default `recommended-6gb` starter model is `gemma-4-E4B-it-Q4_K_M.gguf`.
@@ -91,6 +93,7 @@ The control panel currently exposes:
 - `OpenCode`
 - `Models`
 - `Browser`
+- `Knowledge`
 - `Search`
 - `Compatibility`
 - `Benchmark`
@@ -119,6 +122,24 @@ The control panel now includes a dedicated `Search` workspace:
 Important boundary:
 
 - cloud `opencode` providers do not currently pass through the local `SearxNG` proxy layer
+
+## Knowledge
+
+The control panel now also includes a dedicated `Knowledge` workspace:
+
+- add local file or folder paths as installer-managed knowledge sources
+- index supported documents locally through a packaged SQLite FTS path
+- query local documents directly
+- ask the active local model to answer with:
+  - `documents-only`
+  - `documents+web`
+  - `web-only`
+
+Current scope:
+
+- first release supports plain text-ish files, `docx`, and `pdf`
+- document indexing stays local to the install root state
+- cloud `opencode` providers are not yet wired into this local knowledge layer
 
 ## Build From Source
 

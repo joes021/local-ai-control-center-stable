@@ -11,6 +11,11 @@ import type {
   BenchmarkScenario,
   BenchmarkRunStatusPayload,
   DownloadProgressPayload,
+  KnowledgeAnswerPayload,
+  KnowledgeQueryPayload,
+  KnowledgeReindexPayload,
+  KnowledgeSourceActionPayload,
+  KnowledgeSummaryPayload,
   CompatibilityApplyResponse,
   CompatibilityCheckRequest,
   ModelActionStatusPayload,
@@ -298,6 +303,40 @@ export async function runSearchQuery(query: string): Promise<SearchQueryPayload>
 
 export async function answerWithLocalModel(query: string): Promise<SearchAnswerPayload> {
   return postJson<{ query: string }, SearchAnswerPayload>("/api/search/answer", { query });
+}
+
+export async function fetchKnowledgeSummary(): Promise<KnowledgeSummaryPayload> {
+  const response = await fetch("/api/knowledge", { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(`Knowledge summary request failed: ${response.status}`);
+  }
+  return response.json() as Promise<KnowledgeSummaryPayload>;
+}
+
+export async function addKnowledgeSource(path: string): Promise<KnowledgeSourceActionPayload> {
+  return postJson<{ path: string }, KnowledgeSourceActionPayload>("/api/knowledge/sources/add", { path });
+}
+
+export async function removeKnowledgeSource(sourceId: string): Promise<KnowledgeSourceActionPayload> {
+  return postJson<{ sourceId: string }, KnowledgeSourceActionPayload>("/api/knowledge/sources/remove", { sourceId });
+}
+
+export async function reindexKnowledge(): Promise<KnowledgeReindexPayload> {
+  return postJson<Record<string, never>, KnowledgeReindexPayload>("/api/knowledge/reindex", {});
+}
+
+export async function runKnowledgeQuery(query: string): Promise<KnowledgeQueryPayload> {
+  return postJson<{ query: string }, KnowledgeQueryPayload>("/api/knowledge/query", { query });
+}
+
+export async function answerWithKnowledge(
+  query: string,
+  mode: "documents-only" | "documents+web" | "web-only",
+): Promise<KnowledgeAnswerPayload> {
+  return postJson<{ query: string; mode: string }, KnowledgeAnswerPayload>("/api/knowledge/answer", {
+    query,
+    mode,
+  });
 }
 
 export async function applySettings(payload: SettingsPayload): Promise<ActionResult> {

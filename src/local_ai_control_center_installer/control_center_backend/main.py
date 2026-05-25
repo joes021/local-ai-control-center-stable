@@ -49,6 +49,9 @@ from local_ai_control_center_installer.control_center_backend.routes.search impo
 from local_ai_control_center_installer.control_center_backend.routes.runtime_proxy import (
     router as runtime_proxy_router,
 )
+from local_ai_control_center_installer.control_center_backend.routes.knowledge import (
+    router as knowledge_router,
+)
 from local_ai_control_center_installer.control_center_backend.config import get_config
 
 app = FastAPI(title="Local AI Control Center")
@@ -104,6 +107,7 @@ app.include_router(updates_router)
 app.include_router(benchmark_router)
 app.include_router(search_router)
 app.include_router(runtime_proxy_router)
+app.include_router(knowledge_router)
 
 _packaged_assets = _package_root() / "frontend_dist" / "assets"
 if _packaged_assets.is_dir():
