@@ -154,7 +154,7 @@ function ActivationRiskCallout({
   return (
     <div className="model-activation-warning">
       <div className="model-activation-warning-title">
-        Ovaj model verovatno ne bi trebalo da radi na ovoj masini.
+        Ovaj model verovatno nece moci da radi ili ce raditi lose na ovoj masini.
       </div>
       <div className="helper-text">{activationRiskSummary(item)}</div>
       {confirmationOpen ? (
@@ -242,7 +242,7 @@ function FilterResultsCard({
       setResult({
         status: "warning",
         action: "activate-model-precheck",
-        summary: "Ovaj model verovatno ne bi trebalo da radi na ovoj masini.",
+        summary: "Ovaj model verovatno nece moci da radi ili ce raditi lose na ovoj masini.",
         details: {
           returncode: 1,
           stdout: activationRiskSummary(item),
@@ -480,7 +480,7 @@ function ModelGroup({
       setResult({
         status: "warning",
         action: "activate-model-precheck",
-        summary: "Ovaj model verovatno ne bi trebalo da radi na ovoj masini.",
+        summary: "Ovaj model verovatno nece moci da radi ili ce raditi lose na ovoj masini.",
         details: {
           returncode: 1,
           stdout: activationRiskSummary(item),

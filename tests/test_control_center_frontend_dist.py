@@ -119,7 +119,7 @@ def test_models_page_source_requires_explicit_confirmation_before_forced_risky_a
     )
     js_assets = list((dist_root / "assets").glob("index-*.js"))
 
-    assert "Ovaj model verovatno ne bi trebalo da radi na ovoj masini." in source
+    assert "Ovaj model verovatno nece moci da radi ili ce raditi lose na ovoj masini." in source
     assert "Da li zelis ipak da pokusas aktivaciju?" in source
     assert "Ipak pokusaj aktivaciju" in source
     assert "activateModel(item.id, { force: true })" in source
@@ -128,7 +128,7 @@ def test_models_page_source_requires_explicit_confirmation_before_forced_risky_a
 
     bundled_text = "\n".join(path.read_text(encoding="utf-8") for path in js_assets)
 
-    assert "Ovaj model verovatno ne bi trebalo da radi na ovoj masini." in bundled_text
+    assert "Ovaj model verovatno nece moci da radi ili ce raditi lose na ovoj masini." in bundled_text
     assert "Da li zelis ipak da pokusas aktivaciju?" in bundled_text
     assert "Ipak pokusaj aktivaciju" in bundled_text
 
