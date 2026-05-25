@@ -229,7 +229,7 @@ def repair_config(
             config.opencode_managed_config_path,
             model_id=active_model_id,
             public_model_name=active_model_path.name or active_model_id,
-            base_url=endpoint.base_url,
+            control_center_base_url=config.ui_url,
         )
         wrote_anything = True
 

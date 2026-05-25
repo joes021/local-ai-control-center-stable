@@ -12,6 +12,7 @@ import { ModelsPage } from "./pages/ModelsPage";
 import { OpenCodePage } from "./pages/OpenCodePage";
 import { CompatibilityPage } from "./pages/CompatibilityPage";
 import { RepairPage } from "./pages/RepairPage";
+import { SearchPage } from "./pages/SearchPage";
 import { ServerPage } from "./pages/ServerPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { UpdatesPage } from "./pages/UpdatesPage";
@@ -22,6 +23,7 @@ const PAGES = {
   opencode: "OpenCode",
   models: "Models",
   browser: "Browser",
+  search: "Search",
   compatibility: "Compatibility",
   benchmark: "Benchmark",
   settings: "Settings",
@@ -99,6 +101,7 @@ export default function App() {
           }}
         />
       ) : null}
+      {page === "search" ? <SearchPage /> : null}
       {page === "compatibility" ? (
         <CompatibilityPage
           onOpenModels={() => setPage("models")}

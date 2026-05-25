@@ -717,7 +717,10 @@ def test_apply_opencode_bootstrap_generated_config_uses_canonical_runtime_endpoi
     assert updated.opencode_artifact_status == "ready"
     assert managed_config["enabled_providers"] == ["local-lacc", "opencode"]
     assert managed_config["provider"]["local-lacc"]["npm"] == "@ai-sdk/openai-compatible"
-    assert managed_config["provider"]["local-lacc"]["options"]["baseURL"] == "http://127.0.0.1:39281/v1"
+    assert (
+        managed_config["provider"]["local-lacc"]["options"]["baseURL"]
+        == "http://127.0.0.1:3210/api/runtime-proxy/v1"
+    )
     assert managed_config["provider"]["local-lacc"]["models"] == {
         "my-model-q4.gguf": {"name": "my-model-q4.gguf"}
     }

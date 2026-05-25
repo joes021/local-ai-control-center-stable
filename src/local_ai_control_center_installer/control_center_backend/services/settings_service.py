@@ -285,6 +285,12 @@ ALLOWED_CAPABILITY_MODES = {
     "auto-commands",
 }
 ALLOWED_PROFILES = {"speed", "balanced", "video"}
+ALLOWED_WEB_SEARCH_MODES = {"off", "on-demand", "always"}
+ALLOWED_WEB_SEARCH_PROVIDERS = {"searxng"}
+DEFAULT_WEB_SEARCH_BASE_URL = "http://127.0.0.1:8080"
+DEFAULT_WEB_SEARCH_MAX_RESULTS = 5
+DEFAULT_WEB_SEARCH_TIMEOUT_SECONDS = 20
+DEFAULT_WEB_SEARCH_PROMPT_PREFIX = "/web"
 SETTINGS_PROFILE_COMPARE_KEYS = (
     "profile",
     "context",
@@ -388,6 +394,12 @@ def load_settings_payload(
         "activeModelLabel": effective["activeModelLabel"],
         "modelOverrideExists": effective["modelOverrideExists"],
         "accessMode": effective["accessMode"],
+        "webSearchMode": effective["webSearchMode"],
+        "webSearchProvider": effective["webSearchProvider"],
+        "webSearchBaseUrl": effective["webSearchBaseUrl"],
+        "webSearchMaxResults": effective["webSearchMaxResults"],
+        "webSearchTimeoutSeconds": effective["webSearchTimeoutSeconds"],
+        "webSearchPromptPrefix": effective["webSearchPromptPrefix"],
         "builtInSettingsProfiles": profile_catalog["builtInProfiles"],
         "userSettingsProfiles": profile_catalog["userProfiles"],
         "selectedSettingsProfileId": profile_catalog["selectedProfileId"],
@@ -424,7 +436,7 @@ def apply_settings(
         overrides = overrides_payload.get("models")
         if not isinstance(overrides, dict):
             overrides = {}
-        overrides[active_model_id] = normalized
+        overrides[active_model_id] = _project_model_override_settings(normalized)
         atomic_write_json(config.model_overrides_path, {"models": overrides})
         return action_result(
             "ok",
@@ -766,6 +778,12 @@ def _normalize_global_settings(
         "accessMode": "local-only",
         "securityMode": "strict",
         "capabilityMode": "confirm-commands",
+        "webSearchMode": "off",
+        "webSearchProvider": "searxng",
+        "webSearchBaseUrl": DEFAULT_WEB_SEARCH_BASE_URL,
+        "webSearchMaxResults": DEFAULT_WEB_SEARCH_MAX_RESULTS,
+        "webSearchTimeoutSeconds": DEFAULT_WEB_SEARCH_TIMEOUT_SECONDS,
+        "webSearchPromptPrefix": DEFAULT_WEB_SEARCH_PROMPT_PREFIX,
     }
     return _normalize_settings_payload(
         payload,
@@ -827,6 +845,34 @@ def _normalize_settings_payload(
     if normalized_capability_mode not in ALLOWED_CAPABILITY_MODES:
         normalized_capability_mode = str(current.get("capabilityMode", "confirm-commands"))
 
+    normalized_web_search_mode = str(
+        payload.get("webSearchMode", current.get("webSearchMode", "off"))
+        or current.get("webSearchMode", "off")
+    ).strip().lower()
+    if normalized_web_search_mode not in ALLOWED_WEB_SEARCH_MODES:
+        normalized_web_search_mode = str(current.get("webSearchMode", "off"))
+
+    normalized_web_search_provider = str(
+        payload.get("webSearchProvider", current.get("webSearchProvider", "searxng"))
+        or current.get("webSearchProvider", "searxng")
+    ).strip().lower()
+    if normalized_web_search_provider not in ALLOWED_WEB_SEARCH_PROVIDERS:
+        normalized_web_search_provider = str(current.get("webSearchProvider", "searxng"))
+
+    web_search_base_url = str(
+        payload.get("webSearchBaseUrl", current.get("webSearchBaseUrl", DEFAULT_WEB_SEARCH_BASE_URL))
+        or current.get("webSearchBaseUrl", DEFAULT_WEB_SEARCH_BASE_URL)
+    ).strip()
+    if not web_search_base_url:
+        web_search_base_url = DEFAULT_WEB_SEARCH_BASE_URL
+
+    web_search_prompt_prefix = str(
+        payload.get("webSearchPromptPrefix", current.get("webSearchPromptPrefix", DEFAULT_WEB_SEARCH_PROMPT_PREFIX))
+        or current.get("webSearchPromptPrefix", DEFAULT_WEB_SEARCH_PROMPT_PREFIX)
+    ).strip()
+    if not web_search_prompt_prefix:
+        web_search_prompt_prefix = DEFAULT_WEB_SEARCH_PROMPT_PREFIX
+
     working_directory = str(payload.get("workingDirectory", current["workingDirectory"]) or current["workingDirectory"]).strip()
     if not working_directory:
         working_directory = str(config.install_root)
@@ -862,6 +908,18 @@ def _normalize_settings_payload(
         "accessMode": normalized_access_mode,
         "securityMode": normalized_security_mode,
         "capabilityMode": normalized_capability_mode,
+        "webSearchMode": normalized_web_search_mode,
+        "webSearchProvider": normalized_web_search_provider,
+        "webSearchBaseUrl": web_search_base_url,
+        "webSearchMaxResults": _positive_int(
+            payload.get("webSearchMaxResults"),
+            int(current.get("webSearchMaxResults", DEFAULT_WEB_SEARCH_MAX_RESULTS)),
+        ),
+        "webSearchTimeoutSeconds": _positive_int(
+            payload.get("webSearchTimeoutSeconds"),
+            int(current.get("webSearchTimeoutSeconds", DEFAULT_WEB_SEARCH_TIMEOUT_SECONDS)),
+        ),
+        "webSearchPromptPrefix": web_search_prompt_prefix,
     }
 
 
@@ -910,6 +968,24 @@ def _project_settings_profile_settings(settings: dict[str, object]) -> dict[str,
         key: settings[key]
         for key in SETTINGS_PROFILE_COMPARE_KEYS
     }
+
+
+def _project_model_override_settings(settings: dict[str, object]) -> dict[str, object]:
+    allowed_keys = {
+        "profile",
+        "context",
+        "outputTokens",
+        "workingDirectory",
+        "thinkingMode",
+        "buildSteps",
+        "planSteps",
+        "generalSteps",
+        "exploreSteps",
+        "accessMode",
+        "securityMode",
+        "capabilityMode",
+    }
+    return {key: settings[key] for key in allowed_keys}
 
 
 def _match_settings_profile(

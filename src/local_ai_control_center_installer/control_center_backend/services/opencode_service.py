@@ -81,6 +81,10 @@ def load_opencode_status_payload(
         "capabilityMode": str(settings["capabilityMode"]),
         "capabilityModeLabel": _capability_mode_label(str(settings["capabilityMode"])),
         "profile": str(settings["profile"]),
+        "webSearchMode": str(settings.get("webSearchMode", "off") or "off"),
+        "webSearchPromptPrefix": str(settings.get("webSearchPromptPrefix", "/web") or "/web"),
+        "localProviderUsesSearchProxy": True,
+        "localProviderSearchSummary": _build_local_provider_search_summary(settings),
         "auditRiskLevel": "",
         "auditSummary": (
             "Installer-managed OpenCode bootstrap je spreman."
@@ -422,6 +426,19 @@ def _capability_mode_label(value: str) -> str:
         "confirm-commands": "3. Citanje + izmena + komande uz potvrdu",
         "auto-commands": "4. Citanje + izmena + komande bez potvrde",
     }.get(value, value)
+
+
+def _build_local_provider_search_summary(settings: dict[str, object]) -> str:
+    mode = str(settings.get("webSearchMode", "off") or "off")
+    prefix = str(settings.get("webSearchPromptPrefix", "/web") or "/web")
+    if mode == "always":
+        return "Local-lacc provider uvek prolazi kroz lokalni SearxNG search augmentation sloj."
+    if mode == "on-demand":
+        return (
+            "Local-lacc provider koristi lokalni SearxNG search sloj samo kada prompt "
+            f"krene prefiksom {prefix}."
+        )
+    return "Local-lacc provider trenutno radi bez automatskog web search augmentation-a."
 
 
 def _build_session_state(

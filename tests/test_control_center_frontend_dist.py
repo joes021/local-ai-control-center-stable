@@ -188,6 +188,37 @@ def test_app_source_and_packaged_frontend_include_benchmark_navigation():
     assert "LIVE THROUGHPUT" in bundled_text
 
 
+def test_app_source_and_packaged_frontend_include_search_navigation():
+    source = Path("frontend/src/App.tsx").read_text(encoding="utf-8")
+
+    assert 'search: "Search"' in source
+    assert "SearchPage" in source
+
+    dist_root = Path(
+        "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
+    )
+    js_assets = list((dist_root / "assets").glob("index-*.js"))
+
+    assert js_assets
+    bundled_text = "\n".join(path.read_text(encoding="utf-8") for path in js_assets)
+
+    assert "Search workspace" in bundled_text
+    assert "Answer with local model" in bundled_text
+
+
+def test_settings_and_opencode_source_include_web_search_controls_and_guidance():
+    settings_source = Path("frontend/src/pages/SettingsPage.tsx").read_text(encoding="utf-8")
+    opencode_source = Path("frontend/src/pages/OpenCodePage.tsx").read_text(encoding="utf-8")
+
+    assert "Web search mode" in settings_source
+    assert "SearxNG base URL" in settings_source
+    assert "Search results limit" in settings_source
+    assert "On-demand prefix" in settings_source
+    assert "local-lacc" in settings_source
+    assert "local-lacc" in opencode_source
+    assert "shared search sloj" in opencode_source
+
+
 def test_benchmark_page_source_includes_compare_export_and_idle_truth():
     source = Path("frontend/src/pages/BenchmarkPage.tsx").read_text(encoding="utf-8")
 

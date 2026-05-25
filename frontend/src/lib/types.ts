@@ -525,6 +525,12 @@ export type SettingsPayload = {
   activeModelLabel: string;
   modelOverrideExists: boolean;
   accessMode: string;
+  webSearchMode: string;
+  webSearchProvider: string;
+  webSearchBaseUrl: string;
+  webSearchMaxResults: number;
+  webSearchTimeoutSeconds: number;
+  webSearchPromptPrefix: string;
   builtInSettingsProfiles: SettingsProfilePreset[];
   userSettingsProfiles: SettingsProfilePreset[];
   selectedSettingsProfileId: string;
@@ -632,8 +638,62 @@ export type OpenCodeStatusPayload = {
   capabilityMode: string;
   capabilityModeLabel: string;
   profile: string;
+  webSearchMode?: string;
+  webSearchPromptPrefix?: string;
+  localProviderUsesSearchProxy?: boolean;
+  localProviderSearchSummary?: string;
   auditRiskLevel: string;
   auditSummary: string;
+};
+
+export type SearchResultItem = {
+  title: string;
+  url: string;
+  snippet: string;
+  engine: string;
+};
+
+export type SearchSettingsSnapshot = {
+  mode: string;
+  provider: string;
+  baseUrl: string;
+  maxResults: number;
+  timeoutSeconds: number;
+  promptPrefix: string;
+};
+
+export type SearchHistoryItem = {
+  query: string;
+  mode: string;
+  resultCount: number;
+  askedAt: string;
+};
+
+export type SearchSummaryPayload = {
+  settings: SearchSettingsSnapshot;
+  history: SearchHistoryItem[];
+};
+
+export type SearchQueryPayload = {
+  status: string;
+  provider: string;
+  mode: string;
+  query: string;
+  resultCount: number;
+  summary: string;
+  results: SearchResultItem[];
+  history: SearchHistoryItem[];
+};
+
+export type SearchAnswerPayload = SearchQueryPayload & {
+  answer: string;
+  answerModel: string;
+  answerRuntime: string;
+  usage: {
+    promptTokens: number | null;
+    completionTokens: number | null;
+    totalTokens: number | null;
+  };
 };
 
 export type OpenCodeStepValues = {

@@ -105,6 +105,10 @@ class ControlCenterConfig:
         return self.control_center_config_root / "benchmark-saved-runs.json"
 
     @property
+    def search_history_path(self) -> Path:
+        return self.control_center_config_root / "search-history.json"
+
+    @property
     def updates_download_root(self) -> Path:
         return self.install_root / "updates"
 

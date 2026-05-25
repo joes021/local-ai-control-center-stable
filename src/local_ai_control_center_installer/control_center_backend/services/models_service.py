@@ -183,7 +183,7 @@ def activate_model(
             config.opencode_managed_config_path,
             model_id=str(model["id"]),
             public_model_name=model_path.name,
-            base_url=runtime_endpoint.base_url,
+            control_center_base_url=config.ui_url,
         )
         summary_bits.append("OpenCode config je osvezen")
     except Exception as exc:  # noqa: BLE001

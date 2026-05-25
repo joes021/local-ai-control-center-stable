@@ -15,7 +15,7 @@ Primary end-user artifact:
 
 Current release:
 
-- [LocalAIControlCenterSetup-v0.4.14.exe](https://github.com/joes021/local-ai-control-center-stable/releases/download/v0.4.14/LocalAIControlCenterSetup-v0.4.14.exe)
+- [LocalAIControlCenterSetup-v0.4.23.exe](https://github.com/joes021/local-ai-control-center-stable/releases/download/v0.4.23/LocalAIControlCenterSetup-v0.4.23.exe)
 
 The Windows product is intended to be launched with a double-click. No ZIP extraction and no manual PowerShell command are required for the packaged installer path.
 
@@ -28,6 +28,7 @@ The Windows product is intended to be launched with a double-click. No ZIP extra
 - a local control panel at `http://127.0.0.1:3210/`
 - local model catalog plus an internet-backed GGUF browser
 - live benchmark throughput, averages, and history inside the control panel
+- a shared `SearxNG` search workspace for local web results and local-model answers
 - truthful logs, reports, and runtime status
 
 ## Product Screens
@@ -67,6 +68,8 @@ The current Windows milestone includes:
 - installer-managed model download worker with progress tracking and error reporting
 - settings, presets, and runtime preferences persisted through the control panel
 - Benchmark tab with live throughput, averages, historical trend, and benchmark batteries
+- shared `SearxNG` search layer for the `Search` tab and `OpenCode` `local-lacc` provider path
+- visible `Compatibility` workspace instead of a hidden calculator modal
 
 The current default `recommended-6gb` starter model is `gemma-4-E4B-it-Q4_K_M.gguf`.
 
@@ -88,6 +91,8 @@ The control panel currently exposes:
 - `OpenCode`
 - `Models`
 - `Browser`
+- `Search`
+- `Compatibility`
 - `Benchmark`
 - `Settings`
 - `Logs`
@@ -101,6 +106,19 @@ The product keeps these flows separate on purpose:
   - local catalog, active model switching, local GGUF import, and direct registry management
 - `Browser`
   - internet-backed GGUF discovery from `Hugging Face` and `Unsloth`, compatibility checks, and installer-managed download actions
+
+## Search
+
+The control panel now includes a dedicated `Search` workspace:
+
+- backed by a shared `SearxNG` service layer
+- able to return raw web results
+- able to ask the active local model to answer using those web results as extra context
+- shared with the installer-managed `OpenCode` `local-lacc` provider path
+
+Important boundary:
+
+- cloud `opencode` providers do not currently pass through the local `SearxNG` proxy layer
 
 ## Build From Source
 

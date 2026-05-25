@@ -21,6 +21,9 @@ import type {
   ServerStatusPayload,
   SettingsProfileValues,
   SettingsPayload,
+  SearchAnswerPayload,
+  SearchQueryPayload,
+  SearchSummaryPayload,
   StatusPayload,
   TurboQuantConfig,
   TurboQuantSchemaPayload,
@@ -279,6 +282,22 @@ export async function fetchSettings(): Promise<SettingsPayload> {
     throw new Error(`Settings request failed: ${response.status}`);
   }
   return response.json() as Promise<SettingsPayload>;
+}
+
+export async function fetchSearchSummary(): Promise<SearchSummaryPayload> {
+  const response = await fetch("/api/search", { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(`Search summary request failed: ${response.status}`);
+  }
+  return response.json() as Promise<SearchSummaryPayload>;
+}
+
+export async function runSearchQuery(query: string): Promise<SearchQueryPayload> {
+  return postJson<{ query: string }, SearchQueryPayload>("/api/search/query", { query });
+}
+
+export async function answerWithLocalModel(query: string): Promise<SearchAnswerPayload> {
+  return postJson<{ query: string }, SearchAnswerPayload>("/api/search/answer", { query });
 }
 
 export async function applySettings(payload: SettingsPayload): Promise<ActionResult> {

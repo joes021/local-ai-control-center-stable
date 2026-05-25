@@ -508,6 +508,94 @@ export function SettingsPage() {
               </button>
             </div>
           </article>
+
+          <article className="settings-field settings-field-wide">
+            <span className="settings-field-label">Web search mode</span>
+            <div className="settings-control-block">
+              <CustomSelect
+                value={settings.webSearchMode}
+                options={[
+                  { value: "off", label: "Off" },
+                  { value: "on-demand", label: "On-demand" },
+                  { value: "always", label: "Always" },
+                ]}
+                onChange={(value) =>
+                  setSettings({
+                    ...settings,
+                    webSearchMode: value,
+                  })
+                }
+                ariaLabel="Izaberi web search mode"
+              />
+            </div>
+            <p className="helper-text">
+              Ovo vazi za Search tab i za OpenCode kada koristi lokalni `local-lacc` provider.
+              Cloud `opencode` modeli ne prolaze kroz ovaj lokalni search sloj.
+            </p>
+          </article>
+
+          <article className="settings-field settings-field-wide">
+            <span className="settings-field-label">SearxNG base URL</span>
+            <div className="settings-path-row">
+              <input
+                className="settings-path-input"
+                value={settings.webSearchBaseUrl}
+                onChange={(event) =>
+                  setSettings({
+                    ...settings,
+                    webSearchBaseUrl: event.target.value,
+                  })
+                }
+              />
+            </div>
+          </article>
+
+          <article className="settings-field">
+            <span className="settings-field-label">Search results limit</span>
+            <div className="settings-number-row">
+              <input
+                type="number"
+                value={settings.webSearchMaxResults}
+                onChange={(event) =>
+                  setSettings({
+                    ...settings,
+                    webSearchMaxResults: Number(event.target.value || 0),
+                  })
+                }
+              />
+            </div>
+          </article>
+
+          <article className="settings-field">
+            <span className="settings-field-label">Search timeout (s)</span>
+            <div className="settings-number-row">
+              <input
+                type="number"
+                value={settings.webSearchTimeoutSeconds}
+                onChange={(event) =>
+                  setSettings({
+                    ...settings,
+                    webSearchTimeoutSeconds: Number(event.target.value || 0),
+                  })
+                }
+              />
+            </div>
+          </article>
+
+          <article className="settings-field">
+            <span className="settings-field-label">On-demand prefix</span>
+            <div className="settings-number-row">
+              <input
+                value={settings.webSearchPromptPrefix}
+                onChange={(event) =>
+                  setSettings({
+                    ...settings,
+                    webSearchPromptPrefix: event.target.value,
+                  })
+                }
+              />
+            </div>
+          </article>
         </div>
         <div className="inline-actions settings-footer-actions">
           <button

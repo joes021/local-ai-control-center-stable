@@ -43,6 +43,12 @@ def test_settings_route_persists_global_defaults_and_model_override(
         "video",
     ]
     assert initial.json()["userSettingsProfiles"] == []
+    assert initial.json()["webSearchMode"] == "off"
+    assert initial.json()["webSearchProvider"] == "searxng"
+    assert initial.json()["webSearchBaseUrl"] == "http://127.0.0.1:8080"
+    assert initial.json()["webSearchMaxResults"] == 5
+    assert initial.json()["webSearchTimeoutSeconds"] == 20
+    assert initial.json()["webSearchPromptPrefix"] == "/web"
 
     response = client.post(
         "/api/settings/apply",
@@ -61,6 +67,12 @@ def test_settings_route_persists_global_defaults_and_model_override(
             "activeModelLabel": "gemma-4-E4B-it-Q4_K_M.gguf",
             "modelOverrideExists": False,
             "accessMode": "local-only",
+            "webSearchMode": "on-demand",
+            "webSearchProvider": "searxng",
+            "webSearchBaseUrl": "http://127.0.0.1:18080",
+            "webSearchMaxResults": 7,
+            "webSearchTimeoutSeconds": 12,
+            "webSearchPromptPrefix": "!web",
         },
     )
     assert response.status_code == 200
@@ -77,6 +89,12 @@ def test_settings_route_persists_global_defaults_and_model_override(
     assert payload["planSteps"] == 30
     assert payload["settingsScope"] == "global"
     assert payload["selectedSettingsProfileId"] == "custom"
+    assert payload["webSearchMode"] == "on-demand"
+    assert payload["webSearchProvider"] == "searxng"
+    assert payload["webSearchBaseUrl"] == "http://127.0.0.1:18080"
+    assert payload["webSearchMaxResults"] == 7
+    assert payload["webSearchTimeoutSeconds"] == 12
+    assert payload["webSearchPromptPrefix"] == "!web"
 
     override_response = client.post(
         "/api/settings/apply",
@@ -95,6 +113,12 @@ def test_settings_route_persists_global_defaults_and_model_override(
             "activeModelLabel": "gemma-4-E4B-it-Q4_K_M.gguf",
             "modelOverrideExists": False,
             "accessMode": "local-only",
+            "webSearchMode": "always",
+            "webSearchProvider": "searxng",
+            "webSearchBaseUrl": "http://127.0.0.1:9999",
+            "webSearchMaxResults": 2,
+            "webSearchTimeoutSeconds": 4,
+            "webSearchPromptPrefix": "/browser",
         },
     )
     assert override_response.status_code == 200
@@ -108,6 +132,11 @@ def test_settings_route_persists_global_defaults_and_model_override(
     assert override_payload["context"] == 131072
     assert override_payload["workingDirectory"] == str(tmp_path / "workspace-override")
     assert override_payload["buildSteps"] == 160
+    assert override_payload["webSearchMode"] == "on-demand"
+    assert override_payload["webSearchBaseUrl"] == "http://127.0.0.1:18080"
+    assert override_payload["webSearchMaxResults"] == 7
+    assert override_payload["webSearchTimeoutSeconds"] == 12
+    assert override_payload["webSearchPromptPrefix"] == "!web"
 
 
 def test_settings_route_saves_and_deletes_custom_settings_profiles(
@@ -149,6 +178,7 @@ def test_settings_route_saves_and_deletes_custom_settings_profiles(
     assert custom_profile["settings"]["thinkingMode"] == "high"
     assert custom_profile["settings"]["buildSteps"] == 160
     assert custom_profile["settings"]["accessMode"] == "tailscale"
+    assert "webSearchMode" not in custom_profile["settings"]
 
     apply_response = client.post(
         "/api/settings/apply",

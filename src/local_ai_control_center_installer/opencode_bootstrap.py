@@ -191,7 +191,7 @@ def apply_opencode_bootstrap(
             config_path,
             model_id=model_id,
             public_model_name=public_model_name,
-            base_url=runtime_endpoint.base_url,
+            control_center_base_url="http://127.0.0.1:3210/",
         )
     except Exception as exc:
         session.opencode_artifact_status = "ready"
@@ -382,10 +382,11 @@ def _write_managed_config(
     *,
     model_id: str,
     public_model_name: str,
-    base_url: str,
+    control_center_base_url: str | None = None,
 ) -> Path:
     del model_id
     resolved_public_model_name = public_model_name.strip() or "unknown-model"
+    managed_base_url = build_managed_opencode_base_url(control_center_base_url)
     config_path.parent.mkdir(parents=True, exist_ok=True)
     config_path.write_text(
         json.dumps(
@@ -396,7 +397,7 @@ def _write_managed_config(
                 "provider": {
                     "local-lacc": {
                         "npm": "@ai-sdk/openai-compatible",
-                        "options": {"baseURL": f"{base_url}/v1"},
+                        "options": {"baseURL": managed_base_url},
                         "models": {
                             resolved_public_model_name: {
                                 "name": resolved_public_model_name
@@ -410,6 +411,16 @@ def _write_managed_config(
         encoding="utf-8",
     )
     return config_path
+
+
+def build_managed_opencode_base_url(
+    control_center_base_url: str | None = None,
+) -> str:
+    normalized_base_url = (
+        str(control_center_base_url or "http://127.0.0.1:3210/").strip()
+        or "http://127.0.0.1:3210/"
+    ).rstrip("/")
+    return f"{normalized_base_url}/api/runtime-proxy/v1"
 
 
 def resolve_opencode_public_model_name(

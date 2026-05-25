@@ -143,6 +143,10 @@ export function OpenCodePage() {
           {opencode.sessionSummary ||
             "Promena modela vazi za novi OpenCode session. Vec otvoren OpenCode prozor ne menja model usred sesije."}
         </p>
+        <p className="helper-text">
+          {opencode.localProviderSearchSummary ||
+            "local-lacc provider koristi isti shared search sloj kao i Search tab kada je to ukljuceno."}
+        </p>
       </section>
 
       <section className="status-card wide-card">
