@@ -15,7 +15,7 @@ Primary end-user artifact:
 
 Current release:
 
-- [LocalAIControlCenterSetup-v0.4.29.exe](https://github.com/joes021/local-ai-control-center-stable/releases/download/v0.4.29/LocalAIControlCenterSetup-v0.4.29.exe)
+- [LocalAIControlCenterSetup-v0.4.30.exe](https://github.com/joes021/local-ai-control-center-stable/releases/download/v0.4.30/LocalAIControlCenterSetup-v0.4.30.exe)
 
 The Windows product is intended to be launched with a double-click. No ZIP extraction and no manual PowerShell command are required for the packaged installer path.
 
@@ -200,6 +200,12 @@ Priority order:
 1. Windows
 2. Ubuntu x86_64
 3. Ubuntu arm64
+
+## Windows Test Checklist
+
+Za sledeci ozbiljan real-world test koristi:
+
+- [Windows real-world test checklist](docs/release-validation/2026-05-25-windows-real-world-test-checklist.md)
 
 This repository currently claims a complete Windows installer + runtime + control-panel milestone for its own scope.
 
