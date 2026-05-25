@@ -104,7 +104,7 @@ export default function App() {
         />
       ) : null}
       {page === "knowledge" ? <KnowledgePage onOpenSearch={() => setPage("search")} /> : null}
-      {page === "search" ? <SearchPage /> : null}
+      {page === "search" ? <SearchPage onOpenSettings={() => setPage("settings")} /> : null}
       {page === "compatibility" ? (
         <CompatibilityPage
           onOpenModels={() => setPage("models")}

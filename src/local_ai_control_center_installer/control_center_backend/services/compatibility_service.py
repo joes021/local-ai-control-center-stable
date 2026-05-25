@@ -237,7 +237,7 @@ def check_model_compatibility(
 
 def detect_local_system_info(*, config: ControlCenterConfig | None = None) -> dict[str, object]:
     config = config or get_config()
-    settings = load_settings_payload(config)
+    settings = load_settings_payload(config, include_search_provider_status=False)
     turbo_config = load_turboquant_config(config)
     return {
         "ramGiB": detect_ram_gib(),
@@ -909,7 +909,7 @@ def _apply_action(action: dict[str, object], *, config: ControlCenterConfig | No
 
 
 def _apply_settings_patch(patch: dict[str, object], *, config: ControlCenterConfig | None) -> dict[str, object]:
-    current = load_settings_payload(config)
+    current = load_settings_payload(config, include_search_provider_status=False)
     payload = {
         "profile": str(current.get("profile", "balanced")),
         "context": int(current.get("context", 262144) or 262144),

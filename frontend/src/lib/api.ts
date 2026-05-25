@@ -27,6 +27,8 @@ import type {
   SettingsProfileValues,
   SettingsPayload,
   SearchAnswerPayload,
+  SearchProviderActionPayload,
+  SearchProviderStatusPayload,
   SearchQueryPayload,
   SearchSummaryPayload,
   StatusPayload,
@@ -295,6 +297,18 @@ export async function fetchSearchSummary(): Promise<SearchSummaryPayload> {
     throw new Error(`Search summary request failed: ${response.status}`);
   }
   return response.json() as Promise<SearchSummaryPayload>;
+}
+
+export async function fetchSearchProviderStatus(): Promise<SearchProviderStatusPayload> {
+  return postJson<Record<string, never>, SearchProviderStatusPayload>("/api/search/provider/check", {});
+}
+
+export async function bootstrapManagedSearchProvider(): Promise<SearchProviderActionPayload> {
+  return postJson<Record<string, never>, SearchProviderActionPayload>(
+    "/api/search/provider/bootstrap",
+    {},
+    900000,
+  );
 }
 
 export async function runSearchQuery(query: string): Promise<SearchQueryPayload> {

@@ -109,6 +109,10 @@ class ControlCenterConfig:
         return self.control_center_config_root / "search-history.json"
 
     @property
+    def search_provider_state_path(self) -> Path:
+        return self.control_center_config_root / "search-provider.json"
+
+    @property
     def knowledge_sources_path(self) -> Path:
         return self.control_center_config_root / "knowledge-sources.json"
 

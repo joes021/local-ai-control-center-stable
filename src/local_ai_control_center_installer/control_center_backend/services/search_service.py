@@ -12,10 +12,14 @@ from local_ai_control_center_installer.control_center_backend.config import (
     ControlCenterConfig,
     get_config,
 )
+from local_ai_control_center_installer.control_center_backend.services.search_provider_service import (
+    resolve_search_provider_target,
+)
 from local_ai_control_center_installer.control_center_backend.services.server_service import (
     ensure_runtime_ready,
 )
 from local_ai_control_center_installer.control_center_backend.services.settings_service import (
+    LEGACY_DEFAULT_WEB_SEARCH_BASE_URL,
     load_effective_settings_state,
 )
 from local_ai_control_center_installer.control_center_backend.services.state_helpers import (
@@ -41,7 +45,7 @@ def load_web_search_settings(
     return {
         "mode": str(settings.get("webSearchMode", "off") or "off"),
         "provider": str(settings.get("webSearchProvider", "searxng") or "searxng"),
-        "baseUrl": str(settings.get("webSearchBaseUrl", "http://127.0.0.1:8080") or "http://127.0.0.1:8080"),
+        "baseUrl": str(settings.get("webSearchBaseUrl", "") or ""),
         "maxResults": int(settings.get("webSearchMaxResults", 5) or 5),
         "timeoutSeconds": int(settings.get("webSearchTimeoutSeconds", SEARCH_REQUEST_TIMEOUT_FALLBACK_SECONDS) or SEARCH_REQUEST_TIMEOUT_FALLBACK_SECONDS),
         "promptPrefix": str(settings.get("webSearchPromptPrefix", "/web") or "/web"),
@@ -58,6 +62,7 @@ def perform_search_query(
 ) -> dict[str, Any]:
     config = config or get_config()
     settings = load_web_search_settings(config)
+    target = resolve_search_provider_target(config)
     normalized_query = str(query or "").strip()
     if not normalized_query:
         return _search_error_payload(
@@ -65,8 +70,14 @@ def perform_search_query(
             summary="Search query je prazan.",
             settings=settings,
         )
+    if not target["effectiveBaseUrl"]:
+        return _search_error_payload(
+            query=normalized_query,
+            summary="SearxNG nije podesen. Pokreni Setup local SearxNG ili unesi pravi base URL.",
+            settings=settings,
+        )
 
-    request_url = _build_searxng_request_url(str(settings["baseUrl"]), normalized_query)
+    request_url = _build_searxng_request_url(str(target["effectiveBaseUrl"]), normalized_query)
     request = Request(
         request_url,
         headers={"Accept": "application/json"},
@@ -91,6 +102,12 @@ def perform_search_query(
             settings=settings,
         )
     except (OSError, URLError, TimeoutError, json.JSONDecodeError) as exc:
+        if target["source"] == "legacy-default" and str(target["effectiveBaseUrl"]).rstrip("/") == LEGACY_DEFAULT_WEB_SEARCH_BASE_URL.rstrip("/"):
+            return _search_error_payload(
+                query=normalized_query,
+                summary="Legacy 127.0.0.1:8080 vise se ne smatra podrazumevanim SearxNG endpointom. Pokreni Setup local SearxNG ili unesi pravi base URL.",
+                settings=settings,
+            )
         return _search_error_payload(
             query=normalized_query,
             summary=f"SearxNG query nije uspeo: {exc}",
@@ -347,7 +364,7 @@ def _normalize_searxng_results(
 
 
 def _build_searxng_request_url(base_url: str, query: str) -> str:
-    normalized_base = str(base_url or "").strip() or "http://127.0.0.1:8080"
+    normalized_base = str(base_url or "").strip()
     split = urlsplit(normalized_base)
     scheme = split.scheme or "http"
     netloc = split.netloc or split.path

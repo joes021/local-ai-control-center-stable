@@ -531,6 +531,7 @@ export type SettingsPayload = {
   webSearchMaxResults: number;
   webSearchTimeoutSeconds: number;
   webSearchPromptPrefix: string;
+  searchProviderStatus: SearchProviderStatusPayload;
   builtInSettingsProfiles: SettingsProfilePreset[];
   userSettingsProfiles: SettingsProfilePreset[];
   selectedSettingsProfileId: string;
@@ -662,6 +663,33 @@ export type SearchSettingsSnapshot = {
   promptPrefix: string;
 };
 
+export type SearchProviderStatusPayload = {
+  status: string;
+  label: string;
+  summary: string;
+  source: string;
+  configuredBaseUrl: string;
+  effectiveBaseUrl: string;
+  serviceLabel: string;
+  canQuery: boolean;
+  canBootstrap: boolean;
+  bootstrapSummary: string;
+  managed: {
+    enabled: boolean;
+    baseUrl: string;
+    distro: string;
+    port: number;
+    repoPath: string;
+    venvPath: string;
+    settingsPath: string;
+    logPath: string;
+    pidPath: string;
+    lastBootstrapAt: string;
+    lastBootstrapStatus: string;
+    lastBootstrapMessage: string;
+  };
+};
+
 export type SearchHistoryItem = {
   query: string;
   mode: string;
@@ -672,6 +700,12 @@ export type SearchHistoryItem = {
 export type SearchSummaryPayload = {
   settings: SearchSettingsSnapshot;
   history: SearchHistoryItem[];
+  providerStatus: SearchProviderStatusPayload;
+};
+
+export type SearchProviderActionPayload = {
+  result: ActionResult;
+  providerStatus: SearchProviderStatusPayload;
 };
 
 export type SearchQueryPayload = {

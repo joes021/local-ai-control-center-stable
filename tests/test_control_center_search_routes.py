@@ -86,6 +86,42 @@ def test_search_routes_expose_settings_history_query_and_answer(tmp_path: Path, 
             },
         },
     )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.routes.search.load_search_provider_status",
+        lambda **kwargs: {
+            "status": "healthy",
+            "label": "Healthy",
+            "summary": "Managed SearxNG radi.",
+            "source": "manual",
+            "serviceLabel": "SearxNG",
+            "configuredBaseUrl": "http://127.0.0.1:18080",
+            "effectiveBaseUrl": "http://127.0.0.1:18080",
+            "canQuery": True,
+            "canBootstrap": True,
+        },
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.routes.search.bootstrap_search_provider",
+        lambda **kwargs: {
+            "result": {
+                "status": "ok",
+                "action": "bootstrap-search-provider",
+                "summary": "Managed SearxNG je podignut.",
+                "details": {"returncode": 0, "stdout": "", "stderr": ""},
+            },
+            "providerStatus": {
+                "status": "healthy",
+                "label": "Healthy",
+                "summary": "Managed SearxNG radi.",
+                "source": "managed",
+                "serviceLabel": "SearxNG",
+                "configuredBaseUrl": "",
+                "effectiveBaseUrl": "http://127.0.0.1:18083/search",
+                "canQuery": True,
+                "canBootstrap": True,
+            },
+        },
+    )
 
     client = TestClient(app)
 
@@ -94,6 +130,7 @@ def test_search_routes_expose_settings_history_query_and_answer(tmp_path: Path, 
     assert summary.json()["settings"]["mode"] == "on-demand"
     assert summary.json()["settings"]["baseUrl"] == "http://127.0.0.1:18080"
     assert summary.json()["history"] == []
+    assert summary.json()["providerStatus"]["status"] == "healthy"
 
     query_response = client.post("/api/search/query", json={"query": "qwen3.6 browser"})
     assert query_response.status_code == 200
@@ -104,3 +141,12 @@ def test_search_routes_expose_settings_history_query_and_answer(tmp_path: Path, 
     assert answer_response.status_code == 200
     assert answer_response.json()["answer"] == "Odgovor iz lokalnog modela."
     assert answer_response.json()["answerRuntime"] == "llama.cpp"
+
+    check_response = client.post("/api/search/provider/check")
+    assert check_response.status_code == 200
+    assert check_response.json()["status"] == "healthy"
+
+    bootstrap_response = client.post("/api/search/provider/bootstrap")
+    assert bootstrap_response.status_code == 200
+    assert bootstrap_response.json()["result"]["status"] == "ok"
+    assert bootstrap_response.json()["providerStatus"]["source"] == "managed"

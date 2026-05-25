@@ -287,7 +287,10 @@ ALLOWED_CAPABILITY_MODES = {
 ALLOWED_PROFILES = {"speed", "balanced", "video"}
 ALLOWED_WEB_SEARCH_MODES = {"off", "on-demand", "always"}
 ALLOWED_WEB_SEARCH_PROVIDERS = {"searxng"}
-DEFAULT_WEB_SEARCH_BASE_URL = "http://127.0.0.1:8080"
+LEGACY_DEFAULT_WEB_SEARCH_BASE_URL = "http://127.0.0.1:8080"
+ALLOWED_WEB_SEARCH_BASE_URL_MODES = {"managed-auto", "manual"}
+DEFAULT_WEB_SEARCH_BASE_URL_MODE = "managed-auto"
+DEFAULT_WEB_SEARCH_BASE_URL = ""
 DEFAULT_WEB_SEARCH_MAX_RESULTS = 5
 DEFAULT_WEB_SEARCH_TIMEOUT_SECONDS = 20
 DEFAULT_WEB_SEARCH_PROMPT_PREFIX = "/web"
@@ -375,11 +378,13 @@ def load_effective_settings_state(
 
 def load_settings_payload(
     config: ControlCenterConfig | None = None,
+    *,
+    include_search_provider_status: bool = True,
 ) -> dict[str, object]:
     config = config or get_config()
     effective = load_effective_settings_state(config)
     profile_catalog = load_settings_profile_catalog(config, effective_settings=effective)
-    return {
+    payload = {
         "profile": effective["profile"],
         "context": effective["context"],
         "outputTokens": effective["outputTokens"],
@@ -405,6 +410,13 @@ def load_settings_payload(
         "selectedSettingsProfileId": profile_catalog["selectedProfileId"],
         "selectedSettingsProfileName": profile_catalog["selectedProfileName"],
     }
+    if include_search_provider_status:
+        from local_ai_control_center_installer.control_center_backend.services.search_provider_service import (
+            load_search_provider_status,
+        )
+
+        payload["searchProviderStatus"] = load_search_provider_status(config)
+    return payload
 
 
 def apply_settings(
@@ -412,13 +424,20 @@ def apply_settings(
     config: ControlCenterConfig | None = None,
 ) -> dict[str, object]:
     config = config or get_config()
+    normalized_payload = dict(payload)
+    if "webSearchBaseUrl" in normalized_payload and "webSearchBaseUrlMode" not in normalized_payload:
+        normalized_payload["webSearchBaseUrlMode"] = (
+            "manual"
+            if str(normalized_payload.get("webSearchBaseUrl", "") or "").strip()
+            else DEFAULT_WEB_SEARCH_BASE_URL_MODE
+        )
     scope = str(payload.get("settingsScope", "global") or "global").strip().lower()
     current_global = _normalize_global_settings(
         read_json_object(config.settings_path),
         config=config,
     )
     normalized = _normalize_settings_payload(
-        payload,
+        normalized_payload,
         config=config,
         current=current_global,
         respect_explicit_steps=False,
@@ -453,12 +472,19 @@ def apply_opencode_settings(
     config: ControlCenterConfig | None = None,
 ) -> dict[str, object]:
     config = config or get_config()
+    normalized_payload = dict(payload)
+    if "webSearchBaseUrl" in normalized_payload and "webSearchBaseUrlMode" not in normalized_payload:
+        normalized_payload["webSearchBaseUrlMode"] = (
+            "manual"
+            if str(normalized_payload.get("webSearchBaseUrl", "") or "").strip()
+            else DEFAULT_WEB_SEARCH_BASE_URL_MODE
+        )
     current_global = _normalize_global_settings(
         read_json_object(config.settings_path),
         config=config,
     )
     normalized = _normalize_settings_payload(
-        payload,
+        normalized_payload,
         config=config,
         current=current_global,
         respect_explicit_steps=True,
@@ -780,6 +806,7 @@ def _normalize_global_settings(
         "capabilityMode": "confirm-commands",
         "webSearchMode": "off",
         "webSearchProvider": "searxng",
+        "webSearchBaseUrlMode": DEFAULT_WEB_SEARCH_BASE_URL_MODE,
         "webSearchBaseUrl": DEFAULT_WEB_SEARCH_BASE_URL,
         "webSearchMaxResults": DEFAULT_WEB_SEARCH_MAX_RESULTS,
         "webSearchTimeoutSeconds": DEFAULT_WEB_SEARCH_TIMEOUT_SECONDS,
@@ -859,12 +886,36 @@ def _normalize_settings_payload(
     if normalized_web_search_provider not in ALLOWED_WEB_SEARCH_PROVIDERS:
         normalized_web_search_provider = str(current.get("webSearchProvider", "searxng"))
 
-    web_search_base_url = str(
+    raw_web_search_base_url = str(
         payload.get("webSearchBaseUrl", current.get("webSearchBaseUrl", DEFAULT_WEB_SEARCH_BASE_URL))
         or current.get("webSearchBaseUrl", DEFAULT_WEB_SEARCH_BASE_URL)
     ).strip()
-    if not web_search_base_url:
-        web_search_base_url = DEFAULT_WEB_SEARCH_BASE_URL
+    normalized_web_search_base_url_mode = str(
+        payload.get(
+            "webSearchBaseUrlMode",
+            current.get("webSearchBaseUrlMode", DEFAULT_WEB_SEARCH_BASE_URL_MODE),
+        )
+        or current.get("webSearchBaseUrlMode", DEFAULT_WEB_SEARCH_BASE_URL_MODE)
+    ).strip().lower()
+    if normalized_web_search_base_url_mode not in ALLOWED_WEB_SEARCH_BASE_URL_MODES:
+        normalized_web_search_base_url_mode = DEFAULT_WEB_SEARCH_BASE_URL_MODE
+
+    if (
+        "webSearchBaseUrlMode" not in payload
+        and raw_web_search_base_url.rstrip("/") == LEGACY_DEFAULT_WEB_SEARCH_BASE_URL.rstrip("/")
+    ):
+        normalized_web_search_base_url_mode = DEFAULT_WEB_SEARCH_BASE_URL_MODE
+        web_search_base_url = ""
+    else:
+        if "webSearchBaseUrl" in payload:
+            normalized_web_search_base_url_mode = (
+                "manual" if raw_web_search_base_url else DEFAULT_WEB_SEARCH_BASE_URL_MODE
+            )
+        web_search_base_url = (
+            raw_web_search_base_url
+            if normalized_web_search_base_url_mode == "manual"
+            else ""
+        )
 
     web_search_prompt_prefix = str(
         payload.get("webSearchPromptPrefix", current.get("webSearchPromptPrefix", DEFAULT_WEB_SEARCH_PROMPT_PREFIX))
@@ -910,6 +961,7 @@ def _normalize_settings_payload(
         "capabilityMode": normalized_capability_mode,
         "webSearchMode": normalized_web_search_mode,
         "webSearchProvider": normalized_web_search_provider,
+        "webSearchBaseUrlMode": normalized_web_search_base_url_mode,
         "webSearchBaseUrl": web_search_base_url,
         "webSearchMaxResults": _positive_int(
             payload.get("webSearchMaxResults"),

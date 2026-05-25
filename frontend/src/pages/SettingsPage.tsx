@@ -4,8 +4,10 @@ import { ActionResultPanel } from "../components/ActionResultPanel";
 import { CustomSelect } from "../components/CustomSelect";
 import {
   applySettings,
+  bootstrapManagedSearchProvider,
   deleteSettingsProfile,
   deleteTurboQuantPreset,
+  fetchSearchProviderStatus,
   fetchSettings,
   fetchTurboQuantSchema,
   pickWorkingDirectory,
@@ -15,6 +17,7 @@ import {
 } from "../lib/api";
 import type {
   ActionResult,
+  SearchProviderStatusPayload,
   SettingsPayload,
   SettingsProfilePreset,
   SettingsProfileValues,
@@ -137,6 +140,7 @@ export function SettingsPage() {
   const [presetNotes, setPresetNotes] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ActionResult | null>(null);
+  const [providerBusy, setProviderBusy] = useState<"" | "check" | "setup">("");
 
   async function reload() {
     const [settingsPayload, schemaPayload] = await Promise.all([
@@ -201,6 +205,17 @@ export function SettingsPage() {
   ];
   const contextChoice = resolveTokenChoice(settings.context);
   const outputTokensChoice = resolveTokenChoice(settings.outputTokens);
+
+  function updateProviderStatus(nextStatus: SearchProviderStatusPayload) {
+    setSettings((current) =>
+      current
+        ? {
+            ...current,
+            searchProviderStatus: nextStatus,
+          }
+        : current,
+    );
+  }
 
   return (
     <div className="settings-page">
@@ -510,6 +525,71 @@ export function SettingsPage() {
           </article>
 
           <article className="settings-field settings-field-wide">
+            <span className="settings-field-label">SearxNG provider</span>
+            <strong className="status-value">{settings.searchProviderStatus.label}</strong>
+            <p className="helper-text">{settings.searchProviderStatus.summary}</p>
+            <div className="summary-metrics">
+              <span>Source: {settings.searchProviderStatus.source || "--"}</span>
+              <span>Configured URL: {settings.searchProviderStatus.configuredBaseUrl || "--"}</span>
+              <span>Effective URL: {settings.searchProviderStatus.effectiveBaseUrl || "--"}</span>
+              <span>Service: {settings.searchProviderStatus.serviceLabel || "--"}</span>
+            </div>
+            <div className="settings-action-row">
+              <button
+                type="button"
+                disabled={providerBusy !== ""}
+                onClick={async () => {
+                  setProviderBusy("check");
+                  try {
+                    const providerStatus = await fetchSearchProviderStatus();
+                    updateProviderStatus(providerStatus);
+                    setResult({
+                      status: providerStatus.status === "healthy" ? "ok" : "error",
+                      action: "check-search-provider",
+                      summary: providerStatus.summary,
+                      details: {
+                        returncode: providerStatus.status === "healthy" ? 0 : 1,
+                        stdout: providerStatus.status === "healthy" ? providerStatus.summary : "",
+                        stderr: providerStatus.status === "healthy" ? "" : providerStatus.summary,
+                      },
+                    });
+                  } finally {
+                    setProviderBusy("");
+                  }
+                }}
+              >
+                {providerBusy === "check" ? "Checking..." : "Check health"}
+              </button>
+              <button
+                type="button"
+                disabled={providerBusy !== "" || settings.searchProviderStatus.canBootstrap === false}
+                title={
+                  settings.searchProviderStatus.canBootstrap
+                    ? undefined
+                    : settings.searchProviderStatus.bootstrapSummary
+                }
+                onClick={async () => {
+                  setProviderBusy("setup");
+                  try {
+                    const payload = await bootstrapManagedSearchProvider();
+                    updateProviderStatus(payload.providerStatus);
+                    setResult(payload.result);
+                    await reload();
+                  } finally {
+                    setProviderBusy("");
+                  }
+                }}
+              >
+                {providerBusy === "setup" ? "Setting up..." : "Setup local SearxNG"}
+              </button>
+            </div>
+            <p className="helper-text">
+              Manualni URL mozes ostaviti praznim ako hoces da aplikacija koristi managed lokalni
+              SearxNG posle setup-a.
+            </p>
+          </article>
+
+          <article className="settings-field settings-field-wide">
             <span className="settings-field-label">Web search mode</span>
             <div className="settings-control-block">
               <CustomSelect
@@ -535,7 +615,7 @@ export function SettingsPage() {
           </article>
 
           <article className="settings-field settings-field-wide">
-            <span className="settings-field-label">SearxNG base URL</span>
+            <span className="settings-field-label">Manual SearxNG base URL</span>
             <div className="settings-path-row">
               <input
                 className="settings-path-input"
@@ -548,6 +628,10 @@ export function SettingsPage() {
                 }
               />
             </div>
+            <p className="helper-text">
+              Ostavi prazno ako hoces da Search koristi managed lokalni SearxNG koji aplikacija sama
+              podigne.
+            </p>
           </article>
 
           <article className="settings-field">

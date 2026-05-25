@@ -4,6 +4,9 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from local_ai_control_center_installer.control_center_backend.main import app
+from local_ai_control_center_installer.control_center_backend.services.settings_service import (
+    LEGACY_DEFAULT_WEB_SEARCH_BASE_URL,
+)
 
 
 def _write_active_model_config(install_root: Path) -> None:
@@ -45,10 +48,11 @@ def test_settings_route_persists_global_defaults_and_model_override(
     assert initial.json()["userSettingsProfiles"] == []
     assert initial.json()["webSearchMode"] == "off"
     assert initial.json()["webSearchProvider"] == "searxng"
-    assert initial.json()["webSearchBaseUrl"] == "http://127.0.0.1:8080"
+    assert initial.json()["webSearchBaseUrl"] == ""
     assert initial.json()["webSearchMaxResults"] == 5
     assert initial.json()["webSearchTimeoutSeconds"] == 20
     assert initial.json()["webSearchPromptPrefix"] == "/web"
+    assert initial.json()["searchProviderStatus"]["status"] == "not-configured"
 
     response = client.post(
         "/api/settings/apply",
@@ -207,3 +211,76 @@ def test_settings_route_saves_and_deletes_custom_settings_profiles(
     deleted = client.get("/api/settings").json()
     assert deleted["userSettingsProfiles"] == []
     assert deleted["selectedSettingsProfileId"] == "custom"
+
+
+def test_settings_route_migrates_legacy_default_search_url_to_unconfigured_state(
+    tmp_path: Path,
+    monkeypatch,
+):
+    install_root = tmp_path / "install-root"
+    _write_active_model_config(install_root)
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+
+    settings_path = install_root / "config" / "control-center" / "settings.json"
+    settings_path.parent.mkdir(parents=True, exist_ok=True)
+    settings_path.write_text(
+        json.dumps(
+            {
+                "profile": "balanced",
+                "context": 262144,
+                "outputTokens": 8192,
+                "workingDirectory": str(install_root),
+                "thinkingMode": "mid",
+                "buildSteps": 140,
+                "planSteps": 100,
+                "generalSteps": 110,
+                "exploreSteps": 80,
+                "accessMode": "local-only",
+                "webSearchMode": "off",
+                "webSearchProvider": "searxng",
+                "webSearchBaseUrl": LEGACY_DEFAULT_WEB_SEARCH_BASE_URL,
+                "webSearchMaxResults": 5,
+                "webSearchTimeoutSeconds": 20,
+                "webSearchPromptPrefix": "/web",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    client = TestClient(app)
+    payload = client.get("/api/settings").json()
+
+    assert payload["webSearchBaseUrl"] == ""
+    assert payload["searchProviderStatus"]["status"] == "not-configured"
+    assert payload["searchProviderStatus"]["configuredBaseUrl"] == ""
+
+    save_response = client.post(
+        "/api/settings/apply",
+        json={
+            "profile": payload["profile"],
+            "context": payload["context"],
+            "outputTokens": payload["outputTokens"],
+            "workingDirectory": payload["workingDirectory"],
+            "thinkingMode": payload["thinkingMode"],
+            "buildSteps": payload["buildSteps"],
+            "planSteps": payload["planSteps"],
+            "generalSteps": payload["generalSteps"],
+            "exploreSteps": payload["exploreSteps"],
+            "settingsScope": "global",
+            "activeModelId": payload["activeModelId"],
+            "activeModelLabel": payload["activeModelLabel"],
+            "modelOverrideExists": payload["modelOverrideExists"],
+            "accessMode": payload["accessMode"],
+            "webSearchMode": payload["webSearchMode"],
+            "webSearchProvider": payload["webSearchProvider"],
+            "webSearchBaseUrl": "http://127.0.0.1:8080",
+            "webSearchMaxResults": payload["webSearchMaxResults"],
+            "webSearchTimeoutSeconds": payload["webSearchTimeoutSeconds"],
+            "webSearchPromptPrefix": payload["webSearchPromptPrefix"],
+        },
+    )
+    assert save_response.status_code == 200
+    assert save_response.json()["status"] == "ok"
+
+    reloaded = client.get("/api/settings").json()
+    assert reloaded["webSearchBaseUrl"] == "http://127.0.0.1:8080"
