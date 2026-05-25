@@ -204,8 +204,9 @@ def test_app_source_and_packaged_frontend_include_search_navigation():
 
     assert "Search workspace" in bundled_text
     assert "Answer with local model" in bundled_text
-    assert "Setup local SearxNG" in bundled_text
+    assert "Setup managed SearxNG (Windows + WSL)" in bundled_text
     assert "SearxNG nije podesen" in bundled_text
+    assert "Managed local SearxNG (Windows + WSL)" in bundled_text
 
 
 def test_app_source_and_packaged_frontend_include_knowledge_navigation():
@@ -235,8 +236,9 @@ def test_settings_and_opencode_source_include_web_search_controls_and_guidance()
     opencode_source = Path("frontend/src/pages/OpenCodePage.tsx").read_text(encoding="utf-8")
 
     assert "Web search mode" in settings_source
-    assert "Manual SearxNG base URL" in settings_source
-    assert "Setup local SearxNG" in settings_source
+    assert "Manual SearxNG base URL (optional, no WSL)" in settings_source
+    assert "Setup managed SearxNG (Windows + WSL)" in settings_source
+    assert "Managed local SearxNG (Windows + WSL)" in settings_source
     assert "Search results limit" in settings_source
     assert "On-demand prefix" in settings_source
     assert "local-lacc" in settings_source

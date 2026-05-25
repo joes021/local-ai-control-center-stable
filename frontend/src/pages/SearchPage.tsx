@@ -98,7 +98,9 @@ export function SearchPage({ onOpenSettings }: SearchPageProps) {
 
       <section className="status-card wide-card">
         <span className="status-label">SearxNG provider</span>
-        <strong className="status-value">{summary.providerStatus.label}</strong>
+        <strong className="status-value">
+          Managed local SearxNG (Windows + WSL): {summary.providerStatus.label}
+        </strong>
         <p className="helper-text">{summary.providerStatus.summary}</p>
         <div className="summary-metrics">
           <span>Source: {summary.providerStatus.source || "--"}</span>
@@ -145,11 +147,13 @@ export function SearchPage({ onOpenSettings }: SearchPageProps) {
               }
             }}
           >
-            {providerBusy === "setup" ? "Setting up..." : "Setup local SearxNG"}
+            {providerBusy === "setup"
+              ? "Setting up managed SearxNG..."
+              : "Setup managed SearxNG (Windows + WSL)"}
           </button>
           {onOpenSettings ? (
             <button type="button" className="secondary-button" onClick={onOpenSettings}>
-              Open Settings
+              Open Search settings
             </button>
           ) : null}
         </div>
@@ -157,6 +161,10 @@ export function SearchPage({ onOpenSettings }: SearchPageProps) {
         {summary.providerStatus.canBootstrap === false ? (
           <p className="helper-text">{summary.providerStatus.bootstrapSummary}</p>
         ) : null}
+        <p className="helper-text">
+          Managed setup koristi WSL da lokalno podigne SearxNG. Ako ne zelis taj put, unesi rucni
+          SearxNG URL u Settings.
+        </p>
         <p className="helper-text">
           Ako provider status kaze `SearxNG nije podesen`, Search i local answer ostaju ugaseni dok
           ne podignes lokalni provider ili ne upises pravi endpoint.
@@ -219,8 +227,8 @@ export function SearchPage({ onOpenSettings }: SearchPageProps) {
         </p>
         {summary.providerStatus.canQuery === false ? (
           <p className="helper-text">
-            Search akcije su trenutno ugasene dok provider nije zdrav. Ako hoces lokalni bootstrap,
-            klikni `Setup local SearxNG`.
+            Search akcije su trenutno ugasene dok provider nije zdrav. Ako hoces managed local
+            provider, klikni `Setup managed SearxNG (Windows + WSL)`.
           </p>
         ) : null}
       </section>

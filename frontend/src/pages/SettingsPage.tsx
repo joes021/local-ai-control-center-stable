@@ -525,7 +525,7 @@ export function SettingsPage() {
           </article>
 
           <article className="settings-field settings-field-wide">
-            <span className="settings-field-label">SearxNG provider</span>
+            <span className="settings-field-label">Managed local SearxNG (Windows + WSL)</span>
             <strong className="status-value">{settings.searchProviderStatus.label}</strong>
             <p className="helper-text">{settings.searchProviderStatus.summary}</p>
             <div className="summary-metrics">
@@ -580,12 +580,14 @@ export function SettingsPage() {
                   }
                 }}
               >
-                {providerBusy === "setup" ? "Setting up..." : "Setup local SearxNG"}
+                {providerBusy === "setup"
+                  ? "Setting up managed SearxNG..."
+                  : "Setup managed SearxNG (Windows + WSL)"}
               </button>
             </div>
             <p className="helper-text">
-              Manualni URL mozes ostaviti praznim ako hoces da aplikacija koristi managed lokalni
-              SearxNG posle setup-a.
+              Ovaj automatski setup koristi WSL da lokalno podigne SearxNG. Manualni URL ispod je
+              odvojeni rezim i ne zahteva WSL.
             </p>
           </article>
 
@@ -615,7 +617,7 @@ export function SettingsPage() {
           </article>
 
           <article className="settings-field settings-field-wide">
-            <span className="settings-field-label">Manual SearxNG base URL</span>
+            <span className="settings-field-label">Manual SearxNG base URL (optional, no WSL)</span>
             <div className="settings-path-row">
               <input
                 className="settings-path-input"
@@ -630,7 +632,7 @@ export function SettingsPage() {
             </div>
             <p className="helper-text">
               Ostavi prazno ako hoces da Search koristi managed lokalni SearxNG koji aplikacija sama
-              podigne.
+              podigne preko WSL-a.
             </p>
           </article>
 
