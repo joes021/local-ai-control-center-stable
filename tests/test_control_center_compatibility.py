@@ -1,6 +1,9 @@
 from fastapi.testclient import TestClient
 
 from local_ai_control_center_installer.control_center_backend.main import app
+from local_ai_control_center_installer.control_center_backend.services.compatibility_service import (
+    calculate_compatibility,
+)
 
 
 def test_compatibility_check_route_passes_catalog_model_id():
@@ -42,3 +45,140 @@ def test_compatibility_apply_route_returns_result_and_updated_payload():
     assert response.status_code == 200
     assert response.json() == expected
     service.assert_called_once()
+
+
+def test_calculate_compatibility_returns_runtime_breakdown_and_best_runtime():
+    payload = calculate_compatibility(
+        {
+            "id": "unsloth/demo.gguf",
+            "label": "Demo Q4",
+            "quantization": "Q4_K_M",
+            "approxSizeGiB": 5.6,
+            "minimumVramGiB": 4.8,
+            "recommendedVramGiB": 6.2,
+            "minimumRamGiB": 10.0,
+            "contextWindow": 131072,
+            "defaultOutputTokens": 4096,
+        },
+        system_info={
+            "ramGiB": 32.0,
+            "vramGiB": 12.0,
+            "turboQuantAvailable": True,
+            "context": 131072,
+            "outputTokens": 4096,
+            "turboQuantConfig": {
+                "ctk": "turbo4",
+                "ctv": "turbo3",
+                "ncmoe": 20,
+                "runtimePreference": "turboquant",
+            },
+        },
+    )
+
+    assert payload["bestRuntime"] in {"llama.cpp", "turboquant"}
+    assert payload["bestRuntimeLabel"] in {"llama.cpp", "TurboQuant"}
+    assert payload["overallFitStatus"] in {"radi", "granicno", "ne radi"}
+    assert payload["overallFitLabel"]
+    runtime_breakdown = payload["runtimeBreakdown"]
+    assert set(runtime_breakdown) == {"llama.cpp", "turboquant"}
+    assert runtime_breakdown["llama.cpp"]["fitStatus"] in {"radi", "granicno", "ne radi"}
+    assert runtime_breakdown["turboquant"]["fitStatus"] in {"radi", "granicno", "ne radi"}
+    assert "outputPressure" in payload["memoryBudget"]
+    assert "headroomGiB" in payload["memoryBudget"]["vram"]
+
+
+def test_calculate_compatibility_marks_mtp_as_not_working_for_turboquant():
+    payload = calculate_compatibility(
+        {
+            "id": "unsloth/Qwen3.6-35B-A3B-MTP-GGUF/Qwen3.6-35B-A3B-UD-IQ2_XXS.gguf",
+            "label": "Qwen3.6-35B-A3B-UD-IQ2_XXS.gguf",
+            "quantization": "IQ2_XXS",
+            "approxSizeGiB": 10.0,
+            "minimumVramGiB": 8.0,
+            "recommendedVramGiB": 10.0,
+            "minimumRamGiB": 18.0,
+            "contextWindow": 262144,
+            "defaultOutputTokens": 4096,
+        },
+        system_info={
+            "ramGiB": 64.0,
+            "vramGiB": 24.0,
+            "turboQuantAvailable": True,
+            "context": 131072,
+            "outputTokens": 4096,
+            "turboQuantConfig": {
+                "ctk": "turbo4",
+                "ctv": "turbo3",
+                "ncmoe": 30,
+                "runtimePreference": "turboquant",
+            },
+        },
+    )
+
+    assert payload["runtimeBreakdown"]["turboquant"]["fitStatus"] == "ne radi"
+    assert "MTP" in payload["runtimeBreakdown"]["turboquant"]["summary"]
+
+
+def test_calculate_compatibility_raises_pressure_for_large_context_and_output():
+    payload = calculate_compatibility(
+        {
+            "id": "unsloth/demo-large.gguf",
+            "label": "Demo Large Q4",
+            "quantization": "Q4_K_M",
+            "approxSizeGiB": 11.0,
+            "minimumVramGiB": 8.0,
+            "recommendedVramGiB": 12.0,
+            "minimumRamGiB": 20.0,
+            "contextWindow": 262144,
+            "defaultOutputTokens": 4096,
+        },
+        system_info={
+            "ramGiB": 32.0,
+            "vramGiB": 12.0,
+            "turboQuantAvailable": True,
+            "context": 262144,
+            "outputTokens": 8192,
+            "turboQuantConfig": {
+                "ctk": "turbo4",
+                "ctv": "turbo3",
+                "ncmoe": 20,
+                "runtimePreference": "turboquant",
+            },
+        },
+    )
+
+    assert payload["memoryBudget"]["contextPressure"]["level"] in {"medium", "high"}
+    assert payload["memoryBudget"]["outputPressure"]["level"] in {"medium", "high"}
+    assert payload["runtimeBreakdown"]["llama.cpp"]["fitStatus"] in {"granicno", "ne radi"}
+
+
+def test_calculate_compatibility_marks_turboquant_unavailable_when_installation_lacks_it():
+    payload = calculate_compatibility(
+        {
+            "id": "unsloth/demo.gguf",
+            "label": "Demo Q4",
+            "quantization": "Q4_K_M",
+            "approxSizeGiB": 5.6,
+            "minimumVramGiB": 4.8,
+            "recommendedVramGiB": 6.2,
+            "minimumRamGiB": 10.0,
+            "contextWindow": 131072,
+            "defaultOutputTokens": 4096,
+        },
+        system_info={
+            "ramGiB": 32.0,
+            "vramGiB": 12.0,
+            "turboQuantAvailable": False,
+            "context": 131072,
+            "outputTokens": 4096,
+            "turboQuantConfig": {
+                "ctk": "turbo4",
+                "ctv": "turbo3",
+                "ncmoe": 20,
+                "runtimePreference": "turboquant",
+            },
+        },
+    )
+
+    assert payload["runtimeBreakdown"]["turboquant"]["fitStatus"] == "ne radi"
+    assert "nije dostupan" in payload["runtimeBreakdown"]["turboquant"]["summary"].lower()

@@ -73,6 +73,7 @@ def test_load_benchmark_summary_reads_installer_managed_history_and_defaults(
     tmp_path: Path,
     monkeypatch,
 ):
+    from local_ai_control_center_installer.control_center_backend.services import benchmark_service
     from local_ai_control_center_installer.control_center_backend.services.benchmark_service import (
         load_benchmark_summary,
     )
@@ -133,6 +134,17 @@ def test_load_benchmark_summary_reads_installer_managed_history_and_defaults(
     )
     (install_root / "logs").mkdir(parents=True, exist_ok=True)
     (install_root / "logs" / "runtime-server.log").write_text("line-1\nline-2\n", encoding="utf-8")
+    monkeypatch.setattr(
+        benchmark_service,
+        "load_runtime_state",
+        lambda config=None: {
+            "active_model_id": "recommended-6gb",
+            "active_model": "gemma-4-E4B-it-Q4_K_M.gguf",
+            "active_runtime": "llama.cpp",
+            "runtime_live_status": "stopped",
+            "runtime_live_reason": "Runtime trenutno nije pokrenut.",
+        },
+    )
 
     payload = load_benchmark_summary()
 

@@ -27,3 +27,10 @@ def test_build_windows_installer_script_packages_repo_data_instead_of_site_packa
     assert "frontend_dist" in script
     assert "turboquant_sidecars" in script
     assert "manifests" in script
+
+
+def test_windows_installer_entry_prefers_repo_src_before_importing_package():
+    entry_script = Path("packaging/windows_installer_entry.py").read_text(encoding="utf-8")
+
+    assert 'Path(__file__).resolve().parents[1] / "src"' in entry_script
+    assert "sys.path.insert(0, str(_REPO_SRC))" in entry_script

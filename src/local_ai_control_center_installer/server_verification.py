@@ -60,15 +60,39 @@ def is_managed_runtime_port_owned_by_installation(
     except OSError:
         return False
 
-    if actual_executable != expected_executable:
-        return False
-
     try:
-        actual_executable.relative_to(expected_root)
+        actual_relative_path = actual_executable.relative_to(expected_root)
     except ValueError:
         return False
 
-    return True
+    if actual_executable == expected_executable:
+        return True
+
+    return _is_known_managed_runtime_relative_path(
+        actual_relative_path,
+        expected_executable_name=expected_executable.name,
+    )
+
+
+def _is_known_managed_runtime_relative_path(
+    relative_path: Path,
+    *,
+    expected_executable_name: str,
+) -> bool:
+    parts = [part.strip().lower() for part in relative_path.parts if part.strip()]
+    if not parts:
+        return False
+
+    if parts[-1] != expected_executable_name.strip().lower():
+        return False
+
+    if len(parts) >= 3 and parts[:2] == ["runtime", "llama.cpp"]:
+        return True
+
+    if len(parts) >= 4 and parts[:2] == ["tools", "turboquant"]:
+        return True
+
+    return False
 
 
 def stop_managed_runtime_on_port(

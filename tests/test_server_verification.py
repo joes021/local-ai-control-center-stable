@@ -5,6 +5,7 @@ from unittest.mock import patch
 from local_ai_control_center_installer.server_verification import (
     _cleanup_server_process,
     apply_server_verification,
+    is_managed_runtime_port_owned_by_installation,
     probe_server_health,
     stop_managed_runtime_on_port,
     stop_server_process,
@@ -259,6 +260,36 @@ def test_apply_server_verification_fails_when_foreign_process_owns_managed_port(
     assert updated.verified_server_url == "http://127.0.0.1:39281"
     assert updated.failing_step == "server-port-bind"
     assert "occupied by another process" in (updated.error_message or "").lower()
+
+
+def test_is_managed_runtime_port_owned_by_installation_accepts_turboquant_binary_from_same_install_root(
+    tmp_path: Path,
+):
+    install_root = tmp_path / "install-root"
+    runtime_root = install_root / "runtime" / "llama.cpp"
+    turbo_root = install_root / "tools" / "turboquant" / "windows-x64-cuda12.4"
+    runtime_root.mkdir(parents=True)
+    turbo_root.mkdir(parents=True)
+    runtime_executable = runtime_root / "llama-server.exe"
+    turbo_executable = turbo_root / "llama-server.exe"
+    runtime_executable.write_text("", encoding="utf-8")
+    turbo_executable.write_text("", encoding="utf-8")
+
+    with patch(
+        "local_ai_control_center_installer.server_verification._find_listening_pid_on_loopback_port",
+        return_value=5150,
+    ), patch(
+        "local_ai_control_center_installer.server_verification._load_process_details",
+        return_value=(str(turbo_executable.resolve()), str(turbo_executable.resolve())),
+    ):
+        assert (
+            is_managed_runtime_port_owned_by_installation(
+                39281,
+                runtime_executable,
+                install_root,
+            )
+            is True
+        )
 
 
 def test_apply_server_verification_reuses_same_owner_managed_runtime_when_requested(

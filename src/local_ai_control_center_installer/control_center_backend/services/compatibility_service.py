@@ -26,11 +26,25 @@ FIT_LABELS = {
     "nije provereno": "Nije provereno",
 }
 
+FIT_SCORES = {
+    "radi": 3,
+    "granicno": 2,
+    "ne radi": 1,
+    "nije provereno": 0,
+}
+
 SPEED_LABELS = {
     "faster": "Brze",
     "similar": "Slicno",
     "slower": "Sporije",
     "much-slower": "Mnogo sporije",
+}
+
+SPEED_SCORES = {
+    "faster": 4,
+    "similar": 3,
+    "slower": 2,
+    "much-slower": 1,
 }
 
 TURBO_FACTORS = {
@@ -103,14 +117,25 @@ def calculate_compatibility(model: dict[str, object], *, system_info: dict[str, 
             "quantization": f"Kvantizacija modela je {normalized_model['quantization']}.",
             "turboQuantEffect": "TurboQuant efekat nije mogao da se proceni.",
             "moeEffect": "MoE efekat nije mogao da se proceni.",
+            "mtpEffect": "MTP efekat nije mogao da se proceni.",
             "speed": "Brzina nije mogla da se proceni.",
         }
         return result
 
-    estimated = _estimate_budget(normalized_model, normalized_system)
-    fit_status = _derive_fit_status(estimated)
-    speed_status = _derive_speed_status(normalized_model, normalized_system, estimated)
-    recommendations = _build_recommendations(normalized_model, normalized_system, estimated, fit_status)
+    runtime_breakdown = _build_runtime_breakdown(normalized_model, normalized_system)
+    best_runtime = _select_best_runtime(runtime_breakdown, normalized_system)
+    best_runtime_key = str(best_runtime["runtime"])
+    estimated = dict(best_runtime["estimated"])
+    fit_status = str(best_runtime["fitStatus"])
+    speed_status = str(best_runtime["speedStatus"])
+    recommendations = _build_recommendations(
+        normalized_model,
+        normalized_system,
+        estimated,
+        fit_status,
+        runtime_breakdown=runtime_breakdown,
+        best_runtime=best_runtime_key,
+    )
     if len([item for item in recommendations if item.get("action")]) >= 2:
         recommendations.append(_build_apply_package(recommendations))
 
@@ -118,12 +143,16 @@ def calculate_compatibility(model: dict[str, object], *, system_info: dict[str, 
         "status": fit_status,
         "fitStatus": fit_status,
         "fitLabel": FIT_LABELS[fit_status],
+        "overallFitStatus": fit_status,
+        "overallFitLabel": FIT_LABELS[fit_status],
         "speedStatus": speed_status,
         "speedLabel": SPEED_LABELS[speed_status],
+        "bestRuntime": best_runtime_key,
+        "bestRuntimeLabel": str(best_runtime["runtimeLabel"]),
         "checkedAt": _now_iso(),
-        "summary": _build_summary(fit_status, speed_status, estimated),
-        "checks": _build_checks(normalized_model, normalized_system, estimated, fit_status, speed_status),
-        "reasoning": _build_reasoning(normalized_model, normalized_system, estimated, speed_status),
+        "summary": _build_summary(fit_status, speed_status, estimated, best_runtime_key),
+        "checks": _build_checks(normalized_model, normalized_system, estimated, fit_status, speed_status, best_runtime_key),
+        "reasoning": _build_reasoning(normalized_model, normalized_system, estimated, speed_status, best_runtime_key),
         "memoryBudget": {
             "vram": _build_budget_payload(estimated["requiredVramGiB"], vram_gib),
             "ram": _build_budget_payload(estimated["requiredRamGiB"], ram_gib),
@@ -135,6 +164,14 @@ def calculate_compatibility(model: dict[str, object], *, system_info: dict[str, 
                 "usagePercent": estimated["contextUsagePercent"],
                 "details": estimated["contextPressureReason"],
             },
+            "outputPressure": {
+                "level": estimated["outputPressureLevel"],
+                "label": estimated["outputPressureLabel"],
+                "currentOutputTokens": normalized_system["outputTokens"],
+                "defaultOutputTokens": estimated["defaultOutputTokens"],
+                "usagePercent": estimated["outputUsagePercent"],
+                "details": estimated["outputPressureReason"],
+            },
         },
         "systemSnapshot": {
             "ramGiB": ram_gib,
@@ -144,6 +181,7 @@ def calculate_compatibility(model: dict[str, object], *, system_info: dict[str, 
             "turboQuantAvailable": normalized_system["turboQuantAvailable"],
             "turboQuantConfig": dict(normalized_system["turboQuantConfig"]),
         },
+        "runtimeBreakdown": runtime_breakdown,
         "recommendations": recommendations,
     }
 
@@ -174,7 +212,7 @@ def detect_local_system_info(*, config: ControlCenterConfig | None = None) -> di
     return {
         "ramGiB": detect_ram_gib(),
         "vramGiB": detect_vram_gib(),
-        "turboQuantAvailable": True,
+        "turboQuantAvailable": _detect_packaged_turboquant_available(config),
         "context": int(settings.get("context", 262144) or 262144),
         "outputTokens": int(settings.get("outputTokens", 8192) or 8192),
         "turboQuantConfig": turbo_config,
@@ -223,6 +261,10 @@ def detect_vram_gib() -> float | None:
         return round((mib or 0) / 1024, 2) if mib is not None else None
     except Exception:  # noqa: BLE001
         return None
+
+
+def _detect_packaged_turboquant_available(config: ControlCenterConfig) -> bool:
+    return any((config.install_root / "tools" / "turboquant").glob("**/llama-server.exe"))
 
 
 def _resolve_compatibility_model(
@@ -278,6 +320,7 @@ def _normalize_model(model: dict[str, object]) -> dict[str, object]:
         ]
     ).lower()
     moe = bool(model.get("moe")) or "a3b" in combined_text or "moe" in combined_text
+    mtp = bool(model.get("mtp")) or "-mtp" in combined_text or " mtp " in combined_text
     turboquant_ready = bool(model.get("turboQuantReady")) or quantization.startswith(("IQ", "Q2", "Q3", "Q4"))
 
     return {
@@ -292,6 +335,7 @@ def _normalize_model(model: dict[str, object]) -> dict[str, object]:
         "contextWindow": context_window,
         "defaultOutputTokens": default_output,
         "moe": moe,
+        "mtp": mtp,
         "turboQuantReady": turboquant_ready,
     }
 
@@ -327,14 +371,68 @@ def _merge_system_overrides(base: dict[str, object], overrides: dict[str, object
     return merged
 
 
-def _estimate_budget(model: dict[str, object], system: dict[str, object]) -> dict[str, object]:
+def _build_runtime_breakdown(model: dict[str, object], system: dict[str, object]) -> dict[str, dict[str, object]]:
+    breakdown: dict[str, dict[str, object]] = {}
+    for runtime_kind in ("llama.cpp", "turboquant"):
+        estimated = _estimate_budget(model, system, runtime_kind=runtime_kind)
+        fit_status = _derive_fit_status(estimated)
+        speed_status = _derive_speed_status(model, system, estimated, runtime_kind=runtime_kind)
+        summary = _build_runtime_summary(runtime_kind, fit_status, speed_status, estimated)
+        breakdown[runtime_kind] = {
+            "runtime": runtime_kind,
+            "runtimeLabel": "TurboQuant" if runtime_kind == "turboquant" else "llama.cpp",
+            "supported": bool(estimated.get("supported", True)),
+            "fitStatus": fit_status,
+            "fitLabel": FIT_LABELS[fit_status],
+            "speedStatus": speed_status,
+            "speedLabel": SPEED_LABELS[speed_status],
+            "summary": summary,
+            "estimated": estimated,
+        }
+    return breakdown
+
+
+def _select_best_runtime(
+    runtime_breakdown: dict[str, dict[str, object]],
+    system: dict[str, object],
+) -> dict[str, object]:
+    preferred = str(system["turboQuantConfig"]["runtimePreference"]).lower()
+
+    def score(item: dict[str, object]) -> tuple[int, int, float]:
+        estimated = dict(item.get("estimated") or {})
+        fit_score = FIT_SCORES.get(str(item.get("fitStatus", "nije provereno")), 0)
+        speed_score = SPEED_SCORES.get(str(item.get("speedStatus", "similar")), 0)
+        vram_headroom = float(estimated.get("availableVramGiB", 0.0)) - float(estimated.get("requiredVramGiB", 0.0))
+        return (fit_score, speed_score, vram_headroom)
+
+    candidates = list(runtime_breakdown.values())
+    best = max(candidates, key=score)
+    preferred_candidate = runtime_breakdown.get(preferred)
+    if preferred_candidate and score(preferred_candidate) >= score(best):
+        return preferred_candidate
+    return best
+
+
+def _build_runtime_summary(runtime_kind: str, fit_status: str, speed_status: str, estimated: dict[str, object]) -> str:
+    runtime_label = "TurboQuant" if runtime_kind == "turboquant" else "llama.cpp"
+    if not bool(estimated.get("supported", True)):
+        return str(estimated.get("supportReason", f"{runtime_label} nije podrzan za ovaj model."))
+    return (
+        f"{runtime_label}: {FIT_LABELS[fit_status]} / {SPEED_LABELS[speed_status]}. "
+        f"VRAM procena oko {float(estimated['requiredVramGiB']):.1f} GiB, context pressure {str(estimated['contextPressureLabel']).lower()}, "
+        f"output pressure {str(estimated['outputPressureLabel']).lower()}."
+    )
+
+
+def _estimate_budget(model: dict[str, object], system: dict[str, object], *, runtime_kind: str) -> dict[str, object]:
     approx_size_gib = _as_float(model.get("approxSizeGiB")) or 0.0
     minimum_vram = _as_float(model.get("minimumVramGiB")) or max(4.0, round(approx_size_gib * 0.78, 2))
     minimum_ram = _as_float(model.get("minimumRamGiB")) or max(8.0, round(approx_size_gib * 1.45, 2))
     recommended_vram = _as_float(model.get("recommendedVramGiB")) or max(minimum_vram + 1.5, round(approx_size_gib * 1.05, 2))
     moe = bool(model.get("moe"))
+    mtp = bool(model.get("mtp"))
     default_output = _as_float(model.get("defaultOutputTokens")) or 4096
-    turbo_enabled = bool(system["turboQuantAvailable"]) and str(system["turboQuantConfig"]["runtimePreference"]).lower() == "turboquant"
+    turbo_enabled = runtime_kind == "turboquant" and bool(system["turboQuantAvailable"]) and bool(model.get("turboQuantReady")) and not mtp
     ctk = str(system["turboQuantConfig"]["ctk"]).lower()
     ctv = str(system["turboQuantConfig"]["ctv"]).lower()
     ncmoe = int(system["turboQuantConfig"]["ncmoe"])
@@ -346,7 +444,7 @@ def _estimate_budget(model: dict[str, object], system: dict[str, object]) -> dic
     output_multiplier = output_tokens / max(default_output, 1024)
 
     context_vram = max(0.25, context_multiplier * (2.2 if moe else 1.6) * compression)
-    output_vram = max(0.1, output_multiplier * 0.55)
+    output_vram = max(0.1, output_multiplier * 0.55 * (1.1 if runtime_kind == "llama.cpp" else 0.95))
     moe_relief = (min(ncmoe, 40) / 10) * 0.28 if moe else 0.0
     runtime_bonus = 0.6 if turbo_enabled and model.get("turboQuantReady") else 0.0
     required_vram = round(max(minimum_vram, minimum_vram + context_vram + output_vram - moe_relief - runtime_bonus), 2)
@@ -357,7 +455,8 @@ def _estimate_budget(model: dict[str, object], system: dict[str, object]) -> dic
             minimum_ram
             + (0.35 if context > 131072 else 0.0)
             + (0.25 if output_tokens > 4096 else 0.0)
-            + ((ncmoe / 20) * 1.4 if moe else 0.0),
+            + ((ncmoe / 20) * 1.4 if moe else 0.0)
+            + (0.3 if runtime_kind == "llama.cpp" and mtp else 0.0),
         ),
         2,
     )
@@ -370,6 +469,7 @@ def _estimate_budget(model: dict[str, object], system: dict[str, object]) -> dic
                 * (1.15 if turbo_enabled else 1.0)
                 * _context_capacity_boost(ctk, ctv)
                 * (0.92 if moe else 1.0)
+                * (0.94 if mtp else 1.0)
             ),
         )
     )
@@ -383,7 +483,33 @@ def _estimate_budget(model: dict[str, object], system: dict[str, object]) -> dic
         context_level = "high"
         context_usage_percent = max(context_usage_percent, 95.0)
 
+    output_usage_percent = round(min(100.0, output_multiplier * 100.0), 1)
+    output_level = "low"
+    if output_usage_percent >= 95:
+        output_level = "high"
+    elif output_usage_percent >= 70:
+        output_level = "medium"
+
+    supported = True
+    support_reason = ""
+    if runtime_kind == "turboquant" and not bool(system["turboQuantAvailable"]):
+        supported = False
+        support_reason = "TurboQuant nije dostupan na ovoj instalaciji."
+    elif runtime_kind == "turboquant" and mtp:
+        supported = False
+        support_reason = "MTP model trenutno nije podrzan kroz TurboQuant put."
+    if not supported:
+        required_vram = round(required_vram + 999.0, 2)
+        required_ram = round(required_ram + 999.0, 2)
+        context_level = "high"
+        context_usage_percent = 100.0
+        output_level = "high"
+        output_usage_percent = max(output_usage_percent, 100.0)
+
     return {
+        "runtime": runtime_kind,
+        "supported": supported,
+        "supportReason": support_reason,
         "requiredVramGiB": required_vram,
         "availableVramGiB": float(system["vramGiB"]),
         "requiredRamGiB": required_ram,
@@ -392,20 +518,30 @@ def _estimate_budget(model: dict[str, object], system: dict[str, object]) -> dic
         "contextPressureLevel": context_level,
         "contextPressureLabel": {"low": "Nizak", "medium": "Srednji", "high": "Visok"}[context_level],
         "contextPressureReason": (
-            f"Context {context} koristi efektivni kapacitet oko {effective_context_capacity} tokena uz "
-            f"{ctk}/{ctv} i ncmoe={ncmoe}."
+            f"Context {context} koristi efektivni kapacitet oko {effective_context_capacity} tokena u {runtime_kind} rezimu "
+            f"uz {ctk}/{ctv} i ncmoe={ncmoe}."
         ),
         "effectiveContextCapacity": effective_context_capacity,
         "contextUsagePercent": context_usage_percent,
+        "outputPressureLevel": output_level,
+        "outputPressureLabel": {"low": "Nizak", "medium": "Srednji", "high": "Visok"}[output_level],
+        "outputPressureReason": (
+            f"Output od {output_tokens} tokena koristi oko {output_usage_percent:.1f}% procenjenog bezbednog izlaznog opsega za {runtime_kind}."
+        ),
+        "outputUsagePercent": output_usage_percent,
+        "defaultOutputTokens": int(default_output),
     }
 
 
 def _derive_fit_status(estimated: dict[str, object]) -> str:
+    if not bool(estimated.get("supported", True)):
+        return "ne radi"
     required_vram = float(estimated["requiredVramGiB"])
     available_vram = float(estimated["availableVramGiB"])
     required_ram = float(estimated["requiredRamGiB"])
     available_ram = float(estimated["availableRamGiB"])
     context_level = str(estimated["contextPressureLevel"])
+    output_level = str(estimated.get("outputPressureLevel", "low"))
 
     if available_vram < required_vram or available_ram < required_ram:
         return "ne radi"
@@ -414,14 +550,19 @@ def _derive_fit_status(estimated: dict[str, object]) -> str:
         or available_vram - required_vram < 0.8
         or available_ram - required_ram < 2.0
         or context_level != "low"
+        or output_level == "high"
     ):
         return "granicno"
     return "radi"
 
 
-def _derive_speed_status(model: dict[str, object], system: dict[str, object], estimated: dict[str, object]) -> str:
+def _derive_speed_status(model: dict[str, object], system: dict[str, object], estimated: dict[str, object], *, runtime_kind: str) -> str:
+    if not bool(estimated.get("supported", True)):
+        return "much-slower"
     score = 0
     if bool(model.get("moe")):
+        score += 1
+    if bool(model.get("mtp")):
         score += 1
     if int(system["context"]) >= 262144:
         score += 2
@@ -429,22 +570,26 @@ def _derive_speed_status(model: dict[str, object], system: dict[str, object], es
         score += 1
     if int(system["outputTokens"]) >= 8192:
         score += 1
+    if str(estimated.get("outputPressureLevel", "low")) == "high":
+        score += 1
     if int(system["turboQuantConfig"]["ncmoe"]) >= 30:
         score += 2
     elif int(system["turboQuantConfig"]["ncmoe"]) >= 20 and bool(model.get("moe")):
         score += 1
     if str(estimated["contextPressureLevel"]) == "high":
         score += 1
+    if runtime_kind == "llama.cpp" and not bool(model.get("mtp")):
+        score += 1
     if score >= 5:
         return "much-slower"
     if score >= 2:
         return "slower"
-    if bool(system["turboQuantAvailable"]) and str(system["turboQuantConfig"]["runtimePreference"]).lower() == "turboquant" and int(system["context"]) <= 131072:
+    if runtime_kind == "turboquant" and int(system["context"]) <= 131072:
         return "faster"
     return "similar"
 
 
-def _build_summary(fit_status: str, speed_status: str, estimated: dict[str, object]) -> str:
+def _build_summary(fit_status: str, speed_status: str, estimated: dict[str, object], best_runtime: str) -> str:
     summaries = {
         "radi": "Model deluje upotrebljivo na ovoj masini.",
         "granicno": "Model je verovatno upotrebljiv, ali uz tesne granice ili dodatna podesavanja.",
@@ -457,7 +602,10 @@ def _build_summary(fit_status: str, speed_status: str, estimated: dict[str, obje
         "slower": "Brzina ce verovatno biti sporija.",
         "much-slower": "Brzina ce verovatno biti mnogo sporija.",
     }[speed_status]
-    return f"{summaries[fit_status]} {speed_summary} Procena VRAM budzeta je oko {estimated['requiredVramGiB']:.1f} GiB."
+    return (
+        f"{summaries[fit_status]} Najzdraviji runtime deluje {best_runtime}. "
+        f"{speed_summary} Procena VRAM budzeta je oko {estimated['requiredVramGiB']:.1f} GiB."
+    )
 
 
 def _build_checks(
@@ -466,8 +614,14 @@ def _build_checks(
     estimated: dict[str, object],
     fit_status: str,
     speed_status: str,
+    best_runtime: str,
 ) -> list[dict[str, object]]:
     return [
+        {
+            "label": "Best runtime",
+            "value": "TurboQuant" if best_runtime == "turboquant" else "llama.cpp",
+            "outcome": "info",
+        },
         {
             "label": "Fit",
             "value": FIT_LABELS[fit_status],
@@ -489,6 +643,11 @@ def _build_checks(
             "outcome": "pass" if estimated["requiredRamGiB"] <= system["ramGiB"] else "fail",
         },
         {
+            "label": "Output pressure",
+            "value": estimated["outputPressureLabel"],
+            "outcome": "warn" if estimated["outputPressureLevel"] != "low" else "pass",
+        },
+        {
             "label": "TurboQuant",
             "value": f"{system['turboQuantConfig']['ctk']} / {system['turboQuantConfig']['ctv']} | ncmoe {system['turboQuantConfig']['ncmoe']}",
             "outcome": "info",
@@ -506,6 +665,7 @@ def _build_reasoning(
     system: dict[str, object],
     estimated: dict[str, object],
     speed_status: str,
+    best_runtime: str,
 ) -> dict[str, str]:
     available_vram = float(system["vramGiB"])
     available_ram = float(system["ramGiB"])
@@ -522,7 +682,8 @@ def _build_reasoning(
         "context": str(estimated["contextPressureReason"]),
         "output": (
             f"Output od {int(system['outputTokens'])} tokena "
-            f"{'je tezi i usporava generaciju' if int(system['outputTokens']) > 4096 else 'deluje razumno za lokalni rad'}."
+            f"{'je tezi i usporava generaciju' if int(system['outputTokens']) > 4096 else 'deluje razumno za lokalni rad'} "
+            f"({estimated['outputPressureLabel'].lower()} output pressure)."
         ),
         "quantization": (
             f"Kvantizacija modela je {model['quantization']} uz procenjenu velicinu {model['approxSizeGiB'] or 'nepoznato'} GiB."
@@ -537,9 +698,15 @@ def _build_reasoning(
             if bool(model.get("moe"))
             else "MoE efekat nije bitan za ovaj model."
         ),
+        "mtpEffect": (
+            "MTP model koristi draft-mtp put i ne treba ga racunati kao TurboQuant kandidat."
+            if bool(model.get("mtp"))
+            else "MTP efekat nije bitan za ovaj model."
+        ),
         "speed": (
             f"Ocekivani rezim brzine je {SPEED_LABELS[speed_status].lower()} "
-            f"zbog context={system['context']}, output={system['outputTokens']} i ncmoe={system['turboQuantConfig']['ncmoe']}."
+            f"zbog context={system['context']}, output={system['outputTokens']}, ncmoe={system['turboQuantConfig']['ncmoe']} "
+            f"i runtime izbora {best_runtime}."
         ),
     }
 
@@ -549,12 +716,16 @@ def _build_recommendations(
     system: dict[str, object],
     estimated: dict[str, object],
     fit_status: str,
+    *,
+    runtime_breakdown: dict[str, dict[str, object]],
+    best_runtime: str,
 ) -> list[dict[str, object]]:
     recommendations: list[dict[str, object]] = []
     context = int(system["context"])
     output_tokens = int(system["outputTokens"])
     turbo_config = dict(system["turboQuantConfig"])
     moe = bool(model.get("moe"))
+    mtp = bool(model.get("mtp"))
     turbo_ready = bool(model.get("turboQuantReady"))
 
     if context > 131072:
@@ -579,7 +750,23 @@ def _build_recommendations(
                 "action": {"kind": "set-output", "value": 4096},
             }
         )
-    if turbo_ready and system["turboQuantAvailable"] and str(turbo_config["runtimePreference"]).lower() != "turboquant":
+    if mtp:
+        recommendations.append(
+            {
+                "id": "mtp-llama-runtime",
+                "title": "Za MTP koristi llama.cpp",
+                "summary": "MTP model trenutno ima smislen put samo kroz llama.cpp draft-mtp tok.",
+                "tradeoff": "TurboQuant ovde nije operativan runtime za ovaj model.",
+                "severity": "warn",
+            }
+        )
+    if (
+        turbo_ready
+        and not mtp
+        and system["turboQuantAvailable"]
+        and str(turbo_config["runtimePreference"]).lower() != "turboquant"
+        and best_runtime == "turboquant"
+    ):
         recommendations.append(
             {
                 "id": "prefer-turboquant",
@@ -603,7 +790,7 @@ def _build_recommendations(
         )
     ctk = str(turbo_config["ctk"]).lower()
     ctv = str(turbo_config["ctv"]).lower()
-    if turbo_ready and (fit_status != "radi" or str(estimated["contextPressureLevel"]) != "low"):
+    if turbo_ready and not mtp and (fit_status != "radi" or str(estimated["contextPressureLevel"]) != "low"):
         if (ctk, ctv) == ("turbo4", "turbo4"):
             recommendations.append(
                 {
@@ -732,7 +919,12 @@ def _action_result(status: str, summary: str) -> dict[str, object]:
 
 def _build_budget_payload(required: float, available: float) -> dict[str, object]:
     usage = round(min(100.0, (required / max(available, 0.1)) * 100.0), 1)
-    return {"requiredGiB": round(required, 2), "availableGiB": round(available, 2), "usagePercent": usage}
+    return {
+        "requiredGiB": round(required, 2),
+        "availableGiB": round(available, 2),
+        "usagePercent": usage,
+        "headroomGiB": round(available - required, 2),
+    }
 
 
 def _context_capacity_boost(ctk: str, ctv: str) -> float:
@@ -791,15 +983,19 @@ def _not_checked_result(summary: str) -> dict[str, object]:
         "status": "nije provereno",
         "fitStatus": "nije provereno",
         "fitLabel": FIT_LABELS["nije provereno"],
+        "overallFitStatus": "nije provereno",
+        "overallFitLabel": FIT_LABELS["nije provereno"],
         "speedStatus": "similar",
         "speedLabel": SPEED_LABELS["similar"],
+        "bestRuntime": "llama.cpp",
+        "bestRuntimeLabel": "llama.cpp",
         "checkedAt": _now_iso(),
         "summary": summary,
         "checks": [],
         "reasoning": {},
         "memoryBudget": {
-            "vram": {"requiredGiB": None, "availableGiB": None, "usagePercent": None},
-            "ram": {"requiredGiB": None, "availableGiB": None, "usagePercent": None},
+            "vram": {"requiredGiB": None, "availableGiB": None, "usagePercent": None, "headroomGiB": None},
+            "ram": {"requiredGiB": None, "availableGiB": None, "usagePercent": None, "headroomGiB": None},
             "contextPressure": {
                 "level": "unknown",
                 "label": "Nepoznato",
@@ -808,8 +1004,40 @@ def _not_checked_result(summary: str) -> dict[str, object]:
                 "usagePercent": None,
                 "details": "Context pressure nije mogao da se proceni.",
             },
+            "outputPressure": {
+                "level": "unknown",
+                "label": "Nepoznato",
+                "currentOutputTokens": None,
+                "defaultOutputTokens": None,
+                "usagePercent": None,
+                "details": "Output pressure nije mogao da se proceni.",
+            },
         },
         "systemSnapshot": {},
+        "runtimeBreakdown": {
+            "llama.cpp": {
+                "runtime": "llama.cpp",
+                "runtimeLabel": "llama.cpp",
+                "supported": False,
+                "fitStatus": "nije provereno",
+                "fitLabel": FIT_LABELS["nije provereno"],
+                "speedStatus": "similar",
+                "speedLabel": SPEED_LABELS["similar"],
+                "summary": summary,
+                "estimated": {},
+            },
+            "turboquant": {
+                "runtime": "turboquant",
+                "runtimeLabel": "TurboQuant",
+                "supported": False,
+                "fitStatus": "nije provereno",
+                "fitLabel": FIT_LABELS["nije provereno"],
+                "speedStatus": "similar",
+                "speedLabel": SPEED_LABELS["similar"],
+                "summary": summary,
+                "estimated": {},
+            },
+        },
         "recommendations": [],
     }
 

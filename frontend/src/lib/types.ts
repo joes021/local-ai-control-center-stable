@@ -354,8 +354,12 @@ export type BrowserCompatibilityPayload = {
   summary: string;
   fitStatus: BrowserFitStatus;
   fitLabel: string;
+  overallFitStatus?: BrowserFitStatus;
+  overallFitLabel?: string;
   speedStatus?: string;
   speedLabel?: string;
+  bestRuntime?: string;
+  bestRuntimeLabel?: string;
   checks: Array<{
     label: string;
     value: string;
@@ -367,17 +371,27 @@ export type BrowserCompatibilityPayload = {
       requiredGiB: number | null;
       availableGiB: number | null;
       usagePercent: number | null;
+      headroomGiB?: number | null;
     };
     ram: {
       requiredGiB: number | null;
       availableGiB: number | null;
       usagePercent: number | null;
+      headroomGiB?: number | null;
     };
     contextPressure: {
       level: string;
       label: string;
       currentContext: number | null;
       effectiveCapacity: number | null;
+      usagePercent: number | null;
+      details: string;
+    };
+    outputPressure?: {
+      level: string;
+      label: string;
+      currentOutputTokens: number | null;
+      defaultOutputTokens: number | null;
       usagePercent: number | null;
       details: string;
     };
@@ -395,6 +409,27 @@ export type BrowserCompatibilityPayload = {
       runtimePreference: string;
     };
   };
+  runtimeBreakdown?: Record<
+    string,
+    {
+      runtime: string;
+      runtimeLabel: string;
+      supported: boolean;
+      fitStatus: BrowserFitStatus;
+      fitLabel: string;
+      speedStatus?: string;
+      speedLabel?: string;
+      summary: string;
+      estimated?: {
+        requiredVramGiB?: number | null;
+        availableVramGiB?: number | null;
+        requiredRamGiB?: number | null;
+        availableRamGiB?: number | null;
+        outputPressureLabel?: string;
+        contextPressureLabel?: string;
+      };
+    }
+  >;
   recommendations?: Array<{
     id: string;
     title: string;

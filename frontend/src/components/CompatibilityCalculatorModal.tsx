@@ -31,6 +31,14 @@ function formatPercent(value: number | null | undefined) {
   return `${Math.round(value)}%`;
 }
 
+function formatHeadroom(value: number | null | undefined) {
+  if (value === null || value === undefined || Number.isNaN(value)) {
+    return "--";
+  }
+  const sign = value >= 0 ? "+" : "";
+  return `${sign}${value.toFixed(1)} GiB`;
+}
+
 function fitBadgeClass(fitStatus: string) {
   if (fitStatus === "radi") {
     return "compat-badge compat-badge-ok";
@@ -224,6 +232,40 @@ export function CompatibilityCalculatorModal({ isOpen, title, request, onClose }
             </div>
             <p className="helper-text">{payload.summary}</p>
 
+            <section className="compat-section">
+              <span className="status-label">Best runtime</span>
+              <div className="compat-budget-grid">
+                <div className="compat-budget-card">
+                  <strong className="status-value">{payload.bestRuntimeLabel ?? "llama.cpp"}</strong>
+                  <div className="helper-text">
+                    Ukupni fit: {payload.overallFitLabel ?? payload.fitLabel}
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            {payload.runtimeBreakdown ? (
+              <section className="compat-section">
+                <span className="status-label">Runtime breakdown</span>
+                <div className="compat-budget-grid">
+                  {Object.values(payload.runtimeBreakdown).map((runtime) => (
+                    <div className="compat-budget-card" key={runtime.runtime}>
+                      <div className="compat-header">
+                        <strong className="status-value">{runtime.runtimeLabel}</strong>
+                        <span className={fitBadgeClass(runtime.fitStatus)}>{runtime.fitLabel}</span>
+                      </div>
+                      <div className="helper-text">{runtime.summary}</div>
+                      <div className="summary-metrics">
+                        <span>{runtime.speedLabel ?? "Slicno"}</span>
+                        <span>{runtime.estimated?.contextPressureLabel ?? "--"} context</span>
+                        <span>{runtime.estimated?.outputPressureLabel ?? "--"} output</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            ) : null}
+
             <section className="compat-budget-grid">
               <div className="compat-budget-card">
                 <span className="status-label">VRAM</span>
@@ -233,7 +275,9 @@ export function CompatibilityCalculatorModal({ isOpen, title, request, onClose }
                 <div className="compat-bar">
                   <div className="compat-bar-fill compat-bar-fill-vram" style={barStyle(payload.memoryBudget?.vram.usagePercent)} />
                 </div>
-                <div className="helper-text">{formatPercent(payload.memoryBudget?.vram.usagePercent)}</div>
+                <div className="helper-text">
+                  {formatPercent(payload.memoryBudget?.vram.usagePercent)} | Memory headroom {formatHeadroom(payload.memoryBudget?.vram.headroomGiB)}
+                </div>
               </div>
               <div className="compat-budget-card">
                 <span className="status-label">RAM</span>
@@ -243,7 +287,9 @@ export function CompatibilityCalculatorModal({ isOpen, title, request, onClose }
                 <div className="compat-bar">
                   <div className="compat-bar-fill compat-bar-fill-ram" style={barStyle(payload.memoryBudget?.ram.usagePercent)} />
                 </div>
-                <div className="helper-text">{formatPercent(payload.memoryBudget?.ram.usagePercent)}</div>
+                <div className="helper-text">
+                  {formatPercent(payload.memoryBudget?.ram.usagePercent)} | Memory headroom {formatHeadroom(payload.memoryBudget?.ram.headroomGiB)}
+                </div>
               </div>
               <div className="compat-budget-card">
                 <span className="status-label">Context pressure</span>
@@ -253,6 +299,16 @@ export function CompatibilityCalculatorModal({ isOpen, title, request, onClose }
                 </div>
                 <div className="helper-text">
                   {payload.memoryBudget?.contextPressure.currentContext ?? "--"} | kapacitet {payload.memoryBudget?.contextPressure.effectiveCapacity ?? "--"}
+                </div>
+              </div>
+              <div className="compat-budget-card">
+                <span className="status-label">Output pressure</span>
+                <strong className="status-value">{payload.memoryBudget?.outputPressure?.label ?? "--"}</strong>
+                <div className="compat-bar">
+                  <div className="compat-bar-fill compat-bar-fill-context" style={barStyle(payload.memoryBudget?.outputPressure?.usagePercent)} />
+                </div>
+                <div className="helper-text">
+                  {payload.memoryBudget?.outputPressure?.currentOutputTokens ?? "--"} | default {payload.memoryBudget?.outputPressure?.defaultOutputTokens ?? "--"}
                 </div>
               </div>
             </section>
