@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
 from urllib.error import HTTPError, URLError
-from urllib.parse import quote_plus
+from urllib.parse import parse_qsl, quote_plus, urlsplit, urlunsplit
 from urllib.request import Request, urlopen
 
 from local_ai_control_center_installer.control_center_backend.config import (
@@ -66,20 +66,28 @@ def perform_search_query(
             settings=settings,
         )
 
-    base_url = str(settings["baseUrl"]).rstrip("/")
-    encoded_query = quote_plus(normalized_query)
+    request_url = _build_searxng_request_url(str(settings["baseUrl"]), normalized_query)
     request = Request(
-        f"{base_url}/search?q={encoded_query}&format=json",
+        request_url,
         headers={"Accept": "application/json"},
         method="GET",
     )
     try:
         with opener(request, timeout=float(settings["timeoutSeconds"])) as response:
-            raw_payload = json.loads(response.read().decode("utf-8", errors="replace"))
+            raw_payload = _decode_searxng_payload(
+                response.read().decode("utf-8", errors="replace"),
+                request_url=request_url,
+            )
     except HTTPError as exc:
         return _search_error_payload(
             query=normalized_query,
             summary=f"SearxNG je vratio HTTP {exc.code}.",
+            settings=settings,
+        )
+    except ValueError as exc:
+        return _search_error_payload(
+            query=normalized_query,
+            summary=str(exc),
             settings=settings,
         )
     except (OSError, URLError, TimeoutError, json.JSONDecodeError) as exc:
@@ -336,6 +344,41 @@ def _normalize_searxng_results(
         if len(normalized) >= max(limit, 1):
             break
     return normalized
+
+
+def _build_searxng_request_url(base_url: str, query: str) -> str:
+    normalized_base = str(base_url or "").strip() or "http://127.0.0.1:8080"
+    split = urlsplit(normalized_base)
+    scheme = split.scheme or "http"
+    netloc = split.netloc or split.path
+    path = split.path if split.netloc else ""
+    normalized_path = (path or "").rstrip("/")
+    if normalized_path.endswith("/search"):
+        search_path = normalized_path or "/search"
+    else:
+        search_path = f"{normalized_path}/search" if normalized_path else "/search"
+
+    query_pairs = [(key, value) for key, value in parse_qsl(split.query, keep_blank_values=True) if key not in {"q", "format"}]
+    query_pairs.extend([("q", query), ("format", "json")])
+    encoded_query = "&".join(f"{quote_plus(key)}={quote_plus(value)}" for key, value in query_pairs)
+    return urlunsplit((scheme, netloc, search_path, encoded_query, ""))
+
+
+def _decode_searxng_payload(raw_text: str, *, request_url: str) -> object:
+    normalized_text = raw_text.lstrip("\ufeff").strip()
+    if not normalized_text:
+        raise ValueError(
+            f"SearxNG nije vratio JSON odgovor. Proveri da li base URL pokazuje na SearxNG instancu ili /search endpoint: {request_url}"
+        )
+    try:
+        return json.loads(normalized_text)
+    except json.JSONDecodeError:
+        snippet = normalized_text[:120].replace("\r", " ").replace("\n", " ")
+        raise ValueError(
+            "SearxNG nije vratio JSON odgovor. "
+            f"Proveri da li base URL pokazuje na SearxNG instancu ili /search endpoint. "
+            f"Primer odgovora: {snippet}"
+        ) from None
 
 
 def _extract_search_trigger(
