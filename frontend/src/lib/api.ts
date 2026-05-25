@@ -489,8 +489,11 @@ async function getJsonFromCandidates<TResponse>(urls: string[]): Promise<TRespon
   throw lastError ?? new Error("No GET endpoint candidates were available.");
 }
 
-export async function activateModel(modelId: string): Promise<ActionResult> {
-  return postJson("/api/models/activate", { modelId });
+export async function activateModel(
+  modelId: string,
+  options?: { force?: boolean },
+): Promise<ActionResult> {
+  return postJson("/api/models/activate", { modelId, force: options?.force ?? false });
 }
 
 export async function downloadModel(modelId: string): Promise<ActionResult> {

@@ -31,6 +31,7 @@ import type {
 
 type GroupKey = "curated" | "local" | "huggingFace" | "unsloth";
 type ModelsFilter = "all" | "installed" | "active" | "no-mtp" | "has-mtp" | "unknown-mtp";
+type ForceActivationPromptState = string | null;
 
 function formatGiB(value: number | null) {
   if (value === null || Number.isNaN(value)) {
@@ -123,6 +124,74 @@ function downloadActionLabel(item: ModelEntry): string {
   return "Nema download";
 }
 
+function requiresForceActivationConfirmation(item: ModelEntry): boolean {
+  return Boolean(item.requiresForceConfirmation && item.activationRiskSummary);
+}
+
+function activationRiskSummary(item: ModelEntry): string {
+  return item.activationRiskSummary ?? "Compatibility procena kaze da ovaj model verovatno nece raditi na ovoj masini.";
+}
+
+function ActivationRiskCallout({
+  item,
+  confirmationOpen,
+  pendingAction,
+  onConfirm,
+  onCancel,
+  onOpenCompatibility,
+}: {
+  item: ModelEntry;
+  confirmationOpen: boolean;
+  pendingAction: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+  onOpenCompatibility: () => void;
+}) {
+  if (!requiresForceActivationConfirmation(item)) {
+    return null;
+  }
+
+  return (
+    <div className="model-activation-warning">
+      <div className="model-activation-warning-title">
+        Ovaj model verovatno ne bi trebalo da radi na ovoj masini.
+      </div>
+      <div className="helper-text">{activationRiskSummary(item)}</div>
+      {confirmationOpen ? (
+        <>
+          <div className="helper-text">Da li zelis ipak da pokusas aktivaciju?</div>
+          <div className="inline-actions compact-actions">
+            <button
+              type="button"
+              className="danger-button"
+              disabled={pendingAction}
+              onClick={onConfirm}
+            >
+              Ipak pokusaj aktivaciju
+            </button>
+            <button
+              type="button"
+              className="secondary-button"
+              disabled={pendingAction}
+              onClick={onCancel}
+            >
+              Otkazi
+            </button>
+            <button
+              type="button"
+              className="secondary-button"
+              disabled={pendingAction}
+              onClick={onOpenCompatibility}
+            >
+              Compatibility tab
+            </button>
+          </div>
+        </>
+      ) : null}
+    </div>
+  );
+}
+
 function FilterResultsCard({
   filter,
   items,
@@ -139,6 +208,7 @@ function FilterResultsCard({
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [removeFile, setRemoveFile] = useState(true);
   const [removeRegistry, setRemoveRegistry] = useState(true);
+  const [forceActivationPrompt, setForceActivationPrompt] = useState<ForceActivationPromptState>(null);
 
   async function handleAction(label: string, run: () => Promise<ActionResult>) {
     setPendingAction(label);
@@ -164,6 +234,25 @@ function FilterResultsCard({
     } finally {
       setPendingAction(null);
     }
+  }
+
+  async function handleActivate(item: ModelEntry) {
+    if (requiresForceActivationConfirmation(item)) {
+      setForceActivationPrompt(item.id);
+      setResult({
+        status: "warning",
+        action: "activate-model-precheck",
+        summary: "Ovaj model verovatno ne bi trebalo da radi na ovoj masini.",
+        details: {
+          returncode: 1,
+          stdout: activationRiskSummary(item),
+          stderr: activationRiskSummary(item),
+        },
+      });
+      return;
+    }
+    setForceActivationPrompt(null);
+    await handleAction(`activate ${item.id}`, () => activateModel(item.id));
   }
 
   return (
@@ -220,13 +309,34 @@ function FilterResultsCard({
                   {mtpActivationGuidance(item) ? (
                     <div className="helper-text">{mtpActivationGuidance(item)}</div>
                   ) : null}
+                  <ActivationRiskCallout
+                    item={item}
+                    confirmationOpen={forceActivationPrompt === item.id}
+                    pendingAction={Boolean(pendingAction)}
+                    onConfirm={() =>
+                      void (async () => {
+                        setForceActivationPrompt(null);
+                        await handleAction(`activate ${item.id} (force)`, () =>
+                          activateModel(item.id, { force: true }),
+                        );
+                      })()
+                    }
+                    onCancel={() => setForceActivationPrompt(null)}
+                    onOpenCompatibility={() => onCheckCompatibility(item)}
+                  />
                   {item.description ? <p className="helper-text">{item.description}</p> : null}
                 </div>
                 <div className="inline-actions">
                   <button
                     disabled={Boolean(pendingAction) || !supportsRuntimeActivation(item) || Boolean(item.downloadActive)}
-                    title={mtpActivationGuidance(item) ?? undefined}
-                    onClick={() => handleAction(`activate ${item.id}`, () => activateModel(item.id))}
+                    title={
+                      requiresForceActivationConfirmation(item)
+                        ? activationRiskSummary(item)
+                        : (mtpActivationGuidance(item) ?? undefined)
+                    }
+                    onClick={() => {
+                      void handleActivate(item);
+                    }}
                     type="button"
                   >
                     Activate
@@ -336,6 +446,7 @@ function ModelGroup({
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [removeFile, setRemoveFile] = useState(true);
   const [removeRegistry, setRemoveRegistry] = useState(true);
+  const [forceActivationPrompt, setForceActivationPrompt] = useState<ForceActivationPromptState>(null);
 
   async function handleAction(label: string, run: () => Promise<ActionResult>) {
     setPendingAction(label);
@@ -361,6 +472,25 @@ function ModelGroup({
     } finally {
       setPendingAction(null);
     }
+  }
+
+  async function handleActivate(item: ModelEntry) {
+    if (requiresForceActivationConfirmation(item)) {
+      setForceActivationPrompt(item.id);
+      setResult({
+        status: "warning",
+        action: "activate-model-precheck",
+        summary: "Ovaj model verovatno ne bi trebalo da radi na ovoj masini.",
+        details: {
+          returncode: 1,
+          stdout: activationRiskSummary(item),
+          stderr: activationRiskSummary(item),
+        },
+      });
+      return;
+    }
+    setForceActivationPrompt(null);
+    await handleAction(`activate ${item.id}`, () => activateModel(item.id));
   }
 
   return (
@@ -413,13 +543,34 @@ function ModelGroup({
                   {mtpActivationGuidance(item) ? (
                     <div className="helper-text">{mtpActivationGuidance(item)}</div>
                   ) : null}
+                  <ActivationRiskCallout
+                    item={item}
+                    confirmationOpen={forceActivationPrompt === item.id}
+                    pendingAction={Boolean(pendingAction)}
+                    onConfirm={() =>
+                      void (async () => {
+                        setForceActivationPrompt(null);
+                        await handleAction(`activate ${item.id} (force)`, () =>
+                          activateModel(item.id, { force: true }),
+                        );
+                      })()
+                    }
+                    onCancel={() => setForceActivationPrompt(null)}
+                    onOpenCompatibility={() => onCheckCompatibility(item)}
+                  />
                   {item.description ? <p className="helper-text">{item.description}</p> : null}
                 </div>
                   <div className="inline-actions">
                     <button
                       disabled={Boolean(pendingAction) || !supportsRuntimeActivation(item) || Boolean(item.downloadActive)}
-                      title={mtpActivationGuidance(item) ?? undefined}
-                      onClick={() => handleAction(`activate ${item.id}`, () => activateModel(item.id))}
+                      title={
+                        requiresForceActivationConfirmation(item)
+                          ? activationRiskSummary(item)
+                          : (mtpActivationGuidance(item) ?? undefined)
+                      }
+                      onClick={() => {
+                        void handleActivate(item);
+                      }}
                       type="button"
                     >
                       Activate

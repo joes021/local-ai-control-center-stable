@@ -421,6 +421,21 @@ select:-webkit-autofill {
   color: #f3dfb6;
 }
 
+.model-activation-warning {
+  margin-top: 12px;
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(212, 108, 94, 0.34);
+  background: linear-gradient(180deg, rgba(112, 40, 32, 0.22), rgba(64, 25, 22, 0.14));
+}
+
+.model-activation-warning-title {
+  color: #ffe6e2;
+  font-weight: 700;
+}
+
 *::-webkit-scrollbar {
   width: 12px;
   height: 12px;

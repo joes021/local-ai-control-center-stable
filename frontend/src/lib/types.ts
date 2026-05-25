@@ -269,6 +269,9 @@ export type ModelEntry = {
   installed: boolean;
   supportsActivation?: boolean;
   activationSummary?: string;
+  activationRiskLevel?: string;
+  activationRiskSummary?: string;
+  requiresForceConfirmation?: boolean;
   lifecycleStatus?: string;
   lifecycleLabel?: string;
   lifecycleSummary?: string;

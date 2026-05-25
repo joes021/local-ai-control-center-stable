@@ -111,6 +111,28 @@ def test_models_page_source_uses_backend_lifecycle_truth_for_actions_and_badges(
     assert "downloadActionLabel(item)" in source
 
 
+def test_models_page_source_requires_explicit_confirmation_before_forced_risky_activation():
+    source = Path("frontend/src/pages/ModelsPage.tsx").read_text(encoding="utf-8")
+    api_source = Path("frontend/src/lib/api.ts").read_text(encoding="utf-8")
+    dist_root = Path(
+        "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
+    )
+    js_assets = list((dist_root / "assets").glob("index-*.js"))
+
+    assert "Ovaj model verovatno ne bi trebalo da radi na ovoj masini." in source
+    assert "Da li zelis ipak da pokusas aktivaciju?" in source
+    assert "Ipak pokusaj aktivaciju" in source
+    assert "activateModel(item.id, { force: true })" in source
+    assert "force?: boolean" in api_source
+    assert js_assets
+
+    bundled_text = "\n".join(path.read_text(encoding="utf-8") for path in js_assets)
+
+    assert "Ovaj model verovatno ne bi trebalo da radi na ovoj masini." in bundled_text
+    assert "Da li zelis ipak da pokusas aktivaciju?" in bundled_text
+    assert "Ipak pokusaj aktivaciju" in bundled_text
+
+
 def test_packaged_browser_ui_contains_quant_sort_labels():
     dist_root = Path(
         "src/local_ai_control_center_installer/control_center_backend/frontend_dist"

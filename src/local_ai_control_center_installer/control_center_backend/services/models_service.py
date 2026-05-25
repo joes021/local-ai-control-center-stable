@@ -126,6 +126,8 @@ def load_models_payload(
 
 def activate_model(
     model_id: str,
+    *,
+    force: bool = False,
     config: ControlCenterConfig | None = None,
 ) -> dict[str, object]:
     config = config or get_config()
@@ -156,12 +158,13 @@ def activate_model(
         )
     hardware_fit_ok, hardware_fit_reason = _evaluate_model_hardware_fit(model, config=config)
     if not hardware_fit_ok:
-        return action_result(
-            "error",
-            "activate-model",
-            hardware_fit_reason,
-            stderr=hardware_fit_reason,
-        )
+        if not force:
+            return action_result(
+                "error",
+                "activate-model",
+                hardware_fit_reason,
+                stderr=hardware_fit_reason,
+            )
 
     active_model_snapshot = _snapshot_file_contents(config.active_model_config_path)
     managed_config_snapshot = _snapshot_file_contents(config.opencode_managed_config_path)
@@ -177,6 +180,10 @@ def activate_model(
     )
 
     summary_bits = [f"Aktivan model postavljen na: {model['label']}"]
+    if force and not hardware_fit_ok:
+        summary_bits.append(
+            f"Forsirana aktivacija je prihvacena iako compatibility procena kaze: {hardware_fit_reason}"
+        )
     try:
         runtime_endpoint = load_runtime_endpoint_config(config.runtime_endpoint_config_path)
         _write_managed_config(
@@ -1098,9 +1105,21 @@ def _annotate_model_entry_lifecycle(
     annotated = dict(entry)
     download_url = str(annotated.get("downloadUrl", "") or "").strip()
     supports_activation, activation_summary = _evaluate_model_activation(annotated, config=config)
+    activation_risk_level = "ok"
+    activation_risk_summary = ""
+    requires_force_confirmation = False
+    if supports_activation and bool(annotated.get("installed")):
+        hardware_fit_ok, hardware_fit_reason = _evaluate_model_hardware_fit(annotated, config=config)
+        if not hardware_fit_ok:
+            activation_risk_level = "warn"
+            activation_risk_summary = hardware_fit_reason
+            requires_force_confirmation = True
     download_active = _is_model_download_active(annotated, download_progress)
     annotated["supportsActivation"] = supports_activation
     annotated["activationSummary"] = activation_summary
+    annotated["activationRiskLevel"] = activation_risk_level
+    annotated["activationRiskSummary"] = activation_risk_summary
+    annotated["requiresForceConfirmation"] = requires_force_confirmation
     annotated["downloadActive"] = download_active
     annotated["downloadPercent"] = (
         _coerce_float(download_progress.get("percent")) if download_active else None

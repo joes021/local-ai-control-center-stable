@@ -24,11 +24,12 @@ def models() -> dict[str, object]:
 
 class ActivateModelRequest(BaseModel):
     modelId: str
+    force: bool = False
 
 
 @router.post("/api/models/activate")
 def models_activate(payload: ActivateModelRequest) -> dict[str, object]:
-    return activate_model(payload.modelId)
+    return activate_model(payload.modelId, force=payload.force)
 
 
 @router.post("/api/models/download")

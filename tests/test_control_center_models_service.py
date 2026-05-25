@@ -372,6 +372,83 @@ def test_activate_model_route_rejects_hardware_incompatible_model_before_state_c
     assert active_model_payload["model_path"] == str(curated_model_path)
 
 
+def test_activate_model_route_allows_forced_activation_when_model_is_only_hardware_risky(
+    tmp_path: Path,
+    monkeypatch,
+):
+    install_root = tmp_path / "install-root"
+    curated_model_path = (
+        install_root / "models" / "recommended-6gb" / "gemma-4-E4B-it-Q4_K_M.gguf"
+    )
+    risky_model_path = (
+        install_root
+        / "models"
+        / "unsloth"
+        / "unsloth-qwen3-6-35b-a3b-gguf"
+        / "Qwen3.6-35B-A3B-UD-IQ2_XXS.gguf"
+    )
+    risky_model_path.parent.mkdir(parents=True, exist_ok=True)
+    risky_model_path.write_text("risky-model", encoding="utf-8")
+    _write_active_model_config(
+        install_root,
+        model_id="recommended-6gb",
+        model_path=curated_model_path,
+    )
+    _write_runtime_endpoint_config(
+        install_root / "config" / "runtime-endpoint.json",
+        port=39281,
+    )
+    _write_custom_registry(
+        install_root,
+        [
+            {
+                "id": "unsloth-unsloth-qwen3-6-35b-a3b-gguf-qwen3-6-35b-a3b-ud-iq2-xxs",
+                "label": "Qwen3.6-35B-A3B-UD-IQ2_XXS.gguf",
+                "filename": "Qwen3.6-35B-A3B-UD-IQ2_XXS.gguf",
+                "family": "Qwen",
+                "source": "unsloth",
+                "repo": "unsloth/Qwen3.6-35B-A3B-GGUF",
+                "absolute_path": str(risky_model_path),
+                "download_url": "https://huggingface.co/unsloth/Qwen3.6-35B-A3B-GGUF/resolve/main/Qwen3.6-35B-A3B-UD-IQ2_XXS.gguf",
+            }
+        ],
+    )
+
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.models_service.find_runtime_pid",
+        lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.models_service._evaluate_model_hardware_fit",
+        lambda *args, **kwargs: (False, "Model verovatno nece raditi pouzdano na ovoj masini."),
+        raising=False,
+    )
+
+    client = TestClient(app)
+    response = client.post(
+        "/api/models/activate",
+        json={
+            "modelId": "unsloth-unsloth-qwen3-6-35b-a3b-gguf-qwen3-6-35b-a3b-ud-iq2-xxs",
+            "force": True,
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "ok"
+    assert "forsirana aktivacija" in payload["summary"].lower()
+
+    active_model_payload = json.loads(
+        (install_root / "config" / "active-model.json").read_text(encoding="utf-8")
+    )
+    assert (
+        active_model_payload["model_id"]
+        == "unsloth-unsloth-qwen3-6-35b-a3b-gguf-qwen3-6-35b-a3b-ud-iq2-xxs"
+    )
+    assert active_model_payload["model_path"] == str(risky_model_path)
+
+
 def test_activate_model_route_allows_ud_iq_unsloth_variant_when_fit_is_granicno(
     tmp_path: Path,
     monkeypatch,
@@ -476,6 +553,67 @@ def test_activate_model_route_allows_ud_iq_unsloth_variant_when_fit_is_granicno(
         == "unsloth-unsloth-qwen3-6-35b-a3b-gguf-qwen3-6-35b-a3b-ud-iq2-xxs"
     )
     assert active_model_payload["model_path"] == str(qwen_model_path)
+
+
+def test_models_route_marks_hardware_risky_model_with_force_confirmation_warning(
+    tmp_path: Path,
+    monkeypatch,
+):
+    install_root = tmp_path / "install-root"
+    curated_model_path = (
+        install_root / "models" / "recommended-6gb" / "gemma-4-E4B-it-Q4_K_M.gguf"
+    )
+    risky_model_path = (
+        install_root
+        / "models"
+        / "unsloth"
+        / "unsloth-qwen3-6-35b-a3b-gguf"
+        / "Qwen3.6-35B-A3B-UD-IQ2_XXS.gguf"
+    )
+    risky_model_path.parent.mkdir(parents=True, exist_ok=True)
+    risky_model_path.write_text("risky-model", encoding="utf-8")
+    _write_active_model_config(
+        install_root,
+        model_id="recommended-6gb",
+        model_path=curated_model_path,
+    )
+    _write_runtime_endpoint_config(
+        install_root / "config" / "runtime-endpoint.json",
+        port=39281,
+    )
+    _write_custom_registry(
+        install_root,
+        [
+            {
+                "id": "unsloth-unsloth-qwen3-6-35b-a3b-gguf-qwen3-6-35b-a3b-ud-iq2-xxs",
+                "label": "Qwen3.6-35B-A3B-UD-IQ2_XXS.gguf",
+                "filename": "Qwen3.6-35B-A3B-UD-IQ2_XXS.gguf",
+                "family": "Qwen",
+                "source": "unsloth",
+                "repo": "unsloth/Qwen3.6-35B-A3B-GGUF",
+                "absolute_path": str(risky_model_path),
+                "download_url": "https://huggingface.co/unsloth/Qwen3.6-35B-A3B-GGUF/resolve/main/Qwen3.6-35B-A3B-UD-IQ2_XXS.gguf",
+            }
+        ],
+    )
+
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.models_service._evaluate_model_hardware_fit",
+        lambda *args, **kwargs: (False, "Model verovatno nece raditi pouzdano na ovoj masini."),
+        raising=False,
+    )
+
+    client = TestClient(app)
+    response = client.get("/api/models")
+
+    assert response.status_code == 200
+    payload = response.json()
+    model = payload["unsloth"][0]
+    assert model["supportsActivation"] is True
+    assert model["requiresForceConfirmation"] is True
+    assert model["activationRiskLevel"] == "warn"
+    assert "verovatno nece raditi pouzdano" in model["activationRiskSummary"]
 
 
 def test_activate_model_route_rolls_back_when_managed_opencode_write_fails(
