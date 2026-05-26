@@ -1,7 +1,9 @@
 import json
 from pathlib import Path
+import subprocess
 from urllib.error import URLError
 
+from local_ai_control_center_installer.control_center_backend.services import search_provider_service
 from local_ai_control_center_installer.control_center_backend.services.search_provider_service import (
     _write_bootstrap_script,
     bootstrap_search_provider,
@@ -151,6 +153,72 @@ def test_bootstrap_search_provider_reports_blocked_when_wsl_is_unavailable(
 
     state = load_search_provider_state()
     assert state["managed"]["lastBootstrapStatus"] == "bootstrap-blocked"
+
+
+def test_search_provider_status_handles_wsl_probe_timeout_without_raising(
+    tmp_path: Path,
+    monkeypatch,
+):
+    search_provider_service._BOOTSTRAP_CAPABILITY_CACHE.clear()
+    install_root = tmp_path / "install-root"
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    _write_settings(
+        install_root,
+        {
+            "webSearchMode": "off",
+            "webSearchProvider": "searxng",
+            "webSearchBaseUrl": "",
+        },
+    )
+
+    def _command_runner(*args, **kwargs):
+        raise subprocess.TimeoutExpired(["wsl", "-l", "-q"], timeout=20)
+
+    status = load_search_provider_status(
+        command_runner=_command_runner,
+        opener=lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("network should not run")),
+    )
+
+    assert status["status"] == "not-configured"
+    assert status["canBootstrap"] is False
+    assert "wsl" in str(status["summary"]).lower()
+    assert "ne odgovara" in str(status["summary"]).lower()
+
+
+def test_search_provider_status_caches_wsl_probe_timeout_result(
+    tmp_path: Path,
+    monkeypatch,
+):
+    search_provider_service._BOOTSTRAP_CAPABILITY_CACHE.clear()
+    install_root = tmp_path / "install-root"
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    _write_settings(
+        install_root,
+        {
+            "webSearchMode": "off",
+            "webSearchProvider": "searxng",
+            "webSearchBaseUrl": "",
+        },
+    )
+
+    call_count = {"value": 0}
+
+    def _command_runner(*args, **kwargs):
+        call_count["value"] += 1
+        raise subprocess.TimeoutExpired(["wsl", "-l", "-q"], timeout=20)
+
+    first = load_search_provider_status(
+        command_runner=_command_runner,
+        opener=lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("network should not run")),
+    )
+    second = load_search_provider_status(
+        command_runner=_command_runner,
+        opener=lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("network should not run")),
+    )
+
+    assert first["status"] == "not-configured"
+    assert second["status"] == "not-configured"
+    assert call_count["value"] == 1
 
 
 def test_bootstrap_search_provider_sanitizes_null_padded_wsl_distro_name(

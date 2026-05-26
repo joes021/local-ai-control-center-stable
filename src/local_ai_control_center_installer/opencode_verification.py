@@ -661,6 +661,12 @@ def _apply_upstream_proof(
     )
 
     with proof_state.proof_lock:
+        if next_success and next_has_assistant_content:
+            proof_state.upstream_success = True
+            proof_state.response_has_assistant_content = True
+            proof_state.upstream_error = None
+            return
+
         if _has_valid_live_route_proof(proof_state):
             return
 

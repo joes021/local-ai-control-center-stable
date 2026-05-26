@@ -5,6 +5,7 @@ from pathlib import Path
 import re
 import subprocess
 import tempfile
+import time
 from typing import Any, Callable
 from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qsl, quote_plus, urlsplit, urlunsplit
@@ -29,6 +30,9 @@ from local_ai_control_center_installer.platform_paths import is_windows_platform
 MANAGED_SEARXNG_PORT = 18083
 MANAGED_SEARXNG_BASE_URL = f"http://127.0.0.1:{MANAGED_SEARXNG_PORT}/search"
 SEARCH_PROVIDER_HEALTH_TIMEOUT_SECONDS = 3.0
+WSL_BOOTSTRAP_PROBE_TIMEOUT_SECONDS = 5
+BOOTSTRAP_CAPABILITY_CACHE_TTL_SECONDS = 60.0
+_BOOTSTRAP_CAPABILITY_CACHE: dict[str, Any] = {}
 
 
 def load_search_provider_state(
@@ -118,6 +122,19 @@ def load_search_provider_status(
                 state=state,
                 bootstrap=bootstrap,
             )
+        if not bootstrap["available"]:
+            return _build_status_payload(
+                status="not-configured",
+                summary=f"SearxNG nije podesen. Managed bootstrap trenutno nije dostupan: {bootstrap['reason']}",
+                source=target["source"],
+                configured_base_url=target["configuredBaseUrl"],
+                effective_base_url="",
+                service_label="",
+                can_query=False,
+                can_bootstrap=False,
+                state=state,
+                bootstrap=bootstrap,
+            )
         return _build_status_payload(
             status="not-configured",
             summary="SearxNG nije podesen. Pokreni Setup local SearxNG ili unesi rucni base URL.",
@@ -168,7 +185,7 @@ def bootstrap_search_provider(
 ) -> dict[str, Any]:
     config = config or get_config()
     state = load_search_provider_state(config)
-    bootstrap = _describe_bootstrap_capability(command_runner)
+    bootstrap = _describe_bootstrap_capability(command_runner, refresh=True)
     if not bootstrap["available"]:
         _write_search_provider_state(
             config,
@@ -378,13 +395,22 @@ def _probe_search_endpoint(
 
 def _describe_bootstrap_capability(
     command_runner: Callable[..., Any],
+    *,
+    refresh: bool = False,
 ) -> dict[str, Any]:
+    if not refresh:
+        cached = _load_cached_bootstrap_capability()
+        if cached is not None:
+            return cached
+
     if not is_windows_platform():
-        return {
+        result = {
             "available": False,
             "reason": "Managed bootstrap je trenutno podrzan samo na Windows + WSL putu.",
             "distro": "",
         }
+        _store_cached_bootstrap_capability(result)
+        return result
     try:
         completed = command_runner(
             ["wsl", "-l", "-q"],
@@ -392,41 +418,78 @@ def _describe_bootstrap_capability(
             text=True,
             encoding="utf-8",
             errors="replace",
-            timeout=20,
+            timeout=WSL_BOOTSTRAP_PROBE_TIMEOUT_SECONDS,
             check=False,
         )
     except FileNotFoundError:
-        return {
+        result = {
             "available": False,
             "reason": "WSL nije instaliran ili wsl.exe nije dostupan.",
             "distro": "",
         }
+        _store_cached_bootstrap_capability(result)
+        return result
+    except subprocess.TimeoutExpired:
+        result = {
+            "available": False,
+            "reason": "WSL trenutno ne odgovara na proveru distro liste.",
+            "distro": "",
+        }
+        _store_cached_bootstrap_capability(result)
+        return result
     if getattr(completed, "returncode", 1) != 0:
         stderr = _condense_bootstrap_output(
             getattr(completed, "stderr", "") or getattr(completed, "stdout", "")
         )
-        return {
+        result = {
             "available": False,
             "reason": f"WSL nije spreman: {stderr}",
             "distro": "",
         }
+        _store_cached_bootstrap_capability(result)
+        return result
     distros = [
         _sanitize_wsl_text(line).lstrip("*").strip()
         for line in str(getattr(completed, "stdout", "") or "").splitlines()
         if _sanitize_wsl_text(line).strip()
     ]
     if not distros:
-        return {
+        result = {
             "available": False,
             "reason": "Nije pronadjen nijedan WSL distro za managed SearxNG bootstrap.",
             "distro": "",
         }
+        _store_cached_bootstrap_capability(result)
+        return result
     chosen = next((item for item in distros if item.lower() == "ubuntu"), distros[0])
-    return {
+    result = {
         "available": True,
         "reason": f"WSL distro {chosen} je dostupan za managed bootstrap.",
         "distro": chosen,
     }
+    _store_cached_bootstrap_capability(result)
+    return result
+
+
+def _load_cached_bootstrap_capability() -> dict[str, Any] | None:
+    expires_at = float(_BOOTSTRAP_CAPABILITY_CACHE.get("expiresAt", 0.0) or 0.0)
+    value = _BOOTSTRAP_CAPABILITY_CACHE.get("value")
+    if not isinstance(value, dict):
+        return None
+    if time.monotonic() >= expires_at:
+        _BOOTSTRAP_CAPABILITY_CACHE.clear()
+        return None
+    return dict(value)
+
+
+def _store_cached_bootstrap_capability(value: dict[str, Any]) -> None:
+    _BOOTSTRAP_CAPABILITY_CACHE.clear()
+    _BOOTSTRAP_CAPABILITY_CACHE.update(
+        {
+            "expiresAt": time.monotonic() + BOOTSTRAP_CAPABILITY_CACHE_TTL_SECONDS,
+            "value": dict(value),
+        }
+    )
 
 
 def _build_status_payload(
