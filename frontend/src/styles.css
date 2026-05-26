@@ -72,6 +72,14 @@ code {
   border-radius: 999px;
   padding: 10px 14px;
   cursor: pointer;
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.16);
+  transition:
+    transform 140ms ease,
+    box-shadow 180ms ease,
+    border-color 180ms ease,
+    background 180ms ease,
+    color 180ms ease,
+    filter 180ms ease;
 }
 
 .nav-button-active {
@@ -262,6 +270,14 @@ code {
   border-radius: 12px;
   padding: 10px 14px;
   cursor: pointer;
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.18);
+  transition:
+    transform 140ms ease,
+    box-shadow 180ms ease,
+    border-color 180ms ease,
+    background 180ms ease,
+    color 180ms ease,
+    filter 180ms ease;
 }
 
 .secondary-button {
@@ -271,12 +287,82 @@ code {
   border-radius: 12px;
   padding: 10px 14px;
   cursor: pointer;
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.18);
+  transition:
+    transform 140ms ease,
+    box-shadow 180ms ease,
+    border-color 180ms ease,
+    background 180ms ease,
+    color 180ms ease,
+    filter 180ms ease;
 }
 
 .danger-button {
   border: 1px solid rgba(255, 125, 125, 0.3);
   background: rgba(120, 20, 20, 0.35);
   color: #ffe7e7;
+}
+
+.nav-button:hover:not(:disabled),
+.inline-actions button:hover:not(:disabled),
+.form-grid button:hover:not(:disabled),
+.settings-action-row button:hover:not(:disabled),
+.settings-path-row button:hover:not(:disabled),
+.secondary-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  border-color: rgba(242, 184, 75, 0.52);
+  background: linear-gradient(180deg, rgba(112, 82, 41, 0.92), rgba(72, 50, 26, 0.98));
+  box-shadow: 0 16px 28px rgba(0, 0, 0, 0.26);
+}
+
+.danger-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  border-color: rgba(255, 154, 154, 0.5);
+  background: linear-gradient(180deg, rgba(138, 35, 35, 0.92), rgba(92, 22, 22, 0.98));
+  box-shadow: 0 16px 28px rgba(0, 0, 0, 0.28);
+}
+
+.nav-button-active:hover:not(:disabled) {
+  background: linear-gradient(180deg, #f6c768, #efb447);
+  border-color: #f6c768;
+  color: #1d140d;
+}
+
+.nav-button:active:not(:disabled),
+.inline-actions button:active:not(:disabled),
+.form-grid button:active:not(:disabled),
+.settings-action-row button:active:not(:disabled),
+.settings-path-row button:active:not(:disabled),
+.secondary-button:active:not(:disabled),
+.danger-button:active:not(:disabled) {
+  transform: translateY(1px) scale(0.992);
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.2);
+  filter: brightness(0.96);
+}
+
+.nav-button:focus-visible,
+.inline-actions button:focus-visible,
+.form-grid button:focus-visible,
+.settings-action-row button:focus-visible,
+.settings-path-row button:focus-visible,
+.secondary-button:focus-visible,
+.danger-button:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 2px rgba(242, 184, 75, 0.28),
+    0 16px 28px rgba(0, 0, 0, 0.24);
+}
+
+.nav-button:disabled,
+.inline-actions button:disabled,
+.form-grid button:disabled,
+.settings-action-row button:disabled,
+.settings-path-row button:disabled,
+.secondary-button:disabled,
+.danger-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.56;
+  box-shadow: none;
 }
 
 .form-grid {
@@ -1191,9 +1277,29 @@ select:-webkit-autofill {
   text-transform: inherit;
   letter-spacing: inherit;
   cursor: pointer;
+  border-radius: 10px;
+  transition:
+    transform 140ms ease,
+    color 160ms ease,
+    filter 160ms ease;
 }
 
 .browser-sort-button-active {
+  color: #f2c76c;
+}
+
+.browser-sort-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  color: #f2c76c;
+}
+
+.browser-sort-button:active:not(:disabled) {
+  transform: translateY(1px) scale(0.99);
+  filter: brightness(0.95);
+}
+
+.browser-sort-button:focus-visible {
+  outline: none;
   color: #f2c76c;
 }
 

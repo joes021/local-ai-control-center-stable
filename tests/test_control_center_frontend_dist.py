@@ -69,6 +69,22 @@ def test_packaged_settings_action_and_browse_buttons_use_panel_button_theme():
     assert ".settings-path-row button" in bundled_css
 
 
+def test_packaged_frontend_buttons_include_hover_and_active_feedback_states():
+    dist_root = Path(
+        "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
+    )
+    css_assets = list((dist_root / "assets").glob("index-*.css"))
+
+    assert css_assets
+    bundled_css = "\n".join(path.read_text(encoding="utf-8") for path in css_assets)
+
+    assert ":hover:not(:disabled)" in bundled_css
+    assert ":active:not(:disabled)" in bundled_css
+    assert ":focus-visible" in bundled_css
+    assert "translateY(-1px)" in bundled_css
+    assert "translateY(1px)" in bundled_css
+
+
 def test_browser_page_source_groups_quant_filters_and_supports_quant_sort():
     source = Path("frontend/src/pages/BrowserPage.tsx").read_text(encoding="utf-8")
 

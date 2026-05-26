@@ -437,7 +437,7 @@ def test_server_start_route_adds_draft_mtp_flag_for_supported_mtp_active_model(
     assert "draft-mtp" in command
 
 
-def test_server_start_route_rejects_hardware_incompatible_active_model_before_launch(
+def test_server_start_route_allows_hardware_risky_active_model_to_attempt_launch(
     tmp_path: Path,
     monkeypatch,
 ):
@@ -457,10 +457,13 @@ def test_server_start_route_rejects_hardware_incompatible_active_model_before_la
 
     captured: dict[str, object] = {}
 
+    class FakeProcess:
+        pid = 7004
+
     def fake_popen(command, **kwargs):
         captured["command"] = command
         captured["kwargs"] = kwargs
-        raise AssertionError("runtime launch should not be attempted")
+        return FakeProcess()
 
     monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
     monkeypatch.setattr(
@@ -486,9 +489,9 @@ def test_server_start_route_rejects_hardware_incompatible_active_model_before_la
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["status"] == "error"
-    assert "nije realno upotrebljiv" in payload["summary"]
-    assert captured == {}
+    assert payload["status"] == "ok"
+    assert "Pokretanje runtime servera je poslato" in payload["summary"]
+    assert captured["command"][0].endswith("llama-server.exe")
 
 
 def test_server_status_route_exposes_start_block_reason_for_unsupported_active_model(
