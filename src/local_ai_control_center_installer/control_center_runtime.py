@@ -109,17 +109,28 @@ def deploy_control_center_runtime(
     panel_root.mkdir(parents=True, exist_ok=True)
     launcher_path = panel_root / _panel_launcher_name_for_platform(platform)
     panel_host_path = panel_root / _panel_host_name_for_platform(platform)
-    _stop_existing_panel_for_update(
-        install_root=normalized_install_root,
-        port=DEFAULT_PANEL_PORT,
-        panel_executable_path=panel_host_path,
-        platform=platform,
-    )
-
     if frozen is None:
         frozen = bool(getattr(sys, "frozen", False))
 
     panel_executable_resource = panel_executable_resource or _resolve_panel_executable_resource()
+    candidate_frozen_executable = (
+        Path(frozen_executable).expanduser().resolve()
+        if frozen_executable is not None
+        else Path(sys.executable).resolve()
+    )
+    panel_binary_source = _resolve_panel_binary_source(
+        panel_executable_resource=panel_executable_resource,
+        frozen=frozen,
+        candidate_frozen_executable=candidate_frozen_executable,
+        platform=platform,
+    )
+    _stop_existing_panel_for_update(
+        install_root=normalized_install_root,
+        port=DEFAULT_PANEL_PORT,
+        panel_executable_path=panel_host_path,
+        replacement_panel_path=panel_binary_source,
+        platform=platform,
+    )
     if (
         panel_executable_resource is not None
         and panel_executable_resource.is_file()
@@ -174,11 +185,6 @@ def deploy_control_center_runtime(
             uninstall_registry_key=shell_assets["uninstall_registry_key"],
         )
 
-    candidate_frozen_executable = (
-        Path(frozen_executable).expanduser().resolve()
-        if frozen_executable is not None
-        else Path(sys.executable).resolve()
-    )
     if frozen and candidate_frozen_executable.is_file():
         executable_path = panel_host_path
         _copy_panel_executable(candidate_frozen_executable, executable_path)
@@ -914,11 +920,18 @@ def _stop_existing_panel_for_update(
     install_root: Path,
     port: int,
     panel_executable_path: Path,
+    replacement_panel_path: Path | None = None,
     timeout_seconds: float = 10.0,
     platform: str | None = None,
 ) -> None:
     panel_url = f"http://127.0.0.1:{port}/"
     if not _panel_health_ready(panel_url, expected_install_root=str(install_root)):
+        return
+
+    if (
+        replacement_panel_path is not None
+        and _files_have_same_contents(replacement_panel_path, panel_executable_path)
+    ):
         return
 
     try:
@@ -954,7 +967,51 @@ def _stop_existing_panel_for_update(
     )
 
 
+def _resolve_panel_binary_source(
+    *,
+    panel_executable_resource: Path | None,
+    frozen: bool,
+    candidate_frozen_executable: Path,
+    platform: str | None = None,
+) -> Path | None:
+    if (
+        panel_executable_resource is not None
+        and panel_executable_resource.is_file()
+        and _is_windows_runtime_platform(platform)
+    ):
+        return panel_executable_resource.resolve()
+    if frozen and candidate_frozen_executable.is_file():
+        return candidate_frozen_executable.resolve()
+    return None
+
+
+def _files_have_same_contents(source: Path, destination: Path) -> bool:
+    try:
+        source_path = source.resolve()
+        destination_path = destination.resolve()
+        if source_path == destination_path:
+            return True
+        if not source_path.is_file() or not destination_path.is_file():
+            return False
+        if source_path.stat().st_size != destination_path.stat().st_size:
+            return False
+        with source_path.open("rb") as source_handle, destination_path.open(
+            "rb"
+        ) as destination_handle:
+            while True:
+                source_chunk = source_handle.read(1024 * 1024)
+                destination_chunk = destination_handle.read(1024 * 1024)
+                if source_chunk != destination_chunk:
+                    return False
+                if not source_chunk:
+                    return True
+    except OSError:
+        return False
+
+
 def _copy_panel_executable(source: Path, destination: Path) -> None:
+    if _files_have_same_contents(source, destination):
+        return
     try:
         shutil.copy2(source, destination)
     except PermissionError:

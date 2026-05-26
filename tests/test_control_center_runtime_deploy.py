@@ -292,6 +292,63 @@ def test_deploy_control_center_runtime_retries_copy_after_panel_executable_unloc
     assert copied_executable.read_bytes() == b"panel-runtime"
 
 
+def test_deploy_control_center_runtime_reuses_healthy_running_panel_when_binary_matches(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    install_root = tmp_path / "install-root"
+    current_executable = tmp_path / "LocalAIControlCenterSetup-v0.4.30.exe"
+    current_executable.write_bytes(b"panel-runtime")
+    copied_executable = install_root / "control-center" / PANEL_EXECUTABLE_NAME
+    copied_executable.parent.mkdir(parents=True, exist_ok=True)
+    copied_executable.write_bytes(b"panel-runtime")
+
+    stop_calls: list[int] = []
+    copy_calls: list[tuple[Path, Path]] = []
+
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_runtime._panel_health_ready",
+        lambda *args, **kwargs: True,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_runtime._find_panel_process_ids",
+        lambda *args, **kwargs: [4242],
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_runtime._port_in_use",
+        lambda host, port: False,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_runtime._stop_process_id",
+        lambda pid, platform=None: stop_calls.append(pid) or "ERROR: The process with PID 4242 could not be terminated.",
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_runtime._ensure_windows_shell_assets",
+        lambda **kwargs: _empty_shell_assets(),
+    )
+
+    def fake_copy2(source, destination, *args, **kwargs):
+        copy_calls.append((Path(source), Path(destination)))
+        raise AssertionError("copy2 should not run when the panel binary already matches")
+
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_runtime.shutil.copy2",
+        fake_copy2,
+    )
+
+    deployment = deploy_control_center_runtime(
+        install_root,
+        panel_executable_resource=None,
+        frozen=True,
+        frozen_executable=str(current_executable),
+    )
+
+    assert deployment.strategy == "copied-frozen-exe"
+    assert stop_calls == []
+    assert copy_calls == []
+    assert copied_executable.read_bytes() == b"panel-runtime"
+
+
 def test_deploy_control_center_runtime_creates_shell_shortcuts_and_uninstall_entry(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

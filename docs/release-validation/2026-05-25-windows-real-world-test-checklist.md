@@ -2,7 +2,7 @@
 
 ## Scope
 
-Ova checklist-a je namenjena za stvarno korisnicko testiranje Windows proizvoda iz grane `codex/panel-integration`, nakon release-a `v0.4.30`.
+Ova checklist-a je namenjena za stvarno korisnicko testiranje Windows proizvoda iz grane `codex/panel-integration`, nakon release-a `v0.4.31`.
 
 Cilj nije samo da se proveri da li "nesto radi", nego da se potvrdi da je ceo installer-managed proizvod pouzdan u realnom toku:
 
@@ -49,7 +49,7 @@ Pre pocetka zabelezi:
 ## Pre-flight checks
 
 1. Preuzmi aktuelni installer:
-   - `LocalAIControlCenterSetup-v0.4.30.exe`
+   - `LocalAIControlCenterSetup-v0.4.31.exe`
 2. Potvrdi da stari panel nije ostao zalepljen u cudnom stanju.
 3. Ako testiras update put:
    - zabelezi verziju sa koje kreces
