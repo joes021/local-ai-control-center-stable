@@ -292,6 +292,49 @@ def test_deploy_control_center_runtime_retries_copy_after_panel_executable_unloc
     assert copied_executable.read_bytes() == b"panel-runtime"
 
 
+def test_deploy_control_center_runtime_tolerates_panel_process_already_gone(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    install_root = tmp_path / "install-root"
+    current_executable = tmp_path / "LocalAIControlCenterSetup-v0.4.31.exe"
+    current_executable.write_bytes(b"panel-runtime")
+    copied_executable = install_root / "control-center" / PANEL_EXECUTABLE_NAME
+    copied_executable.parent.mkdir(parents=True, exist_ok=True)
+    copied_executable.write_bytes(b"old-panel-runtime")
+
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_runtime._panel_health_ready",
+        lambda *args, **kwargs: True,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_runtime._find_panel_process_ids",
+        lambda *args, **kwargs: [4242],
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_runtime._port_in_use",
+        lambda host, port: False,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_runtime._stop_process_id",
+        lambda pid, platform=None: 'ERROR: The process "4242" not found.',
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_runtime._ensure_windows_shell_assets",
+        lambda **kwargs: _empty_shell_assets(),
+    )
+
+    deployment = deploy_control_center_runtime(
+        install_root,
+        panel_executable_resource=None,
+        frozen=True,
+        frozen_executable=str(current_executable),
+    )
+
+    assert deployment.strategy == "copied-frozen-exe"
+    assert copied_executable.read_bytes() == b"panel-runtime"
+
+
 def test_deploy_control_center_runtime_reuses_healthy_running_panel_when_binary_matches(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

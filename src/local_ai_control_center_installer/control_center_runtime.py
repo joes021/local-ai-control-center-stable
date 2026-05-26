@@ -954,6 +954,8 @@ def _stop_existing_panel_for_update(
     for pid in pids:
         detail = _stop_process_id(pid, platform=platform)
         if detail is not None:
+            if _is_benign_missing_process_stop_error(detail):
+                continue
             raise RuntimeError(f"Control Center panel nije mogao da se zaustavi: {detail}")
 
     deadline = time.monotonic() + timeout_seconds
@@ -983,6 +985,13 @@ def _resolve_panel_binary_source(
     if frozen and candidate_frozen_executable.is_file():
         return candidate_frozen_executable.resolve()
     return None
+
+
+def _is_benign_missing_process_stop_error(detail: str) -> bool:
+    normalized = detail.strip().lower()
+    if not normalized:
+        return False
+    return "not found" in normalized or "no such process" in normalized
 
 
 def _files_have_same_contents(source: Path, destination: Path) -> bool:
