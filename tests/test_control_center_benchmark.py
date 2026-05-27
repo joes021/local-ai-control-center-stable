@@ -173,9 +173,9 @@ def test_load_benchmark_summary_reads_installer_managed_history_and_defaults(
     }
     assert payload["current"]["environment"]["modelLabel"] == "gemma-4-E4B-it-Q4_K_M.gguf"
     assert payload["liveState"] == {
-        "status": "idle",
+        "status": "recent-benchmark",
         "hasLiveSignal": False,
-        "reason": "Runtime trenutno nema aktivan throughput signal. Pokreni benchmark ili OpenCode zahtev da bi se live tok/s pojavio.",
+        "reason": "Runtime trenutno nema aktivan live throughput signal. Prikazujem poslednji benchmark throughput kao referencu dok nema novog live saobracaja.",
     }
     assert payload["savedRuns"][0]["modelLabel"] == "gemma-4-E4B-it-Q4_K_M.gguf"
     assert payload["savedRuns"][0]["runtimeLabel"] == "llama.cpp"
@@ -360,6 +360,126 @@ def test_load_benchmark_summary_builds_24h_telemetry_snapshot(
     assert telemetry["flowStateLabel"] == "active generation"
     assert telemetry["inputSharePercent"] == 66.5
     assert telemetry["outputSharePercent"] == 33.5
+
+
+def test_load_benchmark_summary_falls_back_to_recent_benchmark_throughput_when_live_signal_is_idle(
+    tmp_path: Path,
+    monkeypatch,
+):
+    from local_ai_control_center_installer.control_center_backend.services import benchmark_service
+
+    install_root = tmp_path / "install-root"
+    now = datetime.now(timezone.utc)
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    _write_runtime_endpoint_config(install_root)
+    _write_active_model_config(install_root, filename="Qwen3.6-35B-A3B-UD-IQ2_XXS.gguf")
+    _write_settings_config(install_root, profile="balanced", context=262144, output_tokens=8192, thinking_mode="mid")
+
+    config = get_config()
+    config.control_center_config_root.mkdir(parents=True, exist_ok=True)
+    config.benchmark_history_path.write_text(
+        json.dumps(
+            [
+                {
+                    "measuredAt": (now - timedelta(minutes=4)).isoformat(),
+                    "label": "benchmark-full-battery",
+                    "promptTokens": 24000,
+                    "completionTokens": 12000,
+                    "totalTokens": 36000,
+                    "promptTokensPerSecond": 16.2,
+                    "completionTokensPerSecond": 19.4,
+                    "totalTokensPerSecond": 18.3,
+                    "totalMs": 4200.0,
+                }
+            ],
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(benchmark_service, "_load_live_slot_metric", lambda config=None: None)
+    monkeypatch.setattr(
+        benchmark_service,
+        "_load_run_state",
+        lambda config=None: {
+            "runId": "",
+            "status": "idle",
+            "mode": "selected",
+            "batteryId": "default",
+            "batteryName": "Default battery",
+            "scenarioId": "",
+            "scenarioName": "",
+            "currentScenarioId": "",
+            "currentScenarioName": "",
+            "currentIndex": 0,
+            "totalScenarios": 0,
+            "percent": 0,
+            "startedAt": "",
+            "finishedAt": "",
+            "message": "Benchmark nije pokrenut.",
+            "scenarioStatuses": [],
+        },
+    )
+
+    payload = benchmark_service.load_benchmark_summary()
+
+    assert payload["liveCurrent"] is None
+    assert payload["liveState"] == {
+        "status": "recent-benchmark",
+        "hasLiveSignal": False,
+        "reason": "Runtime trenutno nema aktivan live throughput signal. Prikazujem poslednji benchmark throughput kao referencu dok nema novog live saobracaja.",
+    }
+    assert payload["telemetry"]["liveNowTokensPerSecond"] == 18.3
+    assert payload["telemetry"]["flowState"] == "recent-benchmark"
+    assert payload["telemetry"]["flowStateLabel"] == "recent benchmark"
+    assert payload["telemetry"]["lastUpdate"] == (now - timedelta(minutes=4)).isoformat()
+
+
+def test_load_benchmark_summary_does_not_treat_stale_live_history_as_active_signal(
+    tmp_path: Path,
+    monkeypatch,
+):
+    from local_ai_control_center_installer.control_center_backend.services import benchmark_service
+
+    install_root = tmp_path / "install-root"
+    now = datetime.now(timezone.utc)
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    _write_runtime_endpoint_config(install_root)
+    _write_active_model_config(install_root)
+    _write_settings_config(install_root)
+
+    config = get_config()
+    config.control_center_config_root.mkdir(parents=True, exist_ok=True)
+    config.benchmark_live_history_path.write_text(
+        json.dumps(
+            [
+                {
+                    "measuredAt": (now - timedelta(minutes=5)).isoformat(),
+                    "label": "opencode-live",
+                    "promptTokensPerSecond": None,
+                    "completionTokensPerSecond": 22.4,
+                    "totalTokensPerSecond": 22.4,
+                    "totalMs": 5000.0,
+                    "signature": "opencode-live:stale-sample",
+                }
+            ],
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(benchmark_service, "_load_live_slot_metric", lambda config=None: None)
+
+    payload = benchmark_service.load_benchmark_summary()
+
+    assert payload["liveCurrent"] is None
+    assert payload["liveState"] == {
+        "status": "idle",
+        "hasLiveSignal": False,
+        "reason": "Runtime trenutno nema aktivan throughput signal. Pokreni benchmark ili OpenCode zahtev da bi se live tok/s pojavio.",
+    }
+    assert payload["telemetry"]["liveNowTokensPerSecond"] is None
+    assert payload["telemetry"]["flowState"] == "quiet"
 
 
 def test_benchmark_workers_persist_richer_run_metadata(

@@ -84,13 +84,19 @@ def load_benchmark_summary(
     live_history = _record_live_history_sample(config, live_sample)
     signal_history = history + live_history
     current = signal_history[-1] if signal_history else None
-    live_current = live_sample or (live_history[-1] if live_history else None)
+    live_current = live_sample
+    latest_history_metric = history[-1] if history else None
+    recent_benchmark_fallback = _recent_benchmark_fallback(latest_history_metric)
     recent_activities, source_counts = _build_recent_activities(signal_history)
     batteries_payload = _load_batteries(config)
     selected_battery = _selected_battery(batteries_payload)
     active_run = _load_run_state(config)
     saved_runs = _normalize_saved_runs(_load_saved_runs(config), environment)
-    live_state = _build_live_state(active_run=active_run, live_current=live_current)
+    live_state = _build_live_state(
+        active_run=active_run,
+        live_current=live_current,
+        recent_benchmark_fallback=recent_benchmark_fallback,
+    )
 
     chart_history = [_attach_chart_label(_attach_environment(item, environment)) for item in signal_history[-120:]]
     live_chart_history = [_attach_chart_label(_attach_environment(item, environment)) for item in live_history[-120:]]
@@ -109,7 +115,8 @@ def load_benchmark_summary(
         "telemetry": _build_telemetry_summary(
             history=history,
             live_current=live_current,
-            current=current,
+            latest_history_metric=latest_history_metric,
+            recent_benchmark_fallback=recent_benchmark_fallback,
             environment=environment,
             live_state=live_state,
             active_run=active_run,
@@ -1353,6 +1360,7 @@ def _build_live_state(
     *,
     active_run: dict[str, Any],
     live_current: dict[str, Any] | None,
+    recent_benchmark_fallback: dict[str, Any] | None,
 ) -> dict[str, Any]:
     if live_current is not None:
         return {
@@ -1366,6 +1374,12 @@ def _build_live_state(
             "hasLiveSignal": False,
             "reason": "Benchmark je pokrenut, ali runtime jos nije prijavio live throughput signal.",
         }
+    if recent_benchmark_fallback is not None:
+        return {
+            "status": "recent-benchmark",
+            "hasLiveSignal": False,
+            "reason": "Runtime trenutno nema aktivan live throughput signal. Prikazujem poslednji benchmark throughput kao referencu dok nema novog live saobracaja.",
+        }
     return {
         "status": "idle",
         "hasLiveSignal": False,
@@ -1377,7 +1391,8 @@ def _build_telemetry_summary(
     *,
     history: list[dict[str, Any]],
     live_current: dict[str, Any] | None,
-    current: dict[str, Any] | None,
+    latest_history_metric: dict[str, Any] | None,
+    recent_benchmark_fallback: dict[str, Any] | None,
     environment: dict[str, Any],
     live_state: dict[str, Any],
     active_run: dict[str, Any],
@@ -1400,6 +1415,8 @@ def _build_telemetry_summary(
 
     input_share_percent = round((input_24h_tokens / total_24h_tokens) * 100, 1) if total_24h_tokens > 0 else 0.0
     output_share_percent = round((output_24h_tokens / total_24h_tokens) * 100, 1) if total_24h_tokens > 0 else 0.0
+    visible_live_metric = live_current or recent_benchmark_fallback
+    last_update_metric = visible_live_metric or latest_history_metric
 
     return {
         "windowHours": BENCHMARK_TELEMETRY_WINDOW_HOURS,
@@ -1414,13 +1431,15 @@ def _build_telemetry_summary(
         "activeRoutesLabel": _active_routes_label(
             _int_or_zero((live_current or {}).get("activeRoutes")),
             environment,
-            live_current or current,
+            live_current,
         ),
-        "liveNowTokensPerSecond": _metric_value(live_current, "totalTokensPerSecond") if live_current else None,
+        "liveNowTokensPerSecond": _metric_value(visible_live_metric, "totalTokensPerSecond")
+        if visible_live_metric
+        else None,
         "flowState": _telemetry_flow_state(live_state)[0],
         "flowStateLabel": _telemetry_flow_state(live_state)[1],
         "flowStateReason": str(live_state.get("reason", "") or ""),
-        "lastUpdate": str((live_current or current or {}).get("measuredAt", "") or ""),
+        "lastUpdate": str((last_update_metric or {}).get("measuredAt", "") or ""),
         "inputSharePercent": input_share_percent,
         "outputSharePercent": output_share_percent,
         "launchQueueSignal": _build_launch_queue_signal(active_run),
@@ -1433,7 +1452,24 @@ def _telemetry_flow_state(live_state: dict[str, Any]) -> tuple[str, str]:
         return "active-generation", "active generation"
     if status == "warming":
         return "syncing", "syncing"
+    if status == "recent-benchmark":
+        return "recent-benchmark", "recent benchmark"
     return "quiet", "quiet"
+
+
+def _recent_benchmark_fallback(
+    latest_history_metric: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    if not isinstance(latest_history_metric, dict):
+        return None
+    if _metric_value(latest_history_metric, "totalTokensPerSecond") is None:
+        return None
+    measured_at = _parse_iso_timestamp(latest_history_metric.get("measuredAt"))
+    if measured_at is None:
+        return None
+    if (datetime.now(timezone.utc) - measured_at).total_seconds() > BENCHMARK_TELEMETRY_WINDOW_HOURS * 3600:
+        return None
+    return latest_history_metric
 
 
 def _active_routes_label(

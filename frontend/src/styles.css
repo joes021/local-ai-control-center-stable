@@ -501,6 +501,12 @@ code {
   background: rgba(154, 112, 41, 0.18);
 }
 
+.telemetry-state-recent-benchmark {
+  color: #e8dcff;
+  border-color: rgba(156, 126, 255, 0.34);
+  background: rgba(91, 63, 160, 0.18);
+}
+
 .telemetry-state-quiet {
   color: #ddd5ca;
   border-color: rgba(255, 255, 255, 0.12);
