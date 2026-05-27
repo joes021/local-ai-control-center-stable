@@ -413,6 +413,10 @@ code {
     grid-template-columns: 1fr;
   }
 
+  .workflow-preset-grid {
+    grid-template-columns: 1fr;
+  }
+
   .system-overview-grid {
     grid-template-columns: 1fr;
   }
@@ -954,6 +958,12 @@ code {
 .theme-options-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.workflow-preset-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
 }
 
@@ -2283,6 +2293,10 @@ select:-webkit-autofill {
 
 @media (max-width: 1140px) {
   .home-detail-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .workflow-preset-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 

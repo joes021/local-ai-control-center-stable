@@ -124,11 +124,15 @@ def test_jobs_source_and_navigation_are_present():
 def test_workflows_source_and_navigation_are_present():
     app_source = Path("frontend/src/App.tsx").read_text(encoding="utf-8")
     workflows_source = Path("frontend/src/pages/WorkflowsPage.tsx").read_text(encoding="utf-8")
+    styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
 
     assert "Workflows" in app_source
     assert "Workflow workspace" in workflows_source
     assert "Activate preset" in workflows_source
     assert "Open Search" in workflows_source
+    assert "workflow-preset-grid" in workflows_source
+    assert ".workflow-preset-grid" in styles_source
+    assert "grid-template-columns: repeat(3, minmax(0, 1fr));" in styles_source
 
 
 def test_packaged_settings_action_and_browse_buttons_use_panel_button_theme():

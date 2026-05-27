@@ -59,7 +59,7 @@ export function WorkflowsPage({
 
       <section className="status-card wide-card">
         <span className="status-label">Preset catalog</span>
-        <div className="theme-options-grid">
+        <div className="workflow-preset-grid">
           {presets.map((preset) => {
             const isActive = settingsPayload.selectedWorkflowPresetId === preset.id;
             return (
