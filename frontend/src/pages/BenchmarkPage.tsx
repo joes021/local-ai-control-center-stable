@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { CustomSelect } from "../components/CustomSelect";
+import { TelemetryPanel } from "../components/TelemetryPanel";
 import {
   clearBenchmarkHistory,
   exportBenchmarkRuns,
@@ -723,6 +724,8 @@ export function BenchmarkPage({ onOpenLogs }: { onOpenLogs: () => void }) {
         </div>
       </section>
 
+      <TelemetryPanel benchmark={benchmark} variant="benchmark" />
+
       <section className="status-card wide-card">
         <span className="status-label">Benchmark context</span>
         <div className="benchmark-context-grid">
@@ -778,73 +781,6 @@ export function BenchmarkPage({ onOpenLogs }: { onOpenLogs: () => void }) {
           ))}
         </div>
         <div style={{ display: "none" }}>queued running done failed</div>
-      </section>
-
-      <section className="status-card wide-card">
-        <span className="status-label">LIVE THROUGHPUT</span>
-        <strong className="status-value">
-          {benchmark.liveCurrent
-            ? `${benchmark.liveCurrent.totalTokensPerSecond ?? 0} tok/s`
-            : "nema aktivnog live signala"}
-        </strong>
-        <p className="helper-text">
-          {benchmark.liveState.reason}
-        </p>
-        <p className="helper-text">
-          Signal: {benchmark.activity.throughputTrend.signal} {benchmark.activity.throughputTrend.label} | latency{" "}
-          {benchmark.activity.latencyTrend.signal} {benchmark.activity.latencyTrend.label}
-        </p>
-      </section>
-
-      <section className="benchmark-metric-pairs wide-card">
-        <div className="benchmark-metric-pair">
-          <section className="status-card">
-            <span className="status-label">Live input tok/s</span>
-            <strong className="status-value benchmark-metric-value benchmark-metric-value-input">
-              {formatThroughput(benchmark.liveCurrent?.promptTokensPerSecond)}
-            </strong>
-          </section>
-          <section className="status-card">
-            <span className="status-label">Avg input tok/s</span>
-            <strong className="status-value benchmark-metric-value benchmark-metric-value-input">
-              {formatThroughput(benchmark.averages.promptTokensPerSecond)}
-            </strong>
-          </section>
-        </div>
-        <div className="benchmark-metric-pair">
-          <section className="status-card">
-            <span className="status-label">Live output tok/s</span>
-            <strong className="status-value benchmark-metric-value benchmark-metric-value-output">
-              {formatThroughput(benchmark.liveCurrent?.completionTokensPerSecond)}
-            </strong>
-          </section>
-          <section className="status-card">
-            <span className="status-label">Avg output tok/s</span>
-            <strong className="status-value benchmark-metric-value benchmark-metric-value-output">
-              {formatThroughput(benchmark.averages.completionTokensPerSecond)}
-            </strong>
-          </section>
-        </div>
-        <div className="benchmark-metric-pair">
-          <section className="status-card">
-            <span className="status-label">Live ukupno tok/s</span>
-            <strong className="status-value benchmark-metric-value benchmark-metric-value-total">
-              {formatThroughput(benchmark.liveCurrent?.totalTokensPerSecond)}
-            </strong>
-          </section>
-          <section className="status-card">
-            <span className="status-label">Avg ukupno tok/s</span>
-            <strong className="status-value benchmark-metric-value benchmark-metric-value-total">
-              {formatThroughput(benchmark.averages.totalTokensPerSecond)}
-            </strong>
-          </section>
-        </div>
-        <div className="benchmark-metric-pair benchmark-metric-pair-single">
-          <section className="status-card">
-            <span className="status-label">Avg odgovor</span>
-            <strong className="status-value">{benchmark.activity.averageTotalMs} ms</strong>
-          </section>
-        </div>
       </section>
 
       <section className="status-card wide-card">

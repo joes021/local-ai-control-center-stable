@@ -544,16 +544,20 @@ def _build_verification_relay_handler(
 ):
     class VerificationRelayHandler(BaseHTTPRequestHandler):
         def do_POST(self):
+            content_length = int(self.headers.get("Content-Length", "0") or 0)
             if self.path != "/v1/chat/completions":
+                if content_length > 0:
+                    self.rfile.read(content_length)
                 self.send_error(404, "Not Found")
                 return
 
             content_type = self.headers.get("Content-Type", "")
             if "application/json" not in content_type.lower():
+                if content_length > 0:
+                    self.rfile.read(content_length)
                 self.send_error(415, "Expected application/json")
                 return
 
-            content_length = int(self.headers.get("Content-Length", "0"))
             request_body = self.rfile.read(content_length)
 
             try:

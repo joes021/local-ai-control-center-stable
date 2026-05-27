@@ -70,6 +70,10 @@ export type BenchmarkHistoryItem = {
   chartLabel?: string;
   label: string;
   source?: string;
+  promptTokens?: number | null;
+  completionTokens?: number | null;
+  totalTokens?: number | null;
+  activeRoutes?: number | null;
   promptTokensPerSecond?: number | null;
   completionTokensPerSecond?: number | null;
   totalTokensPerSecond?: number | null;
@@ -94,6 +98,28 @@ export type BenchmarkLiveState = {
   status: string;
   hasLiveSignal: boolean;
   reason: string;
+};
+
+export type BenchmarkTelemetrySummary = {
+  windowHours: number;
+  input24hTokens: number;
+  output24hTokens: number;
+  total24hTokens: number;
+  estimatedCost24hUsd: number;
+  activeRoutes: number;
+  activeRoutesLabel: string;
+  liveNowTokensPerSecond: number | null;
+  flowState: string;
+  flowStateLabel: string;
+  flowStateReason: string;
+  lastUpdate: string;
+  inputSharePercent: number;
+  outputSharePercent: number;
+  launchQueueSignal: {
+    status: string;
+    label: string;
+    summary: string;
+  };
 };
 
 export type BenchmarkScenario = {
@@ -174,6 +200,7 @@ export type BenchmarkPayload = {
   lastLabel: string | null;
   environment: BenchmarkEnvironment;
   liveState: BenchmarkLiveState;
+  telemetry: BenchmarkTelemetrySummary;
   activity: {
     averageTotalMs: number;
     sources: {

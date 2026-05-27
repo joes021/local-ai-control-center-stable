@@ -165,22 +165,18 @@ code {
   gap: 16px;
 }
 
-.home-top-grid,
+.home-server-grid,
 .home-detail-grid {
   display: grid;
   gap: 16px;
 }
 
-.home-top-grid {
+.home-server-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.home-top-grid .system-overview-card {
-  grid-column: 1 / -1;
 }
 
 .home-detail-grid {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .wide-card {
@@ -188,7 +184,7 @@ code {
 }
 
 @media (max-width: 860px) {
-  .home-top-grid,
+  .home-server-grid,
   .home-detail-grid {
     grid-template-columns: 1fr;
   }
@@ -196,6 +192,238 @@ code {
   .system-overview-grid {
     grid-template-columns: 1fr;
   }
+}
+
+.telemetry-panel {
+  overflow: hidden;
+  border-color: rgba(104, 227, 200, 0.14);
+  background:
+    radial-gradient(circle at top left, rgba(92, 220, 190, 0.12), transparent 32%),
+    radial-gradient(circle at top right, rgba(242, 184, 75, 0.16), transparent 38%),
+    linear-gradient(155deg, rgba(18, 21, 24, 0.96), rgba(29, 23, 18, 0.98) 58%, rgba(14, 11, 9, 0.98));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 20px 42px rgba(0, 0, 0, 0.24);
+}
+
+.telemetry-page-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+  margin-bottom: 18px;
+}
+
+.telemetry-page-title {
+  display: block;
+  font-size: clamp(1.2rem, 2vw, 1.7rem);
+  line-height: 1.2;
+}
+
+.telemetry-page-badges {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.telemetry-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.65fr) minmax(300px, 0.95fr);
+  gap: 18px;
+}
+
+.telemetry-hero-main,
+.telemetry-live-panel,
+.telemetry-footer-card,
+.telemetry-support-card {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 18px;
+  padding: 16px;
+}
+
+.telemetry-hero-main {
+  display: grid;
+  gap: 16px;
+}
+
+.telemetry-hero-state-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.telemetry-state-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 30px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.telemetry-state-active-generation {
+  color: #d7fff8;
+  border-color: rgba(88, 222, 193, 0.36);
+  background: rgba(48, 150, 132, 0.18);
+}
+
+.telemetry-state-syncing {
+  color: #ffe7b9;
+  border-color: rgba(242, 184, 75, 0.36);
+  background: rgba(154, 112, 41, 0.18);
+}
+
+.telemetry-state-quiet {
+  color: #ddd5ca;
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.telemetry-state-caption {
+  color: #bfc9cb;
+  font-size: 0.92rem;
+}
+
+.telemetry-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.telemetry-metric-card {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  padding: 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.025));
+}
+
+.telemetry-metric-label,
+.telemetry-footer-label {
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: #9bbdb7;
+}
+
+.telemetry-metric-value {
+  font-size: clamp(1.35rem, 2vw, 1.9rem);
+  line-height: 1.1;
+  color: #f5f2ea;
+}
+
+.telemetry-metric-copy {
+  margin: 0;
+  color: #c7d0d2;
+  line-height: 1.4;
+  font-size: 0.9rem;
+}
+
+.telemetry-live-panel {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+  background:
+    radial-gradient(circle at top left, rgba(88, 222, 193, 0.12), transparent 34%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.025));
+}
+
+.telemetry-live-label {
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #bda993;
+}
+
+.telemetry-live-value {
+  font-size: clamp(2rem, 3.4vw, 3.2rem);
+  line-height: 1;
+  color: #e7fff8;
+}
+
+.telemetry-live-scale {
+  display: grid;
+  gap: 8px;
+}
+
+.telemetry-live-scale-track {
+  height: 12px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.telemetry-live-scale-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #2db7d5 0%, #4ddcc0 42%, #f2b84b 100%);
+  box-shadow: 0 0 18px rgba(77, 220, 192, 0.18);
+}
+
+.telemetry-live-scale-ticks {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  color: #bfc9cb;
+  font-size: 0.84rem;
+}
+
+.telemetry-footer-grid,
+.telemetry-support-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.telemetry-footer-card {
+  display: grid;
+  gap: 8px;
+}
+
+.telemetry-footer-card strong,
+.telemetry-support-card strong {
+  font-size: 1rem;
+  line-height: 1.35;
+}
+
+.telemetry-footer-card-split {
+  gap: 10px;
+}
+
+.telemetry-split-bar {
+  display: flex;
+  width: 100%;
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.telemetry-split-bar-input {
+  background: linear-gradient(90deg, rgba(45, 183, 213, 0.9), rgba(77, 220, 192, 0.9));
+}
+
+.telemetry-split-bar-output {
+  background: linear-gradient(90deg, rgba(242, 184, 75, 0.85), rgba(212, 79, 68, 0.92));
+}
+
+.telemetry-support-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.telemetry-support-card {
+  display: grid;
+  gap: 8px;
 }
 
 .settings-page {
@@ -1671,6 +1899,22 @@ select:-webkit-autofill {
     grid-template-columns: 1fr;
   }
 
+  .telemetry-page-header,
+  .telemetry-hero,
+  .telemetry-footer-grid,
+  .telemetry-support-grid {
+    grid-template-columns: 1fr;
+    display: grid;
+  }
+
+  .telemetry-page-badges {
+    justify-content: flex-start;
+  }
+
+  .telemetry-metric-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .battery-editor-topline,
   .battery-editor-detail-grid,
   .battery-scenario-row,
@@ -1753,5 +1997,23 @@ select:-webkit-autofill {
 
   .compatibility-choice-grid-remote {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 1140px) {
+  .home-detail-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .telemetry-hero {
+    grid-template-columns: 1fr;
+  }
+
+  .telemetry-metric-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .telemetry-footer-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

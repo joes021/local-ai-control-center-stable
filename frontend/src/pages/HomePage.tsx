@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 
 import { ActionResultPanel } from "../components/ActionResultPanel";
+import { TelemetryPanel } from "../components/TelemetryPanel";
 import {
+  fetchBenchmark,
   fetchOpenCodeStatus,
   fetchServerStatus,
   fetchStatus,
@@ -10,6 +12,7 @@ import {
 } from "../lib/api";
 import type {
   ActionResult,
+  BenchmarkPayload,
   OpenCodeStatusPayload,
   ServerStatusPayload,
   StatusPayload,
@@ -35,6 +38,7 @@ export function HomePage() {
   const [status, setStatus] = useState<StatusPayload | null>(null);
   const [serverStatus, setServerStatus] = useState<ServerStatusPayload | null>(null);
   const [opencode, setOpencode] = useState<OpenCodeStatusPayload | null>(null);
+  const [benchmark, setBenchmark] = useState<BenchmarkPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ActionResult | null>(null);
 
@@ -45,9 +49,16 @@ export function HomePage() {
         fetchServerStatus(),
         fetchOpenCodeStatus(),
       ]);
+      let benchmarkPayload: BenchmarkPayload | null = null;
+      try {
+        benchmarkPayload = await fetchBenchmark();
+      } catch {
+        benchmarkPayload = null;
+      }
       setStatus(statusPayload);
       setServerStatus(serverPayload);
       setOpencode(opencodePayload);
+      setBenchmark(benchmarkPayload);
       setError(null);
     } catch (reason: unknown) {
       setError(reason instanceof Error ? reason.message : "Nepoznata greska");
@@ -86,39 +97,40 @@ export function HomePage() {
     <>
       {error ? <div className="error-panel wide-card">{error}</div> : null}
       <div className="home-layout wide-card">
-        <div className="home-top-grid">
-          <section className="status-card system-overview-card">
-            <span className="status-label">System overview</span>
-            <div className="system-overview-grid">
-              <article className="system-overview-item">
-                <span className="system-overview-label">Control Center health</span>
-                <strong className="system-overview-value">{status?.health ?? "--"}</strong>
-              </article>
-              <article className="system-overview-item">
-                <span className="system-overview-label">Aktivan runtime</span>
-                <strong className="system-overview-value">{status?.activeRuntimeLabel ?? "--"}</strong>
-              </article>
-              <article className="system-overview-item">
-                <span className="system-overview-label">Status runtime servera</span>
-                <strong className="system-overview-value">{status?.runtimeLiveStatus ?? "--"}</strong>
-              </article>
-              <article className="system-overview-item">
-                <span className="system-overview-label">Aktivni model</span>
-                <strong className="system-overview-value">{status?.activeModel ?? "--"}</strong>
-              </article>
-              <article className="system-overview-item">
-                <span className="system-overview-label">Profil</span>
-                <strong className="system-overview-value">{status?.profile ?? "--"}</strong>
-              </article>
-              <article className="system-overview-item">
-                <span className="system-overview-label">Dostupni runtime-i</span>
-                <strong className="system-overview-value">
-                  {status?.availableRuntimes?.length ? status.availableRuntimes.join(", ") : "--"}
-                </strong>
-              </article>
-            </div>
-          </section>
+        <TelemetryPanel benchmark={benchmark} variant="home" />
+        <section className="status-card system-overview-card wide-card">
+          <span className="status-label">System overview</span>
+          <div className="system-overview-grid">
+            <article className="system-overview-item">
+              <span className="system-overview-label">Control Center health</span>
+              <strong className="system-overview-value">{status?.health ?? "--"}</strong>
+            </article>
+            <article className="system-overview-item">
+              <span className="system-overview-label">Aktivan runtime</span>
+              <strong className="system-overview-value">{status?.activeRuntimeLabel ?? "--"}</strong>
+            </article>
+            <article className="system-overview-item">
+              <span className="system-overview-label">Status runtime servera</span>
+              <strong className="system-overview-value">{status?.runtimeLiveStatus ?? "--"}</strong>
+            </article>
+            <article className="system-overview-item">
+              <span className="system-overview-label">Aktivni model</span>
+              <strong className="system-overview-value">{status?.activeModel ?? "--"}</strong>
+            </article>
+            <article className="system-overview-item">
+              <span className="system-overview-label">Profil</span>
+              <strong className="system-overview-value">{status?.profile ?? "--"}</strong>
+            </article>
+            <article className="system-overview-item">
+              <span className="system-overview-label">Dostupni runtime-i</span>
+              <strong className="system-overview-value">
+                {status?.availableRuntimes?.length ? status.availableRuntimes.join(", ") : "--"}
+              </strong>
+            </article>
+          </div>
+        </section>
 
+        <div className="home-server-grid">
           <section className="status-card">
             <span className="status-label">Server</span>
             <strong className="status-value">{serverStatus?.status ?? "--"}</strong>

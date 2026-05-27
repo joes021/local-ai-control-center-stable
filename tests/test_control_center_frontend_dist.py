@@ -223,7 +223,8 @@ def test_app_source_and_packaged_frontend_include_benchmark_navigation():
     bundled_text = "\n".join(path.read_text(encoding="utf-8") for path in js_assets)
 
     assert "Benchmark" in bundled_text
-    assert "LIVE THROUGHPUT" in bundled_text
+    assert "Telemetry" in bundled_text
+    assert "Token Pulse" in bundled_text
 
 
 def test_app_source_and_packaged_frontend_include_search_navigation():
@@ -308,8 +309,15 @@ def test_search_page_source_makes_web_results_clickable_and_guides_toward_answer
 
 def test_home_page_source_uses_single_system_overview_card():
     source = Path("frontend/src/pages/HomePage.tsx").read_text(encoding="utf-8")
+    telemetry_source = Path("frontend/src/components/TelemetryPanel.tsx").read_text(encoding="utf-8")
 
     assert "System overview" in source
+    assert "TelemetryPanel" in source
+    assert "Token Pulse" in telemetry_source
+    assert "Input 24h" in telemetry_source
+    assert "Output 24h" in telemetry_source
+    assert "Active routes" in telemetry_source
+    assert "Live now" in telemetry_source
     assert "Control Center health" in source
     assert "Aktivan runtime" in source
     assert "Status runtime servera" in source
@@ -320,13 +328,20 @@ def test_home_page_source_uses_single_system_overview_card():
 
 def test_benchmark_page_source_includes_compare_export_and_idle_truth():
     source = Path("frontend/src/pages/BenchmarkPage.tsx").read_text(encoding="utf-8")
+    telemetry_source = Path("frontend/src/components/TelemetryPanel.tsx").read_text(encoding="utf-8")
 
+    assert "TelemetryPanel" in source
+    assert "Telemetry" in telemetry_source
+    assert "Live token flow, sync i launch queue signal" in telemetry_source
+    assert "Token Pulse" in telemetry_source
+    assert "Cost 24h" in telemetry_source
+    assert "Input / output split" in telemetry_source
     assert "fetchBenchmarkCompare" in source
     assert "exportBenchmarkRuns" in source
     assert "Compare selected runs" in source
     assert "Export JSON" in source
     assert "Export CSV" in source
-    assert "benchmark.liveState.reason" in source
+    assert "telemetry?.flowStateReason" in telemetry_source
     assert "Izaberi najmanje dva saved run-a da bi compare prikaz bio aktivan." in source
     assert "Model:" in source
     assert "Runtime:" in source
@@ -354,6 +369,13 @@ def test_packaged_frontend_contains_benchmark_compare_export_copy():
     assert "Export JSON" in bundled_text
     assert "Export CSV" in bundled_text
     assert "Benchmark context" in bundled_text
+    assert "Token Pulse" in bundled_text
+    assert "Input 24h" in bundled_text
+    assert "Output 24h" in bundled_text
+    assert "Active routes" in bundled_text
+    assert "Cost 24h" in bundled_text
+    assert "Live now" in bundled_text
+    assert "Input / output split" in bundled_text
 
 
 def test_compatibility_modal_source_and_packaged_frontend_include_runtime_breakdown_copy():

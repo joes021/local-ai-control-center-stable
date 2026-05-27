@@ -248,6 +248,120 @@ def test_load_benchmark_summary_merges_live_slots_signal_into_visible_history(
     assert payload["liveCurrent"]["environment"]["profile"] == "balanced"
 
 
+def test_load_benchmark_summary_builds_24h_telemetry_snapshot(
+    tmp_path: Path,
+    monkeypatch,
+):
+    from local_ai_control_center_installer.control_center_backend.services import benchmark_service
+
+    install_root = tmp_path / "install-root"
+    now = datetime.now(timezone.utc)
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    _write_runtime_endpoint_config(install_root)
+    _write_active_model_config(install_root, filename="Qwen3.6-35B-A3B-UD-IQ2_XXS.gguf")
+    _write_settings_config(install_root, profile="balanced", context=262144, output_tokens=8192, thinking_mode="mid")
+
+    config = get_config()
+    config.control_center_config_root.mkdir(parents=True, exist_ok=True)
+    config.benchmark_history_path.write_text(
+        json.dumps(
+            [
+                {
+                    "measuredAt": (now - timedelta(hours=2)).isoformat(),
+                    "label": "benchmark-short",
+                    "promptTokens": 50789,
+                    "completionTokens": 25552,
+                    "totalTokens": 76341,
+                    "promptTokensPerSecond": 19.4,
+                    "completionTokensPerSecond": 21.8,
+                    "totalTokensPerSecond": 21.8,
+                    "totalMs": 3500.0,
+                },
+                {
+                    "measuredAt": (now - timedelta(hours=30)).isoformat(),
+                    "label": "stale-run",
+                    "promptTokens": 500,
+                    "completionTokens": 500,
+                    "totalTokens": 1000,
+                    "promptTokensPerSecond": 5.0,
+                    "completionTokensPerSecond": 5.0,
+                    "totalTokensPerSecond": 5.0,
+                    "totalMs": 2000.0,
+                },
+            ],
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        benchmark_service,
+        "load_runtime_state",
+        lambda config=None: {
+            "active_model_id": "unsloth-unsloth-qwen3-6-35b-a3b-gguf-qwen3-6-35b-a3b-ud-iq2-xxs",
+            "active_model": "Qwen3.6-35B-A3B-UD-IQ2_XXS.gguf",
+            "active_runtime": "llama.cpp",
+            "runtime_live_status": "started",
+            "runtime_live_reason": "Runtime je spreman.",
+        },
+    )
+    monkeypatch.setattr(
+        benchmark_service,
+        "_load_live_slot_metric",
+        lambda config=None: {
+            "measuredAt": (now - timedelta(seconds=5)).isoformat(),
+            "label": "benchmark",
+            "promptTokens": 0,
+            "completionTokens": 109,
+            "totalTokens": 109,
+            "promptTokensPerSecond": None,
+            "completionTokensPerSecond": 21.8,
+            "totalTokensPerSecond": 21.8,
+            "totalMs": 5000.0,
+            "activeRoutes": 1,
+            "signature": "opencode-live:token-pulse",
+        },
+    )
+    monkeypatch.setattr(
+        benchmark_service,
+        "_load_run_state",
+        lambda config=None: {
+            "runId": "",
+            "status": "idle",
+            "mode": "selected",
+            "batteryId": "default",
+            "batteryName": "Default battery",
+            "scenarioId": "",
+            "scenarioName": "",
+            "currentScenarioId": "",
+            "currentScenarioName": "",
+            "currentIndex": 0,
+            "totalScenarios": 0,
+            "percent": 0,
+            "startedAt": "",
+            "finishedAt": "",
+            "message": "Benchmark nije pokrenut.",
+            "scenarioStatuses": [],
+        },
+    )
+
+    payload = benchmark_service.load_benchmark_summary()
+
+    telemetry = payload["telemetry"]
+
+    assert telemetry["input24hTokens"] == 50789
+    assert telemetry["output24hTokens"] == 25552
+    assert telemetry["total24hTokens"] == 76341
+    assert telemetry["estimatedCost24hUsd"] == 0.0076
+    assert telemetry["activeRoutes"] == 1
+    assert telemetry["activeRoutesLabel"] == "llama.cpp / Qwen3.6-35B-A3B-UD-IQ2_XXS.gguf / benchmark"
+    assert telemetry["liveNowTokensPerSecond"] == 21.8
+    assert telemetry["flowState"] == "active-generation"
+    assert telemetry["flowStateLabel"] == "active generation"
+    assert telemetry["inputSharePercent"] == 66.5
+    assert telemetry["outputSharePercent"] == 33.5
+
+
 def test_benchmark_workers_persist_richer_run_metadata(
     tmp_path: Path,
     monkeypatch,

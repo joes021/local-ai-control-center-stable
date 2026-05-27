@@ -39,6 +39,8 @@ BENCHMARK_SLOTS_TIMEOUT_SECONDS = 10.0
 BENCHMARK_REQUEST_TIMEOUT_SECONDS = 180.0
 BENCHMARK_LIVE_HISTORY_MAX_ITEMS = 200
 BENCHMARK_LIVE_HISTORY_RETENTION_SECONDS = 3600
+BENCHMARK_TELEMETRY_WINDOW_HOURS = 24
+BENCHMARK_PROXY_COST_PER_MILLION_TOKENS_USD = 0.10
 _RUN_LOCK = threading.Lock()
 
 
@@ -88,6 +90,7 @@ def load_benchmark_summary(
     selected_battery = _selected_battery(batteries_payload)
     active_run = _load_run_state(config)
     saved_runs = _normalize_saved_runs(_load_saved_runs(config), environment)
+    live_state = _build_live_state(active_run=active_run, live_current=live_current)
 
     chart_history = [_attach_chart_label(_attach_environment(item, environment)) for item in signal_history[-120:]]
     live_chart_history = [_attach_chart_label(_attach_environment(item, environment)) for item in live_history[-120:]]
@@ -102,7 +105,15 @@ def load_benchmark_summary(
         "lastMeasuredAt": current.get("measuredAt") if current else None,
         "lastLabel": current.get("label") if current else None,
         "environment": environment,
-        "liveState": _build_live_state(active_run=active_run, live_current=live_current),
+        "liveState": live_state,
+        "telemetry": _build_telemetry_summary(
+            history=history,
+            live_current=live_current,
+            current=current,
+            environment=environment,
+            live_state=live_state,
+            active_run=active_run,
+        ),
         "activity": {
             "averageTotalMs": _average(history, "totalMs") or 0,
             "sources": source_counts,
@@ -831,6 +842,7 @@ def _load_live_slot_metric(
     return {
         "measuredAt": snapshot["measuredAt"],
         "label": "opencode-live",
+        "activeRoutes": len(current_slots),
         "promptTokens": 0,
         "completionTokens": delta_tokens,
         "totalTokens": delta_tokens,
@@ -1358,6 +1370,108 @@ def _build_live_state(
         "status": "idle",
         "hasLiveSignal": False,
         "reason": "Runtime trenutno nema aktivan throughput signal. Pokreni benchmark ili OpenCode zahtev da bi se live tok/s pojavio.",
+    }
+
+
+def _build_telemetry_summary(
+    *,
+    history: list[dict[str, Any]],
+    live_current: dict[str, Any] | None,
+    current: dict[str, Any] | None,
+    environment: dict[str, Any],
+    live_state: dict[str, Any],
+    active_run: dict[str, Any],
+) -> dict[str, Any]:
+    now = datetime.now(timezone.utc)
+    recent_history = []
+    for item in history:
+        measured_at = _parse_iso_timestamp(item.get("measuredAt"))
+        if measured_at is None:
+            continue
+        if (now - measured_at).total_seconds() > BENCHMARK_TELEMETRY_WINDOW_HOURS * 3600:
+            continue
+        recent_history.append(item)
+
+    input_24h_tokens = sum(_int_or_zero(item.get("promptTokens")) for item in recent_history)
+    output_24h_tokens = sum(_int_or_zero(item.get("completionTokens")) for item in recent_history)
+    total_24h_tokens = sum(_int_or_zero(item.get("totalTokens")) for item in recent_history)
+    if total_24h_tokens <= 0:
+        total_24h_tokens = input_24h_tokens + output_24h_tokens
+
+    input_share_percent = round((input_24h_tokens / total_24h_tokens) * 100, 1) if total_24h_tokens > 0 else 0.0
+    output_share_percent = round((output_24h_tokens / total_24h_tokens) * 100, 1) if total_24h_tokens > 0 else 0.0
+
+    return {
+        "windowHours": BENCHMARK_TELEMETRY_WINDOW_HOURS,
+        "input24hTokens": input_24h_tokens,
+        "output24hTokens": output_24h_tokens,
+        "total24hTokens": total_24h_tokens,
+        "estimatedCost24hUsd": round(
+            (total_24h_tokens / 1_000_000.0) * BENCHMARK_PROXY_COST_PER_MILLION_TOKENS_USD,
+            4,
+        ),
+        "activeRoutes": _int_or_zero((live_current or {}).get("activeRoutes")),
+        "activeRoutesLabel": _active_routes_label(
+            _int_or_zero((live_current or {}).get("activeRoutes")),
+            environment,
+            live_current or current,
+        ),
+        "liveNowTokensPerSecond": _metric_value(live_current, "totalTokensPerSecond") if live_current else None,
+        "flowState": _telemetry_flow_state(live_state)[0],
+        "flowStateLabel": _telemetry_flow_state(live_state)[1],
+        "flowStateReason": str(live_state.get("reason", "") or ""),
+        "lastUpdate": str((live_current or current or {}).get("measuredAt", "") or ""),
+        "inputSharePercent": input_share_percent,
+        "outputSharePercent": output_share_percent,
+        "launchQueueSignal": _build_launch_queue_signal(active_run),
+    }
+
+
+def _telemetry_flow_state(live_state: dict[str, Any]) -> tuple[str, str]:
+    status = str(live_state.get("status", "") or "idle")
+    if status == "active":
+        return "active-generation", "active generation"
+    if status == "warming":
+        return "syncing", "syncing"
+    return "quiet", "quiet"
+
+
+def _active_routes_label(
+    active_routes: int,
+    environment: dict[str, Any],
+    sample: dict[str, Any] | None,
+) -> str:
+    if active_routes <= 0:
+        return "Nema aktivnih ruta."
+    route_label = str((sample or {}).get("label", "") or "live")
+    return f"{environment['runtimeLabel']} / {environment['modelLabel']} / {route_label}"
+
+
+def _build_launch_queue_signal(active_run: dict[str, Any]) -> dict[str, str]:
+    status = str(active_run.get("status", "") or "idle")
+    message = str(active_run.get("message", "") or "").strip()
+    if status == "running":
+        return {
+            "status": "active",
+            "label": "launch queue active",
+            "summary": message or "Benchmark trenutno drzi launch queue aktivnom.",
+        }
+    if status == "queued":
+        return {
+            "status": "waiting",
+            "label": "launch queue waiting",
+            "summary": message or "Benchmark ceka pokretanje i drzi launch queue u redu cekanja.",
+        }
+    if status == "failed":
+        return {
+            "status": "attention",
+            "label": "launch queue failed",
+            "summary": message or "Poslednji benchmark launch nije uspeo.",
+        }
+    return {
+        "status": "quiet",
+        "label": "launch queue quiet",
+        "summary": message or "Nema cekajucih benchmark launch zadataka.",
     }
 
 

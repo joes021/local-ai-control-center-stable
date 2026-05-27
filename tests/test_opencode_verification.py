@@ -1145,6 +1145,9 @@ def test_verification_relay_latches_valid_proof_against_later_failing_requests()
 
     class UpstreamHandler(BaseHTTPRequestHandler):
         def do_POST(self):
+            length = int(self.headers.get("Content-Length", "0"))
+            if length:
+                self.rfile.read(length)
             request_count["count"] += 1
             if request_count["count"] == 1:
                 response_bytes = json.dumps(
@@ -1359,6 +1362,9 @@ def test_verification_relay_accepts_sse_chat_completion_chunks_as_valid_live_rou
 
     class UpstreamHandler(BaseHTTPRequestHandler):
         def do_POST(self):
+            length = int(self.headers.get("Content-Length", "0"))
+            if length:
+                self.rfile.read(length)
             self.send_response(200)
             self.send_header("Content-Type", "text/event-stream")
             self.send_header("Content-Length", str(len(response_bytes)))
@@ -1442,6 +1448,9 @@ def test_verification_relay_marks_upstream_success_false_for_invalid_or_empty_as
 
     class UpstreamHandler(BaseHTTPRequestHandler):
         def do_POST(self):
+            length = int(self.headers.get("Content-Length", "0"))
+            if length:
+                self.rfile.read(length)
             self.send_response(200)
             self.send_header("Content-Type", content_type)
             self.send_header("Content-Length", str(len(response_bytes)))
