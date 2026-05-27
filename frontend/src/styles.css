@@ -679,11 +679,11 @@ code {
 }
 
 .settings-cluster-grid-profiles {
-  grid-template-columns: minmax(340px, 1.45fr) minmax(260px, 1fr);
+  grid-template-columns: 1fr;
 }
 
 .settings-cluster-grid-core {
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(2, minmax(260px, 1fr));
 }
 
 .settings-field {
@@ -958,6 +958,12 @@ code {
 .theme-options-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.settings-option-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
 }
 
@@ -2186,7 +2192,12 @@ select:-webkit-autofill {
 }
 
 @media (max-width: 860px) {
+  .settings-cluster-grid-core,
   .settings-cluster-grid-profiles {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-option-grid {
     grid-template-columns: 1fr;
   }
 
@@ -2292,6 +2303,10 @@ select:-webkit-autofill {
 }
 
 @media (max-width: 1140px) {
+  .settings-option-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .home-detail-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }

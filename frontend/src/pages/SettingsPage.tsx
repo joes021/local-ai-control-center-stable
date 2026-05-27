@@ -375,7 +375,7 @@ export function SettingsPage() {
 
           <article className="settings-field settings-field-wide">
             <span className="settings-field-label">Workflow presets</span>
-            <div className="theme-options-grid">
+            <div className="settings-option-grid">
               {workflowPresets.map((preset) => {
                 const active = currentWorkflowPreset?.id === preset.id;
                 return (
@@ -476,7 +476,7 @@ export function SettingsPage() {
 
           <article className="settings-field settings-field-wide">
             <span className="settings-field-label">Color theme</span>
-            <div className="theme-options-grid">
+            <div className="settings-option-grid">
               {availableThemeOptions.map((theme) => {
                 const active = settings.themeId === theme.id;
                 return (

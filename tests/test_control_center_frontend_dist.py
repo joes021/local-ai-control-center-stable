@@ -135,6 +135,18 @@ def test_workflows_source_and_navigation_are_present():
     assert "grid-template-columns: repeat(3, minmax(0, 1fr));" in styles_source
 
 
+def test_settings_source_uses_stable_option_grids_and_balanced_core_layout():
+    settings_source = Path("frontend/src/pages/SettingsPage.tsx").read_text(encoding="utf-8")
+    styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
+
+    assert "settings-option-grid" in settings_source
+    assert ".settings-option-grid" in styles_source
+    assert "settings-cluster-grid-profiles" in styles_source
+    assert "grid-template-columns: 1fr;" in styles_source
+    assert "settings-cluster-grid-core" in styles_source
+    assert "repeat(2, minmax(260px, 1fr))" in styles_source
+
+
 def test_packaged_settings_action_and_browse_buttons_use_panel_button_theme():
     dist_root = Path(
         "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
