@@ -45,6 +45,16 @@ def hidden_subprocess_creationflags(platform: str | None = None) -> int:
     return getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
 
+def detached_subprocess_creationflags(platform: str | None = None) -> int:
+    if not is_windows_platform(platform):
+        return 0
+    flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+    flags |= getattr(subprocess, "DETACHED_PROCESS", 0)
+    flags |= getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+    flags |= getattr(subprocess, "CREATE_BREAKAWAY_FROM_JOB", 0)
+    return flags
+
+
 def new_console_subprocess_creationflags(platform: str | None = None) -> int:
     if not is_windows_platform(platform):
         return 0

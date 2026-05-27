@@ -33,6 +33,7 @@ from local_ai_control_center_installer.control_center_uninstall import (
 )
 from local_ai_control_center_installer.platform_paths import (
     build_open_url_command,
+    detached_subprocess_creationflags,
     hidden_subprocess_creationflags,
     is_windows_platform,
 )
@@ -487,7 +488,7 @@ def launch_control_center(
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
         stdin=subprocess.DEVNULL,
-        creationflags=hidden_subprocess_creationflags(),
+        creationflags=detached_subprocess_creationflags(),
         close_fds=False,
     )
 

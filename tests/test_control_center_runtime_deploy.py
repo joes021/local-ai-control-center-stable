@@ -150,6 +150,61 @@ def test_launch_control_center_reclaims_foreign_lacc_panel_port_and_starts_curre
     assert popen_calls == [("fake-panel.exe", "--panel")]
 
 
+def test_launch_control_center_uses_detached_windows_flags_for_panel_process(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    install_root = tmp_path / "install-root"
+    deployment = ControlCenterRuntimeDeployment(
+        install_root=install_root,
+        panel_root=install_root / "control-center",
+        executable_path=install_root / "control-center" / PANEL_EXECUTABLE_NAME,
+        launcher_path=install_root / "control-center" / "Open-Control-Center.cmd",
+        command=("fake-panel.exe", "--panel"),
+        url="http://127.0.0.1:3210/",
+        port=3210,
+        access_mode="local-only",
+        strategy="packaged-exe",
+    )
+    health_checks = {"count": 0}
+    popen_kwargs: dict[str, object] = {}
+
+    def fake_panel_health_ready(url, *, expected_install_root=None):
+        if expected_install_root == str(install_root):
+            health_checks["count"] += 1
+            return health_checks["count"] >= 2
+        return False
+
+    def fake_popen(command, **kwargs):
+        popen_kwargs.update(kwargs)
+        return object()
+
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_runtime._panel_health_ready",
+        fake_panel_health_ready,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_runtime._port_in_use",
+        lambda host, port: False,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_runtime.detached_subprocess_creationflags",
+        lambda platform=None: 98765,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_runtime.subprocess.Popen",
+        fake_popen,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_runtime.time.sleep",
+        lambda seconds: None,
+    )
+
+    launch_control_center(deployment, timeout_seconds=0.1)
+
+    assert popen_kwargs["creationflags"] == 98765
+
+
 def test_panel_health_ready_rejects_foreign_service_payload(monkeypatch: pytest.MonkeyPatch):
     class FakeResponse:
         status = 200
