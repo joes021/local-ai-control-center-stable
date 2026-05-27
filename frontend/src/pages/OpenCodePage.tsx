@@ -71,7 +71,7 @@ export function OpenCodePage() {
       setStepEditor(stepSchemaPayload.currentSteps);
       setError(null);
     } catch (reason: unknown) {
-      setError(reason instanceof Error ? reason.message : "Nepoznata greska");
+      setError(reason instanceof Error ? reason.message : "Nepoznata greška");
     }
   }
 
@@ -106,7 +106,7 @@ export function OpenCodePage() {
   }
 
   if (!opencode || !settings || !stepSchema || !stepEditor) {
-    return <section className="status-card wide-card">Ucitavam OpenCode status...</section>;
+    return <section className="status-card wide-card">Učitavam OpenCode status...</section>;
   }
 
   return (
@@ -118,7 +118,7 @@ export function OpenCodePage() {
           <span>Instanci: {opencode.instanceCount ?? 0}</span>
           <span>Profil: {opencode.profile || "--"}</span>
           <span>Backend: {opencode.runtimeConnected ? "povezan" : opencode.runtimeLiveStatus || "--"}</span>
-          <span>Security režim: {opencode.securityModeLabel || "--"}</span>
+          <span>Bezbednosni režim: {opencode.securityModeLabel || "--"}</span>
           <span>Autonomija: {opencode.capabilityModeLabel || "--"}</span>
         </div>
         <div className="inline-actions">
@@ -132,28 +132,28 @@ export function OpenCodePage() {
                 setResult(actionResult);
                 await loadStatus();
               } catch (reason: unknown) {
-                setError(reason instanceof Error ? reason.message : "Nepoznata greska");
+                setError(reason instanceof Error ? reason.message : "Nepoznata greška");
               }
             }}
           >
-            {opencode.openActionLabel || "Open OpenCode"}
+            {opencode.openActionLabel || "Otvori OpenCode"}
           </button>
         </div>
         <p className="helper-text">
           {opencode.sessionSummary ||
-            "Promena modela vazi za novi OpenCode session. Vec otvoren OpenCode prozor ne menja model usred sesije."}
+            "Promena modela važi za novi OpenCode session. Već otvoren OpenCode prozor ne menja model usred sesije."}
         </p>
         <p className="helper-text">
           {opencode.localProviderSearchSummary ||
-            "local-lacc provider koristi isti shared search sloj kao i Search tab kada je to ukljuceno."}
+            "local-lacc provider koristi isti shared search sloj kao i Search tab kada je to uključeno."}
         </p>
       </section>
 
       <section className="status-card wide-card">
         <span className="status-label">OpenCode config</span>
-        <strong className="status-value">{opencode.configPath || "nije pronadjen"}</strong>
-        <p className="helper-text">Executable: {opencode.executablePath || "nije pronadjen"}</p>
-        <p className="helper-text">Working directory: {opencode.workingDirectory || "--"}</p>
+        <strong className="status-value">{opencode.configPath || "nije pronađen"}</strong>
+        <p className="helper-text">Executable: {opencode.executablePath || "nije pronađen"}</p>
+        <p className="helper-text">Radni direktorijum: {opencode.workingDirectory || "--"}</p>
         <p className="helper-text">
           Backend veza: {opencode.runtimeConnected ? "spremna" : "nije spremna"} |{" "}
           {opencode.runtimeLiveReason || "Nema dodatnih runtime detalja."}
@@ -162,17 +162,17 @@ export function OpenCodePage() {
       </section>
 
       <section className="status-card wide-card">
-        <span className="status-label">OpenCode steps</span>
+        <span className="status-label">OpenCode koraci</span>
         <strong className="status-value">Aktivni preset: {activePresetLabel}</strong>
         <div className="summary-metrics">
-          <span>Build: {stepEditor.buildSteps}</span>
+          <span>Izrada: {stepEditor.buildSteps}</span>
           <span>Plan: {stepEditor.planSteps}</span>
-          <span>General: {stepEditor.generalSteps}</span>
-          <span>Explore: {stepEditor.exploreSteps}</span>
+          <span>Opšte: {stepEditor.generalSteps}</span>
+          <span>Istraživanje: {stepEditor.exploreSteps}</span>
         </div>
         <p className="helper-text">
           Preset menja samo OpenCode stepove. Security, autonomija i working directory ostaju
-          odvojena podesavanja.
+          odvojena podešavanja.
         </p>
 
         <div className="model-list">
@@ -190,12 +190,12 @@ export function OpenCodePage() {
                       setResult({
                         status: "ok",
                         action: "load-opencode-step-preset",
-                        summary: `OpenCode preset ${preset.name} je ucitan u editor.`,
+                        summary: `OpenCode preset ${preset.name} je učitan u editor.`,
                         details: { returncode: 0, stdout: "", stderr: "" },
                       });
                     }}
                   >
-                    Load preset
+                    Učitaj preset
                   </button>
                 </div>
               </div>
@@ -215,12 +215,12 @@ export function OpenCodePage() {
                       setResult({
                         status: "ok",
                         action: "load-opencode-step-preset",
-                        summary: `OpenCode preset ${preset.name} je ucitan u editor.`,
+                        summary: `OpenCode preset ${preset.name} je učitan u editor.`,
                         details: { returncode: 0, stdout: "", stderr: "" },
                       });
                     }}
                   >
-                    Load preset
+                    Učitaj preset
                   </button>
                   <button
                     type="button"
@@ -231,7 +231,7 @@ export function OpenCodePage() {
                       await loadStatus();
                     }}
                   >
-                    Delete preset
+                    Obriši preset
                   </button>
                 </div>
               </div>
@@ -324,12 +324,12 @@ export function OpenCodePage() {
               setResult({
                 status: "ok",
                 action: "restore-opencode-step-defaults",
-                summary: "OpenCode stepovi su vraceni na podrazumevani preset.",
+                summary: "OpenCode stepovi su vraćeni na podrazumevani preset.",
                 details: { returncode: 0, stdout: "", stderr: "" },
               });
             }}
           >
-            Restore default
+            Vrati podrazumevano
           </button>
         </div>
       </section>
@@ -338,12 +338,12 @@ export function OpenCodePage() {
         <span className="status-label">OpenCode settings</span>
         <div className="form-grid">
           <label>
-            Security režim
+            Bezbednosni režim
             <CustomSelect
               value={opencode.securityMode}
               options={[
-                { value: "strict", label: "Strogo ogranicen agent" },
-                { value: "workspace-write", label: "Ogranicen agent sa blacklist pravilima" },
+                { value: "strict", label: "Strogo ograničen agent" },
+                { value: "workspace-write", label: "Ograničen agent sa blacklist pravilima" },
                 { value: "open", label: "Potpuno otvoren agent" },
               ]}
               onChange={(value) =>
@@ -352,10 +352,10 @@ export function OpenCodePage() {
                   securityMode: value,
                   securityModeLabel:
                     value === "workspace-write"
-                      ? "Ogranicen agent sa blacklist pravilima"
+                      ? "Ograničen agent sa blacklist pravilima"
                       : value === "open"
                         ? "Potpuno otvoren agent"
-                        : "Strogo ogranicen agent",
+                        : "Strogo ograničen agent",
                 })
               }
               ariaLabel="Izaberi OpenCode security mode"
@@ -366,10 +366,10 @@ export function OpenCodePage() {
             <CustomSelect
               value={opencode.capabilityMode}
               options={[
-                { value: "read-only", label: "1. Samo citanje fajlova" },
-                { value: "read-write", label: "2. Citanje + izmena fajlova" },
-                { value: "confirm-commands", label: "3. Citanje + izmena + komande uz potvrdu" },
-                { value: "auto-commands", label: "4. Citanje + izmena + komande bez potvrde" },
+                { value: "read-only", label: "1. Samo čitanje fajlova" },
+                { value: "read-write", label: "2. Čitanje + izmena fajlova" },
+                { value: "confirm-commands", label: "3. Čitanje + izmena + komande uz potvrdu" },
+                { value: "auto-commands", label: "4. Čitanje + izmena + komande bez potvrde" },
               ]}
               onChange={(value) =>
                 setOpencode({
@@ -377,12 +377,12 @@ export function OpenCodePage() {
                   capabilityMode: value,
                   capabilityModeLabel:
                     value === "read-only"
-                      ? "1. Samo citanje fajlova"
+                      ? "1. Samo čitanje fajlova"
                       : value === "read-write"
-                        ? "2. Citanje + izmena fajlova"
+                        ? "2. Čitanje + izmena fajlova"
                         : value === "auto-commands"
-                          ? "4. Citanje + izmena + komande bez potvrde"
-                          : "3. Citanje + izmena + komande uz potvrdu",
+                          ? "4. Čitanje + izmena + komande bez potvrde"
+                          : "3. Čitanje + izmena + komande uz potvrdu",
                 })
               }
               ariaLabel="Izaberi OpenCode capability mode"

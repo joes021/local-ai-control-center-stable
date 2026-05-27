@@ -47,7 +47,7 @@ def run_control_center_panel_entry(argv: list[str] | None = None) -> int:
             _open_url(url)
         return 0
     if _port_in_use(args.host, args.port):
-        raise RuntimeError(f"UI port {args.port} je vec zauzet drugim procesom.")
+        raise RuntimeError(f"UI port {args.port} je već zauzet drugim procesom.")
 
     if args.open_browser:
         threading.Thread(

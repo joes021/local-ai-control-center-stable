@@ -12,7 +12,7 @@ export function Layout({ title, subtitle, eyebrow, nav, children, themeId = "dar
   return (
     <div className="app-shell" data-theme={themeId}>
       <header className="hero">
-        <p className="eyebrow">{eyebrow ?? "Local AI GUI Shell"}</p>
+        <p className="eyebrow">{eyebrow ?? "Lokalni AI shell"}</p>
         <h1>{title}</h1>
         <div className="subtitle">{subtitle}</div>
       </header>

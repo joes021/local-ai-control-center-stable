@@ -78,7 +78,7 @@ def test_panel_entry_rejects_foreign_panel_on_same_port(
         lambda host, port: True,
     )
 
-    with pytest.raises(RuntimeError, match="UI port 3210 je vec zauzet drugim procesom."):
+    with pytest.raises(RuntimeError, match="UI port 3210 je već zauzet drugim procesom."):
         run_control_center_panel_entry(["--install-root", str(install_root)])
 
 

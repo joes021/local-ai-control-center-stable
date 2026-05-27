@@ -86,7 +86,7 @@ function mtpActivationGuidance(item: ModelEntry): string | null {
     return item.activationSummary;
   }
   if (item.mtpStatus === "has-mtp") {
-    return "MTP modeli koriste llama.cpp draft-mtp put. Ako je TurboQuant izabran, panel ce za takav model automatski pasti nazad na llama.cpp.";
+    return "MTP modeli koriste llama.cpp draft-mtp put. Ako je TurboQuant izabran, panel će za takav model automatski pasti nazad na llama.cpp.";
   }
   if (!supportsRuntimeActivation(item)) {
     return "Model trenutno nije spreman za aktivaciju. Proveri lifecycle status i runtime razlog iznad.";
@@ -129,7 +129,7 @@ function requiresForceActivationConfirmation(item: ModelEntry): boolean {
 }
 
 function activationRiskSummary(item: ModelEntry): string {
-  return item.activationRiskSummary ?? "Compatibility procena kaze da ovaj model verovatno nece raditi na ovoj masini.";
+  return item.activationRiskSummary ?? "Compatibility procena kaže da ovaj model verovatno neće raditi na ovoj mašini.";
 }
 
 function ActivationRiskCallout({
@@ -154,12 +154,12 @@ function ActivationRiskCallout({
   return (
     <div className="model-activation-warning">
       <div className="model-activation-warning-title">
-        Ovaj model verovatno nece moci da radi ili ce raditi lose na ovoj masini.
+        Ovaj model verovatno neće moći da radi ili će raditi loše na ovoj mašini.
       </div>
       <div className="helper-text">{activationRiskSummary(item)}</div>
       {confirmationOpen ? (
         <>
-          <div className="helper-text">Da li zelis ipak da pokusas aktivaciju?</div>
+          <div className="helper-text">Da li želiš ipak da pokušaš aktivaciju?</div>
           <div className="inline-actions compact-actions">
             <button
               type="button"
@@ -167,7 +167,7 @@ function ActivationRiskCallout({
               disabled={pendingAction}
               onClick={onConfirm}
             >
-              Ipak pokusaj aktivaciju
+              Ipak pokušaj aktivaciju
             </button>
             <button
               type="button"
@@ -175,7 +175,7 @@ function ActivationRiskCallout({
               disabled={pendingAction}
               onClick={onCancel}
             >
-              Otkazi
+              Otkaži
             </button>
             <button
               type="button"
@@ -215,7 +215,7 @@ function FilterResultsCard({
     setResult({
       status: "pending",
       action: "models",
-      summary: `Pokrecem model akciju: ${label}`,
+      summary: `Pokrećem model akciju: ${label}`,
       details: { returncode: 0, stdout: "", stderr: "" },
     });
     try {
@@ -242,7 +242,7 @@ function FilterResultsCard({
       setResult({
         status: "warning",
         action: "activate-model-precheck",
-        summary: "Ovaj model verovatno nece moci da radi ili ce raditi lose na ovoj masini.",
+        summary: "Ovaj model verovatno neće moći da radi ili će raditi loše na ovoj mašini.",
         details: {
           returncode: 1,
           stdout: activationRiskSummary(item),
@@ -294,7 +294,7 @@ function FilterResultsCard({
                     <div className="helper-text">{item.lifecycleSummary}</div>
                   ) : null}
                   <div className="helper-text">
-                    Velicina: {formatGiB(item.approxSizeGiB ?? null)} | Instalirano:{" "}
+                    Veličina: {formatGiB(item.approxSizeGiB ?? null)} | Instalirano:{" "}
                     {item.installed ? formatGiB(item.installedSizeGiB ?? null) : "nije skinut"}
                   </div>
                   <div className="helper-text">
@@ -302,7 +302,7 @@ function FilterResultsCard({
                     {formatGiB(item.freeDiskGiB ?? null)}
                   </div>
                   <div className="helper-text">
-                    GPU prag: {formatMiB(item.minimumGpuMiB)} | Preporuceni GPU:{" "}
+                    GPU prag: {formatMiB(item.minimumGpuMiB)} | Preporučeni GPU:{" "}
                     {formatMiB(item.recommendedGpuMiB)} | RAM: {formatGiB(item.minimumRamGiB ?? null)}
                   </div>
                   <div className="helper-text">MTP status: {item.mtpStatusLabel ?? "nepoznato"}</div>
@@ -354,7 +354,7 @@ function FilterResultsCard({
                     onClick={() => onCheckCompatibility(item)}
                     type="button"
                   >
-                    Check compatibility
+                    Proveri kompatibilnost
                   </button>
                   <button
                     className="danger-button"
@@ -388,7 +388,7 @@ function FilterResultsCard({
                         checked={removeFile}
                         onChange={(event) => setRemoveFile(event.target.checked)}
                       />{" "}
-                      Obrisi sa diska
+                      Obriši sa diska
                     </label>
                     <button
                       type="button"
@@ -408,7 +408,7 @@ function FilterResultsCard({
                       className="secondary-button"
                       onClick={() => setDeleteTargetId(null)}
                     >
-                      Otkazi
+                      Otkaži
                     </button>
                   </div>
                 </div>
@@ -453,7 +453,7 @@ function ModelGroup({
     setResult({
       status: "pending",
       action: "models",
-      summary: `Pokrecem model akciju: ${label}`,
+      summary: `Pokrećem model akciju: ${label}`,
       details: { returncode: 0, stdout: "", stderr: "" },
     });
     try {
@@ -480,7 +480,7 @@ function ModelGroup({
       setResult({
         status: "warning",
         action: "activate-model-precheck",
-        summary: "Ovaj model verovatno nece moci da radi ili ce raditi lose na ovoj masini.",
+        summary: "Ovaj model verovatno neće moći da radi ili će raditi loše na ovoj mašini.",
         details: {
           returncode: 1,
           stdout: activationRiskSummary(item),
@@ -523,7 +523,7 @@ function ModelGroup({
                     <div className="helper-text">{item.lifecycleSummary}</div>
                   ) : null}
                   <div className="helper-text">
-                    Velicina: {formatGiB(item.approxSizeGiB ?? null)} | Instalirano:{" "}
+                    Veličina: {formatGiB(item.approxSizeGiB ?? null)} | Instalirano:{" "}
                     {item.installed ? formatGiB(item.installedSizeGiB ?? null) : "nije skinut"}
                   </div>
                   <div className="helper-text">
@@ -536,7 +536,7 @@ function ModelGroup({
                         : "ne"}
                   </div>
                   <div className="helper-text">
-                    GPU prag: {formatMiB(item.minimumGpuMiB)} | Preporuceni GPU:{" "}
+                    GPU prag: {formatMiB(item.minimumGpuMiB)} | Preporučeni GPU:{" "}
                     {formatMiB(item.recommendedGpuMiB)} | RAM: {formatGiB(item.minimumRamGiB ?? null)}
                   </div>
                   <div className="helper-text">MTP status: {item.mtpStatusLabel ?? "nepoznato"}</div>
@@ -588,7 +588,7 @@ function ModelGroup({
                       onClick={() => onCheckCompatibility(item)}
                       type="button"
                     >
-                      Check compatibility
+                      Proveri kompatibilnost
                     </button>
                     <button
                       className="danger-button"
@@ -642,7 +642,7 @@ function ModelGroup({
                         className="secondary-button"
                         onClick={() => setDeleteTargetId(null)}
                       >
-                        Otkazi
+                        Otkaži
                       </button>
                     </div>
                   </div>
@@ -702,7 +702,7 @@ export function ModelsPage({
     setResult({
       status: "pending",
       action: "models",
-      summary: `Pokrecem model akciju: ${label}`,
+      summary: `Pokrećem model akciju: ${label}`,
       details: { returncode: 0, stdout: "", stderr: "" },
     });
   }
@@ -714,7 +714,7 @@ export function ModelsPage({
       setError(null);
       return payload;
     } catch (reason: unknown) {
-      setError(reason instanceof Error ? reason.message : "Nepoznata greska");
+      setError(reason instanceof Error ? reason.message : "Nepoznata greška");
       return null;
     }
   }
@@ -850,7 +850,7 @@ export function ModelsPage({
   }
 
   if (!models || !filteredModels) {
-    return <div className="status-card wide-card">Ucitavam modele...</div>;
+    return <div className="status-card wide-card">Učitavam modele...</div>;
   }
 
   return (
@@ -952,10 +952,10 @@ export function ModelsPage({
         ) : null}
         <p className="helper-text">
           Activate menja aktivni Local Qwen model odmah, ali OpenCode taj novi model preuzima tek
-          u novom session-u. Ako je OpenCode vec otvoren, zatvori ga i otvori ponovo.
+          u novom session-u. Ako je OpenCode već otvoren, zatvori ga i otvori ponovo.
         </p>
         <p className="helper-text">
-          MTP modeli sada koriste llama.cpp draft-mtp put. Ako je TurboQuant izabran, panel ce
+          MTP modeli sada koriste llama.cpp draft-mtp put. Ako je TurboQuant izabran, panel će
           za takav model automatski pasti nazad na llama.cpp.
         </p>
         <div className="inline-actions compact-actions">
@@ -966,7 +966,12 @@ export function ModelsPage({
               if (!models.local.length && !models.curated.length && !models.huggingFace.length && !models.unsloth.length) {
                 return;
               }
-              const firstModel = filteredItems[0] ?? models.curated[0] ?? models.local[0] ?? models.huggingFace[0] ?? models.unsloth[0];
+              const firstModel =
+                filteredItems[0] ??
+                models.curated[0] ??
+                models.local[0] ??
+                models.huggingFace[0] ??
+                models.unsloth[0];
               if (!firstModel) {
                 return;
               }
@@ -1151,10 +1156,10 @@ export function ModelsPage({
       <section className="status-card wide-card">
         <span className="status-label">Unsloth GGUF preporuke</span>
         <p className="helper-text">
-          Ovo su preporuceni non-MTP GGUF izbori za RTX 3060 12 GB + llama.cpp + TurboQuant.
+          Ovo su preporučeni non-MTP GGUF izbori za RTX 3060 12 GB + llama.cpp + TurboQuant.
         </p>
         <p className="helper-text">
-          Fokus je na Qwen3.6 35B A3B i Qwen3.6 27B varijantama kao sto su UD-IQ2_M i UD-IQ3_XXS.
+          Fokus je na Qwen3.6 35B A3B i Qwen3.6 27B varijantama kao što su UD-IQ2_M i UD-IQ3_XXS.
         </p>
         <div className="model-list">
           {recommendedModels.map((item) => (

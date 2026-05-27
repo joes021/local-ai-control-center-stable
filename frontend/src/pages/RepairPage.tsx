@@ -22,11 +22,13 @@ export function RepairPage() {
   return (
     <>
       <section className="status-card wide-card">
-        <span className="status-label">Bezbedan repair tok</span>
-        <strong className="status-value">Ako nesto nije u redu, ovde pokrecete jednu jasnu i bezbednu popravku.</strong>
+        <span className="status-label">Bezbedan tok popravke</span>
+        <strong className="status-value">
+          Ako nešto nije u redu, ovde pokrećete jednu jasnu i bezbednu popravku.
+        </strong>
         <p className="status-text">
-          Ovaj tok je namenjen netehnickim korisnicima: izaberite sta zelite da popravite, sacekajte rezultat, pa pratite
-          sledeci korak koji vam aplikacija prikaze.
+          Ovaj tok je namenjen netehničkim korisnicima: izaberite šta želite da popravite,
+          sačekajte rezultat, pa pratite sledeći korak koji vam aplikacija prikaže.
         </p>
         <div className="inline-actions">
           <button type="button" onClick={() => triggerRepair("install")}>
@@ -39,16 +41,16 @@ export function RepairPage() {
             Popravka runtime-a
           </button>
           <button type="button" onClick={() => triggerRepair("config")}>
-            Popravka podesavanja
+            Popravka podešavanja
           </button>
         </div>
       </section>
       {result ? (
         <section className="status-card wide-card">
-          <span className="status-label">{result.title ?? "Repair rezultat"}</span>
+          <span className="status-label">{result.title ?? "Rezultat popravke"}</span>
           <strong className="status-value">{result.userMessage ?? result.summary}</strong>
           <p className="status-text">
-            <strong>Sledeci korak:</strong> {result.nextStep ?? "Otvorite Detalji ako zelite vise informacija."}
+            <strong>Sledeći korak:</strong> {result.nextStep ?? "Otvorite Detalji ako želite više informacija."}
           </p>
         </section>
       ) : null}

@@ -198,7 +198,7 @@ export function SettingsPage() {
 
   useEffect(() => {
     reload().catch((reason: unknown) => {
-      setError(reason instanceof Error ? reason.message : "Nepoznata greska");
+      setError(reason instanceof Error ? reason.message : "Nepoznata greška");
     });
   }, []);
 
@@ -253,7 +253,7 @@ export function SettingsPage() {
   }
 
   if (!settings || !schema || !turboConfig) {
-    return <div className="status-card wide-card">Ucitavam settings...</div>;
+    return <div className="status-card wide-card">Učitavam settings...</div>;
   }
 
   const allTurboPresets = [...schema.builtInPresets, ...schema.userPresets];
@@ -301,7 +301,7 @@ export function SettingsPage() {
       <section className="status-card wide-card settings-cluster-card">
         <div className="section-header settings-cluster-header">
           <div>
-            <span className="status-label">Profiles & scope</span>
+            <span className="status-label">Profili i opseg</span>
             <strong className="status-value">
               Aktivni model: {settings.activeModelLabel || "nema"} ({settings.activeModelId || "--"})
             </strong>
@@ -309,17 +309,17 @@ export function SettingsPage() {
         </div>
         <div className="settings-cluster-grid settings-cluster-grid-profiles">
           <article className="settings-field settings-field-wide">
-            <span className="settings-field-label">Settings scope</span>
+            <span className="settings-field-label">Opseg podešavanja</span>
             <p className="helper-text">
-              Global defaults vaze za sve modele bez posebnog override-a. Active model override vazi
+              Globalna podrazumevana važe za sve modele bez posebnog override-a. Override aktivnog modela važi
               samo za trenutno aktivni model.
             </p>
             <div className="settings-control-block">
               <CustomSelect
                 value={settings.settingsScope}
                 options={[
-                  { value: "global", label: "Global defaults" },
-                  { value: "model", label: "Active model override" },
+                  { value: "global", label: "Globalna podrazumevana" },
+                  { value: "model", label: "Override aktivnog modela" },
                 ]}
                 onChange={(value) =>
                   setSettings({
@@ -332,7 +332,7 @@ export function SettingsPage() {
             </div>
             <p className="helper-text">
               {settings.modelOverrideExists
-                ? "Za aktivni model vec postoji poseban override."
+                ? "Za aktivni model već postoji poseban override."
                 : "Za aktivni model trenutno nema posebnog override-a."}
             </p>
           </article>
@@ -361,7 +361,7 @@ export function SettingsPage() {
                   setResult({
                     status: "ok",
                     action: "load-settings-profile",
-                    summary: `Profil ${profile.name} je ucitan u editor.`,
+                    summary: `Profil ${profile.name} je učitan u editor.`,
                     details: { returncode: 0, stdout: "", stderr: "" },
                   });
                 }}
@@ -398,7 +398,7 @@ export function SettingsPage() {
           </article>
 
           <article className="settings-field settings-field-wide">
-            <span className="settings-field-label">Sacuvaj trenutni custom profil</span>
+            <span className="settings-field-label">Sačuvaj trenutni custom profil</span>
             <div className="settings-action-row">
               <input
                 className="settings-profile-name-input"
@@ -420,7 +420,7 @@ export function SettingsPage() {
                   await reload();
                 }}
               >
-                Sacuvaj profil
+                Sačuvaj profil
               </button>
               {selectedSettingsProfile && selectedSettingsProfile.kind === "user" ? (
                 <button
@@ -432,7 +432,7 @@ export function SettingsPage() {
                     await reload();
                   }}
                 >
-                  Obrisi izabrani profil
+                  Obriši izabrani profil
                 </button>
               ) : null}
             </div>
@@ -573,13 +573,13 @@ export function SettingsPage() {
                     context: Number(value),
                   });
                 }}
-                ariaLabel="Izaberi context velicinu"
+                ariaLabel="Izaberi context veličinu"
               />
               {contextChoice === "custom" ? (
                 <input
                   type="number"
                   value={settings.context}
-                  aria-label="Unesi context velicinu"
+                  aria-label="Unesi context veličinu"
                   onChange={(event) =>
                     setSettings({
                       ...settings,
@@ -631,7 +631,7 @@ export function SettingsPage() {
           </article>
 
           <article className="settings-field settings-field-wide">
-            <span className="settings-field-label">Working directory</span>
+            <span className="settings-field-label">Radni direktorijum</span>
             <div className="settings-path-row">
               <input
                 className="settings-path-input"
@@ -656,13 +656,13 @@ export function SettingsPage() {
                   })
                 }
               >
-                Browse
+                Pregledaj
               </button>
             </div>
           </article>
 
           <article className="settings-field settings-field-wide">
-            <span className="settings-field-label">Search provider</span>
+            <span className="settings-field-label">Provider pretrage</span>
             <div className="settings-control-block settings-control-block-wide">
               <CustomSelect
                 value={settings.webSearchProvider}
@@ -686,7 +686,7 @@ export function SettingsPage() {
               {currentSearchProviderOption?.summary || "Izaberi provider za Search, Knowledge i local-lacc search augmentation."}
             </p>
             <p className="helper-text">
-              Ako hoces javni provider bez API kljuca, biraj DuckDuckGo (public web, no key).
+              Ako hoćeš javni provider bez API ključa, biraj DuckDuckGo (public web, no key).
             </p>
           </article>
 
@@ -766,7 +766,7 @@ export function SettingsPage() {
               </p>
             ) : (
               <p className="helper-text">
-                DuckDuckGo radi kao javni provider i ne trazi WSL, bootstrap ni manualni endpoint.
+                DuckDuckGo radi kao javni provider i ne traži WSL, bootstrap ni manualni endpoint.
               </p>
             )}
           </article>
@@ -791,7 +791,7 @@ export function SettingsPage() {
               />
             </div>
             <p className="helper-text">
-              Ovo vazi za Search tab i za OpenCode kada koristi lokalni `local-lacc` provider.
+              Ovo važi za Search tab i za OpenCode kada koristi lokalni `local-lacc` provider.
               Cloud `opencode` modeli ne prolaze kroz ovaj lokalni search sloj.
             </p>
           </article>
@@ -812,7 +812,7 @@ export function SettingsPage() {
                 />
               </div>
               <p className="helper-text">
-                Ostavi prazno ako hoces da Search koristi managed lokalni SearxNG koji aplikacija sama
+                Ostavi prazno ako hoćeš da Search koristi managed lokalni SearxNG koji aplikacija sama
                 podigne preko WSL-a.
               </p>
             </article>
@@ -887,16 +887,16 @@ export function SettingsPage() {
               setResult({
                 status: "ok",
                 action: "restore-model-settings",
-                summary: "Model settings su vraceni na poslednje sacuvane vrednosti.",
+                summary: "Model settings su vraćeni na poslednje sačuvane vrednosti.",
                 details: { returncode: 0, stdout: "", stderr: "" },
               });
             }}
           >
-            Restore default
+            Vrati podrazumevano
           </button>
         </div>
         <p className="helper-text">
-          Glavne promene postaju stvarno aktivne tek kada kliknes Save model settings.
+          Glavne promene postaju stvarno aktivne tek kada klikneš na `Save model settings`.
         </p>
       </section>
 
@@ -905,8 +905,8 @@ export function SettingsPage() {
           <span className="status-label">TurboQuant preseti</span>
         </div>
         <p className="helper-text">
-          safe je najbezbedniji, daily je preporuceni balans, a max-context je agresivniji kada
-          juris sto duzi context.
+          `safe` je najbezbedniji, `daily` je preporučeni balans, a `max-context` je agresivniji
+          kada juriš što duži kontekst.
         </p>
         <div className="model-list">
           {allTurboPresets.map((preset) => (
@@ -929,12 +929,12 @@ export function SettingsPage() {
                       setResult({
                         status: "ok",
                         action: "apply-preset-local",
-                        summary: `Preset ${preset.name} je ucitan u editor.`,
+                        summary: `Preset ${preset.name} je učitan u editor.`,
                         details: { returncode: 0, stdout: "", stderr: "" },
                       });
                     }}
                   >
-                    Load preset
+                    Učitaj preset
                   </button>
                   {schema.userPresets.some((item) => item.id === preset.id) ? (
                     <button
@@ -946,7 +946,7 @@ export function SettingsPage() {
                         await reload();
                       }}
                     >
-                      Obrisi
+                      Obriši
                     </button>
                   ) : null}
                 </div>
@@ -957,7 +957,7 @@ export function SettingsPage() {
       </section>
 
       <section className="status-card wide-card">
-        <span className="status-label">Sacuvaj trenutni preset</span>
+        <span className="status-label">Sačuvaj trenutni preset</span>
         <div className="form-grid">
           <input
             placeholder="Ime preset-a"
@@ -997,7 +997,7 @@ export function SettingsPage() {
               await reload();
             }}
           >
-            Sacuvaj preset
+            Sačuvaj preset
           </button>
         </div>
       </section>
@@ -1042,7 +1042,7 @@ export function SettingsPage() {
                           })
                         }
                       />{" "}
-                      ukljuceno
+                      uključeno
                     </label>
                   ) : (
                     <CustomSelect

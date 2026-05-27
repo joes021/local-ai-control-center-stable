@@ -40,9 +40,9 @@ def test_packaged_settings_ui_uses_numeric_preset_dropdowns_with_custom_inputs()
 
     assert "Context" in bundled_text
     assert "Output tokens" in bundled_text
-    assert "Izaberi context velicinu" in bundled_text
+    assert "Izaberi context veličinu" in bundled_text
     assert "Izaberi output token limit" in bundled_text
-    assert "Unesi context velicinu" in bundled_text
+    assert "Unesi context veličinu" in bundled_text
     assert "Unesi output token limit" in bundled_text
     assert "Standardni korak:" not in bundled_text
 
@@ -86,9 +86,9 @@ def test_workflow_preset_source_mentions_core_presets():
     assert "Long context" in workflow_source
     assert "Docs + web" in workflow_source
     assert "Benchmark battery" in workflow_source
-    assert "Workflow preset" in search_source
-    assert "Workflow preset" in knowledge_source
-    assert "Workflow preset" in benchmark_source
+    assert "Preset radnog toka" in search_source
+    assert "Preset radnog toka" in knowledge_source
+    assert "Preset radnog toka" in benchmark_source
 
 
 def test_observability_source_and_navigation_are_present():
@@ -96,9 +96,9 @@ def test_observability_source_and_navigation_are_present():
     observability_source = Path("frontend/src/pages/ObservabilityPage.tsx").read_text(encoding="utf-8")
 
     assert "Observability" in app_source
-    assert "Live GPU" in observability_source
+    assert "GPU uživo" in observability_source
     assert "Runtime signal" in observability_source
-    assert "Recent log signals" in observability_source
+    assert "Skorašnji log signali" in observability_source
 
 
 def test_fleet_source_and_navigation_are_present():
@@ -106,9 +106,9 @@ def test_fleet_source_and_navigation_are_present():
     fleet_source = Path("frontend/src/pages/FleetPage.tsx").read_text(encoding="utf-8")
 
     assert "Fleet" in app_source
-    assert "Remote machines" in fleet_source
-    assert "Refresh all" in fleet_source
-    assert "Add machine" in fleet_source
+    assert "Udaljene mašine" in fleet_source
+    assert "Osveži sve" in fleet_source
+    assert "Dodaj mašinu" in fleet_source
 
 
 def test_jobs_source_and_navigation_are_present():
@@ -116,9 +116,9 @@ def test_jobs_source_and_navigation_are_present():
     jobs_source = Path("frontend/src/pages/JobsPage.tsx").read_text(encoding="utf-8")
 
     assert "Jobs" in app_source
-    assert "Scheduled jobs" in jobs_source
-    assert "Run now" in jobs_source
-    assert "Save job" in jobs_source
+    assert "Zakazani poslovi" in jobs_source
+    assert "Pokreni sada" in jobs_source
+    assert "Sačuvaj posao" in jobs_source
 
 
 def test_workflows_source_and_navigation_are_present():
@@ -127,9 +127,9 @@ def test_workflows_source_and_navigation_are_present():
     styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
 
     assert "Workflows" in app_source
-    assert "Workflow workspace" in workflows_source
-    assert "Activate preset" in workflows_source
-    assert "Open Search" in workflows_source
+    assert "Radni prostor za radne tokove" in workflows_source
+    assert "Aktiviraj preset" in workflows_source
+    assert "Otvori pretragu" in workflows_source
     assert "workflow-preset-grid" in workflows_source
     assert ".workflow-preset-grid" in styles_source
     assert "grid-template-columns: repeat(3, minmax(0, 1fr));" in styles_source
@@ -211,7 +211,7 @@ def test_models_page_source_uses_backend_lifecycle_truth_for_actions_and_badges(
     source = Path("frontend/src/pages/ModelsPage.tsx").read_text(encoding="utf-8")
 
     assert "lifecycleTone(item.lifecycleStatus)" in source
-    assert "item.lifecycleLabel ?? \"Status\"" in source
+    assert 'item.lifecycleLabel ?? "Status"' in source
     assert "item.lifecycleSummary" in source
     assert "item.downloadActive" in source
     assert "item.canDownload" in source
@@ -226,18 +226,18 @@ def test_models_page_source_requires_explicit_confirmation_before_forced_risky_a
     )
     js_assets = list((dist_root / "assets").glob("index-*.js"))
 
-    assert "Ovaj model verovatno nece moci da radi ili ce raditi lose na ovoj masini." in source
-    assert "Da li zelis ipak da pokusas aktivaciju?" in source
-    assert "Ipak pokusaj aktivaciju" in source
+    assert "Ovaj model verovatno neće moći da radi ili će raditi loše na ovoj mašini." in source
+    assert "Da li želiš ipak da pokušaš aktivaciju?" in source
+    assert "Ipak pokušaj aktivaciju" in source
     assert "activateModel(item.id, { force: true })" in source
     assert "force?: boolean" in api_source
     assert js_assets
 
     bundled_text = "\n".join(path.read_text(encoding="utf-8") for path in js_assets)
 
-    assert "Ovaj model verovatno nece moci da radi ili ce raditi lose na ovoj masini." in bundled_text
-    assert "Da li zelis ipak da pokusas aktivaciju?" in bundled_text
-    assert "Ipak pokusaj aktivaciju" in bundled_text
+    assert "Ovaj model verovatno neće moći da radi ili će raditi loše na ovoj mašini." in bundled_text
+    assert "Da li želiš ipak da pokušaš aktivaciju?" in bundled_text
+    assert "Ipak pokušaj aktivaciju" in bundled_text
 
 
 def test_packaged_browser_ui_contains_quant_sort_labels():
@@ -271,14 +271,14 @@ def test_api_source_supports_browser_catalog_query_params():
 def test_download_progress_card_source_explains_retry_without_resume():
     source = Path("frontend/src/components/ModelDownloadProgressCard.tsx").read_text(encoding="utf-8")
 
-    assert "Resume nije podrzan" in source
+    assert "Resume nije podržan" in source
     assert "ponovo kliknuti Download" in source
 
 
 def test_app_source_and_packaged_frontend_include_updates_navigation():
     source = Path("frontend/src/App.tsx").read_text(encoding="utf-8")
 
-    assert 'updates: "Updates"' in source
+    assert 'updates: "Ažuriranja"' in source
     assert "UpdatesPage" in source
 
     dist_root = Path(
@@ -289,8 +289,8 @@ def test_app_source_and_packaged_frontend_include_updates_navigation():
     assert js_assets
     bundled_text = "\n".join(path.read_text(encoding="utf-8") for path in js_assets)
 
-    assert "Updates" in bundled_text
-    assert "Check updates" in bundled_text
+    assert "Ažuriranja" in bundled_text
+    assert "Proveri ažuriranja" in bundled_text
 
 
 def test_api_source_disables_cache_for_update_progress_polling():
@@ -314,14 +314,14 @@ def test_app_source_and_packaged_frontend_include_benchmark_navigation():
     bundled_text = "\n".join(path.read_text(encoding="utf-8") for path in js_assets)
 
     assert "Benchmark" in bundled_text
-    assert "Telemetry" in bundled_text
-    assert "Token Pulse" in bundled_text
+    assert "Telemetrija" in bundled_text
+    assert "Puls tokena" in bundled_text
 
 
 def test_app_source_and_packaged_frontend_include_search_navigation():
     source = Path("frontend/src/App.tsx").read_text(encoding="utf-8")
 
-    assert 'search: "Search"' in source
+    assert 'search: "Pretraga"' in source
     assert "SearchPage" in source
 
     dist_root = Path(
@@ -332,27 +332,29 @@ def test_app_source_and_packaged_frontend_include_search_navigation():
     assert js_assets
     bundled_text = "\n".join(path.read_text(encoding="utf-8") for path in js_assets)
 
-    assert "Search workspace" in bundled_text
-    assert "Find web sources" in bundled_text
-    assert "Search + answer locally" in bundled_text
+    assert "Radni prostor za pretragu" in bundled_text
+    assert "Pronađi veb izvore" in bundled_text
+    assert "Pretraži i odgovori lokalno" in bundled_text
     assert "Compare providers" in bundled_text
     assert "DuckDuckGo" in bundled_text
-    assert "Final answer from local model" in bundled_text
+    assert "Konačan odgovor lokalnog modela" in bundled_text
     assert "Setup managed SearxNG (Windows + WSL)" in bundled_text
-    assert "SearxNG nije podesen" in bundled_text
+    assert "SearxNG nije podešen" in bundled_text
     assert "Managed local SearxNG (Windows + WSL)" in bundled_text
-    assert "Ovo su izvori, ne finalan odgovor." in bundled_text
-    assert "Open source" in bundled_text
+    assert "Ovo su izvori, ne konačan odgovor." in bundled_text
+    assert "Otvori izvor" in bundled_text
+    assert "Kad pokreneš upit, ovde će se pojaviti normalizovani veb rezultati." in bundled_text
+    assert "Ako provider status kaže `SearxNG nije podešen`" in bundled_text
 
 
 def test_app_source_and_packaged_frontend_include_knowledge_navigation():
     source = Path("frontend/src/App.tsx").read_text(encoding="utf-8")
     knowledge_source = Path("frontend/src/pages/KnowledgePage.tsx").read_text(encoding="utf-8")
 
-    assert 'knowledge: "Knowledge"' in source
+    assert 'knowledge: "Znanje"' in source
     assert "KnowledgePage" in source
     assert "pickWorkingDirectory" in knowledge_source
-    assert "Browse" in knowledge_source
+    assert "Pregledaj" in knowledge_source
 
     dist_root = Path(
         "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
@@ -362,14 +364,25 @@ def test_app_source_and_packaged_frontend_include_knowledge_navigation():
     assert js_assets
     bundled_text = "\n".join(path.read_text(encoding="utf-8") for path in js_assets)
 
-    assert "Knowledge workspace" in bundled_text
-    assert "Documents + web" in bundled_text
-    assert "Browse" in bundled_text
-    assert "Collections" in knowledge_source
-    assert "Tags" in knowledge_source
-    assert "Citations" in knowledge_source
-    assert "Export JSON" in knowledge_source
-    assert "Export Markdown" in knowledge_source
+    assert "Radni prostor znanja" in bundled_text
+    assert "Dokumenti + veb" in bundled_text
+    assert "Pregledaj" in bundled_text
+    assert "Kolekcije" in knowledge_source
+    assert "Oznake" in knowledge_source
+    assert "Citati" in knowledge_source
+    assert "Izvezi JSON" in knowledge_source
+    assert "Izvezi Markdown" in knowledge_source
+    assert "Kad pokreneš upit nad znanjem, ovde će se pojaviti lokalni pogoci iz dokumenata." in knowledge_source
+    assert "ovde ćeš videti koji dokumenti su korišćeni" in knowledge_source
+    assert "i njihove citate." in knowledge_source
+
+
+def test_updates_page_source_uses_serbian_diacritics_in_progress_guidance():
+    source = Path("frontend/src/pages/UpdatesPage.tsx").read_text(encoding="utf-8")
+
+    assert "Pročitaj poruku iznad." in source
+    assert "Sačekaj da download stigne do 100%. Installer će se zatim pokrenuti automatski." in source
+    assert "Ako pokreneš instalaciju ažuriranja, ovde ćeš videti ceo tok preuzimanja i pokretanja installera." in source
 
 
 def test_settings_and_opencode_source_include_web_search_controls_and_guidance():
@@ -377,7 +390,7 @@ def test_settings_and_opencode_source_include_web_search_controls_and_guidance()
     opencode_source = Path("frontend/src/pages/OpenCodePage.tsx").read_text(encoding="utf-8")
 
     assert "Web search mode" in settings_source
-    assert "Search provider" in settings_source
+    assert "Provider pretrage" in settings_source
     assert "DuckDuckGo (public web, no key)" in settings_source
     assert "Manual SearxNG base URL (optional, no WSL)" in settings_source
     assert "Setup managed SearxNG (Windows + WSL)" in settings_source
@@ -394,27 +407,27 @@ def test_search_page_source_makes_web_results_clickable_and_guides_toward_answer
 
     assert "Compare providers" in source
     assert "DuckDuckGo" in source
-    assert "Search provider" in source
-    assert "Find web sources" in source
-    assert "Search + answer locally" in source
-    assert "Final answer from local model" in source
-    assert "Ovo su izvori, ne finalan odgovor." in source
+    assert "Provider pretrage" in source
+    assert "Pronađi veb izvore" in source
+    assert "Pretraži i odgovori lokalno" in source
+    assert "Konačan odgovor lokalnog modela" in source
+    assert "Ovo su izvori, ne konačan odgovor." in source
     assert 'target="_blank"' in source
-    assert "Open source" in source
+    assert "Otvori izvor" in source
 
 
 def test_home_page_source_uses_single_system_overview_card():
     source = Path("frontend/src/pages/HomePage.tsx").read_text(encoding="utf-8")
     telemetry_source = Path("frontend/src/components/TelemetryPanel.tsx").read_text(encoding="utf-8")
 
-    assert "System overview" in source
+    assert "Pregled sistema" in source
     assert "TelemetryPanel" in source
-    assert "Token Pulse" in telemetry_source
-    assert "Input 24h" in telemetry_source
-    assert "Output 24h" in telemetry_source
-    assert "Active routes" in telemetry_source
-    assert "Live now" in telemetry_source
-    assert "Control Center health" in source
+    assert "Puls tokena" in telemetry_source
+    assert "Ulaz 24h" in telemetry_source
+    assert "Izlaz 24h" in telemetry_source
+    assert "Aktivne rute" in telemetry_source
+    assert "Uživo sada" in telemetry_source
+    assert "Stanje Control Center-a" in source
     assert "Aktivan runtime" in source
     assert "Status runtime servera" in source
     assert "Aktivni model" in source
@@ -427,16 +440,16 @@ def test_benchmark_page_source_includes_compare_export_and_idle_truth():
     telemetry_source = Path("frontend/src/components/TelemetryPanel.tsx").read_text(encoding="utf-8")
 
     assert "TelemetryPanel" in source
-    assert "Telemetry" in telemetry_source
-    assert "Live token flow, sync i launch queue signal" in telemetry_source
-    assert "Token Pulse" in telemetry_source
-    assert "Cost 24h" in telemetry_source
-    assert "Input / output split" in telemetry_source
+    assert "Telemetrija" in telemetry_source
+    assert "Uživo: tok tokena, sinhronizacija i signal reda pokretanja" in telemetry_source
+    assert "Puls tokena" in telemetry_source
+    assert "Trošak 24h" in telemetry_source
+    assert "Odnos ulaza i izlaza" in telemetry_source
     assert "fetchBenchmarkCompare" in source
     assert "exportBenchmarkRuns" in source
-    assert "Compare selected runs" in source
-    assert "Export JSON" in source
-    assert "Export CSV" in source
+    assert "Uporedi izabrana pokretanja" in source
+    assert "Izvezi JSON" in source
+    assert "Izvezi CSV" in source
     assert "telemetry?.flowStateReason" in telemetry_source
     assert "Izaberi najmanje dva saved run-a da bi compare prikaz bio aktivan." in source
     assert "Model:" in source
@@ -461,26 +474,26 @@ def test_packaged_frontend_contains_benchmark_compare_export_copy():
     assert js_assets
     bundled_text = "\n".join(path.read_text(encoding="utf-8") for path in js_assets)
 
-    assert "Compare selected runs" in bundled_text
-    assert "Export JSON" in bundled_text
-    assert "Export CSV" in bundled_text
-    assert "Benchmark context" in bundled_text
-    assert "Token Pulse" in bundled_text
-    assert "Input 24h" in bundled_text
-    assert "Output 24h" in bundled_text
-    assert "Active routes" in bundled_text
-    assert "Cost 24h" in bundled_text
-    assert "Live now" in bundled_text
-    assert "Input / output split" in bundled_text
+    assert "Uporedi izabrana pokretanja" in bundled_text
+    assert "Izvezi JSON" in bundled_text
+    assert "Izvezi CSV" in bundled_text
+    assert "Kontekst benchmarka" in bundled_text
+    assert "Puls tokena" in bundled_text
+    assert "Ulaz 24h" in bundled_text
+    assert "Izlaz 24h" in bundled_text
+    assert "Aktivne rute" in bundled_text
+    assert "Trošak 24h" in bundled_text
+    assert "Uživo sada" in bundled_text
+    assert "Odnos ulaza i izlaza" in bundled_text
 
 
 def test_compatibility_modal_source_and_packaged_frontend_include_runtime_breakdown_copy():
     source = Path("frontend/src/components/CompatibilityCalculatorPanel.tsx").read_text(encoding="utf-8")
 
-    assert "Best runtime" in source
-    assert "Runtime breakdown" in source
-    assert "Output pressure" in source
-    assert "Memory headroom" in source
+    assert "Najbolji runtime" in source
+    assert "Pregled po runtime-u" in source
+    assert "Opterećenje izlaza" in source
+    assert "Rezerva memorije" in source
 
     dist_root = Path(
         "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
@@ -490,15 +503,15 @@ def test_compatibility_modal_source_and_packaged_frontend_include_runtime_breakd
     assert js_assets
     bundled_text = "\n".join(path.read_text(encoding="utf-8") for path in js_assets)
 
-    assert "Best runtime" in bundled_text
-    assert "Runtime breakdown" in bundled_text
-    assert "Output pressure" in bundled_text
+    assert "Najbolji runtime" in bundled_text
+    assert "Pregled po runtime-u" in bundled_text
+    assert "Opterećenje izlaza" in bundled_text
 
 
 def test_app_source_and_packaged_frontend_include_compatibility_navigation():
     source = Path("frontend/src/App.tsx").read_text(encoding="utf-8")
 
-    assert 'compatibility: "Compatibility"' in source
+    assert 'compatibility: "Kompatibilnost"' in source
     assert "CompatibilityPage" in source
 
     dist_root = Path(
@@ -509,9 +522,9 @@ def test_app_source_and_packaged_frontend_include_compatibility_navigation():
     assert js_assets
     bundled_text = "\n".join(path.read_text(encoding="utf-8") for path in js_assets)
 
-    assert "Compatibility" in bundled_text
-    assert "System snapshot" in bundled_text
-    assert "Remote catalog" in bundled_text
+    assert "Kompatibilnost" in bundled_text
+    assert "Snimak sistema" in bundled_text
+    assert "Udaljeni katalog" in bundled_text
 
 
 def test_compatibility_page_source_uses_local_and_remote_model_inputs():
@@ -519,10 +532,10 @@ def test_compatibility_page_source_uses_local_and_remote_model_inputs():
 
     assert "fetchModels" in source
     assert "fetchBrowserCatalog" in source
-    assert "Active model" in source
-    assert "Local catalog" in source
-    assert "Remote catalog" in source
-    assert "Check compatibility" in source
+    assert "Aktivni model" in source
+    assert "Lokalni katalog" in source
+    assert "Udaljeni katalog" in source
+    assert "Provera kompatibilnosti" in source
 
 
 def test_models_and_browser_source_offer_compatibility_tab_handoff():
@@ -538,7 +551,7 @@ def test_server_page_source_uses_runtime_generic_actions_and_labels():
 
     assert "Start runtime server" in source
     assert "Stop runtime server" in source
-    assert "Open runtime web" in source
+    assert "Otvori runtime veb" in source
     assert "serverStatus?.canStart === false" in source
     assert "serverStatus?.canOpenWeb === false" in source
     assert "Start llama.cpp server" not in source

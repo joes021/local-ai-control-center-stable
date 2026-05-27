@@ -348,7 +348,7 @@ export function BenchmarkPage({ onOpenLogs }: { onOpenLogs: () => void }) {
       if (!isMountedRef.current || requestId !== requestIdRef.current) {
         return;
       }
-      setError(reason instanceof Error ? reason.message : "Nepoznata greska");
+      setError(reason instanceof Error ? reason.message : "Nepoznata greška");
     } finally {
       if (requestId === requestIdRef.current) {
         inFlightRef.current = false;
@@ -550,7 +550,7 @@ export function BenchmarkPage({ onOpenLogs }: { onOpenLogs: () => void }) {
   }
 
   if (!benchmark) {
-    return <section className="status-card wide-card">Ucitavam benchmark...</section>;
+    return <section className="status-card wide-card">Učitavam benchmark...</section>;
   }
 
   const scenarioOptions = selectedBattery.scenarios.map((scenario) => ({
@@ -635,10 +635,10 @@ export function BenchmarkPage({ onOpenLogs }: { onOpenLogs: () => void }) {
   return (
     <>
       <section className="status-card wide-card">
-        <span className="status-label">Benchmark controls</span>
+        <span className="status-label">Kontrole benchmarka</span>
         {currentWorkflowPreset ? (
           <p className="helper-text">
-            Workflow preset: {currentWorkflowPreset.label} | {currentWorkflowPreset.benchmarkDefaults.runLabel}
+            Preset radnog toka: {currentWorkflowPreset.label} | {currentWorkflowPreset.benchmarkDefaults.runLabel}
           </p>
         ) : null}
         <div className="inline-actions" style={{ flexWrap: "wrap", gap: "12px" }}>
@@ -649,35 +649,35 @@ export function BenchmarkPage({ onOpenLogs }: { onOpenLogs: () => void }) {
             ariaLabel="Izaberi benchmark scenario"
           />
           <button type="button" onClick={handleRunSelected}>
-            Run selected test
+            Pokreni izabrani test
           </button>
           <button type="button" onClick={handleRunBattery}>
-            Run full battery
+            Pokreni celu bateriju
           </button>
           <button type="button" onClick={handleSaveBattery}>
-            Save battery
+            Sačuvaj bateriju
           </button>
-          <span className="helper-text">Load battery</span>
+          <span className="helper-text">Učitaj bateriju</span>
           <CustomSelect
             value={selectedBattery.id}
             options={batteryOptions}
             onChange={(batteryId) => void handleLoadBattery(batteryId)}
-            ariaLabel="Ucitaj benchmark bateriju"
+            ariaLabel="Učitaj benchmark bateriju"
           />
           <button type="button" onClick={handleRestoreDefaults}>
-            Restore default tests
+            Vrati podrazumevane testove
           </button>
           <button type="button" className="secondary-button" onClick={handleClearHistory}>
-            Clear benchmark values
+            Obriši benchmark vrednosti
           </button>
         </div>
         <p className="helper-text">
-          {actionMessage || "Benchmark testovi mogu da se pokrenu pojedinacno ili kao cela baterija."}
+          {actionMessage || "Benchmark testovi mogu da se pokrenu pojedinačno ili kao cela baterija."}
         </p>
       </section>
 
       <section className="status-card wide-card">
-        <span className="status-label">Battery editor</span>
+        <span className="status-label">Editor baterije</span>
         <div className="battery-editor-shell">
           <div className="battery-editor-topline">
             <input
@@ -716,7 +716,7 @@ export function BenchmarkPage({ onOpenLogs }: { onOpenLogs: () => void }) {
                 <div className="battery-editor-detail-header">
                   <strong>{activeScenario.name}</strong>
                   <span className="helper-text">
-                    Uredujes jedan scenario, lista gore ostaje kompaktna.
+                    Uređuješ jedan scenario, lista gore ostaje kompaktna.
                   </span>
                 </div>
                 <div className="battery-editor-detail-grid">
@@ -741,7 +741,7 @@ export function BenchmarkPage({ onOpenLogs }: { onOpenLogs: () => void }) {
       <TelemetryPanel benchmark={benchmark} variant="benchmark" />
 
       <section className="status-card wide-card">
-        <span className="status-label">Benchmark context</span>
+        <span className="status-label">Kontekst benchmarka</span>
         <div className="benchmark-context-grid">
           <div className="benchmark-context-main">
             <strong className="status-value">
@@ -749,14 +749,14 @@ export function BenchmarkPage({ onOpenLogs }: { onOpenLogs: () => void }) {
             </strong>
             <p className="helper-text">
               Runtime: {benchmarkEnvironment?.runtimeLabel || "--"} | Profil: {benchmarkEnvironment?.profile || "--"} |
-              Thinking: {benchmarkEnvironment?.thinkingMode || "--"}
+              Razmišljanje: {benchmarkEnvironment?.thinkingMode || "--"}
             </p>
           </div>
           <div className="browser-chip-row">
-            <span className="browser-badge">Context {formatCompactTokens(benchmarkEnvironment?.context)}</span>
-            <span className="browser-badge">Output {formatCompactTokens(benchmarkEnvironment?.outputTokens)}</span>
+            <span className="browser-badge">Kontekst {formatCompactTokens(benchmarkEnvironment?.context)}</span>
+            <span className="browser-badge">Izlaz {formatCompactTokens(benchmarkEnvironment?.outputTokens)}</span>
             <span className="browser-badge">
-              Live state {benchmark?.liveState?.status || "idle"}
+              Stanje uživo {benchmark?.liveState?.status || "idle"}
             </span>
           </div>
         </div>
@@ -764,13 +764,13 @@ export function BenchmarkPage({ onOpenLogs }: { onOpenLogs: () => void }) {
       </section>
 
       <section className="status-card wide-card">
-        <span className="status-label">Benchmark run</span>
+        <span className="status-label">Pokretanje benchmarka</span>
         <div className="benchmark-run-summary">
           <div className="benchmark-run-main">
             <strong className="status-value">
               {activeRun?.mode === "battery"
                 ? `${activeRun.currentIndex}/${activeRun.totalScenarios} | ${
-                    activeRun.currentScenarioName || "ceka"
+                    activeRun.currentScenarioName || "čeka"
                   }`
                 : activeRun?.scenarioName || "nema aktivnog testa"}
             </strong>
@@ -800,7 +800,7 @@ export function BenchmarkPage({ onOpenLogs }: { onOpenLogs: () => void }) {
       <section className="status-card wide-card">
         <div className="benchmark-card-header">
           <div>
-            <span className="status-label">Benchmark grafikon</span>
+            <span className="status-label">Grafikon benchmarka</span>
             <strong className="status-value benchmark-chart-status">{chartModel.statusText}</strong>
           </div>
           <div className="benchmark-range-segment" role="tablist" aria-label="Benchmark range">
@@ -1034,7 +1034,7 @@ export function BenchmarkPage({ onOpenLogs }: { onOpenLogs: () => void }) {
       </section>
 
       <section className="status-card wide-card">
-        <span className="status-label">Request activity</span>
+            <span className="status-label">Aktivnost zahteva</span>
         <p className="helper-text">
           Zahtevi: {benchmark.requestCount} | Stabilnost: {benchmark.activity.stability.label} (
           {benchmark.activity.stability.score})
@@ -1059,7 +1059,7 @@ export function BenchmarkPage({ onOpenLogs }: { onOpenLogs: () => void }) {
         >
           {(benchmark.liveLog.lines.length
             ? benchmark.liveLog.lines
-            : ["Jos nema dostupnog live log preview-ja."]).join("\n")}
+            : ["Još nema dostupnog live log preview-ja."]).join("\n")}
         </pre>
       </section>
 
@@ -1067,13 +1067,13 @@ export function BenchmarkPage({ onOpenLogs }: { onOpenLogs: () => void }) {
         <span className="status-label">Benchmark istorija</span>
         <div className="inline-actions benchmark-export-row">
           <button type="button" onClick={() => void handleExport("json")}>
-            Export JSON
+            Izvezi JSON
           </button>
           <button type="button" onClick={() => void handleExport("csv")}>
-            Export CSV
+            Izvezi CSV
           </button>
           <span className="helper-text">
-            Compare selected runs: {selectedCompareRunIds.length}
+            Uporedi izabrana pokretanja: {selectedCompareRunIds.length}
           </span>
         </div>
         <div className="benchmark-compare-panel">
@@ -1138,10 +1138,10 @@ export function BenchmarkPage({ onOpenLogs }: { onOpenLogs: () => void }) {
                   </label>
                 </div>
                 <div className="browser-chip-row">
-                  <span className="browser-badge">Context {formatCompactTokens(run.context)}</span>
-                  <span className="browser-badge">Output {formatCompactTokens(run.outputTokens)}</span>
-                  <span className="browser-badge">Profile {run.profile}</span>
-                  <span className="browser-badge">Thinking {run.thinkingMode}</span>
+                  <span className="browser-badge">Kontekst {formatCompactTokens(run.context)}</span>
+                  <span className="browser-badge">Izlaz {formatCompactTokens(run.outputTokens)}</span>
+                  <span className="browser-badge">Profil {run.profile}</span>
+                  <span className="browser-badge">Razmišljanje {run.thinkingMode}</span>
                 </div>
                 <div className="muted-line">
                   Start {formatDateTimeLabel(run.startedAt)}{" "}
@@ -1161,7 +1161,7 @@ export function BenchmarkPage({ onOpenLogs }: { onOpenLogs: () => void }) {
             ))
           ) : (
             <article className="model-item">
-              <div className="muted-line">Jos nema sacuvane benchmark istorije.</div>
+              <div className="muted-line">Još nema sačuvane benchmark istorije.</div>
             </article>
           )}
         </div>

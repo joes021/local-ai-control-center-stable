@@ -422,7 +422,7 @@ export type ModelEntry = {
   lifecycleStatus?: string;
   lifecycleLabel?: string;
   lifecycleSummary?: string;
-  downloadActive?: boolean;
+  downloadActive: boolean;
   downloadPercent?: number | null;
   canDownload?: boolean;
   downloadSummary?: string;

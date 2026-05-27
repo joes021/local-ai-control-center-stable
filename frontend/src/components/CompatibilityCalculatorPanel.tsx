@@ -218,7 +218,7 @@ export function CompatibilityCalculatorPanel({
     if (
       action.requiresConfirmation &&
       !window.confirm(
-        "Ova akcija menja vise vaznih podesavanja. Nastaviti?",
+        "Ova akcija menja više vaznih podešavanja. Nastaviti?",
       )
     ) {
       return;
@@ -281,7 +281,7 @@ export function CompatibilityCalculatorPanel({
       ) : null}
 
       {pending && !payload && request ? (
-        <div className="helper-text">Racunam kompatibilnost...</div>
+        <div className="helper-text">Računam kompatibilnost...</div>
       ) : null}
 
       {payload ? (
@@ -291,13 +291,13 @@ export function CompatibilityCalculatorPanel({
               {payload.fitLabel}
             </span>
             <span className={speedBadgeClass(payload.speedStatus)}>
-              {payload.speedLabel ?? "Slicno"}
+              {payload.speedLabel ?? "Slično"}
             </span>
           </div>
           <p className="helper-text">{payload.summary}</p>
 
           <section className="compat-section">
-            <span className="status-label">Best runtime</span>
+            <span className="status-label">Najbolji runtime</span>
             <div className="compat-budget-grid">
               <div className="compat-budget-card">
                 <strong className="status-value">
@@ -312,7 +312,7 @@ export function CompatibilityCalculatorPanel({
 
           {payload.runtimeBreakdown ? (
             <section className="compat-section">
-              <span className="status-label">Runtime breakdown</span>
+              <span className="status-label">Pregled po runtime-u</span>
               <div className="compat-budget-grid">
                 {Object.values(payload.runtimeBreakdown).map((runtime) => (
                   <div className="compat-budget-card" key={runtime.runtime}>
@@ -326,12 +326,12 @@ export function CompatibilityCalculatorPanel({
                     </div>
                     <div className="helper-text">{runtime.summary}</div>
                     <div className="summary-metrics">
-                      <span>{runtime.speedLabel ?? "Slicno"}</span>
+                      <span>{runtime.speedLabel ?? "Slično"}</span>
                       <span>
-                        {runtime.estimated?.contextPressureLabel ?? "--"} context
+                        {runtime.estimated?.contextPressureLabel ?? "--"} kontekst
                       </span>
                       <span>
-                        {runtime.estimated?.outputPressureLabel ?? "--"} output
+                        {runtime.estimated?.outputPressureLabel ?? "--"} izlaz
                       </span>
                     </div>
                   </div>
@@ -355,7 +355,7 @@ export function CompatibilityCalculatorPanel({
               </div>
               <div className="helper-text">
                 {formatPercent(payload.memoryBudget?.vram.usagePercent)} |{" "}
-                Memory headroom{" "}
+                Rezerva memorije{" "}
                 {formatHeadroom(payload.memoryBudget?.vram.headroomGiB)}
               </div>
             </div>
@@ -373,12 +373,12 @@ export function CompatibilityCalculatorPanel({
               </div>
               <div className="helper-text">
                 {formatPercent(payload.memoryBudget?.ram.usagePercent)} |{" "}
-                Memory headroom{" "}
+                Rezerva memorije{" "}
                 {formatHeadroom(payload.memoryBudget?.ram.headroomGiB)}
               </div>
             </div>
             <div className="compat-budget-card">
-              <span className="status-label">Context pressure</span>
+              <span className="status-label">Opterećenje konteksta</span>
               <strong className="status-value">
                 {payload.memoryBudget?.contextPressure.label}
               </strong>
@@ -397,7 +397,7 @@ export function CompatibilityCalculatorPanel({
               </div>
             </div>
             <div className="compat-budget-card">
-              <span className="status-label">Output pressure</span>
+              <span className="status-label">Opterećenje izlaza</span>
               <strong className="status-value">
                 {payload.memoryBudget?.outputPressure?.label ?? "--"}
               </strong>
@@ -429,7 +429,7 @@ export function CompatibilityCalculatorPanel({
                   disabled={pending}
                   onClick={() => void handleRecheck()}
                 >
-                  Re-check
+                  Proveri ponovo
                 </button>
               </div>
               <div className="compat-recommendation-list">
@@ -447,7 +447,7 @@ export function CompatibilityCalculatorPanel({
                         onClick={() => void handleApply(item.action!)}
                       >
                         {item.action.kind === "apply-package"
-                          ? "Apply package"
+                          ? "Primeni paket"
                           : "Primeni"}
                       </button>
                     ) : null}
@@ -465,7 +465,7 @@ export function CompatibilityCalculatorPanel({
                 className="secondary-button"
                 onClick={() => setAdvancedOpen((current) => !current)}
               >
-                {advancedOpen ? "Collapse advanced" : "Expand advanced"}
+                {advancedOpen ? "Sakrij napredno" : "Prikaži napredno"}
               </button>
             </div>
             <div className="browser-reasoning-list">
@@ -479,10 +479,10 @@ export function CompatibilityCalculatorPanel({
 
           {advancedOpen ? (
             <section className="compat-section">
-              <span className="status-label">Advanced override</span>
+              <span className="status-label">Napredna izmena</span>
               <div className="compat-advanced-grid">
                 <label className="browser-field">
-                  <span>Context</span>
+                  <span>Kontekst</span>
                   <input
                     type="number"
                     value={overrides?.context ?? 32768}
@@ -495,7 +495,7 @@ export function CompatibilityCalculatorPanel({
                   />
                 </label>
                 <label className="browser-field">
-                  <span>Output</span>
+                  <span>Izlaz</span>
                   <input
                     type="number"
                     value={overrides?.outputTokens ?? 2048}
@@ -563,7 +563,7 @@ export function CompatibilityCalculatorPanel({
                   disabled={pending}
                   onClick={() => void handleRecheck()}
                 >
-                  Re-check with overrides
+                  Proveri ponovo sa izmenama
                 </button>
               </div>
             </section>

@@ -96,7 +96,7 @@ def test_runtime_proxy_augments_chat_request_when_on_demand_prefix_is_present(
                     "engine": "demo",
                 }
             ],
-            "summary": "Pronadjen je 1 rezultat.",
+            "summary": "Pronađen je 1 rezultat.",
         },
     )
 

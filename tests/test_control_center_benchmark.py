@@ -175,7 +175,7 @@ def test_load_benchmark_summary_reads_installer_managed_history_and_defaults(
     assert payload["liveState"] == {
         "status": "recent-benchmark",
         "hasLiveSignal": False,
-        "reason": "Runtime trenutno nema aktivan live throughput signal. Prikazujem poslednji benchmark throughput kao referencu dok nema novog live saobracaja.",
+        "reason": "Runtime trenutno nema aktivan live throughput signal. Prikazujem poslednji benchmark throughput kao referencu dok nema novog live saobraćaja.",
     }
     assert payload["savedRuns"][0]["modelLabel"] == "gemma-4-E4B-it-Q4_K_M.gguf"
     assert payload["savedRuns"][0]["runtimeLabel"] == "llama.cpp"
@@ -427,11 +427,11 @@ def test_load_benchmark_summary_falls_back_to_recent_benchmark_throughput_when_l
     assert payload["liveState"] == {
         "status": "recent-benchmark",
         "hasLiveSignal": False,
-        "reason": "Runtime trenutno nema aktivan live throughput signal. Prikazujem poslednji benchmark throughput kao referencu dok nema novog live saobracaja.",
+        "reason": "Runtime trenutno nema aktivan live throughput signal. Prikazujem poslednji benchmark throughput kao referencu dok nema novog live saobraćaja.",
     }
     assert payload["telemetry"]["liveNowTokensPerSecond"] == 18.3
     assert payload["telemetry"]["flowState"] == "recent-benchmark"
-    assert payload["telemetry"]["flowStateLabel"] == "recent benchmark"
+    assert payload["telemetry"]["flowStateLabel"] == "skorašnji benchmark"
     assert payload["telemetry"]["lastUpdate"] == (now - timedelta(minutes=4)).isoformat()
 
 
@@ -513,13 +513,13 @@ def test_benchmark_workers_persist_richer_run_metadata(
             "percent": 0,
             "startedAt": "2026-05-25T00:00:00+00:00",
             "finishedAt": "",
-            "message": "Pokrecem benchmark scenario: Short",
+            "message": "Pokrećem benchmark scenario: Short",
             "scenarioStatuses": [
                 {
                     "scenarioId": "short",
                     "scenarioName": "Short",
                     "status": "queued",
-                    "summary": "Ceka pokretanje.",
+                    "summary": "čeka pokretanje.",
                 }
             ],
         },
@@ -529,7 +529,7 @@ def test_benchmark_workers_persist_richer_run_metadata(
         "_execute_benchmark_prompt",
         lambda *args, **kwargs: {
             "status": "ok",
-            "summary": "Benchmark scenario je zavrsen.",
+            "summary": "Benchmark scenario je završen.",
             "metric": {
                 "measuredAt": "2026-05-25T00:00:10+00:00",
                 "label": "benchmark-short",
@@ -701,7 +701,7 @@ def test_load_benchmark_compare_rejects_missing_run_ids(
     payload = load_benchmark_compare(["run-fast", "missing-run"])
 
     assert payload["status"] == "error"
-    assert payload["summary"] == "Benchmark run nije pronadjen: missing-run"
+    assert payload["summary"] == "Benchmark run nije pronađen: missing-run"
 
 
 def test_save_load_and_restore_benchmark_batteries(

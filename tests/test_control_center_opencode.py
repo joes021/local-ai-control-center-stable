@@ -49,7 +49,7 @@ def test_opencode_status_route_reports_packaged_installation(
     assert payload["executablePath"].endswith("tools\\opencode\\opencode.exe")
     assert payload["profile"] == "balanced"
     assert payload["canOpen"] is True
-    assert payload["openActionLabel"] == "Open OpenCode"
+    assert payload["openActionLabel"] == "Otvori OpenCode"
     assert payload["openBlockedReason"] == ""
 
 
@@ -110,7 +110,7 @@ def test_opencode_status_route_reports_blocked_open_when_executable_is_missing(
     assert payload["available"] is False
     assert payload["canOpen"] is False
     assert payload["openActionLabel"] == "OpenCode nije instaliran"
-    assert "nije pronadjen" in payload["openBlockedReason"].lower()
+    assert "nije pronađen" in payload["openBlockedReason"].lower()
 
 
 def test_opencode_status_route_ignores_instances_from_other_install_roots(
@@ -262,7 +262,7 @@ def test_opencode_open_route_launches_visible_windows_launcher(
     assert "managed-config.json" in launcher_text
     assert 'set "LACC_PROFILE=balanced"' in launcher_text
     assert 'set "LACC_OPENCODE_SECURITY_MODE=strict"' in launcher_text
-    assert 'echo OpenCode je zavrsio sa kodom %OPENCODE_EXIT_CODE%.' in launcher_text
+    assert 'echo OpenCode je završio sa kodom %OPENCODE_EXIT_CODE%.' in launcher_text
     assert "pause" in launcher_text
     assert captured["command"] == [
         "cmd.exe",
@@ -366,7 +366,7 @@ def test_opencode_open_route_reuses_existing_window_when_runtime_becomes_ready(
     assert response.status_code == 200
     payload = response.json()
     assert payload["status"] == "ok"
-    assert "vec otvoren" in payload["summary"].lower()
+    assert "već otvoren" in payload["summary"].lower()
     assert launch_attempted is False
 
 

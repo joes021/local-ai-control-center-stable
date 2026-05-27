@@ -4,7 +4,7 @@ export const FALLBACK_WORKFLOW_PRESETS: WorkflowPreset[] = [
   {
     id: "research",
     label: "Research",
-    summary: "Web + docs tok za istrazivanje i sintezu.",
+    summary: "Web + docs tok za istraživanje i sintezu.",
     badges: ["web", "docs", "balanced"],
     settingsPatch: {
       profile: "balanced",
@@ -17,22 +17,22 @@ export const FALLBACK_WORKFLOW_PRESETS: WorkflowPreset[] = [
     searchDefaults: {
       provider: "searxng",
       suggestedAction: "answer",
-      queryHint: "Upisi istrazivacko pitanje ili temu koju treba proveriti na web-u.",
+      queryHint: "Upiši istraživačko pitanje ili temu koju treba proveriti na vebu.",
     },
     knowledgeDefaults: {
       mode: "documents+web",
-      queryHint: "Pitaj nesto sto treba ukrstiti kroz lokalne dokumente i web izvore.",
+      queryHint: "Pitaj nešto što treba ukrstiti kroz lokalne dokumente i veb izvore.",
     },
     benchmarkDefaults: {
       batteryId: "default",
       launchTarget: "selected",
-      runLabel: "Pokreni jedan proverni benchmark za istrazivacki tok.",
+      runLabel: "Pokreni jedan proverni benchmark za istraživački tok.",
     },
   },
   {
     id: "code",
     label: "Code",
-    summary: "Kraci output i fokus na kod, bez agresivnog web sloja.",
+    summary: "Kraći output i fokus na kod, bez agresivnog veb sloja.",
     badges: ["code", "fast", "docs"],
     settingsPatch: {
       profile: "speed",
@@ -45,7 +45,7 @@ export const FALLBACK_WORKFLOW_PRESETS: WorkflowPreset[] = [
     searchDefaults: {
       provider: "duckduckgo",
       suggestedAction: "search",
-      queryHint: "Upisi biblioteku, error ili API temu koju treba brzo proveriti.",
+      queryHint: "Upiši biblioteku, error ili API temu koju treba brzo proveriti.",
     },
     knowledgeDefaults: {
       mode: "documents-only",
@@ -60,7 +60,7 @@ export const FALLBACK_WORKFLOW_PRESETS: WorkflowPreset[] = [
   {
     id: "low-vram",
     label: "Low VRAM",
-    summary: "Stedljiv preset za manje GPU budzete i laksi runtime.",
+    summary: "Štedljiv preset za manje GPU budžete i lakši runtime.",
     badges: ["safe", "low-vram", "fast"],
     settingsPatch: {
       profile: "speed",
@@ -73,11 +73,11 @@ export const FALLBACK_WORKFLOW_PRESETS: WorkflowPreset[] = [
     searchDefaults: {
       provider: "duckduckgo",
       suggestedAction: "answer",
-      queryHint: "Pitaj nesto gde je bitan sto laksi runtime i kraci odgovor.",
+      queryHint: "Pitaj nešto gde je bitan što lakši runtime i kraći odgovor.",
     },
     knowledgeDefaults: {
       mode: "documents-only",
-      queryHint: "Pitaj nesto iz lokalnih dokumenata bez dodatnog web opterecenja.",
+      queryHint: "Pitaj nešto iz lokalnih dokumenata bez dodatnog veb opterećenja.",
     },
     benchmarkDefaults: {
       batteryId: "default",
@@ -88,7 +88,7 @@ export const FALLBACK_WORKFLOW_PRESETS: WorkflowPreset[] = [
   {
     id: "long-context",
     label: "Long context",
-    summary: "Naglasak na velikom context-u i duzem kontinuitetu.",
+    summary: "Naglasak na velikom context-u i dužem kontinuitetu.",
     badges: ["262k", "analysis", "balanced"],
     settingsPatch: {
       profile: "balanced",
@@ -101,22 +101,22 @@ export const FALLBACK_WORKFLOW_PRESETS: WorkflowPreset[] = [
     searchDefaults: {
       provider: "searxng",
       suggestedAction: "answer",
-      queryHint: "Pitaj nesto sto trazi puno konteksta i vise koraka objasnjenja.",
+      queryHint: "Pitaj nešto što traži puno konteksta i više koraka objašnjenja.",
     },
     knowledgeDefaults: {
       mode: "documents+web",
-      queryHint: "Pitaj nesto gde se vise dokumenata i izvora spaja u jednu sliku.",
+      queryHint: "Pitaj nešto gde se više dokumenata i izvora spaja u jednu sliku.",
     },
     benchmarkDefaults: {
       batteryId: "default",
       launchTarget: "battery",
-      runLabel: "Pokreni battery benchmark za duzi context.",
+      runLabel: "Pokreni battery benchmark za duži context.",
     },
   },
   {
     id: "docs-plus-web",
     label: "Docs + web",
-    summary: "Knowledge-first tok sa obaveznim citanjem lokalnih izvora i web dopunom.",
+    summary: "Knowledge-first tok sa obaveznim čitanjem lokalnih izvora i veb dopunom.",
     badges: ["knowledge", "citations", "web"],
     settingsPatch: {
       profile: "balanced",
@@ -129,11 +129,11 @@ export const FALLBACK_WORKFLOW_PRESETS: WorkflowPreset[] = [
     searchDefaults: {
       provider: "searxng",
       suggestedAction: "search",
-      queryHint: "Prvo prikupi web izvore, pa onda odgovori uz lokalne dokumente.",
+      queryHint: "Prvo prikupi veb izvore, pa onda odgovori uz lokalne dokumente.",
     },
     knowledgeDefaults: {
       mode: "documents+web",
-      queryHint: "Pitaj nesto gde zelis i lokalne dokumente i web izvore u istom odgovoru.",
+      queryHint: "Pitaj nešto gde želiš i lokalne dokumente i veb izvore u istom odgovoru.",
     },
     benchmarkDefaults: {
       batteryId: "default",
@@ -157,11 +157,11 @@ export const FALLBACK_WORKFLOW_PRESETS: WorkflowPreset[] = [
     searchDefaults: {
       provider: "duckduckgo",
       suggestedAction: "compare",
-      queryHint: "Pitaj nesto samo ako hoces da proveris search signal pre benchmark-a.",
+      queryHint: "Pitaj nešto samo ako hoćeš da proveriš search signal pre benchmark-a.",
     },
     knowledgeDefaults: {
       mode: "documents-only",
-      queryHint: "Koristi lokalne dokumente samo kada benchmark notes traze dodatni kontekst.",
+      queryHint: "Koristi lokalne dokumente samo kada benchmark notes traže dodatni kontekst.",
     },
     benchmarkDefaults: {
       batteryId: "default",

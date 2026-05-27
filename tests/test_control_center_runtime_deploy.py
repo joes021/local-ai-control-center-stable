@@ -85,7 +85,7 @@ def test_launch_control_center_fails_fast_when_foreign_listener_occupies_ui_port
         lambda command, **kwargs: popen_calls.append(tuple(command)),
     )
 
-    with pytest.raises(RuntimeError, match="UI port 3210 je vec zauzet drugim procesom."):
+    with pytest.raises(RuntimeError, match="UI port 3210 je već zauzet drugim procesom."):
         launch_control_center(deployment, timeout_seconds=0.1)
 
     assert popen_calls == []

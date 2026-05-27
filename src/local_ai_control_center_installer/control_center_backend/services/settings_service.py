@@ -61,8 +61,8 @@ TURBOQUANT_PARAMETERS = [
     {
         "id": "context",
         "label": "Context",
-        "whatIsIt": "Koliko tokena razgovora i radnog konteksta drzis u KV cache-u.",
-        "effect": "Veci context trosi vise memorije, ali drzi duze sesije.",
+        "whatIsIt": "Koliko tokena razgovora i radnog konteksta držiš u KV cache-u.",
+        "effect": "Veći context troši više memorije, ali drži duže sesije.",
         "recommendation": "Prvo menjaj context, pa tek onda agresivnije TurboQuant nivoe.",
         "safeChoices": ["65536", "131072"],
         "advancedChoices": ["262144", "327680"],
@@ -72,8 +72,8 @@ TURBOQUANT_PARAMETERS = [
         "id": "ctk",
         "label": "ctk",
         "whatIsIt": "Tip kompresije za K deo KV cache-a.",
-        "effect": "turbo4 je bezbedniji, turbo3 je balans, turbo2 agresivno stedi memoriju.",
-        "recommendation": "Za vecinu masina pocni sa turbo4.",
+        "effect": "turbo4 je bezbedniji, turbo3 je balans, a turbo2 agresivno štedi memoriju.",
+        "recommendation": "Za većinu mašina počni sa turbo4.",
         "safeChoices": ["turbo4"],
         "advancedChoices": ["turbo3", "turbo2"],
         "defaultValue": "turbo4",
@@ -82,7 +82,7 @@ TURBOQUANT_PARAMETERS = [
         "id": "ctv",
         "label": "ctv",
         "whatIsIt": "Tip kompresije za V deo KV cache-a.",
-        "effect": "Moze mrvu agresivnije od ctk bez prejakog udara po kvalitetu.",
+        "effect": "Može mrvu agresivnije od ctk bez prejakog udara po kvalitetu.",
         "recommendation": "Daily balans je turbo3, safe je turbo4.",
         "safeChoices": ["turbo4", "turbo3"],
         "advancedChoices": ["turbo2"],
@@ -91,9 +91,9 @@ TURBOQUANT_PARAMETERS = [
     {
         "id": "ncmoe",
         "label": "ncmoe",
-        "whatIsIt": "Koliko ranih MoE slojeva prebacujes na CPU.",
-        "effect": "Visa vrednost stedi VRAM, ali usporava rad.",
-        "recommendation": "Kreni sa 20 pa dizaj po potrebi.",
+        "whatIsIt": "Koliko ranih MoE slojeva prebacuješ na CPU.",
+        "effect": "Viša vrednost štedi VRAM, ali usporava rad.",
+        "recommendation": "Kreni sa 20 pa diži po potrebi.",
         "safeChoices": ["20"],
         "advancedChoices": ["30", "35"],
         "defaultValue": 20,
@@ -101,9 +101,9 @@ TURBOQUANT_PARAMETERS = [
     {
         "id": "flashAttention",
         "label": "Flash attention",
-        "whatIsIt": "Brzi attention put kada ga runtime podrzava.",
-        "effect": "Najcesce povoljan za performanse.",
-        "recommendation": "Drzi ukljuceno osim ako imas konkretan bug.",
+        "whatIsIt": "Brzi attention put kada ga runtime podržava.",
+        "effect": "Najčešće povoljan za performanse.",
+        "recommendation": "Drži uključeno osim ako imaš konkretan bug.",
         "safeChoices": ["on"],
         "advancedChoices": ["off"],
         "defaultValue": True,
@@ -111,9 +111,9 @@ TURBOQUANT_PARAMETERS = [
     {
         "id": "mlock",
         "label": "mlock",
-        "whatIsIt": "Pokusava da drzi model u RAM-u umesto da ga OS lakse swapuje.",
-        "effect": "Smanjuje swap rizik, ali je stroziji prema memoriji.",
-        "recommendation": "Uglavnom bezbedno za desktop masinu kada juris stabilnost.",
+        "whatIsIt": "Pokušava da drži model u RAM-u umesto da ga OS lakše swapuje.",
+        "effect": "Smanjuje swap rizik, ali je stroži prema memoriji.",
+        "recommendation": "Uglavnom bezbedno za desktop mašinu kada juriš stabilnost.",
         "safeChoices": ["on"],
         "advancedChoices": ["off"],
         "defaultValue": True,
@@ -121,9 +121,9 @@ TURBOQUANT_PARAMETERS = [
     {
         "id": "mmapMode",
         "label": "mmap mode",
-        "whatIsIt": "Menja nacin ucitavanja modela sa diska u memoriju.",
-        "effect": "mmap brze pali model; no-mmap ume da bude stabilniji u edge slucajevima.",
-        "recommendation": "Koristi mmap osim ako vec imas konkretan razlog protiv.",
+        "whatIsIt": "Menja način učitavanja modela sa diska u memoriju.",
+        "effect": "mmap brže pali model; no-mmap ume da bude stabilniji u edge slučajevima.",
+        "recommendation": "Koristi mmap osim ako već imaš konkretan razlog protiv.",
         "safeChoices": ["mmap"],
         "advancedChoices": ["no-mmap"],
         "defaultValue": "mmap",
@@ -131,8 +131,8 @@ TURBOQUANT_PARAMETERS = [
     {
         "id": "runtimePreference",
         "label": "Runtime preference",
-        "whatIsIt": "Koji runtime zelis da preferiras kada su oba dostupna.",
-        "effect": "TurboQuant agresivnije stedi memoriju; llama.cpp je jednostavniji fallback.",
+        "whatIsIt": "Koji runtime želiš da preferiraš kada su oba dostupna.",
+        "effect": "TurboQuant agresivnije štedi memoriju; llama.cpp je jednostavniji fallback.",
         "recommendation": "Ako je TurboQuant stabilan, koristi ga kao prvi izbor.",
         "safeChoices": ["turboquant", "llama.cpp"],
         "advancedChoices": [],
@@ -144,7 +144,7 @@ TURBOQUANT_BUILTIN_PRESETS = [
     {
         "id": "safe",
         "name": "safe",
-        "description": "Najbezbedniji preset za duzi rad i najmanji rizik po kvalitet.",
+        "description": "Najbezbedniji preset za duži rad i najmanji rizik po kvalitet.",
         "targetModelPattern": "qwen36-*",
         "notes": "Manje agresivna kompresija i oprezniji context.",
         "settings": {
@@ -161,9 +161,9 @@ TURBOQUANT_BUILTIN_PRESETS = [
     {
         "id": "daily",
         "name": "daily",
-        "description": "Preporuceni balans brzine, memorije i svakodnevnog rada.",
+        "description": "Preporučeni balans brzine, memorije i svakodnevnog rada.",
         "targetModelPattern": "qwen36-*",
-        "notes": "Preporuceni daily izbor za TurboQuant.",
+        "notes": "Preporučeni daily izbor za TurboQuant.",
         "settings": {
             "context": 262144,
             "ctk": "turbo4",
@@ -178,9 +178,9 @@ TURBOQUANT_BUILTIN_PRESETS = [
     {
         "id": "max-context",
         "name": "max-context",
-        "description": "Agresivniji preset kada juris najduzi context.",
+        "description": "Agresivniji preset kada juriš najduži context.",
         "targetModelPattern": "qwen36-*",
-        "notes": "Jace stedi memoriju uz veci rizik performansi.",
+        "notes": "Jače štedi memoriju uz veći rizik performansi.",
         "settings": {
             "context": 327680,
             "ctk": "turbo3",
@@ -210,7 +210,7 @@ UNSLOTH_RECOMMENDED_MODELS = [
         "repo": "unsloth/Qwen3.6-35B-A3B-GGUF",
         "filename": "Qwen3.6-35B-A3B-UD-IQ3_S.gguf",
         "quantization": "UD-IQ3_S",
-        "fitNote": "Stretch izbor kada hoces bolji kvalitet uz veci pritisak.",
+        "fitNote": "Stretch izbor kada hoćeš bolji kvalitet uz veći pritisak.",
         "mtp": False,
     },
     {
@@ -228,7 +228,7 @@ UNSLOTH_RECOMMENDED_MODELS = [
         "repo": "unsloth/Qwen3.6-27B-GGUF",
         "filename": "Qwen3.6-27B-UD-Q2_K_XL.gguf",
         "quantization": "UD-Q2_K_XL",
-        "fitNote": "Stretch 27B izbor kada juris veci model po svaku cenu.",
+        "fitNote": "Stretch 27B izbor kada juriš veći model po svaku cenu.",
         "mtp": False,
     },
 ]
@@ -333,7 +333,7 @@ WORKFLOW_PRESET_SPECS = [
     {
         "id": "research",
         "label": "Research",
-        "summary": "Web + docs tok za istrazivanje i sintezu.",
+        "summary": "Web + docs tok za istraživanje i sintezu.",
         "badges": ["web", "docs", "balanced"],
         "settingsPatch": {
             "profile": "balanced",
@@ -346,22 +346,22 @@ WORKFLOW_PRESET_SPECS = [
         "searchDefaults": {
             "provider": "searxng",
             "suggestedAction": "answer",
-            "queryHint": "Upisi istrazivacko pitanje ili temu koju treba proveriti na web-u.",
+            "queryHint": "Upiši istraživačko pitanje ili temu koju treba proveriti na vebu.",
         },
         "knowledgeDefaults": {
             "mode": "documents+web",
-            "queryHint": "Pitaj nesto sto treba ukrstiti kroz lokalne dokumente i web izvore.",
+            "queryHint": "Pitaj nešto što treba ukrstiti kroz lokalne dokumente i veb izvore.",
         },
         "benchmarkDefaults": {
             "batteryId": "default",
             "launchTarget": "selected",
-            "runLabel": "Pokreni jedan proverni benchmark za istrazivacki tok.",
+            "runLabel": "Pokreni jedan proverni benchmark za istraživački tok.",
         },
     },
     {
         "id": "code",
         "label": "Code",
-        "summary": "Kraci output i fokus na kod, bez agresivnog web sloja.",
+        "summary": "Kraći output i fokus na kod, bez agresivnog veb sloja.",
         "badges": ["code", "fast", "docs"],
         "settingsPatch": {
             "profile": "speed",
@@ -374,7 +374,7 @@ WORKFLOW_PRESET_SPECS = [
         "searchDefaults": {
             "provider": "duckduckgo",
             "suggestedAction": "search",
-            "queryHint": "Upisi biblioteku, error ili API temu koju treba brzo proveriti.",
+            "queryHint": "Upiši biblioteku, error ili API temu koju treba brzo proveriti.",
         },
         "knowledgeDefaults": {
             "mode": "documents-only",
@@ -389,7 +389,7 @@ WORKFLOW_PRESET_SPECS = [
     {
         "id": "low-vram",
         "label": "Low VRAM",
-        "summary": "Stedljiv preset za manje GPU budzete i laksi runtime.",
+        "summary": "Štedljiv preset za manje GPU budžete i lakši runtime.",
         "badges": ["safe", "low-vram", "fast"],
         "settingsPatch": {
             "profile": "speed",
@@ -402,11 +402,11 @@ WORKFLOW_PRESET_SPECS = [
         "searchDefaults": {
             "provider": "duckduckgo",
             "suggestedAction": "answer",
-            "queryHint": "Pitaj nesto gde je bitan sto laksi runtime i kraci odgovor.",
+            "queryHint": "Pitaj nešto gde je bitan što lakši runtime i kraći odgovor.",
         },
         "knowledgeDefaults": {
             "mode": "documents-only",
-            "queryHint": "Pitaj nesto iz lokalnih dokumenata bez dodatnog web opterecenja.",
+            "queryHint": "Pitaj nešto iz lokalnih dokumenata bez dodatnog veb opterećenja.",
         },
         "benchmarkDefaults": {
             "batteryId": "default",
@@ -417,7 +417,7 @@ WORKFLOW_PRESET_SPECS = [
     {
         "id": "long-context",
         "label": "Long context",
-        "summary": "Naglasak na velikom context-u i duzem kontinuitetu.",
+        "summary": "Naglasak na velikom context-u i dužem kontinuitetu.",
         "badges": ["262k", "analysis", "balanced"],
         "settingsPatch": {
             "profile": "balanced",
@@ -430,22 +430,22 @@ WORKFLOW_PRESET_SPECS = [
         "searchDefaults": {
             "provider": "searxng",
             "suggestedAction": "answer",
-            "queryHint": "Pitaj nesto sto trazi puno konteksta i vise koraka objasnjenja.",
+            "queryHint": "Pitaj nešto što traži puno konteksta i više koraka objašnjenja.",
         },
         "knowledgeDefaults": {
             "mode": "documents+web",
-            "queryHint": "Pitaj nesto gde se vise dokumenata i izvora spaja u jednu sliku.",
+            "queryHint": "Pitaj nešto gde se više dokumenata i izvora spaja u jednu sliku.",
         },
         "benchmarkDefaults": {
             "batteryId": "default",
             "launchTarget": "battery",
-            "runLabel": "Pokreni battery benchmark za duzi context.",
+            "runLabel": "Pokreni battery benchmark za duži context.",
         },
     },
     {
         "id": "docs-plus-web",
         "label": "Docs + web",
-        "summary": "Knowledge-first tok sa obaveznim citanjem lokalnih izvora i web dopunom.",
+        "summary": "Knowledge-first tok sa obaveznim čitanjem lokalnih izvora i veb dopunom.",
         "badges": ["knowledge", "citations", "web"],
         "settingsPatch": {
             "profile": "balanced",
@@ -458,11 +458,11 @@ WORKFLOW_PRESET_SPECS = [
         "searchDefaults": {
             "provider": "searxng",
             "suggestedAction": "search",
-            "queryHint": "Prvo prikupi web izvore, pa onda odgovori uz lokalne dokumente.",
+            "queryHint": "Prvo prikupi veb izvore, pa onda odgovori uz lokalne dokumente.",
         },
         "knowledgeDefaults": {
             "mode": "documents+web",
-            "queryHint": "Pitaj nesto gde zelis i lokalne dokumente i web izvore u istom odgovoru.",
+            "queryHint": "Pitaj nešto gde želiš i lokalne dokumente i veb izvore u istom odgovoru.",
         },
         "benchmarkDefaults": {
             "batteryId": "default",
@@ -486,11 +486,11 @@ WORKFLOW_PRESET_SPECS = [
         "searchDefaults": {
             "provider": "duckduckgo",
             "suggestedAction": "compare",
-            "queryHint": "Pitaj nesto samo ako hoces da proveris search signal pre benchmark-a.",
+            "queryHint": "Pitaj nešto samo ako hoćeš da proveriš search signal pre benchmark-a.",
         },
         "knowledgeDefaults": {
             "mode": "documents-only",
-            "queryHint": "Koristi lokalne dokumente samo kada benchmark notes traze dodatni kontekst.",
+            "queryHint": "Koristi lokalne dokumente samo kada benchmark notes traže dodatni kontekst.",
         },
         "benchmarkDefaults": {
             "batteryId": "default",
@@ -519,7 +519,7 @@ WEB_SEARCH_PROVIDER_OPTIONS = [
         "label": "DuckDuckGo (public web, no key)",
         "supportsBootstrap": False,
         "supportsManualBaseUrl": False,
-        "summary": "Javni web search bez API kljuca, best-effort HTML integracija.",
+        "summary": "Javna veb pretraga bez API ključa, best-effort HTML integracija.",
     },
 ]
 LEGACY_DEFAULT_WEB_SEARCH_BASE_URL = "http://127.0.0.1:8080"
@@ -705,11 +705,11 @@ def apply_settings(
         return action_result(
             "ok",
             "apply-settings",
-            f"Sacuvan je model override za {active_model_id}.",
+            f"Sačuvan je model override za {active_model_id}.",
         )
 
     atomic_write_json(config.settings_path, normalized)
-    return action_result("ok", "apply-settings", "Global settings su sacuvani.")
+    return action_result("ok", "apply-settings", "Global settings su sačuvani.")
 
 
 def apply_opencode_settings(
@@ -738,7 +738,7 @@ def apply_opencode_settings(
     return action_result(
         "ok",
         "apply-opencode-settings",
-        "OpenCode settings su sacuvani.",
+        "OpenCode settings su sačuvani.",
     )
 
 
@@ -831,7 +831,7 @@ def save_settings_user_profile(
         }
     )
     atomic_write_json(config.settings_profiles_path, {"profiles": profiles})
-    return action_result("ok", "save-settings-profile", f"Sacuvan settings profil: {name}")
+    return action_result("ok", "save-settings-profile", f"Sačuvan settings profil: {name}")
 
 
 def delete_settings_user_profile(
@@ -845,8 +845,8 @@ def delete_settings_user_profile(
         return action_result(
             "error",
             "delete-settings-profile",
-            "Profil nije pronadjen.",
-            stderr="Profil nije pronadjen.",
+            "Profil nije pronađen.",
+            stderr="Profil nije pronađen.",
         )
     persisted = [
         {
@@ -893,7 +893,7 @@ def save_turboquant_config(
     config = config or get_config()
     normalized = _normalize_turboquant_settings(payload)
     atomic_write_json(config.turboquant_config_path, normalized)
-    return action_result("ok", "save-turboquant-config", "TurboQuant config je sacuvan.")
+    return action_result("ok", "save-turboquant-config", "TurboQuant config je sačuvan.")
 
 
 def load_turboquant_user_presets(
@@ -930,7 +930,7 @@ def save_turboquant_user_preset(
     ]
     presets.append(preset)
     atomic_write_json(config.turboquant_presets_path, {"presets": presets})
-    return action_result("ok", "save-turboquant-preset", f"Sacuvan TurboQuant preset: {name}")
+    return action_result("ok", "save-turboquant-preset", f"Sačuvan TurboQuant preset: {name}")
 
 
 def delete_turboquant_user_preset(
@@ -941,7 +941,7 @@ def delete_turboquant_user_preset(
     presets = load_turboquant_user_presets(config)
     filtered = [item for item in presets if str(item.get("id", "") or "") != str(preset_id)]
     if len(filtered) == len(presets):
-        return action_result("error", "delete-turboquant-preset", "Preset nije pronadjen.", stderr="Preset nije pronadjen.")
+        return action_result("error", "delete-turboquant-preset", "Preset nije pronađen.", stderr="Preset nije pronađen.")
     atomic_write_json(config.turboquant_presets_path, {"presets": filtered})
     return action_result("ok", "delete-turboquant-preset", "TurboQuant preset je obrisan.")
 
@@ -1015,7 +1015,7 @@ def save_opencode_step_preset(
     ]
     presets.append(preset)
     atomic_write_json(config.opencode_step_presets_path, {"presets": presets})
-    return action_result("ok", "save-opencode-step-preset", f"Sacuvan OpenCode preset: {name}")
+    return action_result("ok", "save-opencode-step-preset", f"Sačuvan OpenCode preset: {name}")
 
 
 def delete_opencode_step_preset(
@@ -1026,7 +1026,7 @@ def delete_opencode_step_preset(
     presets = load_opencode_step_user_presets(config)
     filtered = [item for item in presets if str(item.get("id", "") or "") != str(preset_id)]
     if len(filtered) == len(presets):
-        return action_result("error", "delete-opencode-step-preset", "Preset nije pronadjen.", stderr="Preset nije pronadjen.")
+        return action_result("error", "delete-opencode-step-preset", "Preset nije pronađen.", stderr="Preset nije pronađen.")
     atomic_write_json(config.opencode_step_presets_path, {"presets": filtered})
     return action_result("ok", "delete-opencode-step-preset", "OpenCode preset je obrisan.")
 

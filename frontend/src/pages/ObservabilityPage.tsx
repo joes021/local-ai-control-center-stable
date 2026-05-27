@@ -62,7 +62,7 @@ export function ObservabilityPage() {
         if (cancelled) {
           return;
         }
-        setError(reason instanceof Error ? reason.message : "Observability nije mogao da se ucita.");
+        setError(reason instanceof Error ? reason.message : "Observability nije mogao da se učita.");
       }
     }
 
@@ -82,7 +82,7 @@ export function ObservabilityPage() {
   }
 
   if (!observability || !benchmark) {
-    return <section className="status-card wide-card">Ucitavam observability...</section>;
+    return <section className="status-card wide-card">Učitavam observability...</section>;
   }
 
   return (
@@ -90,8 +90,8 @@ export function ObservabilityPage() {
       <TelemetryPanel benchmark={benchmark} variant="benchmark" />
 
       <section className="status-card wide-card">
-        <span className="status-label">Observability</span>
-        <strong className="status-value">Live GPU, RAM, runtime i log signal na jednom mestu</strong>
+        <span className="status-label">Telemetrija</span>
+        <strong className="status-value">GPU, RAM, runtime i log signal uživo na jednom mestu</strong>
         <p className="helper-text">
           Ovaj pogled skuplja best-effort sistemske metrike, runtime status i benchmark telemetry bez
           skrivanja kada neki signal nije dostupan.
@@ -107,17 +107,17 @@ export function ObservabilityPage() {
             </strong>
           </article>
           <article className="system-overview-item">
-            <span className="system-overview-label">Live CPU</span>
+            <span className="system-overview-label">CPU uživo</span>
             <strong className="system-overview-value">{formatPercent(observability.system.cpuPercent)}</strong>
           </article>
           <article className="system-overview-item">
-            <span className="system-overview-label">Live RAM</span>
+            <span className="system-overview-label">RAM uživo</span>
             <strong className="system-overview-value">
               {formatGiB(observability.system.ramUsedGiB)} / {formatGiB(observability.system.ramTotalGiB)}
             </strong>
           </article>
           <article className="system-overview-item">
-            <span className="system-overview-label">Live GPU</span>
+            <span className="system-overview-label">GPU uživo</span>
             <strong className="system-overview-value">{observability.system.gpuName}</strong>
             <div className="muted-line">
               {formatGiB(observability.system.vramUsedGiB)} / {formatGiB(observability.system.vramTotalGiB)}
@@ -135,13 +135,13 @@ export function ObservabilityPage() {
           <span>Health: {observability.runtime.runtimeLiveStatus}</span>
           <span>Endpoint: {observability.runtime.baseUrl || "--"}</span>
           <span>Port: {observability.runtime.port ?? "--"}</span>
-          <span>Live now: {formatTok(observability.telemetry.liveNowTokensPerSecond)}</span>
+          <span>Uživo sada: {formatTok(observability.telemetry.liveNowTokensPerSecond)}</span>
         </div>
         <p className="helper-text">{observability.runtime.runtimeLiveReason || "Nema dodatnog runtime signala."}</p>
       </section>
 
       <section className="status-card wide-card">
-        <span className="status-label">Recent log signals</span>
+        <span className="status-label">Skorašnji log signali</span>
         {observability.logSignals.length ? (
           <div className="model-list">
             {observability.logSignals.map((item, index) => (
@@ -159,7 +159,7 @@ export function ObservabilityPage() {
             ))}
           </div>
         ) : (
-          <p className="helper-text">Jos nema znacajnih log signala u zadnjim installer-managed logovima.</p>
+          <p className="helper-text">Još nema znacajnih log signala u zadnjim installer-managed logovima.</p>
         )}
       </section>
     </>

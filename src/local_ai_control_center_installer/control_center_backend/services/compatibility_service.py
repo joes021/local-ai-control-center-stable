@@ -35,7 +35,7 @@ FIT_SCORES = {
 
 SPEED_LABELS = {
     "faster": "Brze",
-    "similar": "Slicno",
+    "similar": "Slično",
     "slower": "Sporije",
     "much-slower": "Mnogo sporije",
 }
@@ -73,7 +73,7 @@ def run_compatibility_check(
         config=config,
     )
     if not resolved_model:
-        return _not_checked_result("Model nije pronadjen za compatibility proveru.")
+        return _not_checked_result("Model nije pronađen za compatibility proveru.")
 
     system_info = detect_local_system_info(config=config)
     merged_system = _merge_system_overrides(system_info, overrides or {})
@@ -86,7 +86,7 @@ def evaluate_model_hardware_fit(
     config: ControlCenterConfig | None = None,
 ) -> tuple[bool, str, dict[str, object]]:
     if not model:
-        payload = _not_checked_result("Model nije pronadjen za hardversku proveru.")
+        payload = _not_checked_result("Model nije pronađen za hardversku proveru.")
         return True, "", payload
 
     payload = run_compatibility_check(model=model, config=config)
@@ -95,7 +95,7 @@ def evaluate_model_hardware_fit(
         return True, "", payload
 
     best_runtime_label = str(payload.get("bestRuntimeLabel", "") or payload.get("bestRuntime", "") or "llama.cpp")
-    summary = str(payload.get("summary", "") or "Model verovatno nije upotrebljiv na ovoj masini.")
+    summary = str(payload.get("summary", "") or "Model verovatno nije upotrebljiv na ovoj mašini.")
     vram_budget = dict(payload.get("memoryBudget", {}).get("vram", {}) or {})
     ram_budget = dict(payload.get("memoryBudget", {}).get("ram", {}) or {})
     details: list[str] = [summary, f"Najzdraviji runtime bi bio {best_runtime_label}."]
@@ -138,7 +138,7 @@ def calculate_compatibility(model: dict[str, object], *, system_info: dict[str, 
     vram_gib = normalized_system["vramGiB"]
 
     if ram_gib is None or vram_gib is None:
-        result = _not_checked_result("Nije bilo dovoljno podataka o lokalnoj masini za proveru kompatibilnosti.")
+        result = _not_checked_result("Nije bilo dovoljno podataka o lokalnoj mašini za proveru kompatibilnosti.")
         result["reasoning"] = {
             "vram": "VRAM nije poznat.",
             "ram": "RAM nije poznat.",
@@ -451,7 +451,7 @@ def _select_best_runtime(
 def _build_runtime_summary(runtime_kind: str, fit_status: str, speed_status: str, estimated: dict[str, object]) -> str:
     runtime_label = "TurboQuant" if runtime_kind == "turboquant" else "llama.cpp"
     if not bool(estimated.get("supported", True)):
-        return str(estimated.get("supportReason", f"{runtime_label} nije podrzan za ovaj model."))
+        return str(estimated.get("supportReason", f"{runtime_label} nije podržan za ovaj model."))
     return (
         f"{runtime_label}: {FIT_LABELS[fit_status]} / {SPEED_LABELS[speed_status]}. "
         f"VRAM procena oko {float(estimated['requiredVramGiB']):.1f} GiB, context pressure {str(estimated['contextPressureLabel']).lower()}, "
@@ -532,7 +532,7 @@ def _estimate_budget(model: dict[str, object], system: dict[str, object], *, run
         support_reason = "TurboQuant nije dostupan na ovoj instalaciji."
     elif runtime_kind == "turboquant" and mtp:
         supported = False
-        support_reason = "MTP model trenutno nije podrzan kroz TurboQuant put."
+        support_reason = "MTP model trenutno nije podržan kroz TurboQuant put."
     if not supported:
         required_vram = round(required_vram + 999.0, 2)
         required_ram = round(required_ram + 999.0, 2)
@@ -626,16 +626,16 @@ def _derive_speed_status(model: dict[str, object], system: dict[str, object], es
 
 def _build_summary(fit_status: str, speed_status: str, estimated: dict[str, object], best_runtime: str) -> str:
     summaries = {
-        "radi": "Model deluje upotrebljivo na ovoj masini.",
-        "granicno": "Model je verovatno upotrebljiv, ali uz tesne granice ili dodatna podesavanja.",
-        "ne radi": "Model verovatno nije upotrebljiv na ovoj masini bez ozbiljnih kompromisa.",
+        "radi": "Model deluje upotrebljivo na ovoj mašini.",
+        "granicno": "Model je verovatno upotrebljiv, ali uz tesne granice ili dodatna podešavanja.",
+        "ne radi": "Model verovatno nije upotrebljiv na ovoj mašini bez ozbiljnih kompromisa.",
         "nije provereno": "Kompatibilnost nije proverena.",
     }
     speed_summary = {
         "faster": "Brzina deluje povoljno.",
         "similar": "Brzina deluje normalno za ovu klasu modela.",
-        "slower": "Brzina ce verovatno biti sporija.",
-        "much-slower": "Brzina ce verovatno biti mnogo sporija.",
+        "slower": "Brzina će verovatno biti sporija.",
+        "much-slower": "Brzina će verovatno biti mnogo sporija.",
     }[speed_status]
     return (
         f"{summaries[fit_status]} Najzdraviji runtime deluje {best_runtime}. "
@@ -708,20 +708,20 @@ def _build_reasoning(
     return {
         "vram": (
             f"VRAM {'nije dovoljan' if available_vram < estimated['requiredVramGiB'] else 'deluje dovoljan'}: "
-            f"procena trazi oko {estimated['requiredVramGiB']:.1f} GiB, dostupno je {available_vram:.1f} GiB."
+            f"procena traži oko {estimated['requiredVramGiB']:.1f} GiB, dostupno je {available_vram:.1f} GiB."
         ),
         "ram": (
             f"RAM {'nije dovoljan' if available_ram < estimated['requiredRamGiB'] else 'deluje dovoljan'}: "
-            f"procena trazi oko {estimated['requiredRamGiB']:.1f} GiB, dostupno je {available_ram:.1f} GiB."
+            f"procena traži oko {estimated['requiredRamGiB']:.1f} GiB, dostupno je {available_ram:.1f} GiB."
         ),
         "context": str(estimated["contextPressureReason"]),
         "output": (
             f"Output od {int(system['outputTokens'])} tokena "
-            f"{'je tezi i usporava generaciju' if int(system['outputTokens']) > 4096 else 'deluje razumno za lokalni rad'} "
+            f"{'je teži i usporava generaciju' if int(system['outputTokens']) > 4096 else 'deluje razumno za lokalni rad'} "
             f"({estimated['outputPressureLabel'].lower()} output pressure)."
         ),
         "quantization": (
-            f"Kvantizacija modela je {model['quantization']} uz procenjenu velicinu {model['approxSizeGiB'] or 'nepoznato'} GiB."
+            f"Kvantizacija modela je {model['quantization']} uz procenjenu veličinu {model['approxSizeGiB'] or 'nepoznato'} GiB."
         ),
         "turboQuantEffect": (
             f"TurboQuant je {'dostupan' if system['turboQuantAvailable'] else 'nedostupan'}, "
@@ -729,17 +729,17 @@ def _build_reasoning(
             f"uz runtime preferenciju {runtime_preference}."
         ),
         "moeEffect": (
-            "MoE model trazi dodatni oprez oko VRAM-a i CPU offload-a."
+            "MoE model traži dodatni oprez oko VRAM-a i CPU offload-a."
             if bool(model.get("moe"))
             else "MoE efekat nije bitan za ovaj model."
         ),
         "mtpEffect": (
-            "MTP model koristi draft-mtp put i ne treba ga racunati kao TurboQuant kandidat."
+            "MTP model koristi draft-mtp put i ne treba ga računati kao TurboQuant kandidat."
             if bool(model.get("mtp"))
             else "MTP efekat nije bitan za ovaj model."
         ),
         "speed": (
-            f"Ocekivani rezim brzine je {SPEED_LABELS[speed_status].lower()} "
+            f"Očekivani režim brzine je {SPEED_LABELS[speed_status].lower()} "
             f"zbog context={system['context']}, output={system['outputTokens']}, ncmoe={system['turboQuantConfig']['ncmoe']} "
             f"i runtime izbora {best_runtime}."
         ),
@@ -768,8 +768,8 @@ def _build_recommendations(
             {
                 "id": "context-downshift",
                 "title": "Smanji context na 131072",
-                "summary": "Ovo smanjuje VRAM pritisak i obicno je prvi najbezbedniji potez.",
-                "tradeoff": "Kraci razgovori i manje dugacak radni kontekst.",
+                "summary": "Ovo smanjuje VRAM pritisak i obično je prvi najbezbedniji potez.",
+                "tradeoff": "Kraći razgovori i manje dugačak radni kontekst.",
                 "severity": "warn",
                 "action": {"kind": "set-context", "value": 131072},
             }
@@ -780,7 +780,7 @@ def _build_recommendations(
                 "id": "output-downshift",
                 "title": "Smanji output na 4096",
                 "summary": "Krajnji output manje opterecuje generaciju i smanjuje rizik od dugih sporih odgovora.",
-                "tradeoff": "Korisnik dobija kraci maksimalni odgovor po jednom pozivu.",
+                "tradeoff": "Korisnik dobija kraći maksimalni odgovor po jednom pozivu.",
                 "severity": "info",
                 "action": {"kind": "set-output", "value": 4096},
             }
@@ -806,8 +806,8 @@ def _build_recommendations(
             {
                 "id": "prefer-turboquant",
                 "title": "Prebaci preferenciju na TurboQuant",
-                "summary": "Za ovaj model TurboQuant bolje koristi memoriju i povecava sansu da model bude upotrebljiv.",
-                "tradeoff": "Agresivnija kompresija moze malo da promeni kvalitet i stabilnost.",
+                "summary": "Za ovaj model TurboQuant bolje koristi memoriju i povećava šansu da model bude upotrebljiv.",
+                "tradeoff": "Agresivnija kompresija može malo da promeni kvalitet i stabilnost.",
                 "severity": "warn",
                 "action": {"kind": "set-runtime-preference", "value": "turboquant", "requiresConfirmation": True},
             }
@@ -816,9 +816,9 @@ def _build_recommendations(
         recommendations.append(
             {
                 "id": "raise-ncmoe",
-                "title": "Povecaj ncmoe na 30",
-                "summary": "Visa ncmoe vrednost pomaze MoE modelima da rasterete VRAM.",
-                "tradeoff": "Veci CPU teret i sporiji odgovor.",
+                "title": "Povećaj ncmoe na 30",
+                "summary": "Viša ncmoe vrednost pomaže MoE modelima da rasterete VRAM.",
+                "tradeoff": "Veći CPU teret i sporiji odgovor.",
                 "severity": "warn",
                 "action": {"kind": "set-ncmoe", "value": 30},
             }
@@ -831,8 +831,8 @@ def _build_recommendations(
                 {
                     "id": "stronger-turboquant-balanced",
                     "title": "Probaj turbo4 / turbo3",
-                    "summary": "Malo agresivniji V deo cache-a cesto daje najbolji daily balans.",
-                    "tradeoff": "Malo jaca kompresija cache-a.",
+                    "summary": "Malo agresivniji V deo cache-a često daje najbolji daily balans.",
+                    "tradeoff": "Malo jača kompresija cache-a.",
                     "severity": "info",
                     "action": {"kind": "set-ctk-ctv", "ctk": "turbo4", "ctv": "turbo3"},
                 }
@@ -842,7 +842,7 @@ def _build_recommendations(
                 {
                     "id": "stronger-turboquant-max-context",
                     "title": "Probaj turbo3 / turbo3",
-                    "summary": "Jace smanjuje context pressure i VRAM trosak.",
+                    "summary": "Jače smanjuje context pressure i VRAM trosak.",
                     "tradeoff": "Manje bezbedna kompresija od turbo4/turbo3.",
                     "severity": "warn",
                     "action": {"kind": "set-ctk-ctv", "ctk": "turbo3", "ctv": "turbo3"},
@@ -852,9 +852,9 @@ def _build_recommendations(
         recommendations.append(
             {
                 "id": "smaller-quant",
-                "title": "Probaj manju kvantizaciju ili laksi model",
-                "summary": "Ovaj model verovatno nije realan bez ozbiljnih kompromisa na trenutnoj masini.",
-                "tradeoff": "Moguc pad kvaliteta ili promena modela.",
+                "title": "Probaj manju kvantizaciju ili lakši model",
+                "summary": "Ovaj model verovatno nije realan bez ozbiljnih kompromisa na trenutnoj mašini.",
+                "tradeoff": "Moguć pad kvaliteta ili promena modela.",
                 "severity": "critical",
             }
         )
@@ -871,7 +871,7 @@ def _build_apply_package(recommendations: list[dict[str, object]]) -> dict[str, 
         "id": "apply-package",
         "title": "Primeni paket preporuka",
         "summary": "Primeni najvaznije preporuke redom i odmah uradi novu proveru.",
-        "tradeoff": "Menja vise runtime/model settings stavki odjednom.",
+        "tradeoff": "Menja više runtime/model settings stavki odjednom.",
         "severity": "warn",
         "action": {
             "kind": "apply-package",
@@ -899,13 +899,13 @@ def _apply_action(action: dict[str, object], *, config: ControlCenterConfig | No
     if kind == "set-output":
         return _apply_settings_patch({"outputTokens": int(action.get("value", 4096) or 4096)}, config=config)
     if kind == "set-runtime-preference":
-        return _apply_turbo_patch({"runtimePreference": str(action.get("value", "turboquant") or "turboquant")}, summary="TurboQuant runtime preference je sacuvan.", config=config)
+        return _apply_turbo_patch({"runtimePreference": str(action.get("value", "turboquant") or "turboquant")}, summary="TurboQuant runtime preference je sačuvan.", config=config)
     if kind == "set-ncmoe":
-        return _apply_turbo_patch({"ncmoe": int(action.get("value", 20) or 20)}, summary="TurboQuant ncmoe je sacuvan.", config=config)
+        return _apply_turbo_patch({"ncmoe": int(action.get("value", 20) or 20)}, summary="TurboQuant ncmoe je sačuvan.", config=config)
     if kind == "set-ctk-ctv":
         return _apply_turbo_patch(
             {"ctk": str(action.get("ctk", "turbo4") or "turbo4"), "ctv": str(action.get("ctv", "turbo3") or "turbo3")},
-            summary="TurboQuant cache tipovi su sacuvani.",
+            summary="TurboQuant cache tipovi su sačuvani.",
             config=config,
         )
     return _action_result("error", f"Nepoznata compatibility akcija: {kind}")

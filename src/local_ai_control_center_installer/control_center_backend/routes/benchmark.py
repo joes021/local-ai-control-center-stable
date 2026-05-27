@@ -36,7 +36,7 @@ def benchmark_run_status() -> dict[str, object]:
 def benchmark_compare(runIds: list[str] = Query(default=[])) -> dict[str, object]:
     payload = load_benchmark_compare(_normalize_query_run_ids(runIds))
     if payload.get("status") != "ok":
-        status_code = 404 if "nije pronadjen" in str(payload.get("summary", "")).lower() else 400
+        status_code = 404 if "nije pronađen" in str(payload.get("summary", "")).lower() else 400
         raise HTTPException(status_code=status_code, detail=str(payload.get("summary", "Benchmark compare nije uspeo.")))
     return payload
 

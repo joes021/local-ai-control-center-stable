@@ -467,7 +467,7 @@ def launch_control_center(
             listening_pid = _find_listening_pid(deployment.port)
             if listening_pid is None:
                 raise RuntimeError(
-                    f"UI port {deployment.port} je vec zauzet drugim Local AI Control Center procesom."
+                    f"UI port {deployment.port} je već zauzet drugim Local AI Control Center procesom."
                 )
             detail = _stop_process_id(listening_pid)
             if detail is not None:
@@ -476,7 +476,7 @@ def launch_control_center(
                 )
             _wait_for_port_release("127.0.0.1", deployment.port)
         else:
-            raise RuntimeError(f"UI port {deployment.port} je vec zauzet drugim procesom.")
+            raise RuntimeError(f"UI port {deployment.port} je već zauzet drugim procesom.")
 
     environment = os.environ.copy()
     if deployment.env_overrides:

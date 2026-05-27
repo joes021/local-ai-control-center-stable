@@ -224,14 +224,14 @@ def test_benchmark_compare_route_rejects_missing_run_ids(monkeypatch):
         "load_benchmark_compare",
         lambda run_ids: {
             "status": "error",
-            "summary": "Benchmark run nije pronadjen: missing-run",
+            "summary": "Benchmark run nije pronađen: missing-run",
         },
     )
 
     response = client.get("/api/benchmark/compare", params=[("runIds", "run-a"), ("runIds", "missing-run")])
 
     assert response.status_code == 404
-    assert response.json()["detail"] == "Benchmark run nije pronadjen: missing-run"
+    assert response.json()["detail"] == "Benchmark run nije pronađen: missing-run"
 
 
 def test_benchmark_export_route_returns_json_and_csv(monkeypatch):

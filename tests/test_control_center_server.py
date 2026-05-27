@@ -219,7 +219,7 @@ def test_server_stop_route_reports_ok_when_runtime_is_already_stopped(
     assert response.status_code == 200
     payload = response.json()
     assert payload["status"] == "ok"
-    assert "Runtime server je vec zaustavljen" in payload["summary"]
+    assert "Runtime server je već zaustavljen" in payload["summary"]
 
 
 def test_server_stop_route_cleans_orphaned_runtime_process_without_listener(
@@ -476,7 +476,7 @@ def test_server_start_route_allows_hardware_risky_active_model_to_attempt_launch
     )
     monkeypatch.setattr(
         "local_ai_control_center_installer.control_center_backend.services.server_service._evaluate_runtime_hardware_fit",
-        lambda *args, **kwargs: (False, "Model nije realno upotrebljiv na ovoj masini."),
+        lambda *args, **kwargs: (False, "Model nije realno upotrebljiv na ovoj mašini."),
         raising=False,
     )
     monkeypatch.setattr(

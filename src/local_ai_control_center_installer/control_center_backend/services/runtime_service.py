@@ -33,7 +33,7 @@ def select_runtime(
         reason = str(runtime_state.get("turbo_reason", "") or "").strip()
         if runtime_state.get("turbo_installed"):
             summary = (
-                "TurboQuant ne moze da se aktivira jer runtime ne moze uspesno da se pokrene."
+                "TurboQuant ne može da se aktivira jer runtime ne može uspešno da se pokrene."
             )
             if reason:
                 summary = f"{summary} {reason}"
@@ -41,13 +41,13 @@ def select_runtime(
         return _result(
             "error",
             "select-runtime",
-            "TurboQuant ne moze da se aktivira jer runtime nije instaliran.",
+            "TurboQuant ne može da se aktivira jer runtime nije instaliran.",
         )
     if normalized == "llama.cpp" and not runtime_state["llama_available"]:
         return _result(
             "error",
             "select-runtime",
-            "llama.cpp ne moze da se aktivira jer runtime nije instaliran.",
+            "llama.cpp ne može da se aktivira jer runtime nije instaliran.",
         )
 
     selection_path = config.control_center_config_root / RUNTIME_SELECTION_FILE
@@ -74,12 +74,12 @@ def select_runtime(
                 return _result(
                     "error",
                     "select-runtime",
-                    f"{start_result.get('summary', 'Novi runtime nije uspeo da se pokrene.')} Aktivni runtime izbor je vracen i prethodni runtime je ponovo pokrenut.",
+                    f"{start_result.get('summary', 'Novi runtime nije uspeo da se pokrene.')} Aktivni runtime izbor je vraćen i prethodni runtime je ponovo pokrenut.",
                 )
             return _result(
                 "error",
                 "select-runtime",
-                f"{start_result.get('summary', 'Novi runtime nije uspeo da se pokrene.')} Aktivni runtime izbor je vracen, ali prethodni runtime nije mogao automatski da se vrati.",
+                f"{start_result.get('summary', 'Novi runtime nije uspeo da se pokrene.')} Aktivni runtime izbor je vraćen, ali prethodni runtime nije mogao automatski da se vrati.",
             )
 
     chosen_label = "TurboQuant" if normalized == "turboquant" else "llama.cpp"

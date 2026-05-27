@@ -42,7 +42,7 @@ export function FleetPage() {
       setSummary(payload);
       setError(null);
     } catch (reason: unknown) {
-      setError(reason instanceof Error ? reason.message : "Fleet nije mogao da se ucita.");
+      setError(reason instanceof Error ? reason.message : "Flota nije mogla da se učita.");
     }
   }
 
@@ -86,37 +86,37 @@ export function FleetPage() {
       {error ? <div className="error-panel">{error}</div> : null}
 
       <section className="status-card wide-card">
-        <span className="status-label">Fleet</span>
-        <strong className="status-value">Remote machines</strong>
+        <span className="status-label">Flota</span>
+        <strong className="status-value">Udaljene mašine</strong>
         <p className="helper-text">
-          Jedan pogled za vise instalacija: verzija, runtime, model, token flow i link nazad na
+          Jedan pogled za više instalacija: verzija, runtime, model, tok tokena i link nazad na
           njihov panel.
         </p>
         <div className="summary-metrics">
-          <span>Masina: {summary?.machineCount ?? 0}</span>
-          <span>Osvezeno: {summary ? formatDateTime(summary.generatedAt) : "--"}</span>
+          <span>Mašina: {summary?.machineCount ?? 0}</span>
+          <span>Osveženo: {summary ? formatDateTime(summary.generatedAt) : "--"}</span>
         </div>
         <div className="inline-actions">
           <button type="button" onClick={() => void runMutation(() => refreshFleetMachine())}>
-            Refresh all
+            Osveži sve
           </button>
         </div>
       </section>
 
       <section className="status-card wide-card">
-        <span className="status-label">Add machine</span>
+        <span className="status-label">Dodaj mašinu</span>
         <div className="settings-page-grid">
           <label className="settings-compact-field">
-            <span>Label</span>
+            <span>Naziv</span>
             <input
               type="text"
               value={name}
               onChange={(event) => setName(event.target.value)}
-              placeholder="Workstation, Laptop, GPU node..."
+              placeholder="Workstation, Laptop, GPU čvor..."
             />
           </label>
           <label className="settings-compact-field settings-medium-field">
-            <span>Base URL</span>
+            <span>Osnovni URL</span>
             <input
               type="text"
               value={baseUrl}
@@ -140,13 +140,13 @@ export function FleetPage() {
               })
             }
           >
-            Add machine
+            Dodaj mašinu
           </button>
         </div>
       </section>
 
       <section className="status-card wide-card">
-        <span className="status-label">Remote catalog</span>
+        <span className="status-label">Katalog mašina</span>
         {machines.length ? (
           <div className="model-list">
             {machines.map((machine) => (
@@ -160,8 +160,8 @@ export function FleetPage() {
           </div>
         ) : (
           <p className="helper-text">
-            Jos nema dodatih masina. Dodaj drugu Windows instalaciju da bi pratio runtime stanje,
-            benchmark i update signal sa jednog mesta.
+            Još nema dodatih mašina. Dodaj drugu Windows instalaciju da bi pratio runtime stanje,
+            benchmark i signal ažuriranja sa jednog mesta.
           </p>
         )}
       </section>
@@ -192,11 +192,11 @@ function FleetMachineCard({
         </span>
       </div>
       <p className="helper-text">
-        Model: {machine.snapshot.activeModel} | Verzija: {machine.snapshot.version} | Live now:{" "}
-        {formatTok(machine.snapshot.liveNowTokensPerSecond)} | Flow: {machine.snapshot.flowStateLabel}
+        Model: {machine.snapshot.activeModel} | Verzija: {machine.snapshot.version} | Uživo sada:{" "}
+        {formatTok(machine.snapshot.liveNowTokensPerSecond)} | Tok: {machine.snapshot.flowStateLabel}
       </p>
       <p className="helper-text">
-        Input 24h: {machine.snapshot.input24h} | Output 24h: {machine.snapshot.output24h} | Zadnja
+        Ulaz 24h: {machine.snapshot.input24h} | Izlaz 24h: {machine.snapshot.output24h} | Zadnja
         provera: {formatDateTime(machine.lastCheckedAt)}
       </p>
       <p className="helper-text">
@@ -204,7 +204,7 @@ function FleetMachineCard({
       </p>
       <div className="inline-actions">
         <button type="button" onClick={onRefresh}>
-          Refresh
+          Osveži
         </button>
         <a
           className="nav-button"
@@ -212,10 +212,10 @@ function FleetMachineCard({
           target="_blank"
           rel="noreferrer"
         >
-          Open panel
+          Otvori panel
         </a>
         <button type="button" onClick={onRemove}>
-          Remove
+          Ukloni
         </button>
       </div>
     </article>

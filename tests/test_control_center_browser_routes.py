@@ -59,7 +59,7 @@ def test_browser_refresh_route_passes_source():
 def test_browser_add_route_uses_catalog_add_helper():
     expected = {
         "status": "ok",
-        "summary": "HF model dodat u spisak: demo.gguf. Sledeci korak je Download.",
+        "summary": "HF model dodat u spisak: demo.gguf. Sledeći korak je Download.",
         "localModelId": "huggingface-demo",
     }
     with patch(

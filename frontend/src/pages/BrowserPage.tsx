@@ -184,7 +184,7 @@ function compactFitLabel(status: BrowserFitStatus): string {
 
 function mtpDownloadOnlyGuidance(item: BrowserCatalogItem): string | null {
   if (item.mtpStatus === "has-mtp") {
-    return "MTP modeli koriste llama.cpp draft-mtp put. Ako je TurboQuant izabran, panel ce za takav model pasti nazad na llama.cpp.";
+    return "MTP modeli koriste llama.cpp draft-mtp put. Ako je TurboQuant izabran, panel će za takav model pasti nazad na llama.cpp.";
   }
   return null;
 }
@@ -311,7 +311,7 @@ function buildRefreshActionResult(source: string | undefined, payload: BrowserCa
   const count = Number(payload.refresh.counts?.all ?? 0);
   const warningCount = payload.refresh.warnings.length;
   const errorCount = payload.refresh.errors.length;
-  const summaryParts = [`Catalog refresh zavrsen za ${sourceLabelText}.`, `Modela: ${count}.`];
+  const summaryParts = [`Catalog refresh završen za ${sourceLabelText}.`, `Modela: ${count}.`];
   if (warningCount > 0) {
     summaryParts.push(`Warnings: ${warningCount}.`);
   }
@@ -660,7 +660,7 @@ export function BrowserPage({
           : current,
       );
     } catch (reason: unknown) {
-      const message = reason instanceof Error ? reason.message : "Add to local catalog failed.";
+      const message = reason instanceof Error ? reason.message : "Dodavanje u lokalni katalog nije uspelo.";
       setResult({
         status: "error",
         action: "browser-add",
@@ -891,7 +891,8 @@ export function BrowserPage({
               <div>
                 <strong>Catalog warnings</strong>
                 <p className="helper-text">
-                  Neki repozitorijumi imaju vise GGUF fajlova nego sto je trenutno prikazano. Ovo ne blokira browser, ali znaci da je pregled skracen.
+                  Neki repozitorijumi imaju više GGUF fajlova nego što je trenutno prikazano. Ovo
+                  ne blokira Browser, ali znači da je pregled skraćen.
                 </p>
               </div>
               <button type="button" className="secondary-button" onClick={() => setWarningsExpanded((current) => !current)}>
@@ -915,7 +916,7 @@ export function BrowserPage({
               <div>
                 <strong>Catalog errors</strong>
                 <p className="helper-text">
-                  Ove greske su sacuvane iz poslednjeg osvezavanja i mogu da objasne zasto deo kataloga nije kompletan.
+                  Ove greške su sačuvane iz poslednjeg osvežavanja i mogu da objasne zašto deo kataloga nije kompletan.
                 </p>
               </div>
               <button type="button" className="secondary-button" onClick={() => setErrorsExpanded((current) => !current)}>
@@ -965,7 +966,7 @@ export function BrowserPage({
                 <strong className="status-value">{formatSize(selectedItem)}</strong>
               </div>
               <div>
-                <span className="status-label">Last update</span>
+                <span className="status-label">Poslednje ažuriranje</span>
                 <strong className="status-value">{formatDate(selectedItem.updatedAt)}</strong>
               </div>
               <div>
@@ -1002,36 +1003,36 @@ export function BrowserPage({
                 Download
               </button>
               <button type="button" disabled={Boolean(pendingAction)} onClick={() => void handleAddToLocal(selectedItem)}>
-                Add to local catalog
+                Dodaj u lokalni katalog
               </button>
               <button
                 type="button"
                 disabled={!selectedItem.sourceUrl}
                 onClick={() => window.open(selectedItem.sourceUrl, "_blank", "noopener,noreferrer")}
               >
-                Open source page
+                Otvori izvornu stranicu
               </button>
                       <button type="button" disabled={Boolean(pendingAction)} onClick={() => void handleCompatibility(selectedItem)}>
-                        Check compatibility
+                        Proveri kompatibilnost
                       </button>
             </div>
 
             {downloadOffer && downloadOffer.label === selectedItem.model ? (
               <div className="browser-callout">
-                <strong>Added to local catalog.</strong> Download is still manual. If you want the file immediately, start it now.
+                <strong>Dodato u lokalni katalog.</strong> Download je i dalje ručan. Ako želiš fajl odmah, pokreni ga sada.
                 <div className="inline-actions compact-actions">
                   <button type="button" onClick={() => void handleDownload(downloadOffer.modelId, downloadOffer.label)}>
-                    Download now
+                    Download sada
                   </button>
                   <button type="button" className="secondary-button" onClick={() => setDownloadOffer(null)}>
-                    Later
+                    Kasnije
                   </button>
                 </div>
               </div>
             ) : null}
 
             <p className="helper-text">
-              Use <strong>Check compatibility</strong> to open the compatibility calculator before you add the model to the local catalog.
+              Koristi <strong>Proveri kompatibilnost</strong> da otvoriš kalkulator kompatibilnosti pre nego što dodaš model u lokalni katalog.
             </p>
 
             <ModelDownloadProgressCard progress={downloadProgress} />
@@ -1039,7 +1040,7 @@ export function BrowserPage({
             {result && result.action === "browser-download" ? <ActionResultPanel result={result} /> : null}
           </section>
         ) : (
-          <div className="helper-text">Select a Browser row to inspect details and actions.</div>
+          <div className="helper-text">Izaberi red u Browser tabeli da vidiš detalje i akcije.</div>
         )}
 
         <div className="browser-table-panel">
@@ -1080,7 +1081,7 @@ export function BrowserPage({
                       className={`browser-sort-button ${sortKey === "updated-desc" || sortKey === "updated-asc" ? "browser-sort-button-active" : ""}`}
                       onClick={() => setSortKey((current) => nextSortKey(current, "updated"))}
                     >
-                      Last update
+                      Poslednje ažuriranje
                       <span className="browser-sort-indicator">
                         {sortKey === "updated-desc" ? "↓" : sortKey === "updated-asc" ? "↑" : "↕"}
                       </span>
@@ -1123,7 +1124,7 @@ export function BrowserPage({
                             rel="noopener noreferrer"
                             onClick={(event) => event.stopPropagation()}
                           >
-                            Open model page
+                            Otvori stranicu modela
                           </a>
                         ) : null}
                       </div>

@@ -39,7 +39,7 @@ def test_search_routes_expose_settings_history_query_and_answer(tmp_path: Path, 
             "mode": "manual",
             "query": query,
             "resultCount": 1,
-            "summary": "Pronadjen je 1 rezultat.",
+            "summary": "Pronađen je 1 rezultat.",
             "results": [
                 {
                     "title": "Result title",

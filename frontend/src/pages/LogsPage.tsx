@@ -10,7 +10,7 @@ export function LogsPage() {
 
   useEffect(() => {
     fetchLogs().then(setResult).catch((reason: unknown) => {
-      setError(reason instanceof Error ? reason.message : "Nepoznata greska");
+      setError(reason instanceof Error ? reason.message : "Nepoznata greška");
     });
   }, []);
 

@@ -68,7 +68,7 @@ def repair_install(
             "install",
             title="Instalacija izgleda zdravo",
             user_message="Osnovni installer-managed artefakti postoje i deluju konzistentno.",
-            next_step="Ako i dalje nesto ne radi, probaj runtime ili model repair.",
+            next_step="Ako i dalje nešto ne radi, probaj runtime ili model repair.",
             summary="Installer-managed artefakti deluju zdravo.",
             stdout="active-model.json, runtime-endpoint.json i managed-config postoje.",
         )
@@ -76,8 +76,8 @@ def repair_install(
     return _repair_result(
         "error",
         "install",
-        title="Instalacija trazi intervenciju",
-        user_message="Nedostaje jedan ili vise osnovnih installer-managed artefakata.",
+        title="Instalacija traži intervenciju",
+        user_message="Nedostaje jedan ili više osnovnih installer-managed artefakata.",
         next_step="Pokreni installer ponovo ili probaj Config repair da obnovis konfiguraciju.",
         summary="Install repair je pronasao nedostajucu konfiguraciju.",
         stderr=", ".join(problems),
@@ -95,8 +95,8 @@ def repair_model(
             "ok",
             "model",
             title="Aktivni model izgleda zdravo",
-            user_message="Aktivni model postoji na disku i ne trazi popravku.",
-            next_step="Ako bas taj model daje los rezultat, probaj drugi model iz Models taba.",
+            user_message="Aktivni model postoji na disku i ne traži popravku.",
+            next_step="Ako baš taj model daje loš rezultat, probaj drugi model iz Models taba.",
             summary="Aktivni model postoji na disku.",
             stdout=str(active_model_path),
         )
@@ -113,7 +113,7 @@ def repair_model(
             "error",
             "model",
             title="Nema modela za oporavak",
-            user_message="Panel nije nasao nijedan instaliran model koji moze da postavi kao aktivan.",
+            user_message="Panel nije nasao nijedan instaliran model koji može da postavi kao aktivan.",
             next_step="Idi na Models i skinite ili dodaj novi model.",
             summary="Model repair nije nasao instaliran model.",
             stderr="Nema kandidata za aktivaciju.",
@@ -135,7 +135,7 @@ def repair_model(
         "model",
         title="Model repair nije uspeo",
         user_message="Panel nije uspeo bezbedno da obnovi aktivni model.",
-        next_step="Idi na Models i rucno aktiviraj drugi instalirani model.",
+        next_step="Idi na Models i ručno aktiviraj drugi instalirani model.",
         summary=str(result.get("summary", "")),
         stderr=str(result.get("details", {}).get("stderr", "")),
     )
@@ -149,10 +149,10 @@ def repair_runtime(
         return _repair_result(
             "ok",
             "runtime",
-            title="Runtime je vec zdrav",
-            user_message="Runtime server vec radi i health endpoint odgovara.",
-            next_step="Ako imas problem samo u jednom tool-u, probaj restart servera iz Server taba.",
-            summary="Runtime je vec started.",
+            title="Runtime je već zdrav",
+            user_message="Runtime server već radi i health endpoint odgovara.",
+            next_step="Ako imaš problem samo u jednom tool-u, probaj restart servera iz Server taba.",
+            summary="Runtime je već started.",
             stdout=server_status["healthUrl"],
         )
 
@@ -164,7 +164,7 @@ def repair_runtime(
                 "runtime",
                 title="Runtime repair nije uspeo",
                 user_message="Runtime nije mogao bezbedno da se zaustavi pre restarta.",
-                next_step="Zatvori stare procese i pokusaj ponovo.",
+                next_step="Zatvori stare procese i pokušaj ponovo.",
                 summary=str(stop_result.get("summary", "")),
                 stderr=str(stop_result.get("details", {}).get("stderr", "")),
             )
@@ -176,7 +176,7 @@ def repair_runtime(
             "runtime",
             title="Runtime start je poslat",
             user_message="Runtime je dobio novi start zahtev.",
-            next_step="Sacekaj nekoliko sekundi pa proveri Server tab.",
+            next_step="Sačekaj nekoliko sekundi pa proveri Server tab.",
             summary=str(start_result.get("summary", "")),
             stdout=str(start_result.get("details", {}).get("stdout", "")),
         )
@@ -239,7 +239,7 @@ def repair_config(
             "config",
             title="Konfiguracija je obnovljena",
             user_message="Panel je obnovio osnovne config fajlove koji su nedostajali.",
-            next_step="Osvezi panel i proveri Settings i OpenCode tab.",
+            next_step="Osveži panel i proveri Settings i OpenCode tab.",
             summary="Osnovni config fajlovi su obnovljeni.",
             stdout=str(config.control_center_config_root),
         )

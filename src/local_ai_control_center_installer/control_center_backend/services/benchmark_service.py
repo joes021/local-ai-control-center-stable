@@ -61,7 +61,7 @@ DEFAULT_SCENARIOS = [
         "id": "long",
         "name": "Long",
         "prompt": "Explain how KV cache compression changes memory usage, latency, and quality tradeoffs for local inference in a clear step-by-step format.",
-        "description": "Duz i objasnjavajuci scenario za duzi odgovor.",
+        "description": "Duz i objasnjavajuci scenario za duži odgovor.",
     },
     {
         "id": "code",
@@ -180,8 +180,8 @@ def load_benchmark_compare(
             return action_result(
                 "error",
                 "benchmark-compare",
-                f"Benchmark run nije pronadjen: {run_id}",
-                stderr=f"Benchmark run nije pronadjen: {run_id}",
+                f"Benchmark run nije pronađen: {run_id}",
+                stderr=f"Benchmark run nije pronađen: {run_id}",
             )
         selected_runs.append(match)
 
@@ -308,7 +308,7 @@ def save_battery(
     payload["activeBatteryId"] = battery_id
     _save_batteries(config, payload)
     return {
-        **action_result("ok", "benchmark-save-battery", f"Baterija sacuvana: {normalized_name}"),
+        **action_result("ok", "benchmark-save-battery", f"Baterija sačuvana: {normalized_name}"),
         "battery": battery,
     }
 
@@ -328,7 +328,7 @@ def load_battery_selection(
         None,
     )
     if not match:
-        return action_result("error", "benchmark-load-battery", f"Baterija nije pronadjena: {battery_id}")
+        return action_result("error", "benchmark-load-battery", f"Baterija nije pronađena: {battery_id}")
     payload["activeBatteryId"] = battery_id
     _save_batteries(config, payload)
     return {
@@ -344,7 +344,7 @@ def restore_default_batteries(
     payload = _default_battery_payload()
     _save_batteries(config, payload)
     return {
-        **action_result("ok", "benchmark-restore-defaults", "Podrazumevani benchmark testovi su vraceni."),
+        **action_result("ok", "benchmark-restore-defaults", "Podrazumevani benchmark testovi su vraćeni."),
         "battery": payload["batteries"][0],
     }
 
@@ -374,7 +374,7 @@ def start_selected_benchmark(
     scenarios = [item for item in battery.get("scenarios", []) if isinstance(item, dict)]
     selected = next((item for item in scenarios if str(item.get("id", "")) == scenario_id), None)
     if not selected:
-        return action_result("error", "benchmark-run-selected", f"Scenario nije pronadjen: {scenario_id}")
+        return action_result("error", "benchmark-run-selected", f"Scenario nije pronađen: {scenario_id}")
 
     readiness = ensure_runtime_ready(config)
     if readiness.get("status") != "ok":
@@ -388,7 +388,7 @@ def start_selected_benchmark(
     with _RUN_LOCK:
         active = _load_run_state(config)
         if str(active.get("status", "")) in {"queued", "running"}:
-            return action_result("error", "benchmark-run-selected", "Benchmark je vec pokrenut.")
+            return action_result("error", "benchmark-run-selected", "Benchmark je već pokrenut.")
 
         run_id = f"bench-{uuid4().hex[:10]}"
         run_state = {
@@ -406,13 +406,13 @@ def start_selected_benchmark(
             "percent": 0,
             "startedAt": _now_iso(),
             "finishedAt": "",
-            "message": f"Pokrecem benchmark scenario: {selected.get('name', scenario_id)}",
+            "message": f"Pokrećem benchmark scenario: {selected.get('name', scenario_id)}",
             "scenarioStatuses": [
                 {
                     "scenarioId": str(selected.get("id", "")),
                     "scenarioName": str(selected.get("name", "")),
                     "status": "queued",
-                    "summary": "Ceka pokretanje.",
+                    "summary": "čeka pokretanje.",
                 }
             ],
         }
@@ -444,7 +444,7 @@ def start_battery_benchmark(
         None,
     )
     if not battery:
-        return action_result("error", "benchmark-run-battery", f"Baterija nije pronadjena: {battery_id}")
+        return action_result("error", "benchmark-run-battery", f"Baterija nije pronađena: {battery_id}")
     scenarios = [item for item in battery.get("scenarios", []) if isinstance(item, dict)]
     if not scenarios:
         return action_result("error", "benchmark-run-battery", "Baterija nema nijedan scenario.")
@@ -461,7 +461,7 @@ def start_battery_benchmark(
     with _RUN_LOCK:
         active = _load_run_state(config)
         if str(active.get("status", "")) in {"queued", "running"}:
-            return action_result("error", "benchmark-run-battery", "Benchmark je vec pokrenut.")
+            return action_result("error", "benchmark-run-battery", "Benchmark je već pokrenut.")
 
         run_id = f"bench-{uuid4().hex[:10]}"
         run_state = {
@@ -479,7 +479,7 @@ def start_battery_benchmark(
             "percent": 0,
             "startedAt": _now_iso(),
             "finishedAt": "",
-            "message": f"Pokrecem full battery: {battery.get('name', battery_id)}",
+            "message": f"Pokrećem full battery: {battery.get('name', battery_id)}",
             "scenarioStatuses": _scenario_status_payload(scenarios),
         }
         _save_run_state(config, run_state)
@@ -609,7 +609,7 @@ def _trend(
             "direction": "flat",
             "label": "stabilan",
             "signal": "=",
-            "reason": "Jos nema dovoljno podataka za trend.",
+            "reason": "Još nema dovoljno podataka za trend.",
         }
     first = float(history[0].get(key, 0.0) or 0.0)
     last = float(history[-1].get(key, 0.0) or 0.0)
@@ -677,7 +677,7 @@ def _build_stability(history: list[dict[str, Any]]) -> dict[str, Any]:
             "level": "warming",
             "label": "zagreva se",
             "score": 50,
-            "reason": "Treba jos nekoliko zahteva za pouzdaniji signal.",
+            "reason": "Treba još nekoliko zahteva za pouzdaniji signal.",
         }
     return {
         "level": "stable",
@@ -887,7 +887,7 @@ def _run_selected_worker(config: ControlCenterConfig, run_id: str, scenario: dic
     run_state["status"] = final_status
     run_state["percent"] = 100
     run_state["finishedAt"] = _now_iso()
-    run_state["message"] = str(result.get("summary", "Benchmark je zavrsen."))
+    run_state["message"] = str(result.get("summary", "Benchmark je završen."))
     run_state["scenarioStatuses"][0]["status"] = final_status
     run_state["scenarioStatuses"][0]["summary"] = run_state["message"]
     _save_run_state(config, run_state)
@@ -929,7 +929,7 @@ def _run_battery_worker(
         run_state["currentScenarioId"] = str(scenario.get("id", ""))
         run_state["currentScenarioName"] = str(scenario.get("name", ""))
         run_state["percent"] = round(((index - 1) / max(len(scenarios), 1)) * 100)
-        run_state["message"] = f"Pokrecem scenario {index}/{len(scenarios)}: {scenario.get('name', '')}"
+        run_state["message"] = f"Pokrećem scenario {index}/{len(scenarios)}: {scenario.get('name', '')}"
         run_state["scenarioStatuses"][index - 1]["status"] = "running"
         run_state["scenarioStatuses"][index - 1]["summary"] = "Scenario se izvrsava."
         _save_run_state(config, run_state)
@@ -966,9 +966,9 @@ def _run_battery_worker(
     run_state["status"] = overall_status
     run_state["finishedAt"] = _now_iso()
     run_state["message"] = (
-        "Benchmark battery je zavrsen."
+        "Benchmark battery je završen."
         if overall_status == "done"
-        else "Benchmark battery je zavrsen sa greskama."
+        else "Benchmark battery je završen sa greškama."
     )
     _save_run_state(config, run_state)
 
@@ -1045,7 +1045,7 @@ def _execute_benchmark_prompt(
     )
     return {
         "status": "ok",
-        "summary": "Benchmark scenario je zavrsen.",
+        "summary": "Benchmark scenario je završen.",
         "metric": metric,
     }
 
@@ -1189,7 +1189,7 @@ def _select_export_runs(
     for run_id in normalized_ids:
         match = indexed_runs.get(run_id)
         if match is None:
-            raise ValueError(f"Benchmark run nije pronadjen: {run_id}")
+            raise ValueError(f"Benchmark run nije pronađen: {run_id}")
         selected_runs.append(match)
     return selected_runs
 
@@ -1372,13 +1372,13 @@ def _build_live_state(
         return {
             "status": "warming",
             "hasLiveSignal": False,
-            "reason": "Benchmark je pokrenut, ali runtime jos nije prijavio live throughput signal.",
+            "reason": "Benchmark je pokrenut, ali runtime još nije prijavio live throughput signal.",
         }
     if recent_benchmark_fallback is not None:
         return {
             "status": "recent-benchmark",
             "hasLiveSignal": False,
-            "reason": "Runtime trenutno nema aktivan live throughput signal. Prikazujem poslednji benchmark throughput kao referencu dok nema novog live saobracaja.",
+            "reason": "Runtime trenutno nema aktivan live throughput signal. Prikazujem poslednji benchmark throughput kao referencu dok nema novog live saobraćaja.",
         }
     return {
         "status": "idle",
@@ -1453,7 +1453,7 @@ def _telemetry_flow_state(live_state: dict[str, Any]) -> tuple[str, str]:
     if status == "warming":
         return "syncing", "syncing"
     if status == "recent-benchmark":
-        return "recent-benchmark", "recent benchmark"
+        return "recent-benchmark", "skorašnji benchmark"
     return "quiet", "quiet"
 
 
@@ -1490,13 +1490,13 @@ def _build_launch_queue_signal(active_run: dict[str, Any]) -> dict[str, str]:
         return {
             "status": "active",
             "label": "launch queue active",
-            "summary": message or "Benchmark trenutno drzi launch queue aktivnom.",
+            "summary": message or "Benchmark trenutno drži launch queue aktivnom.",
         }
     if status == "queued":
         return {
             "status": "waiting",
             "label": "launch queue waiting",
-            "summary": message or "Benchmark ceka pokretanje i drzi launch queue u redu cekanja.",
+            "summary": message or "Benchmark čeka pokretanje i drži launch queue u redu čekanja.",
         }
     if status == "failed":
         return {
@@ -1507,7 +1507,7 @@ def _build_launch_queue_signal(active_run: dict[str, Any]) -> dict[str, str]:
     return {
         "status": "quiet",
         "label": "launch queue quiet",
-        "summary": message or "Nema cekajucih benchmark launch zadataka.",
+        "summary": message or "Nema čekajućih benchmark launch zadataka.",
     }
 
 
@@ -1525,7 +1525,7 @@ def _scenario_status_payload(scenarios: list[dict[str, Any]]) -> list[dict[str, 
             "scenarioId": str(item.get("id", "")),
             "scenarioName": str(item.get("name", "")),
             "status": "queued",
-            "summary": "Ceka pokretanje.",
+            "summary": "čeka pokretanje.",
         }
         for item in scenarios
     ]

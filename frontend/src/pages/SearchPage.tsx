@@ -67,7 +67,7 @@ function renderResultsList(payload: SearchQueryPayload) {
               <div className="muted-line">
                 Engine: {item.engine} | Provider: {payload.providerLabel} |{" "}
                 <a href={item.url} target="_blank" rel="noreferrer">
-                  Open source
+                  Otvori izvor
                 </a>
               </div>
             </div>
@@ -182,7 +182,7 @@ export function SearchPage({ onOpenSettings }: SearchPageProps) {
 
   useEffect(() => {
     void loadSummary().catch((reason: unknown) => {
-      setError(reason instanceof Error ? reason.message : "Search summary nije mogao da se ucita.");
+      setError(reason instanceof Error ? reason.message : "Search summary nije mogao da se učita.");
     });
   }, []);
 
@@ -191,7 +191,7 @@ export function SearchPage({ onOpenSettings }: SearchPageProps) {
       return;
     }
     void refreshSelectedProviderStatus(selectedProvider).catch((reason: unknown) => {
-      setError(reason instanceof Error ? reason.message : "Provider status nije mogao da se ucita.");
+      setError(reason instanceof Error ? reason.message : "Provider status nije mogao da se učita.");
     });
   }, [selectedProvider, summary]);
 
@@ -211,7 +211,7 @@ export function SearchPage({ onOpenSettings }: SearchPageProps) {
   }
 
   if (!summary || !providerStatus) {
-    return <section className="status-card wide-card">Ucitavam Search workspace...</section>;
+    return <section className="status-card wide-card">Učitavam Search workspace...</section>;
   }
 
   const currentProviderOption =
@@ -221,8 +221,8 @@ export function SearchPage({ onOpenSettings }: SearchPageProps) {
   return (
     <>
       <section className="status-card wide-card">
-        <span className="status-label">Search workspace</span>
-        <strong className="status-value">Shared web search + lokalni model + OpenCode local-lacc</strong>
+        <span className="status-label">Radni prostor za pretragu</span>
+        <strong className="status-value">Zajednička veb pretraga + lokalni model + OpenCode local-lacc</strong>
         <p className="helper-text">{currentSettingsLine}</p>
         <p className="helper-text">
           Ovaj tab koristi isti shared search sloj kao i OpenCode `local-lacc` provider. Cloud
@@ -230,13 +230,13 @@ export function SearchPage({ onOpenSettings }: SearchPageProps) {
         </p>
         {currentWorkflowPreset ? (
           <p className="helper-text">
-            Workflow preset: {currentWorkflowPreset.label} | {currentWorkflowPreset.summary}
+            Preset radnog toka: {currentWorkflowPreset.label} | {currentWorkflowPreset.summary}
           </p>
         ) : null}
       </section>
 
       <section className="status-card wide-card">
-        <span className="status-label">Search provider</span>
+        <span className="status-label">Provider pretrage</span>
         <strong className="status-value">
           {providerLabel(selectedProvider, summary.availableProviders)}: {providerStatus.label}
         </strong>
@@ -273,7 +273,7 @@ export function SearchPage({ onOpenSettings }: SearchPageProps) {
               }
             }}
           >
-            {providerBusy === "check" ? "Checking..." : "Check health"}
+            {providerBusy === "check" ? "Proveravam..." : "Proveri stanje"}
           </button>
           {isManagedSearxng ? (
             <button
@@ -296,51 +296,51 @@ export function SearchPage({ onOpenSettings }: SearchPageProps) {
               }}
             >
               {providerBusy === "setup"
-                ? "Setting up managed SearxNG..."
-                : "Setup managed SearxNG (Windows + WSL)"}
+                ? "Podešavam managed SearxNG..."
+                : "Podesi managed SearxNG (Windows + WSL)"}
             </button>
           ) : null}
           {onOpenSettings ? (
             <button type="button" className="secondary-button" onClick={onOpenSettings}>
-              Open Search settings
+              Otvori podešavanja pretrage
             </button>
           ) : null}
         </div>
         <div className="summary-metrics">
-          <span>Source: {providerStatus.source || "--"}</span>
-          <span>Configured URL: {providerStatus.configuredBaseUrl || "--"}</span>
-          <span>Effective URL: {providerStatus.effectiveBaseUrl || "--"}</span>
-          <span>Service: {providerStatus.serviceLabel || "--"}</span>
+          <span>Izvor: {providerStatus.source || "--"}</span>
+          <span>Podešeni URL: {providerStatus.configuredBaseUrl || "--"}</span>
+          <span>Efektivni URL: {providerStatus.effectiveBaseUrl || "--"}</span>
+          <span>Servis: {providerStatus.serviceLabel || "--"}</span>
         </div>
         {providerNotice ? <p className="helper-text">{providerNotice}</p> : null}
         {currentProviderOption ? <p className="helper-text">{currentProviderOption.summary}</p> : null}
         {isManagedSearxng ? (
           <>
             <p className="helper-text">
-              Managed setup koristi WSL da lokalno podigne SearxNG. Ako ne zelis taj put, unesi rucni
+              Managed setup koristi WSL da lokalno podigne SearxNG. Ako ne želiš taj put, unesi ručni
               SearxNG URL u Settings.
             </p>
             <p className="helper-text">
-              Ako provider status kaze `SearxNG nije podesen`, Search i local answer ostaju ugaseni dok
-              ne podignes lokalni provider ili ne upises pravi endpoint.
+              Ako provider status kaže `SearxNG nije podešen`, Search i local answer ostaju ugašeni dok
+              ne podigneš lokalni provider ili ne upišeš pravi endpoint.
             </p>
           </>
         ) : (
           <p className="helper-text">
-            DuckDuckGo radi kao javni no-key provider. Ne koristi managed bootstrap i ne trazi WSL,
-            ali je integracija best-effort i moze biti manje stabilna od SearxNG puta.
+            DuckDuckGo radi kao javni no-key provider. Ne koristi managed bootstrap i ne traži WSL,
+            ali je integracija best-effort i može biti manje stabilna od SearxNG puta.
           </p>
         )}
       </section>
 
       <section className="status-card wide-card">
-        <span className="status-label">Web query</span>
+        <span className="status-label">Veb upit</span>
         <div className="settings-action-row">
           <input
             className="settings-path-input"
             placeholder={
               currentWorkflowPreset?.searchDefaults.queryHint ||
-              "Upisi pitanje ili temu za web search"
+              "Upiši pitanje ili temu za veb pretragu"
             }
             value={query}
             onChange={(event) => setQuery(event.target.value)}
@@ -364,7 +364,7 @@ export function SearchPage({ onOpenSettings }: SearchPageProps) {
               void handleSearchOnly();
             }}
           >
-            {loadingSearch ? "Searching..." : "Find web sources"}
+            {loadingSearch ? "Tražim..." : "Pronađi veb izvore"}
           </button>
           <button
             type="button"
@@ -373,7 +373,7 @@ export function SearchPage({ onOpenSettings }: SearchPageProps) {
               void handleAnswer();
             }}
           >
-            {loadingAnswer ? "Answering..." : "Search + answer locally"}
+            {loadingAnswer ? "Odgovaram..." : "Pretraži i odgovori lokalno"}
           </button>
           <button
             type="button"
@@ -383,35 +383,35 @@ export function SearchPage({ onOpenSettings }: SearchPageProps) {
               void handleCompare();
             }}
           >
-            {loadingCompare ? "Comparing..." : "Compare providers"}
+            {loadingCompare ? "Poređujem..." : "Uporedi providere"}
           </button>
         </div>
         <p className="helper-text">
-          `Find web sources` vraca samo izvore. `Search + answer locally` prvo radi isti web
-          search, pa onda salje rezultate kao dodatni context aktivnom lokalnom runtime-u i vraca
-          finalan odgovor.
+          `Pronađi veb izvore` vraća samo izvore. `Pretraži i odgovori lokalno` prvo radi istu veb
+          pretragu, pa onda šalje rezultate kao dodatni kontekst aktivnom lokalnom runtime-u i vraća
+          konačan odgovor.
         </p>
         <p className="helper-text">
           `Compare providers` paralelno prikazuje kako isti upit izgleda kroz SearxNG i DuckDuckGo.
         </p>
         {providerStatus.canQuery === false ? (
           <p className="helper-text">
-            Search akcije su trenutno ugasene dok provider nije zdrav. Ako hoces managed local
-            provider, klikni `Setup managed SearxNG (Windows + WSL)`.
+            Search akcije su trenutno ugašene dok provider nije zdrav. Ako hoćeš managed local
+            provider, klikni na `Setup managed SearxNG (Windows + WSL)`.
           </p>
         ) : null}
       </section>
 
       <section className="status-card wide-card">
-        <span className="status-label">Web sources</span>
+        <span className="status-label">Veb izvori</span>
         <strong className="status-value">
-          {searchPayload?.summary || (comparePayloads.length ? "Provider compare je spreman." : "Jos nema rezultata.")}
+          {searchPayload?.summary || (comparePayloads.length ? "Provider compare je spreman." : "Još nema rezultata.")}
         </strong>
         {searchPayload?.results?.length && !answerPayload ? (
           <div className="inline-actions compact-actions">
             <p className="helper-text">
-              Ovo su izvori, ne finalan odgovor. Klikni `Search + answer locally` da isti upit
-              odmah prosledis lokalnom modelu.
+              Ovo su izvori, ne konačan odgovor. Klikni `Pretraži i odgovori lokalno` da isti upit
+              odmah proslediš lokalnom modelu.
             </p>
             <button
               type="button"
@@ -420,7 +420,7 @@ export function SearchPage({ onOpenSettings }: SearchPageProps) {
                 void handleAnswer();
               }}
             >
-              {loadingAnswer ? "Answering..." : "Answer from these results"}
+              {loadingAnswer ? "Odgovaram..." : "Odgovori na osnovu ovih rezultata"}
             </button>
           </div>
         ) : null}
@@ -441,15 +441,15 @@ export function SearchPage({ onOpenSettings }: SearchPageProps) {
         ) : searchPayload ? (
           renderResultsList(searchPayload)
         ) : (
-          <p className="helper-text">Kad pokrenes query, ovde ce se pojaviti normalizovani web rezultati.</p>
+          <p className="helper-text">Kad pokreneš upit, ovde će se pojaviti normalizovani veb rezultati.</p>
         )}
       </section>
 
       <section className="status-card wide-card">
-        <span className="status-label">Final answer from local model</span>
+        <span className="status-label">Konačan odgovor lokalnog modela</span>
         <strong className="status-value">
           {answerPayload?.answer ||
-            "Jos nema finalnog odgovora. Koristi `Search + answer locally` za odgovor zasnovan na web izvorima."}
+            "Još nema konačnog odgovora. Koristi `Pretraži i odgovori lokalno` za odgovor zasnovan na veb izvorima."}
         </strong>
         <div className="summary-metrics">
           <span>Provider: {answerPayload?.providerLabel || providerLabel(selectedProvider, summary.availableProviders)}</span>
@@ -461,7 +461,7 @@ export function SearchPage({ onOpenSettings }: SearchPageProps) {
       </section>
 
       <section className="status-card wide-card">
-        <span className="status-label">Recent search history</span>
+        <span className="status-label">Skorašnja istorija pretrage</span>
         {summary.history.length ? (
           <div className="model-list">
             {summary.history.map((item) => (
@@ -478,7 +478,7 @@ export function SearchPage({ onOpenSettings }: SearchPageProps) {
             ))}
           </div>
         ) : (
-          <p className="helper-text">Direktni Search tab query i answer tok upisuju se ovde kao lokalna istorija.</p>
+          <p className="helper-text">Direktni tokovi pretrage i odgovora iz taba Search upisuju se ovde kao lokalna istorija.</p>
         )}
       </section>
     </>

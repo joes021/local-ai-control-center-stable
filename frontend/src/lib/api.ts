@@ -328,11 +328,11 @@ export async function awaitModelActionResult(
     status: "error",
     action: "models-action-timeout",
     actionId: initial.actionId,
-    summary: "Model akcija nije zavrsena na vreme. Probaj refresh liste.",
+    summary: "Model akcija nije završena na vreme. Probaj osvežavanje liste.",
     details: {
       returncode: 1,
       stdout: "",
-      stderr: "Model akcija nije zavrsena na vreme. Probaj refresh liste.",
+      stderr: "Model akcija nije završena na vreme. Probaj osvežavanje liste.",
     },
   };
 }

@@ -48,14 +48,14 @@ function UpdateProgressCard({ progress }: { progress: UpdateProgressPayload | nu
 
   const nextStep =
     progress.status === "error"
-      ? "Procitaj poruku iznad. Ako pominje pristup fajlu ili zakljucan installer, zatvori stari installer i probaj ponovo."
+      ? "Pročitaj poruku iznad. Ako pominje pristup fajlu ili zaključan installer, zatvori stari installer i probaj ponovo."
       : progress.status === "completed"
-        ? "Installer je pokrenut. Prati installer prozor da bi update bio zavrsen."
+        ? "Installer je pokrenut. Prati installer prozor da bi update bio završen."
         : progress.status === "launching-installer"
-          ? "Sacekaj da se installer prozor pojavi. Ne moras rucno da ga trazis."
+          ? "Sačekaj da se installer prozor pojavi. Ne moraš ručno da ga tražiš."
           : progress.status === "downloading"
-            ? "Sacekaj da download stigne do 100%. Installer ce se zatim pokrenuti automatski."
-            : "Ako pokrenes Install update, ovde ces videti ceo tok preuzimanja i pokretanja installera.";
+            ? "Sačekaj da download stigne do 100%. Installer će se zatim pokrenuti automatski."
+            : "Ako pokreneš instalaciju ažuriranja, ovde ćeš videti ceo tok preuzimanja i pokretanja installera.";
 
   return (
     <section className="status-card wide-card">
@@ -89,10 +89,10 @@ function UpdateProgressCard({ progress }: { progress: UpdateProgressPayload | nu
         <strong>Poruka:</strong> {progress.message}
       </div>
       <div className="helper-text">
-        <strong>Sledeci korak:</strong> {nextStep}
+        <strong>Sledeći korak:</strong> {nextStep}
       </div>
       <div className="helper-text">
-        <strong>Pokretanje installera:</strong> Posle preuzimanja installer se pokrece automatski.
+        <strong>Pokretanje installera:</strong> Posle preuzimanja installer se pokreće automatski.
       </div>
       {progress.releaseUrl ? (
         <div className="helper-text">
@@ -147,14 +147,14 @@ export function UpdatesPage() {
   return (
     <>
       <section className="status-card wide-card">
-        <span className="status-label">Updates</span>
+        <span className="status-label">Ažuriranja</span>
         <p className="helper-text">
-          Install update sada ide kao background tok: vidi se download progress, brzina, ETA i
-          jasno je kada krece pokretanje installera.
+          Instalacija ažuriranja sada ide kao pozadinski tok: vidi se napredak preuzimanja, brzina, ETA i
+          jasno je kada kreće pokretanje installera.
         </p>
         <div className="inline-actions">
           <button type="button" onClick={() => checkUpdates().then(setResult)}>
-            Check updates
+            Proveri ažuriranja
           </button>
           <button
             type="button"
@@ -165,7 +165,7 @@ export function UpdatesPage() {
               setProgress(payload);
             }}
           >
-            Install update
+            Instaliraj ažuriranje
           </button>
         </div>
       </section>

@@ -45,9 +45,9 @@ export function ModelDownloadProgressCard({ progress }: { progress: DownloadProg
   const percent = valueOrNull(progress.percent);
   const nextStepNote =
     progress.status === "error"
-      ? "Posle greske mozes odmah ponovo kliknuti Download. Resume nije podrzan; pravi se nov pokusaj od pocetka."
+      ? "Posle greške možeš odmah ponovo kliknuti Download. Resume nije podržan; pravi se nov pokušaj od početka."
       : progress.status === "completed" || progress.status === "already-installed"
-        ? "Ako zelis novi pokusaj, klik na Download pokrece novi provereni tok za izabrani model."
+        ? "Ako želiš novi pokušaj, klik na Download pokreće novi provereni tok za izabrani model."
         : "Add HF i Add Unsloth samo dodaju model u spisak. Pravo skidanje krece tek na Download.";
 
   return (

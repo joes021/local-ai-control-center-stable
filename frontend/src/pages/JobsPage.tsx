@@ -39,7 +39,7 @@ export function JobsPage() {
         setWorkflowPresetId(settings.availableWorkflowPresets[0].id);
       }
     } catch (reason: unknown) {
-      setError(reason instanceof Error ? reason.message : "Jobs nisu mogli da se ucitaju.");
+      setError(reason instanceof Error ? reason.message : "Poslovi nisu mogli da se učitaju.");
     }
   }
 
@@ -86,32 +86,32 @@ export function JobsPage() {
       {error ? <div className="error-panel">{error}</div> : null}
 
       <section className="status-card wide-card">
-        <span className="status-label">Jobs</span>
-        <strong className="status-value">Scheduled jobs</strong>
+        <span className="status-label">Poslovi</span>
+        <strong className="status-value">Zakazani poslovi</strong>
         <p className="helper-text">
           Installer-managed scheduler za benchmark, health, update i fleet ritam. Job-ovi rade u
           pozadini dok je Control Center backend aktivan.
         </p>
         <div className="summary-metrics">
           <span>Aktivnih job-ova: {summary?.jobCount ?? 0}</span>
-          <span>Osvezeno: {summary ? formatDateTime(summary.generatedAt) : "--"}</span>
+          <span>Osveženo: {summary ? formatDateTime(summary.generatedAt) : "--"}</span>
         </div>
       </section>
 
       <section className="status-card wide-card">
-        <span className="status-label">Save job</span>
+        <span className="status-label">Sačuvaj posao</span>
         <div className="settings-page-grid">
           <label className="settings-compact-field">
-            <span>Name</span>
+            <span>Naziv</span>
             <input
               type="text"
               value={name}
               onChange={(event) => setName(event.target.value)}
-              placeholder="Hourly health, Nightly benchmark..."
+              placeholder="Health na sat, benchmark noću..."
             />
           </label>
           <label className="settings-compact-field">
-            <span>Kind</span>
+            <span>Vrsta</span>
             <select value={kind} onChange={(event) => setKind(event.target.value)}>
               {(summary?.availableKinds ?? []).map((item) => (
                 <option key={item.id} value={item.id}>
@@ -132,9 +132,9 @@ export function JobsPage() {
             />
           </label>
           <label className="settings-compact-field">
-            <span>Workflow preset</span>
+            <span>Preset radnog toka</span>
             <select value={workflowPresetId} onChange={(event) => setWorkflowPresetId(event.target.value)}>
-              <option value="">(optional)</option>
+              <option value="">(opciono)</option>
               {workflowPresets.map((preset) => (
                 <option key={preset.id} value={preset.id}>
                   {preset.label}
@@ -166,13 +166,13 @@ export function JobsPage() {
               })
             }
           >
-            Save job
+            Sačuvaj posao
           </button>
         </div>
       </section>
 
       <section className="status-card wide-card">
-        <span className="status-label">Job list</span>
+        <span className="status-label">Lista poslova</span>
         {summary?.jobs.length ? (
           <div className="model-list">
             {summary.jobs.map((job) => (
@@ -187,15 +187,15 @@ export function JobsPage() {
                   <span className="warning-badge">{job.lastStatus || "idle"}</span>
                 </div>
                 <p className="helper-text">
-                  Last run: {formatDateTime(job.lastRunAt)} | Next run: {formatDateTime(job.nextRunAt)}
+                  Poslednje pokretanje: {formatDateTime(job.lastRunAt)} | Sledeće: {formatDateTime(job.nextRunAt)}
                 </p>
-                <p className="helper-text">{job.lastSummary || "Job jos nije pokretan."}</p>
+                <p className="helper-text">{job.lastSummary || "Job još nije pokretan."}</p>
                 <div className="inline-actions">
                   <button type="button" onClick={() => void runMutation(() => runJobNow(job.id))}>
-                    Run now
+                    Pokreni sada
                   </button>
                   <button type="button" onClick={() => void runMutation(() => deleteJob(job.id))}>
-                    Remove
+                    Ukloni
                   </button>
                 </div>
               </article>
@@ -203,7 +203,7 @@ export function JobsPage() {
           </div>
         ) : (
           <p className="helper-text">
-            Jos nema sacuvanih job-ova. Dodaj health check, update check ili benchmark battery da
+            Još nema sačuvanih job-ova. Dodaj health check, update check ili benchmark battery da
             Control Center dobije pravi operativni ritam.
           </p>
         )}

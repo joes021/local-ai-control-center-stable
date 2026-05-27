@@ -145,7 +145,7 @@ def load_search_provider_status(
         return _build_status_payload(
             status="healthy",
             label="DuckDuckGo spreman",
-            summary="DuckDuckGo public web search je spreman bez API kljuca. Rezultati koriste best-effort HTML integraciju.",
+            summary="DuckDuckGo public web search je spreman bez API ključa. Rezultati koriste best-effort HTML integraciju.",
             provider=provider,
             provider_label="DuckDuckGo",
             source="public-web",
@@ -166,7 +166,7 @@ def load_search_provider_status(
             return _build_status_payload(
                 status="bootstrap-blocked",
                 label=_status_label("bootstrap-blocked", provider),
-                summary=f"SearxNG nije podesen. Managed bootstrap je blokiran: {state['managed'].get('lastBootstrapMessage', '')}",
+                summary=f"SearxNG nije podešen. Managed bootstrap je blokiran: {state['managed'].get('lastBootstrapMessage', '')}",
                 provider=provider,
                 provider_label="SearxNG",
                 source=target["source"],
@@ -182,7 +182,7 @@ def load_search_provider_status(
             return _build_status_payload(
                 status="not-configured",
                 label=_status_label("not-configured", provider),
-                summary=f"SearxNG nije podesen. Managed bootstrap trenutno nije dostupan: {bootstrap['reason']}",
+                summary=f"SearxNG nije podešen. Managed bootstrap trenutno nije dostupan: {bootstrap['reason']}",
                 provider=provider,
                 provider_label="SearxNG",
                 source=target["source"],
@@ -197,7 +197,7 @@ def load_search_provider_status(
         return _build_status_payload(
             status="not-configured",
             label=_status_label("not-configured", provider),
-            summary="SearxNG nije podesen. Pokreni Setup local SearxNG ili unesi rucni base URL.",
+            summary="SearxNG nije podešen. Pokreni Setup local SearxNG ili unesi ručni base URL.",
             provider=provider,
             provider_label="SearxNG",
             source=target["source"],
@@ -215,7 +215,7 @@ def load_search_provider_status(
         return _build_status_payload(
             status="not-configured",
             label=_status_label("not-configured", provider),
-            summary="Legacy 127.0.0.1:8080 vise se ne smatra podrazumevanim SearxNG endpointom. Pokreni Setup local SearxNG ili unesi pravi base URL.",
+            summary="Legacy 127.0.0.1:8080 više se ne smatra podrazumevanim SearxNG endpointom. Pokreni Setup local SearxNG ili unesi pravi base URL.",
             provider=provider,
             provider_label="SearxNG",
             source=target["source"],
@@ -259,8 +259,8 @@ def bootstrap_search_provider(
             "result": action_result(
                 "error",
                 "bootstrap-search-provider",
-                "Managed bootstrap je trenutno podrzan samo za SearxNG provider.",
-                stderr="Managed bootstrap je trenutno podrzan samo za SearxNG provider.",
+                "Managed bootstrap je trenutno podržan samo za SearxNG provider.",
+                stderr="Managed bootstrap je trenutno podržan samo za SearxNG provider.",
             ),
             "providerStatus": load_search_provider_status(
                 config,
@@ -364,7 +364,7 @@ def bootstrap_search_provider(
                 "enabled": True,
                 "lastBootstrapAt": _now_iso(),
                 "lastBootstrapStatus": "ok",
-                "lastBootstrapMessage": "Managed SearxNG bootstrap je zavrsen.",
+                "lastBootstrapMessage": "Managed SearxNG bootstrap je završen.",
             }
         },
     )
@@ -407,8 +407,8 @@ def bootstrap_search_provider(
         "result": action_result(
             "ok",
             "bootstrap-search-provider",
-            "Managed SearxNG je podignut i provereno vraca JSON pretragu.",
-            stdout="Managed SearxNG je podignut i provereno vraca JSON pretragu.",
+            "Managed SearxNG je podignut i provereno vraća JSON pretragu.",
+            stdout="Managed SearxNG je podignut i provereno vraća JSON pretragu.",
         ),
         "providerStatus": provider_status,
     }
@@ -472,7 +472,7 @@ def _probe_search_endpoint(
     if isinstance(payload, dict) and isinstance(payload.get("results"), list):
         return {
             "status": "healthy",
-            "summary": "SearxNG vraca validan JSON odgovor i spreman je za query.",
+            "summary": "SearxNG vraća validan JSON odgovor i spreman je za upit.",
             "serviceLabel": "SearxNG",
         }
     return {
@@ -495,7 +495,7 @@ def _describe_bootstrap_capability(
     if not is_windows_platform():
         result = {
             "available": False,
-            "reason": "Managed bootstrap je trenutno podrzan samo na Windows + WSL putu.",
+            "reason": "Managed bootstrap je trenutno podržan samo na Windows + WSL putu.",
             "distro": "",
         }
         _store_cached_bootstrap_capability(result)
@@ -545,7 +545,7 @@ def _describe_bootstrap_capability(
     if not distros:
         result = {
             "available": False,
-            "reason": "Nije pronadjen nijedan WSL distro za managed SearxNG bootstrap.",
+            "reason": "Nije pronađen nijedan WSL distro za managed SearxNG bootstrap.",
             "distro": "",
         }
         _store_cached_bootstrap_capability(result)
@@ -618,14 +618,14 @@ def _status_label(value: str, provider: str) -> str:
     if provider == "duckduckgo":
         return {
             "healthy": "DuckDuckGo spreman",
-            "error": "DuckDuckGo greska",
+            "error": "DuckDuckGo greška",
         }.get(value, value)
     return {
-        "not-configured": "SearxNG nije podesen",
+        "not-configured": "SearxNG nije podešen",
         "healthy": "SearxNG spreman",
         "unreachable": "SearxNG nije dostupan",
         "wrong-service": "Drugi servis na adresi",
-        "error": "SearxNG greska",
+        "error": "SearxNG greška",
         "bootstrap-blocked": "Managed bootstrap blokiran",
     }.get(value, value)
 

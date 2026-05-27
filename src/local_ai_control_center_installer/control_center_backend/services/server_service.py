@@ -72,7 +72,7 @@ def load_server_status(
         "" if can_open_web else "Runtime web nije spreman dok server nije pokrenut ili health ne odgovara."
     )
     can_stop = pid is not None or status in {"started", "warming", "degraded"}
-    stop_blocked_reason = "" if can_stop else "Runtime server je vec zaustavljen."
+    stop_blocked_reason = "" if can_stop else "Runtime server je već zaustavljen."
 
     return {
         "status": status,
@@ -122,33 +122,33 @@ def start_server(
         return _result(
             "error",
             "start-server",
-            "Aktivni runtime binar nije pronadjen.",
+            "Aktivni runtime binar nije pronađen.",
         )
     if not model_path.is_file():
         return _result(
             "error",
             "start-server",
-            "Aktivni model nije pronadjen.",
+            "Aktivni model nije pronađen.",
         )
     if not bool(runtime_state.get("active_model_supported", True)):
         return _result(
             "error",
             "start-server",
-            str(runtime_state.get("active_model_reason", "") or "Aktivni model nije podrzan za runtime start."),
+            str(runtime_state.get("active_model_reason", "") or "Aktivni model nije podržan za runtime start."),
         )
-    restart_summary = "Pokretanje runtime servera je poslato. Status ce se osveziti automatski."
+    restart_summary = "Pokretanje runtime servera je poslato. Status će se osvežiti automatski."
     if existing_pid is not None:
         if health_status == "ready":
             return _result(
                 "ok",
                 "start-server",
-                "Runtime server je vec pokrenut i health endpoint odgovara.",
+                "Runtime server je već pokrenut i health endpoint odgovara.",
             )
         if health_status == "loading":
             return _result(
                 "ok",
                 "start-server",
-                "Runtime server je vec u fazi zagrevanja i health jos nije spreman.",
+                "Runtime server je već u fazi zagrevanja i health još nije spreman.",
             )
         if not is_managed_runtime_port_owned_by_installation(
             port,
@@ -164,9 +164,9 @@ def start_server(
             return _result(
                 "error",
                 "start-server",
-                "Postojeci runtime proces nije odgovarao na health proveru i nije mogao bezbedno da se restartuje.",
+                "Postojeći runtime proces nije odgovarao na health proveru i nije mogao bezbedno da se restartuje.",
             )
-        restart_summary = "Neodgovarajuci runtime proces je zaustavljen i restartovan."
+        restart_summary = "Neodgovarajući runtime proces je zaustavljen i restartovan."
 
     command = _build_server_command(
         ServerVerificationTarget(
@@ -217,7 +217,7 @@ def ensure_runtime_ready(
         return _result(
             "ok",
             "ensure-runtime-ready",
-            "Runtime je vec spreman za OpenCode.",
+            "Runtime je već spreman za OpenCode.",
         )
 
     if health_status == "offline":
@@ -231,7 +231,7 @@ def ensure_runtime_ready(
             }
 
     deadline = now_fn() + max(timeout_seconds, 0.0)
-    last_summary = "Runtime jos nije spreman za OpenCode."
+    last_summary = "Runtime još nije spreman za OpenCode."
     while now_fn() <= deadline:
         health_status = health_probe(base_url)
         runtime_pid = pid_finder(port)
@@ -242,9 +242,9 @@ def ensure_runtime_ready(
                 "Runtime je spreman za OpenCode.",
             )
         if health_status == "loading":
-            last_summary = "Runtime se jos ucitava za OpenCode."
+            last_summary = "Runtime se još učitava za OpenCode."
         elif runtime_pid is not None:
-            last_summary = "Runtime proces postoji, ali health endpoint jos ne odgovara."
+            last_summary = "Runtime proces postoji, ali health endpoint još ne odgovara."
         else:
             last_summary = "Runtime nije ostao pokrenut tokom pripreme za OpenCode."
         sleep_fn(poll_interval_seconds)
@@ -273,7 +273,7 @@ def stop_server(
         return _result(
             "ok",
             "stop-server",
-            "Runtime server je vec zaustavljen.",
+            "Runtime server je već zaustavljen.",
         )
 
     binary_path = Path(str(runtime_state["active_binary"] or ""))
@@ -281,7 +281,7 @@ def stop_server(
         return _result(
             "error",
             "stop-server",
-            "Aktivni runtime binar nije pronadjen.",
+            "Aktivni runtime binar nije pronađen.",
         )
 
     if stop_managed_runtime_on_port(port, binary_path, config.install_root):
@@ -340,7 +340,7 @@ def _build_server_state(
     if health_status == "ready":
         return "started", "ok", "Runtime health endpoint odgovara."
     if health_status == "loading":
-        return "warming", "loading", "Runtime endpoint odgovara, ali model se jos loading."
+        return "warming", "loading", "Runtime endpoint odgovara, ali model se još loading."
     if pid is not None:
         return "degraded", "offline", "Runtime proces postoji, ali health endpoint ne odgovara."
     return "stopped", "offline", "Runtime trenutno nije pokrenut."
@@ -353,7 +353,7 @@ def _build_runtime_live_signal(
     if health_status == "ready":
         return "started", "Runtime health endpoint odgovara."
     if health_status == "loading":
-        return "warming", "Runtime odgovara, ali model se jos ucitava."
+        return "warming", "Runtime odgovara, ali model se još učitava."
     if pid is not None:
         return "degraded", "Runtime proces postoji, ali health endpoint ne odgovara."
     return "stopped", "Runtime trenutno nije pokrenut."
@@ -423,14 +423,14 @@ def _resolve_spec_type(
 def _build_start_capability(runtime_state: dict[str, object]) -> tuple[bool, str]:
     binary_path = Path(str(runtime_state.get("active_binary", "") or ""))
     if not binary_path.is_file():
-        return False, "Aktivni runtime binar nije pronadjen."
+        return False, "Aktivni runtime binar nije pronađen."
     model_path = Path(str(runtime_state.get("active_model_path", "") or ""))
     if not model_path.is_file():
-        return False, "Aktivni model nije pronadjen."
+        return False, "Aktivni model nije pronađen."
     if not bool(runtime_state.get("active_model_supported", True)):
         return (
             False,
-            str(runtime_state.get("active_model_reason", "") or "Aktivni model nije podrzan za runtime start."),
+            str(runtime_state.get("active_model_reason", "") or "Aktivni model nije podržan za runtime start."),
         )
     return True, ""
 

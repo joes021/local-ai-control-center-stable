@@ -54,12 +54,12 @@ JOB_KIND_SPECS = [
     {
         "id": "fleet-refresh",
         "label": "Fleet refresh",
-        "summary": "Osvezava sve dodate remote masine i njihov token flow snapshot.",
+        "summary": "Osvezava sve dodate remote mašine i njihov token flow snapshot.",
     },
     {
         "id": "benchmark-battery",
         "label": "Benchmark battery",
-        "summary": "Pokrece trenutno izabranu benchmark battery sekvencu.",
+        "summary": "Pokreće trenutno izabranu benchmark battery sekvencu.",
     },
     {
         "id": "workflow-pulse",
@@ -95,7 +95,7 @@ def save_job(payload: dict[str, object], config: ControlCenterConfig | None = No
     )
     if existing_index is None:
         jobs.append(normalized)
-        summary = f"Job {normalized['name']} je sacuvan."
+        summary = f"Job {normalized['name']} je sačuvan."
     else:
         previous = jobs[existing_index]
         normalized["lastRunAt"] = previous.get("lastRunAt", "")
@@ -118,7 +118,7 @@ def delete_job(job_id: str, config: ControlCenterConfig | None = None) -> dict[s
     jobs = _load_jobs(resolved_config)
     filtered = [job for job in jobs if job.get("id") != job_id]
     if len(filtered) == len(jobs):
-        return action_result("error", "delete-job", f"Job {job_id} nije pronadjen.")
+        return action_result("error", "delete-job", f"Job {job_id} nije pronađen.")
     _save_jobs(resolved_config, filtered)
     return {
         "status": "ok",
@@ -132,7 +132,7 @@ def run_job_now(job_id: str, config: ControlCenterConfig | None = None) -> dict[
     jobs = _load_jobs(resolved_config)
     target = next((job for job in jobs if job.get("id") == job_id), None)
     if not target:
-        return action_result("error", "run-job-now", f"Job {job_id} nije pronadjen.")
+        return action_result("error", "run-job-now", f"Job {job_id} nije pronađen.")
     executed = _execute_job(target, resolved_config)
     _save_jobs(resolved_config, jobs)
     return {
@@ -232,7 +232,7 @@ def _normalize_job_payload(
         "nextRunAt": next_run_at.isoformat(),
         "lastRunAt": str((existing or {}).get("lastRunAt") or ""),
         "lastStatus": str((existing or {}).get("lastStatus") or "idle"),
-        "lastSummary": str((existing or {}).get("lastSummary") or "Job jos nije pokretan."),
+        "lastSummary": str((existing or {}).get("lastSummary") or "Job još nije pokretan."),
         "lastDetails": (existing or {}).get("lastDetails", {}),
     }
 
@@ -243,7 +243,7 @@ def _execute_job(job: dict[str, object], config: ControlCenterConfig) -> dict[st
     try:
         result = runner(job)
         status = str(result.get("status", "ok"))
-        summary = str(result.get("summary", "Job je zavrsen."))
+        summary = str(result.get("summary", "Job je završen."))
         details = result.get("details", {})
     except Exception as exc:  # noqa: BLE001
         status = "error"
@@ -296,7 +296,7 @@ def _run_update_check_job(job: dict[str, object]) -> dict[str, object]:
     result = check_for_updates()
     return {
         "status": str(result.get("status", "ok")),
-        "summary": str(result.get("summary", "Update check je zavrsen.")),
+        "summary": str(result.get("summary", "Update check je završen.")),
         "details": result.get("details", {}),
     }
 
@@ -305,7 +305,7 @@ def _run_fleet_refresh_job(job: dict[str, object]) -> dict[str, object]:
     result = refresh_fleet_machine()
     return {
         "status": str(result.get("status", "ok")),
-        "summary": str(result.get("summary", "Fleet refresh je zavrsen.")),
+        "summary": str(result.get("summary", "Fleet refresh je završen.")),
         "details": {
             "machineCount": len(result.get("machines", [])) if isinstance(result.get("machines"), list) else 0,
         },
@@ -322,7 +322,7 @@ def _run_benchmark_battery_job(job: dict[str, object]) -> dict[str, object]:
     result = start_battery_benchmark(target_id)
     return {
         "status": str(result.get("status", "ok")),
-        "summary": str(result.get("summary", "Benchmark battery job je zavrsen.")),
+        "summary": str(result.get("summary", "Benchmark battery job je završen.")),
         "details": result.get("details", {}),
     }
 
@@ -336,7 +336,7 @@ def _run_workflow_pulse_job(job: dict[str, object]) -> dict[str, object]:
     fleet = load_fleet_summary()
     return {
         "status": "ok",
-        "summary": f"Workflow pulse: {selected.get('label', 'Preset')} | fleet masina {fleet.get('machineCount', 0)}",
+        "summary": f"Workflow pulse: {selected.get('label', 'Preset')} | fleet mašina {fleet.get('machineCount', 0)}",
         "details": {
             "presetId": selected.get("id", ""),
             "presetLabel": selected.get("label", ""),

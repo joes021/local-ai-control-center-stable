@@ -149,7 +149,7 @@ def test_runtime_select_route_rolls_back_selection_when_restart_fails(
         return {
             "status": "ok",
             "action": "ensure-runtime-ready",
-            "summary": "Prethodni runtime je vracen.",
+            "summary": "Prethodni runtime je vraćen.",
             "details": {"returncode": 0, "stdout": "", "stderr": ""},
         }
 
@@ -164,7 +164,7 @@ def test_runtime_select_route_rolls_back_selection_when_restart_fails(
     assert response.status_code == 200
     payload = response.json()
     assert payload["status"] == "error"
-    assert "vracen" in payload["summary"].lower()
+    assert "vraćen" in payload["summary"].lower()
     assert json.loads(selection_path.read_text(encoding="utf-8"))["runtime"] == "llama.cpp"
     assert len(start_calls) == 2
 

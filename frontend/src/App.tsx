@@ -24,23 +24,23 @@ import { UpdatesPage } from "./pages/UpdatesPage";
 import { WorkflowsPage } from "./pages/WorkflowsPage";
 
 const PAGES = {
-  home: "Home",
+  home: "Početna",
   server: "Server",
-  fleet: "Fleet",
-  jobs: "Jobs",
-  workflows: "Workflows",
+  fleet: "Flota",
+  jobs: "Poslovi",
+  workflows: "Radni tokovi",
   opencode: "OpenCode",
-  models: "Models",
+  models: "Modeli",
   browser: "Browser",
-  knowledge: "Knowledge",
-  search: "Search",
-  compatibility: "Compatibility",
-  observability: "Observability",
+  knowledge: "Znanje",
+  search: "Pretraga",
+  compatibility: "Kompatibilnost",
+  observability: "Telemetrija",
   benchmark: "Benchmark",
-  settings: "Settings",
-  logs: "Logs",
-  repair: "Repair",
-  updates: "Updates",
+  settings: "Podešavanja",
+  logs: "Logovi",
+  repair: "Popravka",
+  updates: "Ažuriranja",
 } as const;
 
 type PageKey = keyof typeof PAGES;
@@ -111,8 +111,8 @@ export default function App() {
   return (
     <Layout
       title={`Local AI Control Center${status?.version ? ` ${status.version}` : ""}`}
-      eyebrow={status?.hostShellLabel ?? "Local AI Desktop GUI Shell"}
-      subtitle={`Web UI + lokalni backend pravac za ${status?.hostPlatformLabel ?? "desktop"}.`}
+      eyebrow={status?.hostShellLabel ?? "Lokalni AI desktop shell"}
+      subtitle={`Veb interfejs i lokalni backend za ${status?.hostPlatformLabel ?? "desktop"} okruženje.`}
       nav={nav}
       themeId={themeId}
     >

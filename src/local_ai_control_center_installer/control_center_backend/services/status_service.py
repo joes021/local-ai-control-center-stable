@@ -217,7 +217,7 @@ def classify_runtime_model_support(
         if normalized_runtime == "turboquant":
             return (
                 False,
-                "TurboQuant runtime trenutno ne podrzava MTP GGUF aktivaciju. Koristi llama.cpp draft-mtp put.",
+                "TurboQuant runtime trenutno ne podržava MTP GGUF aktivaciju. Koristi llama.cpp draft-mtp put.",
             )
         runtime_binary = (
             runtime_binary_path if isinstance(runtime_binary_path, Path) else Path(str(runtime_binary_path or ""))
@@ -225,12 +225,12 @@ def classify_runtime_model_support(
         if not runtime_binary.is_file():
             return (
                 False,
-                "llama.cpp runtime binar za MTP put nije pronadjen.",
+                "llama.cpp runtime binar za MTP put nije pronađen.",
             )
         if not runtime_supports_draft_mtp(runtime_binary):
             return (
                 False,
-                "Aktivni llama.cpp runtime trenutno nema draft-mtp podrsku za MTP GGUF model.",
+                "Aktivni llama.cpp runtime trenutno nema draft-mtp podršku za MTP GGUF model.",
             )
         return True, "MTP model je spreman za llama.cpp draft-mtp runtime put."
     return True, ""
@@ -422,7 +422,7 @@ def _resolve_selected_runtime(
         source = "fallback"
         if _is_mtp_model(model_id=active_model_id, model_path=active_model_path):
             selection_summary = (
-                f"Izabrani runtime {_runtime_label(requested)} ne podrzava MTP GGUF aktivaciju, "
+                f"Izabrani runtime {_runtime_label(requested)} ne podržava MTP GGUF aktivaciju, "
                 f"pa se koristi {_runtime_label(alternate)} draft-mtp put."
             )
         elif requested == "turboquant":
@@ -481,7 +481,7 @@ def _build_runtime_live_signal(
     if health_status == "ready":
         return "started", "Runtime health endpoint odgovara."
     if health_status == "loading":
-        return "warming", "Runtime odgovara, ali model se jos ucitava."
+        return "warming", "Runtime odgovara, ali model se još učitava."
     if runtime_pid is not None:
         return "degraded", "Runtime proces postoji, ali health endpoint ne odgovara."
     return "stopped", "Runtime trenutno nije pokrenut."
@@ -547,14 +547,14 @@ def _build_turboquant_display(runtime_state: dict[str, object]) -> dict[str, str
         return {
             "state": "available",
             "summary": "TurboQuant je dostupan za aktivaciju.",
-            "guidance": "Mozeš ga aktivirati kada želiš manji memorijski pritisak ili TurboQuant-specifične presete.",
+            "guidance": "Možeš ga aktivirati kada želiš manji memorijski pritisak ili TurboQuant-specifične presete.",
         }
 
     if turbo_installed:
         guidance = "Panel koristi llama.cpp dok TurboQuant ne dobije ispravne runtime zavisnosti."
         if "missing sidecar dlls" in turbo_reason.lower():
             guidance = (
-                "Panel koristi llama.cpp dok TurboQuant ne dobije nedostajuce DLL fajlove."
+                "Panel koristi llama.cpp dok TurboQuant ne dobije nedostajuće DLL fajlove."
             )
         return {
             "state": "disabled",

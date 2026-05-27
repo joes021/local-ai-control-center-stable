@@ -61,7 +61,7 @@ export function HomePage() {
       setBenchmark(benchmarkPayload);
       setError(null);
     } catch (reason: unknown) {
-      setError(reason instanceof Error ? reason.message : "Nepoznata greska");
+      setError(reason instanceof Error ? reason.message : "Nepoznata greška");
     }
   }
 
@@ -71,7 +71,7 @@ export function HomePage() {
       setResult(actionResult);
       await loadStatus();
     } catch (reason: unknown) {
-      setError(reason instanceof Error ? reason.message : "Nepoznata greska");
+      setError(reason instanceof Error ? reason.message : "Nepoznata greška");
     }
   }
 
@@ -99,10 +99,10 @@ export function HomePage() {
       <div className="home-layout wide-card">
         <TelemetryPanel benchmark={benchmark} variant="home" />
         <section className="status-card system-overview-card wide-card">
-          <span className="status-label">System overview</span>
+          <span className="status-label">Pregled sistema</span>
           <div className="system-overview-grid">
             <article className="system-overview-item">
-              <span className="system-overview-label">Control Center health</span>
+              <span className="system-overview-label">Stanje Control Center-a</span>
               <strong className="system-overview-value">{status?.health ?? "--"}</strong>
             </article>
             <article className="system-overview-item">
@@ -145,7 +145,7 @@ export function HomePage() {
                 {serverStatus.runtimeSelectionSummary || "Nema dodatnih detalja o izboru runtime-a."}
               </p>
             ) : null}
-            {serverWarning ? <div className="warning-badge">Server warning: {serverWarning}</div> : null}
+            {serverWarning ? <div className="warning-badge">Upozorenje servera: {serverWarning}</div> : null}
           </section>
 
           <section className="status-card">
@@ -159,7 +159,7 @@ export function HomePage() {
               </span>
             </div>
             <p className="helper-text">
-              {opencode?.sessionSummary || "Promena modela vazi za novi OpenCode session."}
+              {opencode?.sessionSummary || "Promena modela važi za novu OpenCode sesiju."}
             </p>
             <div className="inline-actions compact-actions">
               <button
@@ -168,7 +168,7 @@ export function HomePage() {
                 title={opencode?.openBlockedReason || undefined}
                 onClick={() => void runAction(() => openOpenCode(status?.profile || opencode?.profile || "balanced"))}
               >
-                {opencode?.openActionLabel || "Open OpenCode"}
+                {opencode?.openActionLabel || "Otvori OpenCode"}
               </button>
             </div>
           </section>
@@ -176,9 +176,9 @@ export function HomePage() {
 
         <div className="home-detail-grid">
           <section className="status-card">
-            <span className="status-label">Server summary</span>
+            <span className="status-label">Sažetak servera</span>
             <strong className="status-value">
-              {serverStatus?.lastReason || "Ucitavam server lifecycle status..."}
+              {serverStatus?.lastReason || "Učitavam lifecycle status servera..."}
             </strong>
             <p className="helper-text">
               Status: {serverStatus?.status || "--"} | Health: {serverStatus?.health || "--"} | Port:{" "}
@@ -187,16 +187,16 @@ export function HomePage() {
           </section>
 
           <section className="status-card">
-            <span className="status-label">Runtime summary</span>
+            <span className="status-label">Sažetak runtime-a</span>
             <strong className="status-value">
-              {status?.runtimeSummary ?? "Ucitavam runtime status..."}
+              {status?.runtimeSummary ?? "Učitavam runtime status..."}
             </strong>
           </section>
 
           <section className="status-card">
             <span className="status-label">Binar u upotrebi</span>
             <strong className="status-value">
-              {status?.activeRuntimeBinary || "Nije potvrdeno."}
+              {status?.activeRuntimeBinary || "Nije potvrđeno."}
             </strong>
             <p className="helper-text">
               Izvor potvrde: {status?.activeRuntimeBinarySource || "nema potvrde"}
@@ -213,13 +213,13 @@ export function HomePage() {
           <section className="status-card">
             <span className="status-label">TurboQuant stanje</span>
             <strong className="status-value">
-              {status?.turboQuantSummary ?? "Ucitavam TurboQuant stanje..."}
+              {status?.turboQuantSummary ?? "Učitavam TurboQuant stanje..."}
             </strong>
             <p className="helper-text">
-              {status?.turboQuantGuidance || "Ucitavam TurboQuant smernice..."}
+              {status?.turboQuantGuidance || "Učitavam TurboQuant smernice..."}
             </p>
             <p className="helper-text">
-              Tehnicki razlog: {status?.turboQuantReason || "nema dodatnih detalja."}
+              Tehnički razlog: {status?.turboQuantReason || "nema dodatnih detalja."}
             </p>
             <div className="inline-actions">
               <button
@@ -247,16 +247,16 @@ export function HomePage() {
           </section>
 
           <section className="status-card">
-            <span className="status-label">Local URL</span>
+            <span className="status-label">Lokalni URL</span>
             <strong className="status-value">
-              {status ? status.localUrl : "Ucitavam lokalni backend status..."}
+              {status ? status.localUrl : "Učitavam lokalni backend status..."}
             </strong>
           </section>
 
           <section className="status-card">
             <span className="status-label">Tailscale URL</span>
             <strong className="status-value">
-              {status?.tailscaleUrl || "Tailscale nije aktivan ili UI nije izlozen kroz Tailscale."}
+              {status?.tailscaleUrl || "Tailscale nije aktivan ili interfejs nije izložen kroz Tailscale."}
             </strong>
           </section>
         </div>
@@ -266,21 +266,21 @@ export function HomePage() {
           <strong className="status-value">
             {opencode?.available ? "Dostupan" : "Nije dostupan"}
           </strong>
-          <p className="helper-text">OpenCode config: {opencode?.configPath || "nije pronadjen"}</p>
+          <p className="helper-text">OpenCode config: {opencode?.configPath || "nije pronađen"}</p>
           <p className="helper-text">
             Backend veza: {opencode?.runtimeConnected ? "spremna" : "nije spremna"} |{" "}
             {opencode?.runtimeLiveReason || "Nema dodatnih runtime detalja."}
           </p>
           <p className="helper-text">
-            Security rezim: {opencode?.securityModeLabel || "--"} | Autonomija:{" "}
+            Bezbednosni režim: {opencode?.securityModeLabel || "--"} | Autonomija:{" "}
             {opencode?.capabilityModeLabel || "--"}
           </p>
           <p className="helper-text">
             Audit: {opencode?.auditSummary || "Nema dodatnih OpenCode detalja."}
           </p>
           <p className="helper-text">
-            Ako promenis aktivni model u Control Center-u, zatvori i otvori OpenCode ponovo da bi
-            novi session preuzeo taj model.
+            Ako promeniš aktivni model u Control Center-u, zatvori i otvori OpenCode ponovo da bi
+            nova sesija preuzela taj model.
           </p>
         </section>
       </div>

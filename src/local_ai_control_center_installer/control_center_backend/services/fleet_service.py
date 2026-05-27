@@ -44,7 +44,7 @@ def add_fleet_machine(
         _save_registry(resolved_config, machines)
         return {
             "status": "ok",
-            "summary": f"Masina {normalized_name} je vec postojala i osvezena je.",
+            "summary": f"Mašina {normalized_name} je već postojala i osvežena je.",
             "machine": refreshed,
         }
 
@@ -62,7 +62,7 @@ def add_fleet_machine(
     _save_registry(resolved_config, machines)
     return {
         "status": "ok",
-        "summary": f"Dodata je remote masina {normalized_name}.",
+        "summary": f"Dodata je remote mašina {normalized_name}.",
         "machine": refreshed,
     }
 
@@ -76,7 +76,7 @@ def refresh_fleet_machine(
     if not machines:
         return {
             "status": "ok",
-            "summary": "Fleet je prazan, nema masina za osvezavanje.",
+            "summary": "Fleet je prazan, nema mašina za osvežavanje.",
             "machines": [],
         }
 
@@ -86,13 +86,13 @@ def refresh_fleet_machine(
             return action_result(
                 "error",
                 "refresh-fleet-machine",
-                f"Remote masina {machine_id} nije pronadjena.",
+                f"Remote mašina {machine_id} nije pronađena.",
             )
         refreshed = _refresh_machine_snapshot(target, resolved_config)
         _save_registry(resolved_config, machines)
         return {
             "status": "ok",
-            "summary": f"Osvezen je {refreshed.get('name', 'remote host')}.",
+            "summary": f"Osvežen je {refreshed.get('name', 'remote host')}.",
             "machine": refreshed,
         }
 
@@ -100,7 +100,7 @@ def refresh_fleet_machine(
     _save_registry(resolved_config, machines)
     return {
         "status": "ok",
-        "summary": f"Osvezeno je {len(refreshed_machines)} remote masina.",
+        "summary": f"Osveženo je {len(refreshed_machines)} udaljenih mašina.",
         "machines": refreshed_machines,
     }
 
@@ -116,12 +116,12 @@ def remove_fleet_machine(
         return action_result(
             "error",
             "remove-fleet-machine",
-            f"Remote masina {machine_id} nije pronadjena.",
+            f"Remote mašina {machine_id} nije pronađena.",
         )
     _save_registry(resolved_config, filtered)
     return {
         "status": "ok",
-        "summary": f"Uklonjena je remote masina {machine_id}.",
+        "summary": f"Uklonjena je remote mašina {machine_id}.",
         "machineId": machine_id,
     }
 
@@ -238,7 +238,7 @@ def _fetch_remote_json(base_url: str, path: str) -> dict[str, object]:
 def _normalize_base_url(value: str) -> str:
     normalized = str(value or "").strip().rstrip("/")
     if not normalized:
-        raise ValueError("Remote masina mora da ima base URL.")
+        raise ValueError("Remote mašina mora da ima base URL.")
     if "://" not in normalized:
         normalized = f"http://{normalized}"
     return normalized.rstrip("/")

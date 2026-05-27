@@ -102,9 +102,9 @@ def open_opencode(
     executable_path = _resolve_opencode_executable_path(config)
     managed_config_path = config.install_root / "config" / "opencode" / "managed-config.json"
     if not executable_path.is_file():
-        return _result("error", "open-opencode", "OpenCode executable nije pronadjen.")
+        return _result("error", "open-opencode", "OpenCode executable nije pronađen.")
     if not managed_config_path.is_file():
-        return _result("error", "open-opencode", "OpenCode managed config nije pronadjen.")
+        return _result("error", "open-opencode", "OpenCode managed config nije pronađen.")
     runtime_result = ensure_runtime_ready(config)
     if runtime_result.get("status") != "ok":
         summary = str(runtime_result.get("summary", "") or "Runtime nije spreman za OpenCode.")
@@ -118,7 +118,7 @@ def open_opencode(
         return _result(
             "ok",
             "open-opencode",
-            "OpenCode je vec otvoren; backend je pripremljen za postojecu sesiju.",
+            "OpenCode je već otvoren; backend je pripremljen za postojeću sesiju.",
         )
 
     log_path = config.install_root / "logs" / "opencode-launch.log"
@@ -144,10 +144,10 @@ def prepare_opencode_launcher(
     managed_config_path = config.install_root / "config" / "opencode" / "managed-config.json"
     settings = load_effective_settings_state(config)
     if not executable_path.is_file():
-        raise FileNotFoundError(f"OpenCode executable nije pronadjen: {executable_path}")
+        raise FileNotFoundError(f"OpenCode executable nije pronađen: {executable_path}")
     if not managed_config_path.is_file():
         raise FileNotFoundError(
-            f"OpenCode managed config nije pronadjen: {managed_config_path}"
+            f"OpenCode managed config nije pronađen: {managed_config_path}"
         )
 
     env = _build_opencode_launch_environment(
@@ -317,7 +317,7 @@ def _write_opencode_launcher(
     lines.append('set "OPENCODE_EXIT_CODE=%ERRORLEVEL%"')
     lines.append("if not \"%OPENCODE_EXIT_CODE%\"==\"0\" (")
     lines.append("  echo.")
-    lines.append("  echo OpenCode je zavrsio sa kodom %OPENCODE_EXIT_CODE%.")
+    lines.append("  echo OpenCode je završio sa kodom %OPENCODE_EXIT_CODE%.")
     lines.append("  echo Proveri model, konfiguraciju i logove ako se prozor odmah zatvorio.")
     lines.append("  pause")
     lines.append(")")
@@ -330,7 +330,7 @@ def _launch_opencode_launcher(launcher_path: Path) -> None:
         terminal_command = _build_linux_terminal_command(launcher_path)
         if terminal_command is None:
             raise RuntimeError(
-                "Linux OpenCode launcher zahteva podrzan terminal emulator (npr. x-terminal-emulator ili gnome-terminal)."
+                "Linux OpenCode launcher zahteva podržan terminal emulator (npr. x-terminal-emulator ili gnome-terminal)."
             )
         subprocess.Popen(
             terminal_command,
@@ -413,18 +413,18 @@ def _result(status: str, action: str, summary: str) -> dict[str, object]:
 
 def _security_mode_label(value: str) -> str:
     return {
-        "strict": "Strogo ogranicen agent",
-        "workspace-write": "Ogranicen agent sa blacklist pravilima",
+        "strict": "Strogo ograničen agent",
+        "workspace-write": "Ograničen agent sa blacklist pravilima",
         "open": "Potpuno otvoren agent",
     }.get(value, value)
 
 
 def _capability_mode_label(value: str) -> str:
     return {
-        "read-only": "1. Samo citanje fajlova",
-        "read-write": "2. Citanje + izmena fajlova",
-        "confirm-commands": "3. Citanje + izmena + komande uz potvrdu",
-        "auto-commands": "4. Citanje + izmena + komande bez potvrde",
+        "read-only": "1. Samo čitanje fajlova",
+        "read-write": "2. Čitanje + izmena fajlova",
+        "confirm-commands": "3. Čitanje + izmena + komande uz potvrdu",
+        "auto-commands": "4. Čitanje + izmena + komande bez potvrde",
     }.get(value, value)
 
 
@@ -455,7 +455,7 @@ def _build_session_state(
     if runtime_connected:
         return "runtime-ready", "Runtime je spreman za novi OpenCode session."
     reason = runtime_reason or "Runtime trenutno nije pokrenut."
-    return "idle", f"OpenCode je dostupan, ali backend jos nije spreman. {reason}"
+    return "idle", f"OpenCode je dostupan, ali backend još nije spreman. {reason}"
 
 
 def _build_open_action_contract(
@@ -465,11 +465,11 @@ def _build_open_action_contract(
     session_state: str,
 ) -> tuple[str, str]:
     if not available:
-        return "OpenCode nije instaliran", "OpenCode executable nije pronadjen."
+        return "OpenCode nije instaliran", "OpenCode executable nije pronađen."
     if not config_exists:
-        return "OpenCode config nedostaje", "OpenCode managed config nije pronadjen."
+        return "OpenCode config nedostaje", "OpenCode managed config nije pronađen."
     if session_state == "app-only":
-        return "Pripremi backend za postojeci OpenCode", ""
+        return "Pripremi backend za postojeći OpenCode", ""
     if session_state == "connected":
-        return "OpenCode je vec otvoren", ""
-    return "Open OpenCode", ""
+        return "OpenCode je već otvoren", ""
+    return "Otvori OpenCode", ""

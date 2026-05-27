@@ -192,7 +192,7 @@ def test_activate_model_route_updates_active_model_and_managed_opencode_config(
     assert response.status_code == 200
     payload = response.json()
     assert payload["status"] == "ok"
-    assert "OpenCode config je osvezen" in payload["summary"]
+    assert "OpenCode config je osvežen" in payload["summary"]
 
     active_model_payload = json.loads(
         (install_root / "config" / "active-model.json").read_text(encoding="utf-8")
@@ -281,7 +281,7 @@ def test_activate_model_route_accepts_mtp_variant_when_llama_supports_draft_mtp(
     assert response.status_code == 200
     payload = response.json()
     assert payload["status"] == "ok"
-    assert "OpenCode config je osvezen" in payload["summary"]
+    assert "OpenCode config je osvežen" in payload["summary"]
 
     active_model_payload = json.loads(
         (install_root / "config" / "active-model.json").read_text(encoding="utf-8")
@@ -350,7 +350,7 @@ def test_activate_model_route_rejects_hardware_incompatible_model_before_state_c
     )
     monkeypatch.setattr(
         "local_ai_control_center_installer.control_center_backend.services.models_service._evaluate_model_hardware_fit",
-        lambda *args, **kwargs: (False, "Model nije realno upotrebljiv na ovoj masini."),
+        lambda *args, **kwargs: (False, "Model nije realno upotrebljiv na ovoj mašini."),
         raising=False,
     )
 
@@ -421,7 +421,7 @@ def test_activate_model_route_allows_forced_activation_when_model_is_only_hardwa
     )
     monkeypatch.setattr(
         "local_ai_control_center_installer.control_center_backend.services.models_service._evaluate_model_hardware_fit",
-        lambda *args, **kwargs: (False, "Model verovatno nece raditi pouzdano na ovoj masini."),
+        lambda *args, **kwargs: (False, "Model verovatno neće raditi pouzdano na ovoj mašini."),
         raising=False,
     )
 
@@ -600,7 +600,7 @@ def test_models_route_marks_hardware_risky_model_with_force_confirmation_warning
     monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
     monkeypatch.setattr(
         "local_ai_control_center_installer.control_center_backend.services.models_service._evaluate_model_hardware_fit",
-        lambda *args, **kwargs: (False, "Model verovatno nece raditi pouzdano na ovoj masini."),
+        lambda *args, **kwargs: (False, "Model verovatno neće raditi pouzdano na ovoj mašini."),
         raising=False,
     )
 
@@ -613,7 +613,7 @@ def test_models_route_marks_hardware_risky_model_with_force_confirmation_warning
     assert model["supportsActivation"] is True
     assert model["requiresForceConfirmation"] is True
     assert model["activationRiskLevel"] == "warn"
-    assert "verovatno nece raditi pouzdano" in model["activationRiskSummary"]
+    assert "verovatno neće raditi pouzdano" in model["activationRiskSummary"]
 
 
 def test_activate_model_route_rolls_back_when_managed_opencode_write_fails(
@@ -676,7 +676,7 @@ def test_activate_model_route_rolls_back_when_managed_opencode_write_fails(
     assert response.status_code == 200
     payload = response.json()
     assert payload["status"] == "error"
-    assert "vracena" in payload["summary"]
+    assert "vraćena" in payload["summary"]
 
     active_model_payload = json.loads(
         (install_root / "config" / "active-model.json").read_text(encoding="utf-8")
@@ -762,7 +762,7 @@ def test_activate_model_route_rolls_back_when_runtime_restart_fails(
     assert response.status_code == 200
     payload = response.json()
     assert payload["status"] == "error"
-    assert "vracena" in payload["summary"]
+    assert "vraćena" in payload["summary"]
     assert "prethodni runtime je ponovo pokrenut" in payload["summary"]
     assert start_calls["count"] == 2
 
@@ -928,7 +928,7 @@ def test_models_route_marks_missing_local_file_truthfully(
     assert model["supportsActivation"] is False
     assert model["lifecycleStatus"] == "missing"
     assert model["lifecycleLabel"] == "Fajl nedostaje"
-    assert "nije pronadjen" in model["lifecycleSummary"]
+    assert "nije pronađen" in model["lifecycleSummary"]
     assert "nije prisutan na disku" in model["activationSummary"]
 
 

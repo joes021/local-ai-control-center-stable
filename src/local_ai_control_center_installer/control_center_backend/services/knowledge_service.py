@@ -144,7 +144,7 @@ def load_knowledge_summary(
             "summary": (
                 f"Poslednji reindex: {last_reindex_at}"
                 if last_reindex_at
-                else "Knowledge jos nije reindexovan."
+                else "Knowledge još nije reindexovan."
             ),
         },
         "supportedExtensions": sorted(SUPPORTED_EXTENSIONS),
@@ -172,7 +172,7 @@ def add_knowledge_source(
     if existing is not None:
         return {
             "status": "ok",
-            "summary": "Knowledge source je vec prijavljen.",
+            "summary": "Knowledge source je već prijavljen.",
             "source": existing,
         }
 
@@ -212,7 +212,7 @@ def remove_knowledge_source(
     sources = _load_sources(config)
     remaining = [item for item in sources if str(item.get("id", "") or "") != normalized_id]
     if len(remaining) == len(sources):
-        return _error_payload(f"Knowledge source nije pronadjen: {normalized_id}")
+        return _error_payload(f"Knowledge source nije pronađen: {normalized_id}")
 
     _write_sources(config, remaining)
     _ensure_index_schema(config)
@@ -304,7 +304,7 @@ def reindex_knowledge_sources(
     _write_sources(config, updated_sources)
     return {
         "status": "ok",
-        "summary": f"Knowledge reindex je zavrsen. Indeksirano: {indexed_documents}/{total_documents}.",
+        "summary": f"Knowledge reindex je završen. Indeksirano: {indexed_documents}/{total_documents}.",
         "documentCount": total_documents,
         "indexedDocumentCount": indexed_documents,
         "sources": updated_sources,
@@ -339,7 +339,7 @@ def run_knowledge_query(
         "collection": str(collection or "").strip(),
         "tag": str(tag or "").strip(),
         "resultCount": len(rows),
-        "summary": f"Pronadjeno je {len(rows)} dokument pogodaka.",
+        "summary": f"Pronađeno je {len(rows)} dokument pogodaka.",
         "results": rows,
     }
     if record_history:
@@ -398,7 +398,7 @@ def answer_with_knowledge(
     document_results = list(document_payload.get("results", []))
     if normalized_mode == "documents-only" and not document_results:
         return _knowledge_answer_error(
-            "Nema dokument pogodaka za trazeni upit.",
+            "Nema dokument pogodaka za traženi upit.",
             mode=normalized_mode,
             document_results=document_results,
         )

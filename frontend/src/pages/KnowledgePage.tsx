@@ -26,9 +26,9 @@ function renderModeLabel(mode: KnowledgeMode) {
     return "Documents + web";
   }
   if (mode === "web-only") {
-    return "Web only";
+    return "Samo veb";
   }
-  return "Documents only";
+  return "Samo dokumenti";
 }
 
 function formatUsage(value: number | null | undefined) {
@@ -74,7 +74,7 @@ export function KnowledgePage({ onOpenSearch }: { onOpenSearch: () => void }) {
 
   useEffect(() => {
     void loadSummary().catch((reason: unknown) => {
-      setError(reason instanceof Error ? reason.message : "Knowledge workspace nije mogao da se ucita.");
+      setError(reason instanceof Error ? reason.message : "Radni prostor znanja nije mogao da se učita.");
     });
   }, []);
 
@@ -98,39 +98,39 @@ export function KnowledgePage({ onOpenSearch }: { onOpenSearch: () => void }) {
   }
 
   if (!summary) {
-    return <section className="status-card wide-card">Ucitavam Knowledge workspace...</section>;
+    return <section className="status-card wide-card">Učitavam radni prostor znanja...</section>;
   }
 
   return (
     <>
       <section className="status-card wide-card">
-        <span className="status-label">Knowledge workspace</span>
-        <strong className="status-value">Lokalni dokumenti + opcioni web context</strong>
+        <span className="status-label">Radni prostor znanja</span>
+        <strong className="status-value">Lokalni dokumenti + opcioni veb kontekst</strong>
         <p className="helper-text">
-          Ovaj tab indeksira lokalne fajlove installer-managed putem i omogucava `documents-only`,
-          `documents+web` i `web-only` answer tok. Kada ti treba samo web sloj, mozes i direktno
-          da otvoris Search tab.
+          Ovaj tab indeksira lokalne fajlove installer-managed putem i omogućava `documents-only`,
+          `documents+web` i `web-only` tok odgovora. Kada ti treba samo veb sloj, možeš i direktno
+          da otvoriš tab Pretraga.
         </p>
         {currentWorkflowPreset ? (
           <p className="helper-text">
-            Workflow preset: {currentWorkflowPreset.label} | {currentWorkflowPreset.summary}
+            Preset radnog toka: {currentWorkflowPreset.label} | {currentWorkflowPreset.summary}
           </p>
         ) : null}
         <div className="summary-metrics">
-          <span>Sources: {summary.sourceCount}</span>
-          <span>Documents: {summary.documentCount}</span>
-          <span>Indexed: {summary.indexedDocumentCount}</span>
-          <span>Errors: {summary.errorCount}</span>
+          <span>Izvori: {summary.sourceCount}</span>
+          <span>Dokumenti: {summary.documentCount}</span>
+          <span>Indeksirano: {summary.indexedDocumentCount}</span>
+          <span>Greške: {summary.errorCount}</span>
         </div>
-        <p className="helper-text">Podrzani formati: {extensionLine}</p>
+        <p className="helper-text">Podržani formati: {extensionLine}</p>
         <p className="helper-text">{summary.reindexStatus.summary}</p>
       </section>
 
       <section className="status-card wide-card">
-        <span className="status-label">Sources</span>
+        <span className="status-label">Izvori</span>
         <div className="settings-page-grid">
           <label className="settings-compact-field">
-            <span>Collection</span>
+            <span>Kolekcija</span>
             <input
               type="text"
               value={sourceCollection}
@@ -139,7 +139,7 @@ export function KnowledgePage({ onOpenSearch }: { onOpenSearch: () => void }) {
             />
           </label>
           <label className="settings-compact-field settings-medium-field">
-            <span>Tags</span>
+            <span>Oznake</span>
             <input
               type="text"
               value={sourceTags}
@@ -151,7 +151,7 @@ export function KnowledgePage({ onOpenSearch }: { onOpenSearch: () => void }) {
         <div className="settings-action-row">
           <input
             className="settings-path-input"
-            placeholder="Unesi lokalni file ili folder path"
+            placeholder="Unesi lokalnu putanju do fajla ili foldera"
             value={sourcePath}
             onChange={(event) => setSourcePath(event.target.value)}
           />
@@ -173,7 +173,7 @@ export function KnowledgePage({ onOpenSearch }: { onOpenSearch: () => void }) {
               }
             }}
           >
-            {busyAction === "browse" ? "Opening..." : "Browse"}
+            {busyAction === "browse" ? "Otvaram..." : "Pregledaj"}
           </button>
           <button
             type="button"
@@ -203,7 +203,7 @@ export function KnowledgePage({ onOpenSearch }: { onOpenSearch: () => void }) {
               }
             }}
           >
-            {busyAction === "add" ? "Adding..." : "Add source"}
+            {busyAction === "add" ? "Dodajem..." : "Dodaj izvor"}
           </button>
           <button
             type="button"
@@ -224,10 +224,10 @@ export function KnowledgePage({ onOpenSearch }: { onOpenSearch: () => void }) {
               }
             }}
           >
-            {busyAction === "reindex" ? "Reindexing..." : "Reindex"}
+            {busyAction === "reindex" ? "Ponovo indeksiram..." : "Ponovo indeksiraj"}
           </button>
           <button type="button" onClick={onOpenSearch}>
-            Open Search
+            Otvori pretragu
           </button>
         </div>
         {summary.sources.length ? (
@@ -238,15 +238,15 @@ export function KnowledgePage({ onOpenSearch }: { onOpenSearch: () => void }) {
                   <div>
                     <strong>{item.path}</strong>
                     <div className="muted-line">
-                      {item.kind} | {item.exists ? "exists" : "missing"} | documents: {item.documentCount} |
-                      indexed: {item.indexedDocumentCount}
+                      {item.kind} | {item.exists ? "postoji" : "nedostaje"} | dokumenti: {item.documentCount} |
+                      indeksirano: {item.indexedDocumentCount}
                     </div>
                     <div className="helper-text">
-                      Collection: {item.collection || "--"} | Tags:{" "}
+                      Kolekcija: {item.collection || "--"} | Oznake:{" "}
                       {item.tags.length ? item.tags.join(", ") : "--"}
                     </div>
                     <div className="helper-text">
-                      Skipped: {item.skippedCount} | Errors: {item.errorCount} | Last index:{" "}
+                      Preskočeno: {item.skippedCount} | Greške: {item.errorCount} | Poslednje indeksiranje:{" "}
                       {item.lastIndexedAt || "--"}
                     </div>
                     {item.lastError ? <div className="helper-text">{item.lastError}</div> : null}
@@ -270,24 +270,24 @@ export function KnowledgePage({ onOpenSearch }: { onOpenSearch: () => void }) {
                       }
                     }}
                   >
-                    Remove
+                    Ukloni
                   </button>
                 </div>
               </article>
             ))}
           </div>
         ) : (
-          <p className="helper-text">Jos nema prijavljenih knowledge source-ova.</p>
+          <p className="helper-text">Još nema prijavljenih knowledge source-ova.</p>
         )}
       </section>
 
       <section className="status-card wide-card">
-        <span className="status-label">Query + answer</span>
+        <span className="status-label">Upit i odgovor</span>
         <div className="settings-page-grid">
           <label className="settings-compact-field">
-            <span>Collections</span>
+            <span>Kolekcije</span>
             <select value={collectionFilter} onChange={(event) => setCollectionFilter(event.target.value)}>
-              <option value="">All collections</option>
+              <option value="">Sve kolekcije</option>
               {summary.collections.map((item) => (
                 <option key={item} value={item}>
                   {item}
@@ -296,9 +296,9 @@ export function KnowledgePage({ onOpenSearch }: { onOpenSearch: () => void }) {
             </select>
           </label>
           <label className="settings-compact-field">
-            <span>Tags</span>
+            <span>Oznake</span>
             <select value={tagFilter} onChange={(event) => setTagFilter(event.target.value)}>
-              <option value="">All tags</option>
+              <option value="">Sve oznake</option>
               {summary.tags.map((item) => (
                 <option key={item} value={item}>
                   {item}
@@ -309,15 +309,15 @@ export function KnowledgePage({ onOpenSearch }: { onOpenSearch: () => void }) {
         </div>
         <div className="settings-action-row">
           <select value={mode} onChange={(event) => setMode(event.target.value as KnowledgeMode)}>
-            <option value="documents-only">Documents only</option>
+            <option value="documents-only">Samo dokumenti</option>
             <option value="documents+web">Documents + web</option>
-            <option value="web-only">Web only</option>
+            <option value="web-only">Samo veb</option>
           </select>
           <input
             className="settings-path-input"
             placeholder={
               currentWorkflowPreset?.knowledgeDefaults.queryHint ||
-              "Upisi pitanje za knowledge query ili answer"
+              "Upiši pitanje za pretragu ili odgovor iz znanja"
             }
             value={query}
             onChange={(event) => setQuery(event.target.value)}
@@ -343,7 +343,7 @@ export function KnowledgePage({ onOpenSearch }: { onOpenSearch: () => void }) {
               }
             }}
           >
-            {busyAction === "query" ? "Searching..." : "Search docs"}
+            {busyAction === "query" ? "Pretražujem..." : "Pretraži dokumente"}
           </button>
           <button
             type="button"
@@ -375,19 +375,19 @@ export function KnowledgePage({ onOpenSearch }: { onOpenSearch: () => void }) {
               }
             }}
           >
-            {busyAction === "answer" ? "Answering..." : `Answer (${renderModeLabel(mode)})`}
+            {busyAction === "answer" ? "Odgovaram..." : `Odgovori (${renderModeLabel(mode)})`}
           </button>
         </div>
         <p className="helper-text">
-          `Documents only` koristi samo lokalni indeks. `Documents + web` spaja lokalne dokumente sa
-          istim shared SearxNG slojem koji koristi Search tab. `Web only` ovde ostaje samo zgodan
-          handoff ka istom local-model web answer toku.
+          `Samo dokumenti` koristi samo lokalni indeks. `Dokumenti + veb` spaja lokalne dokumente sa
+          istim zajedničkim SearxNG slojem koji koristi tab Pretraga. `Samo veb` ovde ostaje samo zgodan
+          prelaz ka istom toku veb odgovora preko lokalnog modela.
         </p>
       </section>
 
       <section className="status-card wide-card">
-        <span className="status-label">Document results</span>
-        <strong className="status-value">{queryPayload?.summary || "Jos nema document rezultata."}</strong>
+        <span className="status-label">Rezultati dokumenata</span>
+        <strong className="status-value">{queryPayload?.summary || "Još nema rezultata dokumenata."}</strong>
         {queryPayload?.results?.length ? (
           <div className="model-list">
             {queryPayload.results.map((item) => (
@@ -396,10 +396,10 @@ export function KnowledgePage({ onOpenSearch }: { onOpenSearch: () => void }) {
                   <div>
                     <strong>{item.name}</strong>
                     <div className="muted-line">
-                      {item.fileType} | score: {item.score.toFixed(2)} | chars: {item.charCount}
+                      {item.fileType} | skor: {item.score.toFixed(2)} | karaktera: {item.charCount}
                     </div>
                     <div className="muted-line">
-                      Collection: {item.collection || "--"} | Tags:{" "}
+                      Kolekcija: {item.collection || "--"} | Oznake:{" "}
                       {item.tags.length ? item.tags.join(", ") : "--"}
                     </div>
                     <div className="muted-line">{item.path}</div>
@@ -410,26 +410,26 @@ export function KnowledgePage({ onOpenSearch }: { onOpenSearch: () => void }) {
             ))}
           </div>
         ) : (
-          <p className="helper-text">Kad pokrenes knowledge query, ovde ce se pojaviti lokalni dokument pogoci.</p>
+          <p className="helper-text">Kad pokreneš upit nad znanjem, ovde će se pojaviti lokalni pogoci iz dokumenata.</p>
         )}
       </section>
 
       <section className="status-card wide-card">
-        <span className="status-label">Knowledge answer</span>
-        <strong className="status-value">{answerPayload?.answer || "Jos nema knowledge odgovora."}</strong>
+        <span className="status-label">Odgovor iz znanja</span>
+        <strong className="status-value">{answerPayload?.answer || "Još nema knowledge odgovora."}</strong>
         <div className="summary-metrics">
-          <span>Mode: {answerPayload ? renderModeLabel(answerPayload.mode as KnowledgeMode) : "--"}</span>
+          <span>Režim: {answerPayload ? renderModeLabel(answerPayload.mode as KnowledgeMode) : "--"}</span>
           <span>Runtime: {answerPayload?.answerRuntime || "--"}</span>
           <span>Model: {answerPayload?.answerModel || "--"}</span>
-          <span>Docs: {answerPayload?.documentResultCount ?? 0}</span>
-          <span>Web: {answerPayload?.webResultCount ?? 0}</span>
+          <span>Dokumenti: {answerPayload?.documentResultCount ?? 0}</span>
+          <span>Veb: {answerPayload?.webResultCount ?? 0}</span>
           <span>Prompt tokens: {formatUsage(answerPayload?.usage?.promptTokens)}</span>
         </div>
         {answerPayload ? (
           <>
             <p className="helper-text">
-              Collections: {answerPayload.usedCollections.length ? answerPayload.usedCollections.join(", ") : "--"} |
-              Tags: {answerPayload.usedTags.length ? answerPayload.usedTags.join(", ") : "--"}
+              Kolekcije: {answerPayload.usedCollections.length ? answerPayload.usedCollections.join(", ") : "--"} |
+              Oznake: {answerPayload.usedTags.length ? answerPayload.usedTags.join(", ") : "--"}
             </p>
             <div className="inline-actions">
               <button
@@ -442,7 +442,7 @@ export function KnowledgePage({ onOpenSearch }: { onOpenSearch: () => void }) {
                   )
                 }
               >
-                Export JSON
+                Izvezi JSON
               </button>
               <button
                 type="button"
@@ -454,7 +454,7 @@ export function KnowledgePage({ onOpenSearch }: { onOpenSearch: () => void }) {
                       `Query: ${answerPayload.query}\n\n`,
                       `Mode: ${answerPayload.mode}\n\n`,
                       `${answerPayload.answer}\n\n`,
-                      `## Citations\n`,
+                      `## Citati\n`,
                       ...answerPayload.citations.map(
                         (citation) =>
                           `- [${citation.index}] ${citation.name} | ${citation.collection || "--"} | ${citation.path}\n`,
@@ -464,7 +464,7 @@ export function KnowledgePage({ onOpenSearch }: { onOpenSearch: () => void }) {
                   )
                 }
               >
-                Export Markdown
+                Izvezi Markdown
               </button>
             </div>
           </>
@@ -472,7 +472,7 @@ export function KnowledgePage({ onOpenSearch }: { onOpenSearch: () => void }) {
       </section>
 
       <section className="status-card wide-card">
-        <span className="status-label">Citations</span>
+        <span className="status-label">Citati</span>
         {answerPayload?.citations?.length ? (
           <div className="model-list">
             {answerPayload.citations.map((citation) => (
@@ -494,14 +494,14 @@ export function KnowledgePage({ onOpenSearch }: { onOpenSearch: () => void }) {
           </div>
         ) : (
           <p className="helper-text">
-            Kad knowledge answer koristi lokalne dokumente, ovde ces videti which docs were used i
-            njihove citate.
+            Kad knowledge answer koristi lokalne dokumente, ovde ćeš videti koji dokumenti su korišćeni
+            i njihove citate.
           </p>
         )}
       </section>
 
       <section className="status-card wide-card">
-        <span className="status-label">Recent knowledge history</span>
+        <span className="status-label">Skorašnja istorija znanja</span>
         {summary.history.length ? (
           <div className="model-list">
             {summary.history.map((item) => (
@@ -519,7 +519,7 @@ export function KnowledgePage({ onOpenSearch }: { onOpenSearch: () => void }) {
             ))}
           </div>
         ) : (
-          <p className="helper-text">Knowledge query i answer tok se upisuju ovde kao lokalna istorija.</p>
+          <p className="helper-text">Upiti i odgovori iz znanja upisuju se ovde kao lokalna istorija.</p>
         )}
       </section>
     </>

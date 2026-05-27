@@ -211,7 +211,7 @@ def test_perform_search_query_supports_duckduckgo_html_results(
     assert payload["results"][0]["url"] == "https://example.invalid/one"
     assert payload["results"][0]["snippet"] == "First snippet"
     assert payload["results"][0]["engine"] == "duckduckgo"
-    assert payload["summary"] == "Pronadjeno je 2 web rezultata preko DuckDuckGo."
+    assert payload["summary"] == "Pronađeno je 2 veb rezultata preko DuckDuckGo."
 
 
 def test_perform_search_query_duckduckgo_uses_ssl_context_when_opener_supports_it(
@@ -421,7 +421,7 @@ def test_prepare_proxy_chat_completion_body_uses_prefix_in_on_demand_mode(
                     "engine": "demo",
                 }
             ],
-            "summary": "Pronadjen je 1 rezultat.",
+            "summary": "Pronađen je 1 rezultat.",
         },
     )
 

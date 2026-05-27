@@ -38,7 +38,7 @@ def load_logs_result(
     return action_result(
         "ok",
         "logs",
-        f"Ucitan je pregled {len(available)} log fajla.",
+        f"Učitan je pregled {len(available)} log fajla.",
         stdout="\n".join(sections).strip(),
     )
 

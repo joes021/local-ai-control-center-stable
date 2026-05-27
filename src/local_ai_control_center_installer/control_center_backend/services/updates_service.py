@@ -96,7 +96,7 @@ def check_for_updates(
         return action_result(
             "ok",
             "check-updates",
-            f"Vec koristis najnoviju verziju ({candidate['currentVersion']}).",
+            f"Već koristiš najnoviju verziju ({candidate['currentVersion']}).",
         )
 
     progress = _build_available_update_progress(candidate)
@@ -129,8 +129,8 @@ def install_update(
         return action_result(
             "error",
             "install-update",
-            "Update je vec u toku. Sacekaj da se zavrsi pre novog pokusaja.",
-            stderr="Update je vec aktivan.",
+            "Update je već u toku. Sačekaj da se završi pre novog pokušaja.",
+            stderr="Update je već aktivan.",
         )
 
     try:
@@ -155,7 +155,7 @@ def install_update(
         return action_result(
             "ok",
             "install-update",
-            f"Vec koristis najnoviju verziju ({candidate['currentVersion']}).",
+            f"Već koristiš najnoviju verziju ({candidate['currentVersion']}).",
         )
 
     action_id = f"update-{uuid4().hex[:8]}"
@@ -227,7 +227,7 @@ def load_update_progress_payload(
             "status": "error",
             "phase": "error",
             "isActive": False,
-            "message": "Update worker vise nije aktivan. Pokreni update ponovo.",
+            "message": "Update worker više nije aktivan. Pokreni update ponovo.",
             "updatedAt": _utc_now(),
             "workerPid": None,
         }
@@ -255,7 +255,7 @@ def run_update_install_worker(
             return action_result(
                 "ok",
                 "install-update-worker",
-                f"Vec koristis najnoviju verziju ({candidate['currentVersion']}).",
+                f"Već koristiš najnoviju verziju ({candidate['currentVersion']}).",
                 action_id=action_id,
             )
 
@@ -321,7 +321,7 @@ def run_update_install_worker(
                 "totalGiB": _to_gib(target_path.stat().st_size),
                 "speedMBps": None,
                 "etaSeconds": 0,
-                "message": "Installer je preuzet. Pokrecem update prozor.",
+                "message": "Installer je preuzet. Pokrećem update prozor.",
                 "updatedAt": _utc_now(),
                 "workerPid": os.getpid(),
             },
@@ -344,7 +344,7 @@ def run_update_install_worker(
                 "totalGiB": _to_gib(target_path.stat().st_size),
                 "speedMBps": None,
                 "etaSeconds": 0,
-                "message": "Installer je pokrenut. Prati installer prozor da bi update bio zavrsen.",
+                "message": "Installer je pokrenut. Prati installer prozor da bi update bio završen.",
                 "updatedAt": _utc_now(),
                 "workerPid": None,
             },
@@ -532,7 +532,7 @@ def _build_up_to_date_progress(
         "totalGiB": None,
         "speedMBps": None,
         "etaSeconds": None,
-        "message": f"Vec koristis najnoviju verziju ({candidate['currentVersion']}).",
+        "message": f"Već koristiš najnoviju verziju ({candidate['currentVersion']}).",
         "updatedAt": _utc_now(),
         "workerPid": None,
     }
@@ -741,12 +741,12 @@ def _default_update_message(status: str) -> str:
     return {
         "idle": "Nema aktivnog update toka.",
         "available": "Dostupan je novi installer update.",
-        "up-to-date": "Vec koristis najnoviju verziju.",
-        "starting": "Pokrecem update worker.",
+        "up-to-date": "Već koristiš najnoviju verziju.",
+        "starting": "Pokrećem update worker.",
         "downloading": "Installer download je u toku.",
-        "launching-installer": "Installer je preuzet i pokrece se.",
+        "launching-installer": "Installer je preuzet i pokreće se.",
         "completed": "Installer je pokrenut.",
-        "error": "Update je prijavio gresku.",
+        "error": "Update je prijavio grešku.",
     }.get(status, "Nema aktivnog update toka.")
 
 

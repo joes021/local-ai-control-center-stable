@@ -22,7 +22,7 @@ def run_control_center_uninstall_entry(
     output_fn=print,
 ) -> int:
     if not is_windows_platform():
-        output_fn("Linux uninstall launcher jos nije implementiran.")
+        output_fn("Linux uninstall launcher još nije implementiran.")
         return 1
 
     parser = ArgumentParser(prog="LocalAIControlCenterPanel.exe --uninstall")
@@ -31,7 +31,7 @@ def run_control_center_uninstall_entry(
 
     install_root = Path(args.install_root).expanduser().resolve()
     if not install_root.exists():
-        output_fn(f"Install root nije pronadjen: {install_root}")
+        output_fn(f"Install root nije pronađen: {install_root}")
         return 1
 
     start_menu_dir = _resolve_start_menu_programs_dir()
@@ -51,7 +51,7 @@ def run_control_center_uninstall_entry(
 
     output_fn("Local AI Control Center uninstall je pokrenut.")
     output_fn(f"Install root: {install_root}")
-    output_fn("Folder i preostale ikone ce biti uklonjeni za nekoliko sekundi.")
+    output_fn("Folder i preostale ikone će biti uklonjeni za nekoliko sekundi.")
     return 0
 
 

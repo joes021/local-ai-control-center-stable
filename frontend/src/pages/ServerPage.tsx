@@ -16,7 +16,7 @@ export function ServerPage() {
       setServerStatus(payload);
       setError(null);
     } catch (reason: unknown) {
-      setError(reason instanceof Error ? reason.message : "Nepoznata greska");
+      setError(reason instanceof Error ? reason.message : "Nepoznata greška");
     }
   }
 
@@ -26,7 +26,7 @@ export function ServerPage() {
       setResult(actionResult);
       await loadStatus();
     } catch (reason: unknown) {
-      const message = reason instanceof Error ? reason.message : "Nepoznata greska";
+      const message = reason instanceof Error ? reason.message : "Nepoznata greška";
       setError(message);
     }
   }
@@ -52,7 +52,7 @@ export function ServerPage() {
       })
       .catch((reason: unknown) => {
         if (active) {
-          setError(reason instanceof Error ? reason.message : "Nepoznata greska");
+          setError(reason instanceof Error ? reason.message : "Nepoznata greška");
         }
       });
 
@@ -71,7 +71,7 @@ export function ServerPage() {
       {error ? <div className="error-panel">{error}</div> : null}
       <section className="status-card wide-card">
         <span className="status-label">Runtime server</span>
-        <strong className="status-value">{serverStatus?.lastReason || "Ucitavam server status..."}</strong>
+        <strong className="status-value">{serverStatus?.lastReason || "Učitavam server status..."}</strong>
         <p className="helper-text">
           Ovo je mesto za kontrolu rada servera. Home prikazuje samo kratak summary.
         </p>
@@ -102,22 +102,22 @@ export function ServerPage() {
             title={serverStatus?.openWebBlockedReason || undefined}
             onClick={openServerWebNow}
           >
-            Open runtime web
+            Otvori runtime veb
           </button>
         </div>
       </section>
 
-      <StatusCard label="Server status" value={serverStatus?.status ?? "--"} />
-      <StatusCard label="Server health" value={serverStatus?.health ?? "--"} />
-      <StatusCard label="Server PID" value={serverStatus?.pid ? String(serverStatus.pid) : "nije potvrden"} />
-      <StatusCard label="Server port" value={serverStatus ? String(serverStatus.port) : "--"} />
+      <StatusCard label="Status servera" value={serverStatus?.status ?? "--"} />
+      <StatusCard label="Health servera" value={serverStatus?.health ?? "--"} />
+      <StatusCard label="PID servera" value={serverStatus?.pid ? String(serverStatus.pid) : "nije potvrđen"} />
+      <StatusCard label="Port servera" value={serverStatus ? String(serverStatus.port) : "--"} />
 
       <section className="status-card wide-card">
         <span className="status-label">Poslednja poruka</span>
         <strong className="status-value">{serverStatus?.lastReason || "Nema lifecycle poruke."}</strong>
         <p className="helper-text">Health URL: {serverStatus?.healthUrl || "--"}</p>
         <p className="helper-text">Lokalni web: {serverStatus?.localWebUrl || "nije dostupan"}</p>
-        <p className="helper-text">Tailscale web: {serverStatus?.tailscaleWebUrl || "nije izlozen kroz Tailscale"}</p>
+        <p className="helper-text">Tailscale veb: {serverStatus?.tailscaleWebUrl || "nije izložen kroz Tailscale"}</p>
         <p className="helper-text">
           Runtime live signal: {serverStatus?.runtimeLiveStatus || "--"} | {serverStatus?.runtimeLiveReason || "Nema dodatnih detalja."}
         </p>

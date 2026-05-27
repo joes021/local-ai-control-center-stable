@@ -133,7 +133,7 @@ def activate_model(
     config = config or get_config()
     model = _resolve_model_by_id(config, model_id)
     if model is None:
-        return action_result("error", "activate-model", f"Model nije pronadjen: {model_id}", stderr=f"Model nije pronadjen: {model_id}")
+        return action_result("error", "activate-model", f"Model nije pronađen: {model_id}", stderr=f"Model nije pronađen: {model_id}")
 
     model_path = Path(str(model.get("resolvedPath", "") or ""))
     if not model_path.is_file():
@@ -182,7 +182,7 @@ def activate_model(
     summary_bits = [f"Aktivan model postavljen na: {model['label']}"]
     if force and not hardware_fit_ok:
         summary_bits.append(
-            f"Forsirana aktivacija je prihvacena iako compatibility procena kaze: {hardware_fit_reason}"
+            f"Forsirana aktivacija je prihvaćena iako compatibility procena kaže: {hardware_fit_reason}"
         )
     try:
         runtime_endpoint = load_runtime_endpoint_config(config.runtime_endpoint_config_path)
@@ -192,13 +192,13 @@ def activate_model(
             public_model_name=model_path.name,
             control_center_base_url=config.ui_url,
         )
-        summary_bits.append("OpenCode config je osvezen")
+        summary_bits.append("OpenCode config je osvežen")
     except Exception as exc:  # noqa: BLE001
         rollback_activation_state()
         return action_result(
             "error",
             "activate-model",
-            f"{summary_bits[0]}, ali OpenCode config nije osvezen. Promena aktivnog modela je vracena.",
+            f"{summary_bits[0]}, ali OpenCode config nije osvežen. Promena aktivnog modela je vraćena.",
             stdout=json.dumps(
                 {
                     "modelId": model["id"],
@@ -220,7 +220,7 @@ def activate_model(
             return action_result(
                 "error",
                 "activate-model",
-                f"Runtime nije mogao bezbedno da se zaustavi za promenu modela. Promena aktivnog modela je vracena. {stop_result.get('summary', '')}".strip(),
+                f"Runtime nije mogao bezbedno da se zaustavi za promenu modela. Promena aktivnog modela je vraćena. {stop_result.get('summary', '')}".strip(),
                 stderr=str(stop_result.get("details", {}).get("stderr", "") or stop_result.get("summary", "")),
             )
         start_result = start_server(config)
@@ -231,13 +231,13 @@ def activate_model(
                 return action_result(
                     "error",
                     "activate-model",
-                    "Novi model nije mogao da pokrene runtime. Promena aktivnog modela je vracena i prethodni runtime je ponovo pokrenut.",
+                    "Novi model nije mogao da pokrene runtime. Promena aktivnog modela je vraćena i prethodni runtime je ponovo pokrenut.",
                     stderr=str(start_result.get("details", {}).get("stderr", "") or start_result.get("summary", "")),
                 )
             return action_result(
                 "error",
                 "activate-model",
-                "Novi model nije mogao da pokrene runtime. Promena aktivnog modela je vracena, ali prethodni runtime nije mogao automatski da se vrati.",
+                "Novi model nije mogao da pokrene runtime. Promena aktivnog modela je vraćena, ali prethodni runtime nije mogao automatski da se vrati.",
                 stderr=str(start_result.get("details", {}).get("stderr", "") or start_result.get("summary", "")),
             )
         summary_bits.append("runtime je restartovan")
@@ -268,8 +268,8 @@ def add_local_model(
         return action_result(
             "error",
             "add-local-model",
-            "Lokalni GGUF fajl nije pronadjen.",
-            stderr="Lokalni GGUF fajl nije pronadjen.",
+            "Lokalni GGUF fajl nije pronađen.",
+            stderr="Lokalni GGUF fajl nije pronađen.",
         )
     if source_path.suffix.lower() != ".gguf":
         return action_result(
@@ -334,7 +334,7 @@ def add_hf_model(
     result = action_result(
         "ok",
         "add-hf-model",
-        f"Hugging Face model je dodat u spisak: {entry['label']}. Sledeci korak je Download.",
+        f"Hugging Face model je dodat u spisak: {entry['label']}. Sledeći korak je Download.",
     )
     result["localModelId"] = entry["id"]
     return result
@@ -372,7 +372,7 @@ def add_unsloth_model(
     result = action_result(
         "ok",
         "add-unsloth-model",
-        f"Unsloth model je dodat u spisak: {entry['label']}. Sledeci korak je Download.",
+        f"Unsloth model je dodat u spisak: {entry['label']}. Sledeći korak je Download.",
     )
     result["localModelId"] = entry["id"]
     return result
@@ -388,7 +388,7 @@ def delete_model(
     config = config or get_config()
     model = _resolve_model_by_id(config, model_id)
     if model is None:
-        return action_result("error", "delete-model", f"Model nije pronadjen: {model_id}", stderr=f"Model nije pronadjen: {model_id}")
+        return action_result("error", "delete-model", f"Model nije pronađen: {model_id}", stderr=f"Model nije pronađen: {model_id}")
     if not remove_file and not remove_registry:
         return action_result("error", "delete-model", "Izaberi bar jednu delete akciju.", stderr="Izaberi bar jednu delete akciju.")
 
@@ -397,8 +397,8 @@ def delete_model(
         return action_result(
             "error",
             "delete-model",
-            "Aktivni model ne moze da se obrise sa diska dok je aktivan.",
-            stderr="Aktivni model ne moze da se obrise sa diska dok je aktivan.",
+            "Aktivni model ne može da se obrise sa diska dok je aktivan.",
+            stderr="Aktivni model ne može da se obrise sa diska dok je aktivan.",
         )
 
     removed_file = False
@@ -446,13 +446,13 @@ def download_model(
         return action_result(
             "error",
             "download-model",
-            "Vec postoji aktivan model download. Sacekaj da se zavrsi pre novog pokusaja.",
-            stderr="Vec postoji aktivan model download.",
+            "Već postoji aktivan model download. Sačekaj da se završi pre novog pokušaja.",
+            stderr="Već postoji aktivan model download.",
         )
 
     model = _resolve_model_by_id(config, model_id)
     if model is None:
-        return action_result("error", "download-model", f"Model nije pronadjen: {model_id}", stderr=f"Model nije pronadjen: {model_id}")
+        return action_result("error", "download-model", f"Model nije pronađen: {model_id}", stderr=f"Model nije pronađen: {model_id}")
     if bool(model.get("installed")):
         _write_download_progress(
             config,
@@ -462,11 +462,11 @@ def download_model(
                 "modelId": model_id,
                 "fileName": str(model.get("filename", "") or ""),
                 "source": str(model.get("source", "") or ""),
-                "message": "Model je vec prisutan na disku.",
+                "message": "Model je već prisutan na disku.",
                 "updatedAt": _utc_now(),
             },
         )
-        return action_result("ok", "download-model", "Model je vec prisutan na disku.")
+        return action_result("ok", "download-model", "Model je već prisutan na disku.")
     if str(model.get("source", "")) == "local":
         return action_result(
             "error",
@@ -502,7 +502,7 @@ def download_model(
             "modelId": model_id,
             "fileName": str(model.get("filename", "") or ""),
             "source": str(model.get("source", "") or ""),
-            "message": f"Pokrecem download za {model.get('label', model_id)}",
+            "message": f"Pokrećem download za {model.get('label', model_id)}",
             "updatedAt": _utc_now(),
         },
     )
@@ -560,7 +560,7 @@ def run_model_download_worker(
     action_id = str(current_progress.get("actionId", "") or "")
     model = _resolve_model_by_id(config, model_id)
     if model is None:
-        failure = action_result("error", "download-model", f"Model nije pronadjen: {model_id}", stderr=f"Model nije pronadjen: {model_id}")
+        failure = action_result("error", "download-model", f"Model nije pronađen: {model_id}", stderr=f"Model nije pronađen: {model_id}")
         _write_download_progress(
             config,
             {
@@ -657,7 +657,7 @@ def run_model_download_worker(
                 "totalGiB": _to_gib(destination.stat().st_size),
                 "speedMBps": None,
                 "etaSeconds": 0,
-                "message": f"Download je zavrsen za {model.get('label', model_id)}",
+                "message": f"Download je završen za {model.get('label', model_id)}",
                 "updatedAt": _utc_now(),
                 "workerPid": os.getpid(),
             },
@@ -665,7 +665,7 @@ def run_model_download_worker(
         result = action_result(
             "ok",
             "download-model",
-            f"Download je zavrsen za: {model.get('label', model_id)}",
+            f"Download je završen za: {model.get('label', model_id)}",
             stdout=str(destination),
         )
         _finalize_model_action_state(config, action_id, result)
@@ -724,7 +724,7 @@ def load_download_progress_payload(
         "workerPid": _coerce_int(payload.get("workerPid")),
     }
     if _is_stale_active_download(normalized):
-        stale_message = "Download worker vise nije aktivan. Pokreni download ponovo."
+        stale_message = "Download worker više nije aktivan. Pokreni download ponovo."
         normalized = {
             **normalized,
             "status": "error",
@@ -766,7 +766,7 @@ def get_model_action_status(
         return {
             "actionId": action_id,
             "status": "missing",
-            "summary": "Model akcija nije pronadjena.",
+            "summary": "Model akcija nije pronađena.",
             "isDone": True,
             "result": None,
         }
@@ -1136,7 +1136,7 @@ def _annotate_model_entry_lifecycle(
     annotated["lifecycleSummary"] = lifecycle_summary
     annotated["canDownload"] = bool(download_url)
     annotated["downloadSummary"] = (
-        "Download je vec u toku za ovaj model."
+        "Download je već u toku za ovaj model."
         if download_active
         else "Download je dostupan za ovaj model."
         if download_url
@@ -1235,7 +1235,7 @@ def _derive_model_lifecycle(
     if installed and not supports_activation:
         return "unsupported", "Nepodrzan za runtime", activation_summary
     if source == "local":
-        return "missing", "Fajl nedostaje", "Lokalni model nije pronadjen na disku."
+        return "missing", "Fajl nedostaje", "Lokalni model nije pronađen na disku."
     if download_url:
         return "downloadable", "Spreman za download", "Download je dostupan za ovaj model."
     return "unavailable", "Nedostupan", activation_summary
@@ -1422,9 +1422,9 @@ def _default_download_message(status: str) -> str:
     return {
         "starting": "Download se priprema.",
         "downloading": "Download je u toku.",
-        "completed": "Download je zavrsen.",
-        "already-installed": "Model je vec instaliran.",
-        "error": "Download je prijavio gresku.",
+        "completed": "Download je završen.",
+        "already-installed": "Model je već instaliran.",
+        "error": "Download je prijavio grešku.",
     }.get(status, "Nema aktivnog download-a.")
 
 

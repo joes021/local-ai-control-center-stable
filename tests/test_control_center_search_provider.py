@@ -53,7 +53,7 @@ def test_search_provider_status_reports_not_configured_when_base_url_is_blank(
 
     assert status["status"] == "not-configured"
     assert status["source"] == "none"
-    assert "nije podesen" in str(status["summary"]).lower()
+    assert "nije podešen" in str(status["summary"]).lower()
     assert status["canQuery"] is False
 
 
@@ -105,7 +105,7 @@ def test_search_provider_status_treats_unreachable_legacy_default_as_not_configu
 
     assert status["status"] == "not-configured"
     assert status["source"] == "none"
-    assert "nije podesen" in str(status["summary"]).lower()
+    assert "nije podešen" in str(status["summary"]).lower()
     assert status["canQuery"] is False
 
 
@@ -160,7 +160,7 @@ def test_search_provider_status_reports_duckduckgo_as_ready_without_bootstrap(
     assert status["providerLabel"] == "DuckDuckGo"
     assert status["canQuery"] is True
     assert status["canBootstrap"] is False
-    assert "bez api kljuca" in str(status["summary"]).lower()
+    assert "bez api ključa" in str(status["summary"]).lower()
 
 
 def test_bootstrap_search_provider_reports_blocked_when_wsl_is_unavailable(

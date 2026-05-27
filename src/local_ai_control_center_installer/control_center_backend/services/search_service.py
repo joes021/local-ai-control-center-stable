@@ -113,7 +113,7 @@ def perform_search_query(
         "mode": mode_label,
         "query": normalized_query,
         "resultCount": len(results),
-        "summary": f"Pronadjeno je {len(results)} web rezultata preko {_provider_label(provider)}.",
+        "summary": f"Pronađeno je {len(results)} veb rezultata preko {_provider_label(provider)}.",
         "results": results,
         "history": [],
     }
@@ -446,7 +446,7 @@ def _perform_provider_query(
 
     if not target["effectiveBaseUrl"]:
         raise _SearchProviderError(
-            "SearxNG nije podesen. Pokreni Setup local SearxNG ili unesi pravi base URL."
+            "SearxNG nije podešen. Pokreni Setup local SearxNG ili unesi pravi base URL."
         )
 
     request_url = _build_searxng_request_url(str(target["effectiveBaseUrl"]), query)
@@ -472,7 +472,7 @@ def _perform_provider_query(
             == LEGACY_DEFAULT_WEB_SEARCH_BASE_URL.rstrip("/")
         ):
             raise _SearchProviderError(
-                "Legacy 127.0.0.1:8080 vise se ne smatra podrazumevanim SearxNG endpointom. Pokreni Setup local SearxNG ili unesi pravi base URL."
+                "Legacy 127.0.0.1:8080 više se ne smatra podrazumevanim SearxNG endpointom. Pokreni Setup local SearxNG ili unesi pravi base URL."
             ) from None
         raise _SearchProviderError(f"SearxNG query nije uspeo: {exc}") from None
     return _normalize_searxng_results(raw_payload, limit=limit)
@@ -659,9 +659,9 @@ def _inject_search_context(
 
 def _build_search_system_prompt(search_payload: dict[str, Any]) -> str:
     lines = [
-        "Koristi sledece web rezultate kao dodatni kontekst.",
-        "Ako odgovor nije jasno podrzan rezultatima, reci to otvoreno.",
-        "Kada se pozivas na web rezultat, navedi naslov i URL iz izvora.",
+        "Koristi sledeće veb rezultate kao dodatni kontekst.",
+        "Ako odgovor nije jasno podržan rezultatima, reci to otvoreno.",
+        "Kada se pozivaš na veb rezultat, navedi naslov i URL iz izvora.",
         "",
         f"Search query: {search_payload.get('query', '')}",
         "",

@@ -15,7 +15,7 @@ def pick_local_gguf() -> dict[str, object]:
             ["zenity", "--file-selection", "--file-filter=GGUF files | *.gguf"],
             action="pick-local-gguf",
             missing_picker_message=(
-                "Linux picker nije dostupan. Instaliraj zenity ili upisi putanju rucno."
+                "Linux picker nije dostupan. Instaliraj zenity ili upiši putanju ručno."
             ),
         )
 
@@ -37,7 +37,7 @@ def pick_working_directory() -> dict[str, object]:
             ["zenity", "--file-selection", "--directory"],
             action="pick-working-directory",
             missing_picker_message=(
-                "Linux picker nije dostupan. Instaliraj zenity ili upisi putanju rucno."
+                "Linux picker nije dostupan. Instaliraj zenity ili upiši putanju ručno."
             ),
         )
 
