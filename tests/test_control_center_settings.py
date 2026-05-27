@@ -52,6 +52,23 @@ def test_settings_route_persists_global_defaults_and_model_override(
     assert initial.json()["webSearchMaxResults"] == 5
     assert initial.json()["webSearchTimeoutSeconds"] == 20
     assert initial.json()["webSearchPromptPrefix"] == "/web"
+    assert initial.json()["themeId"] == "dark-chocolate"
+    assert [item["id"] for item in initial.json()["availableThemes"]] == [
+        "dark-chocolate",
+        "light",
+        "dark",
+        "neon-green",
+        "marine-blue",
+    ]
+    assert initial.json()["selectedWorkflowPresetId"] == "research"
+    assert [item["id"] for item in initial.json()["availableWorkflowPresets"]] == [
+        "research",
+        "code",
+        "low-vram",
+        "long-context",
+        "docs-plus-web",
+        "benchmark-battery",
+    ]
     assert initial.json()["searchProviderStatus"]["status"] == "not-configured"
 
     response = client.post(
@@ -77,6 +94,8 @@ def test_settings_route_persists_global_defaults_and_model_override(
             "webSearchMaxResults": 7,
             "webSearchTimeoutSeconds": 12,
             "webSearchPromptPrefix": "!web",
+            "themeId": "marine-blue",
+            "workflowPresetId": "low-vram",
         },
     )
     assert response.status_code == 200
@@ -99,6 +118,8 @@ def test_settings_route_persists_global_defaults_and_model_override(
     assert payload["webSearchMaxResults"] == 7
     assert payload["webSearchTimeoutSeconds"] == 12
     assert payload["webSearchPromptPrefix"] == "!web"
+    assert payload["themeId"] == "marine-blue"
+    assert payload["selectedWorkflowPresetId"] == "low-vram"
 
     override_response = client.post(
         "/api/settings/apply",
@@ -123,6 +144,8 @@ def test_settings_route_persists_global_defaults_and_model_override(
             "webSearchMaxResults": 2,
             "webSearchTimeoutSeconds": 4,
             "webSearchPromptPrefix": "/browser",
+            "themeId": "light",
+            "workflowPresetId": "code",
         },
     )
     assert override_response.status_code == 200
@@ -142,6 +165,8 @@ def test_settings_route_persists_global_defaults_and_model_override(
     assert override_payload["webSearchMaxResults"] == 7
     assert override_payload["webSearchTimeoutSeconds"] == 12
     assert override_payload["webSearchPromptPrefix"] == "!web"
+    assert override_payload["themeId"] == "light"
+    assert override_payload["selectedWorkflowPresetId"] == "code"
 
 
 def test_settings_route_saves_and_deletes_custom_settings_profiles(

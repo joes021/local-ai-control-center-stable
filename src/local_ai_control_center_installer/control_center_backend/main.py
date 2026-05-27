@@ -1,4 +1,5 @@
 from pathlib import Path
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.responses import FileResponse
@@ -52,9 +53,32 @@ from local_ai_control_center_installer.control_center_backend.routes.runtime_pro
 from local_ai_control_center_installer.control_center_backend.routes.knowledge import (
     router as knowledge_router,
 )
+from local_ai_control_center_installer.control_center_backend.routes.observability import (
+    router as observability_router,
+)
+from local_ai_control_center_installer.control_center_backend.routes.fleet import (
+    router as fleet_router,
+)
+from local_ai_control_center_installer.control_center_backend.routes.jobs import (
+    router as jobs_router,
+)
 from local_ai_control_center_installer.control_center_backend.config import get_config
+from local_ai_control_center_installer.control_center_backend.services.jobs_service import (
+    start_jobs_scheduler,
+    stop_jobs_scheduler,
+)
 
-app = FastAPI(title="Local AI Control Center")
+
+@asynccontextmanager
+async def _lifespan(_: FastAPI):
+    start_jobs_scheduler()
+    try:
+        yield
+    finally:
+        stop_jobs_scheduler()
+
+
+app = FastAPI(title="Local AI Control Center", lifespan=_lifespan)
 
 
 def _package_root() -> Path:
@@ -108,6 +132,9 @@ app.include_router(benchmark_router)
 app.include_router(search_router)
 app.include_router(runtime_proxy_router)
 app.include_router(knowledge_router)
+app.include_router(observability_router)
+app.include_router(fleet_router)
+app.include_router(jobs_router)
 
 _packaged_assets = _package_root() / "frontend_dist" / "assets"
 if _packaged_assets.is_dir():

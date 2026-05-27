@@ -6,6 +6,7 @@ import {
   clearBenchmarkHistory,
   exportBenchmarkRuns,
   fetchBenchmark,
+  fetchSettings,
   fetchBenchmarkCompare,
   loadBenchmarkBattery,
   restoreDefaultBenchmarkTests,
@@ -13,11 +14,13 @@ import {
   runSelectedBenchmark,
   saveBenchmarkBattery,
 } from "../lib/api";
+import { resolveSelectedWorkflowPreset } from "../lib/workflowPresets";
 import type {
   BenchmarkComparePayload,
   BenchmarkHistoryItem,
   BenchmarkPayload,
   BenchmarkScenario,
+  SettingsPayload,
 } from "../lib/types";
 
 const REALTIME_REFRESH_MS = 5000;
@@ -315,6 +318,7 @@ export function BenchmarkPage({ onOpenLogs }: { onOpenLogs: () => void }) {
   const [batteryName, setBatteryName] = useState("");
   const [scenariosDraft, setScenariosDraft] = useState<BenchmarkScenario[]>([]);
   const [actionMessage, setActionMessage] = useState("");
+  const [settingsPayload, setSettingsPayload] = useState<SettingsPayload | null>(null);
   const [selectedRangeKey, setSelectedRangeKey] = useState<RangeKey>("1m");
   const [nowTickMs, setNowTickMs] = useState(() => Date.now());
   const isMountedRef = useRef(false);
@@ -326,11 +330,12 @@ export function BenchmarkPage({ onOpenLogs }: { onOpenLogs: () => void }) {
     requestIdRef.current = requestId;
     inFlightRef.current = true;
     try {
-      const payload = await fetchBenchmark();
+      const [payload, nextSettings] = await Promise.all([fetchBenchmark(), fetchSettings()]);
       if (!isMountedRef.current || requestId !== requestIdRef.current) {
         return;
       }
       setBenchmark(payload);
+      setSettingsPayload(nextSettings);
       setError(null);
       setActionMessage("");
       setSelectedScenarioId((current) => current || payload.selectedBattery?.scenarios?.[0]?.id || "");
@@ -374,6 +379,10 @@ export function BenchmarkPage({ onOpenLogs }: { onOpenLogs: () => void }) {
       window.clearInterval(timer);
     };
   }, []);
+  const currentWorkflowPreset = useMemo(
+    () => resolveSelectedWorkflowPreset(settingsPayload),
+    [settingsPayload],
+  );
 
   useEffect(() => {
     if (selectedCompareRunIds.length < 2) {
@@ -627,6 +636,11 @@ export function BenchmarkPage({ onOpenLogs }: { onOpenLogs: () => void }) {
     <>
       <section className="status-card wide-card">
         <span className="status-label">Benchmark controls</span>
+        {currentWorkflowPreset ? (
+          <p className="helper-text">
+            Workflow preset: {currentWorkflowPreset.label} | {currentWorkflowPreset.benchmarkDefaults.runLabel}
+          </p>
+        ) : null}
         <div className="inline-actions" style={{ flexWrap: "wrap", gap: "12px" }}>
           <CustomSelect
             value={selectedScenarioId}

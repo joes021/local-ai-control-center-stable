@@ -11,11 +11,14 @@ import type {
   BenchmarkScenario,
   BenchmarkRunStatusPayload,
   DownloadProgressPayload,
+  FleetSummaryPayload,
+  ObservabilityPayload,
   KnowledgeAnswerPayload,
   KnowledgeQueryPayload,
   KnowledgeReindexPayload,
   KnowledgeSourceActionPayload,
   KnowledgeSummaryPayload,
+  JobsSummaryPayload,
   CompatibilityApplyResponse,
   CompatibilityCheckRequest,
   ModelActionStatusPayload,
@@ -63,6 +66,57 @@ export async function fetchBenchmark(): Promise<BenchmarkPayload> {
     throw new Error(`Benchmark request failed: ${response.status}`);
   }
   return response.json() as Promise<BenchmarkPayload>;
+}
+
+export async function fetchObservability(): Promise<ObservabilityPayload> {
+  const response = await fetch("/api/observability", { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(`Observability request failed: ${response.status}`);
+  }
+  return response.json() as Promise<ObservabilityPayload>;
+}
+
+export async function fetchFleetSummary(): Promise<FleetSummaryPayload> {
+  const response = await fetch("/api/fleet", { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(`Fleet request failed: ${response.status}`);
+  }
+  return response.json() as Promise<FleetSummaryPayload>;
+}
+
+export async function addFleetMachine(payload: {
+  name: string;
+  baseUrl: string;
+}): Promise<{ status: string; summary: string; machine?: FleetSummaryPayload["machines"][number] }> {
+  return postJson<typeof payload, { status: string; summary: string; machine?: FleetSummaryPayload["machines"][number] }>(
+    "/api/fleet/add",
+    payload,
+  );
+}
+
+export async function refreshFleetMachine(machineId?: string): Promise<{
+  status: string;
+  summary: string;
+  machine?: FleetSummaryPayload["machines"][number];
+  machines?: FleetSummaryPayload["machines"];
+}> {
+  return postJson<{ machineId?: string }, {
+    status: string;
+    summary: string;
+    machine?: FleetSummaryPayload["machines"][number];
+    machines?: FleetSummaryPayload["machines"];
+  }>("/api/fleet/refresh", machineId ? { machineId } : {});
+}
+
+export async function removeFleetMachine(machineId: string): Promise<{
+  status: string;
+  summary: string;
+  machineId?: string;
+}> {
+  return postJson<{ machineId: string }, { status: string; summary: string; machineId?: string }>(
+    "/api/fleet/remove",
+    { machineId },
+  );
 }
 
 export async function fetchBenchmarkCompare(runIds: string[]): Promise<BenchmarkComparePayload> {
@@ -341,8 +395,42 @@ export async function fetchKnowledgeSummary(): Promise<KnowledgeSummaryPayload> 
   return response.json() as Promise<KnowledgeSummaryPayload>;
 }
 
-export async function addKnowledgeSource(path: string): Promise<KnowledgeSourceActionPayload> {
-  return postJson<{ path: string }, KnowledgeSourceActionPayload>("/api/knowledge/sources/add", { path });
+export async function fetchJobsSummary(): Promise<JobsSummaryPayload> {
+  const response = await fetch("/api/jobs", { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(`Jobs summary request failed: ${response.status}`);
+  }
+  return response.json() as Promise<JobsSummaryPayload>;
+}
+
+export async function saveJob(payload: {
+  id?: string;
+  name: string;
+  kind: string;
+  intervalMinutes: number;
+  enabled: boolean;
+  targetId?: string;
+  workflowPresetId?: string;
+}): Promise<{ status: string; summary: string }> {
+  return postJson("/api/jobs/save", payload);
+}
+
+export async function runJobNow(jobId: string): Promise<{ status: string; summary: string }> {
+  return postJson("/api/jobs/run", { jobId });
+}
+
+export async function deleteJob(jobId: string): Promise<{ status: string; summary: string }> {
+  return postJson("/api/jobs/delete", { jobId });
+}
+
+export async function addKnowledgeSource(
+  path: string,
+  options?: { collection?: string; tags?: string[] },
+): Promise<KnowledgeSourceActionPayload> {
+  return postJson<{ path: string; collection?: string; tags?: string[] }, KnowledgeSourceActionPayload>(
+    "/api/knowledge/sources/add",
+    { path, collection: options?.collection, tags: options?.tags },
+  );
 }
 
 export async function removeKnowledgeSource(sourceId: string): Promise<KnowledgeSourceActionPayload> {
@@ -353,18 +441,30 @@ export async function reindexKnowledge(): Promise<KnowledgeReindexPayload> {
   return postJson<Record<string, never>, KnowledgeReindexPayload>("/api/knowledge/reindex", {});
 }
 
-export async function runKnowledgeQuery(query: string): Promise<KnowledgeQueryPayload> {
-  return postJson<{ query: string }, KnowledgeQueryPayload>("/api/knowledge/query", { query });
+export async function runKnowledgeQuery(
+  query: string,
+  options?: { collection?: string; tag?: string },
+): Promise<KnowledgeQueryPayload> {
+  return postJson<{ query: string; collection?: string; tag?: string }, KnowledgeQueryPayload>(
+    "/api/knowledge/query",
+    { query, collection: options?.collection, tag: options?.tag },
+  );
 }
 
 export async function answerWithKnowledge(
   query: string,
   mode: "documents-only" | "documents+web" | "web-only",
+  options?: { collection?: string; tag?: string },
 ): Promise<KnowledgeAnswerPayload> {
-  return postJson<{ query: string; mode: string }, KnowledgeAnswerPayload>("/api/knowledge/answer", {
-    query,
-    mode,
-  });
+  return postJson<{ query: string; mode: string; collection?: string; tag?: string }, KnowledgeAnswerPayload>(
+    "/api/knowledge/answer",
+    {
+      query,
+      mode,
+      collection: options?.collection,
+      tag: options?.tag,
+    },
+  );
 }
 
 export async function applySettings(payload: SettingsPayload): Promise<ActionResult> {

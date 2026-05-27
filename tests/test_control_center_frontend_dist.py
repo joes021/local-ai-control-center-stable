@@ -56,6 +56,81 @@ def test_settings_page_source_shows_custom_numeric_fields_conditionally():
     assert 'outputTokensChoice === "custom" ? (' in source
 
 
+def test_theme_source_and_packaged_frontend_include_named_themes():
+    settings_source = Path("frontend/src/pages/SettingsPage.tsx").read_text(encoding="utf-8")
+    layout_source = Path("frontend/src/components/Layout.tsx").read_text(encoding="utf-8")
+    styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
+
+    assert "Dark Chocolate" in settings_source
+    assert "Light" in settings_source
+    assert "Dark" in settings_source
+    assert "Neon Green" in settings_source
+    assert "Marine Blue" in settings_source
+    assert "data-theme" in layout_source
+    assert '[data-theme="dark-chocolate"]' in styles_source
+    assert '[data-theme="light"]' in styles_source
+    assert '[data-theme="dark"]' in styles_source
+    assert '[data-theme="neon-green"]' in styles_source
+    assert '[data-theme="marine-blue"]' in styles_source
+
+
+def test_workflow_preset_source_mentions_core_presets():
+    workflow_source = Path("frontend/src/lib/workflowPresets.ts").read_text(encoding="utf-8")
+    search_source = Path("frontend/src/pages/SearchPage.tsx").read_text(encoding="utf-8")
+    knowledge_source = Path("frontend/src/pages/KnowledgePage.tsx").read_text(encoding="utf-8")
+    benchmark_source = Path("frontend/src/pages/BenchmarkPage.tsx").read_text(encoding="utf-8")
+
+    assert "Research" in workflow_source
+    assert "Code" in workflow_source
+    assert "Low VRAM" in workflow_source
+    assert "Long context" in workflow_source
+    assert "Docs + web" in workflow_source
+    assert "Benchmark battery" in workflow_source
+    assert "Workflow preset" in search_source
+    assert "Workflow preset" in knowledge_source
+    assert "Workflow preset" in benchmark_source
+
+
+def test_observability_source_and_navigation_are_present():
+    app_source = Path("frontend/src/App.tsx").read_text(encoding="utf-8")
+    observability_source = Path("frontend/src/pages/ObservabilityPage.tsx").read_text(encoding="utf-8")
+
+    assert "Observability" in app_source
+    assert "Live GPU" in observability_source
+    assert "Runtime signal" in observability_source
+    assert "Recent log signals" in observability_source
+
+
+def test_fleet_source_and_navigation_are_present():
+    app_source = Path("frontend/src/App.tsx").read_text(encoding="utf-8")
+    fleet_source = Path("frontend/src/pages/FleetPage.tsx").read_text(encoding="utf-8")
+
+    assert "Fleet" in app_source
+    assert "Remote machines" in fleet_source
+    assert "Refresh all" in fleet_source
+    assert "Add machine" in fleet_source
+
+
+def test_jobs_source_and_navigation_are_present():
+    app_source = Path("frontend/src/App.tsx").read_text(encoding="utf-8")
+    jobs_source = Path("frontend/src/pages/JobsPage.tsx").read_text(encoding="utf-8")
+
+    assert "Jobs" in app_source
+    assert "Scheduled jobs" in jobs_source
+    assert "Run now" in jobs_source
+    assert "Save job" in jobs_source
+
+
+def test_workflows_source_and_navigation_are_present():
+    app_source = Path("frontend/src/App.tsx").read_text(encoding="utf-8")
+    workflows_source = Path("frontend/src/pages/WorkflowsPage.tsx").read_text(encoding="utf-8")
+
+    assert "Workflows" in app_source
+    assert "Workflow workspace" in workflows_source
+    assert "Activate preset" in workflows_source
+    assert "Open Search" in workflows_source
+
+
 def test_packaged_settings_action_and_browse_buttons_use_panel_button_theme():
     dist_root = Path(
         "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
@@ -274,6 +349,11 @@ def test_app_source_and_packaged_frontend_include_knowledge_navigation():
     assert "Knowledge workspace" in bundled_text
     assert "Documents + web" in bundled_text
     assert "Browse" in bundled_text
+    assert "Collections" in knowledge_source
+    assert "Tags" in knowledge_source
+    assert "Citations" in knowledge_source
+    assert "Export JSON" in knowledge_source
+    assert "Export Markdown" in knowledge_source
 
 
 def test_settings_and_opencode_source_include_web_search_controls_and_guidance():

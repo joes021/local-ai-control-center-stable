@@ -3,16 +3,19 @@ import { useEffect, useMemo, useState } from "react";
 import {
   addKnowledgeSource,
   answerWithKnowledge,
+  fetchSettings,
   fetchKnowledgeSummary,
   pickWorkingDirectory,
   reindexKnowledge,
   removeKnowledgeSource,
   runKnowledgeQuery,
 } from "../lib/api";
+import { resolveSelectedWorkflowPreset } from "../lib/workflowPresets";
 import type {
   KnowledgeAnswerPayload,
   KnowledgeQueryPayload,
   KnowledgeSummaryPayload,
+  SettingsPayload,
 } from "../lib/types";
 
 
@@ -35,19 +38,38 @@ function formatUsage(value: number | null | undefined) {
   return String(value);
 }
 
+function triggerDownload(filename: string, payload: BlobPart, mimeType: string) {
+  const blob = new Blob([payload], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  window.setTimeout(() => URL.revokeObjectURL(url), 500);
+}
+
 export function KnowledgePage({ onOpenSearch }: { onOpenSearch: () => void }) {
   const [summary, setSummary] = useState<KnowledgeSummaryPayload | null>(null);
   const [sourcePath, setSourcePath] = useState("");
+  const [sourceCollection, setSourceCollection] = useState("");
+  const [sourceTags, setSourceTags] = useState("");
   const [query, setQuery] = useState("");
   const [mode, setMode] = useState<KnowledgeMode>("documents-only");
+  const [collectionFilter, setCollectionFilter] = useState("");
+  const [tagFilter, setTagFilter] = useState("");
   const [queryPayload, setQueryPayload] = useState<KnowledgeQueryPayload | null>(null);
   const [answerPayload, setAnswerPayload] = useState<KnowledgeAnswerPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busyAction, setBusyAction] = useState<string>("");
+  const [settingsPayload, setSettingsPayload] = useState<SettingsPayload | null>(null);
 
   async function loadSummary() {
-    const payload = await fetchKnowledgeSummary();
+    const [payload, nextSettings] = await Promise.all([fetchKnowledgeSummary(), fetchSettings()]);
     setSummary(payload);
+    setSettingsPayload(nextSettings);
+    if (!settingsPayload) {
+      setMode(resolveSelectedWorkflowPreset(nextSettings)?.knowledgeDefaults.mode || "documents-only");
+    }
   }
 
   useEffect(() => {
@@ -62,6 +84,10 @@ export function KnowledgePage({ onOpenSearch }: { onOpenSearch: () => void }) {
     }
     return summary.supportedExtensions.join(", ");
   }, [summary]);
+  const currentWorkflowPreset = useMemo(
+    () => resolveSelectedWorkflowPreset(settingsPayload),
+    [settingsPayload],
+  );
 
   async function refreshAfterAction() {
     await loadSummary();
@@ -85,6 +111,11 @@ export function KnowledgePage({ onOpenSearch }: { onOpenSearch: () => void }) {
           `documents+web` i `web-only` answer tok. Kada ti treba samo web sloj, mozes i direktno
           da otvoris Search tab.
         </p>
+        {currentWorkflowPreset ? (
+          <p className="helper-text">
+            Workflow preset: {currentWorkflowPreset.label} | {currentWorkflowPreset.summary}
+          </p>
+        ) : null}
         <div className="summary-metrics">
           <span>Sources: {summary.sourceCount}</span>
           <span>Documents: {summary.documentCount}</span>
@@ -92,10 +123,31 @@ export function KnowledgePage({ onOpenSearch }: { onOpenSearch: () => void }) {
           <span>Errors: {summary.errorCount}</span>
         </div>
         <p className="helper-text">Podrzani formati: {extensionLine}</p>
+        <p className="helper-text">{summary.reindexStatus.summary}</p>
       </section>
 
       <section className="status-card wide-card">
         <span className="status-label">Sources</span>
+        <div className="settings-page-grid">
+          <label className="settings-compact-field">
+            <span>Collection</span>
+            <input
+              type="text"
+              value={sourceCollection}
+              onChange={(event) => setSourceCollection(event.target.value)}
+              placeholder="Manuals, Notes, Projects..."
+            />
+          </label>
+          <label className="settings-compact-field settings-medium-field">
+            <span>Tags</span>
+            <input
+              type="text"
+              value={sourceTags}
+              onChange={(event) => setSourceTags(event.target.value)}
+              placeholder="gpu, llama, coding"
+            />
+          </label>
+        </div>
         <div className="settings-action-row">
           <input
             className="settings-path-input"
@@ -130,11 +182,19 @@ export function KnowledgePage({ onOpenSearch }: { onOpenSearch: () => void }) {
               setBusyAction("add");
               setError(null);
               try {
-                const result = await addKnowledgeSource(sourcePath);
+                const result = await addKnowledgeSource(sourcePath, {
+                  collection: sourceCollection,
+                  tags: sourceTags
+                    .split(",")
+                    .map((item) => item.trim())
+                    .filter(Boolean),
+                });
                 if (result.status !== "ok") {
                   throw new Error(result.summary || "Knowledge source nije dodat.");
                 }
                 setSourcePath("");
+                setSourceCollection("");
+                setSourceTags("");
                 await refreshAfterAction();
               } catch (reason: unknown) {
                 setError(reason instanceof Error ? reason.message : "Knowledge source nije dodat.");
@@ -182,6 +242,10 @@ export function KnowledgePage({ onOpenSearch }: { onOpenSearch: () => void }) {
                       indexed: {item.indexedDocumentCount}
                     </div>
                     <div className="helper-text">
+                      Collection: {item.collection || "--"} | Tags:{" "}
+                      {item.tags.length ? item.tags.join(", ") : "--"}
+                    </div>
+                    <div className="helper-text">
                       Skipped: {item.skippedCount} | Errors: {item.errorCount} | Last index:{" "}
                       {item.lastIndexedAt || "--"}
                     </div>
@@ -219,6 +283,30 @@ export function KnowledgePage({ onOpenSearch }: { onOpenSearch: () => void }) {
 
       <section className="status-card wide-card">
         <span className="status-label">Query + answer</span>
+        <div className="settings-page-grid">
+          <label className="settings-compact-field">
+            <span>Collections</span>
+            <select value={collectionFilter} onChange={(event) => setCollectionFilter(event.target.value)}>
+              <option value="">All collections</option>
+              {summary.collections.map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="settings-compact-field">
+            <span>Tags</span>
+            <select value={tagFilter} onChange={(event) => setTagFilter(event.target.value)}>
+              <option value="">All tags</option>
+              {summary.tags.map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
         <div className="settings-action-row">
           <select value={mode} onChange={(event) => setMode(event.target.value as KnowledgeMode)}>
             <option value="documents-only">Documents only</option>
@@ -227,7 +315,10 @@ export function KnowledgePage({ onOpenSearch }: { onOpenSearch: () => void }) {
           </select>
           <input
             className="settings-path-input"
-            placeholder="Upisi pitanje za knowledge query ili answer"
+            placeholder={
+              currentWorkflowPreset?.knowledgeDefaults.queryHint ||
+              "Upisi pitanje za knowledge query ili answer"
+            }
             value={query}
             onChange={(event) => setQuery(event.target.value)}
           />
@@ -238,7 +329,10 @@ export function KnowledgePage({ onOpenSearch }: { onOpenSearch: () => void }) {
               setBusyAction("query");
               setError(null);
               try {
-                const payload = await runKnowledgeQuery(query);
+                const payload = await runKnowledgeQuery(query, {
+                  collection: collectionFilter,
+                  tag: tagFilter,
+                });
                 setQueryPayload(payload);
                 setAnswerPayload(null);
                 await refreshAfterAction();
@@ -258,11 +352,16 @@ export function KnowledgePage({ onOpenSearch }: { onOpenSearch: () => void }) {
               setBusyAction("answer");
               setError(null);
               try {
-                const payload = await answerWithKnowledge(query, mode);
+                const payload = await answerWithKnowledge(query, mode, {
+                  collection: collectionFilter,
+                  tag: tagFilter,
+                });
                 setAnswerPayload(payload);
                 setQueryPayload({
                   status: payload.status,
                   query: payload.query,
+                  collection: payload.collection,
+                  tag: payload.tag,
                   resultCount: payload.documentResultCount,
                   summary: payload.summary,
                   results: payload.documentResults,
@@ -299,6 +398,10 @@ export function KnowledgePage({ onOpenSearch }: { onOpenSearch: () => void }) {
                     <div className="muted-line">
                       {item.fileType} | score: {item.score.toFixed(2)} | chars: {item.charCount}
                     </div>
+                    <div className="muted-line">
+                      Collection: {item.collection || "--"} | Tags:{" "}
+                      {item.tags.length ? item.tags.join(", ") : "--"}
+                    </div>
                     <div className="muted-line">{item.path}</div>
                     <p className="helper-text">{item.snippet}</p>
                   </div>
@@ -322,6 +425,79 @@ export function KnowledgePage({ onOpenSearch }: { onOpenSearch: () => void }) {
           <span>Web: {answerPayload?.webResultCount ?? 0}</span>
           <span>Prompt tokens: {formatUsage(answerPayload?.usage?.promptTokens)}</span>
         </div>
+        {answerPayload ? (
+          <>
+            <p className="helper-text">
+              Collections: {answerPayload.usedCollections.length ? answerPayload.usedCollections.join(", ") : "--"} |
+              Tags: {answerPayload.usedTags.length ? answerPayload.usedTags.join(", ") : "--"}
+            </p>
+            <div className="inline-actions">
+              <button
+                type="button"
+                onClick={() =>
+                  triggerDownload(
+                    "knowledge-answer.json",
+                    JSON.stringify(answerPayload, null, 2),
+                    "application/json",
+                  )
+                }
+              >
+                Export JSON
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  triggerDownload(
+                    "knowledge-answer.md",
+                    [
+                      `# Knowledge answer\n\n`,
+                      `Query: ${answerPayload.query}\n\n`,
+                      `Mode: ${answerPayload.mode}\n\n`,
+                      `${answerPayload.answer}\n\n`,
+                      `## Citations\n`,
+                      ...answerPayload.citations.map(
+                        (citation) =>
+                          `- [${citation.index}] ${citation.name} | ${citation.collection || "--"} | ${citation.path}\n`,
+                      ),
+                    ].join(""),
+                    "text/markdown",
+                  )
+                }
+              >
+                Export Markdown
+              </button>
+            </div>
+          </>
+        ) : null}
+      </section>
+
+      <section className="status-card wide-card">
+        <span className="status-label">Citations</span>
+        {answerPayload?.citations?.length ? (
+          <div className="model-list">
+            {answerPayload.citations.map((citation) => (
+              <article className="model-item" key={`${citation.index}-${citation.path}`}>
+                <div className="model-item-header">
+                  <div>
+                    <strong>
+                      [{citation.index}] {citation.name}
+                    </strong>
+                    <div className="muted-line">
+                      {citation.collection || "--"} | {citation.tags.length ? citation.tags.join(", ") : "--"}
+                    </div>
+                    <div className="muted-line">{citation.path}</div>
+                    <p className="helper-text">{citation.snippet}</p>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <p className="helper-text">
+            Kad knowledge answer koristi lokalne dokumente, ovde ces videti which docs were used i
+            njihove citate.
+          </p>
+        )}
       </section>
 
       <section className="status-card wide-card">

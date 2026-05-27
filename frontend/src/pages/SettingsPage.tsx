@@ -15,18 +15,59 @@ import {
   saveTurboQuantConfig,
   saveTurboQuantPreset,
 } from "../lib/api";
+import { applyTheme } from "../lib/theme";
+import { resolveSelectedWorkflowPreset, resolveWorkflowPresets } from "../lib/workflowPresets";
 import type {
   ActionResult,
   SearchProviderStatusPayload,
   SettingsPayload,
   SettingsProfilePreset,
   SettingsProfileValues,
+  ThemeOption,
   TurboQuantConfig,
   TurboQuantPreset,
   TurboQuantSchemaPayload,
+  WorkflowPreset,
 } from "../lib/types";
 
 const TURBOQUANT_DRAFT_STORAGE_KEY = "local-ai-control-center:turboquant-draft";
+const FALLBACK_THEME_OPTIONS: ThemeOption[] = [
+  {
+    id: "dark-chocolate",
+    label: "Dark Chocolate",
+    summary: "Topla tamna podloga sa bronzanim i cijan akcentima.",
+    accent: "#f2b84b",
+    textColor: "#f7dfb0",
+  },
+  {
+    id: "light",
+    label: "Light",
+    summary: "Svetla radna tema sa toplim zlatnim akcentom.",
+    accent: "#d59b2f",
+    textColor: "#7f5a12",
+  },
+  {
+    id: "dark",
+    label: "Dark",
+    summary: "Neutralna tamna tema sa hladnijim plavo-sivim tonom.",
+    accent: "#6f8fd8",
+    textColor: "#bfd4ff",
+  },
+  {
+    id: "neon-green",
+    label: "Neon Green",
+    summary: "Visokokontrastna terminalsko-neonska tema za jak signal.",
+    accent: "#58ff8f",
+    textColor: "#c8ffd9",
+  },
+  {
+    id: "marine-blue",
+    label: "Marine Blue",
+    summary: "Duboki plavi komandni most sa morskim cijan akcentom.",
+    accent: "#39b7ff",
+    textColor: "#cbe8ff",
+  },
+];
 const TOKEN_STEP_OPTIONS = [
   { value: "1024", label: "1024" },
   { value: "2048", label: "2048" },
@@ -190,6 +231,22 @@ export function SettingsPage() {
         : null,
     [settings],
   );
+  const availableThemeOptions = useMemo<ThemeOption[]>(
+    () => (settings?.availableThemes?.length ? settings.availableThemes : FALLBACK_THEME_OPTIONS),
+    [settings],
+  );
+  const currentThemeOption = useMemo<ThemeOption | null>(
+    () => (settings ? availableThemeOptions.find((theme) => theme.id === settings.themeId) ?? null : null),
+    [availableThemeOptions, settings],
+  );
+  const workflowPresets = useMemo<WorkflowPreset[]>(
+    () => resolveWorkflowPresets(settings),
+    [settings],
+  );
+  const currentWorkflowPreset = useMemo<WorkflowPreset | null>(
+    () => resolveSelectedWorkflowPreset(settings),
+    [settings],
+  );
 
   if (error) {
     return <div className="error-panel">{error}</div>;
@@ -213,6 +270,20 @@ export function SettingsPage() {
   ];
   const contextChoice = resolveTokenChoice(settings.context);
   const outputTokensChoice = resolveTokenChoice(settings.outputTokens);
+  const activeSettings = settings;
+
+  function applyWorkflowPreset(preset: WorkflowPreset) {
+    setSettings({
+      ...activeSettings,
+      workflowPresetId: preset.id,
+      profile: preset.settingsPatch.profile ?? activeSettings.profile,
+      context: preset.settingsPatch.context ?? activeSettings.context,
+      outputTokens: preset.settingsPatch.outputTokens ?? activeSettings.outputTokens,
+      thinkingMode: preset.settingsPatch.thinkingMode ?? activeSettings.thinkingMode,
+      webSearchMode: preset.settingsPatch.webSearchMode ?? activeSettings.webSearchMode,
+      webSearchProvider: preset.settingsPatch.webSearchProvider ?? activeSettings.webSearchProvider,
+    });
+  }
 
   function updateProviderStatus(nextStatus: SearchProviderStatusPayload) {
     setSettings((current) =>
@@ -303,6 +374,30 @@ export function SettingsPage() {
           </article>
 
           <article className="settings-field settings-field-wide">
+            <span className="settings-field-label">Workflow presets</span>
+            <div className="theme-options-grid">
+              {workflowPresets.map((preset) => {
+                const active = currentWorkflowPreset?.id === preset.id;
+                return (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    className={`theme-option-card ${active ? "theme-option-card-active" : ""}`}
+                    onClick={() => applyWorkflowPreset(preset)}
+                  >
+                    <span className="theme-option-name">{preset.label}</span>
+                    <span className="theme-option-copy">{preset.summary}</span>
+                    <span className="muted-line">{preset.badges.join(" | ")}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <p className="helper-text">
+              Aktivni workflow preset: {currentWorkflowPreset?.label || "Research"}.
+            </p>
+          </article>
+
+          <article className="settings-field settings-field-wide">
             <span className="settings-field-label">Sacuvaj trenutni custom profil</span>
             <div className="settings-action-row">
               <input
@@ -377,6 +472,40 @@ export function SettingsPage() {
               />
             </div>
             <p className="helper-text">Lokalno ili Tailscale izlaganje backend-a.</p>
+          </article>
+
+          <article className="settings-field settings-field-wide">
+            <span className="settings-field-label">Color theme</span>
+            <div className="theme-options-grid">
+              {availableThemeOptions.map((theme) => {
+                const active = settings.themeId === theme.id;
+                return (
+                  <button
+                    key={theme.id}
+                    type="button"
+                    className={`theme-option-card ${active ? "theme-option-card-active" : ""}`}
+                    onClick={() => {
+                      setSettings({
+                        ...settings,
+                        themeId: theme.id,
+                      });
+                      applyTheme(theme.id);
+                    }}
+                  >
+                    <span
+                      className="theme-option-name"
+                      style={{ color: theme.textColor, borderColor: `${theme.accent}55`, background: `${theme.accent}18` }}
+                    >
+                      {theme.label}
+                    </span>
+                    <span className="theme-option-copy">{theme.summary}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <p className="helper-text">
+              Trenutna tema: {currentThemeOption?.label || "Dark Chocolate"}.
+            </p>
           </article>
 
           <article className="settings-field">

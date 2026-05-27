@@ -5,11 +5,12 @@ type LayoutProps = PropsWithChildren<{
   subtitle: ReactNode;
   eyebrow?: ReactNode;
   nav?: ReactNode;
+  themeId?: string;
 }>;
 
-export function Layout({ title, subtitle, eyebrow, nav, children }: LayoutProps) {
+export function Layout({ title, subtitle, eyebrow, nav, children, themeId = "dark-chocolate" }: LayoutProps) {
   return (
-    <div className="app-shell">
+    <div className="app-shell" data-theme={themeId}>
       <header className="hero">
         <p className="eyebrow">{eyebrow ?? "Local AI GUI Shell"}</p>
         <h1>{title}</h1>

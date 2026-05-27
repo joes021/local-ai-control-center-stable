@@ -88,9 +88,12 @@ def load_knowledge_summary(
     stats = _load_index_stats(config)
     per_source = stats["perSource"]
     summary_sources: list[dict[str, Any]] = []
+    collections: set[str] = set()
+    tags: set[str] = set()
     document_count = 0
     indexed_document_count = 0
     error_count = 0
+    last_reindex_at = ""
     for source in sources:
         source_id = str(source.get("id", "") or "")
         source_stats = per_source.get(source_id, {})
@@ -99,21 +102,31 @@ def load_knowledge_summary(
             source_stats.get("indexedDocumentCount", int(source.get("indexedDocumentCount", 0) or 0)) or 0
         )
         source_errors = int(source.get("errorCount", 0) or 0)
+        collection = str(source.get("collection", "") or "").strip()
+        source_tags = _normalize_tags(source.get("tags", []))
         document_count += doc_count
         indexed_document_count += indexed_count
         error_count += source_errors
         normalized_path = str(source.get("path", "") or "")
+        last_indexed_at = str(source.get("lastIndexedAt", "") or "")
+        if last_indexed_at and last_indexed_at > last_reindex_at:
+            last_reindex_at = last_indexed_at
+        if collection:
+            collections.add(collection)
+        tags.update(source_tags)
         summary_sources.append(
             {
                 "id": source_id,
                 "path": normalized_path,
                 "kind": str(source.get("kind", "") or _detect_source_kind(Path(normalized_path))),
                 "exists": Path(normalized_path).exists() if normalized_path else False,
+                "collection": collection,
+                "tags": source_tags,
                 "documentCount": doc_count,
                 "indexedDocumentCount": indexed_count,
                 "errorCount": source_errors,
                 "skippedCount": int(source.get("skippedCount", 0) or 0),
-                "lastIndexedAt": str(source.get("lastIndexedAt", "") or ""),
+                "lastIndexedAt": last_indexed_at,
                 "lastError": str(source.get("lastError", "") or ""),
             }
         )
@@ -124,6 +137,16 @@ def load_knowledge_summary(
         "indexedDocumentCount": indexed_document_count,
         "errorCount": error_count,
         "history": load_knowledge_history(config),
+        "collections": sorted(collections),
+        "tags": sorted(tags),
+        "reindexStatus": {
+            "lastReindexAt": last_reindex_at,
+            "summary": (
+                f"Poslednji reindex: {last_reindex_at}"
+                if last_reindex_at
+                else "Knowledge jos nije reindexovan."
+            ),
+        },
         "supportedExtensions": sorted(SUPPORTED_EXTENSIONS),
         "answerModes": sorted(ANSWER_MODES),
     }
@@ -132,6 +155,8 @@ def load_knowledge_summary(
 def add_knowledge_source(
     path: str,
     *,
+    collection: str = "",
+    tags: list[str] | None = None,
     config: ControlCenterConfig | None = None,
 ) -> dict[str, Any]:
     config = config or get_config()
@@ -155,6 +180,8 @@ def add_knowledge_source(
         "id": _build_source_id(normalized_path),
         "path": normalized_path,
         "kind": _detect_source_kind(candidate),
+        "collection": str(collection or "").strip(),
+        "tags": _normalize_tags(tags or []),
         "addedAt": _now_iso(),
         "documentCount": 0,
         "indexedDocumentCount": 0,
@@ -290,6 +317,8 @@ def run_knowledge_query(
     config: ControlCenterConfig | None = None,
     limit: int = DEFAULT_QUERY_LIMIT,
     record_history: bool = False,
+    collection: str = "",
+    tag: str = "",
 ) -> dict[str, Any]:
     config = config or get_config()
     normalized_query = str(query or "").strip()
@@ -297,10 +326,18 @@ def run_knowledge_query(
         return _error_payload("Knowledge query je prazan.")
 
     _ensure_index_schema(config)
-    rows = _search_documents(config, normalized_query, limit=max(1, limit))
+    rows = _search_documents(
+        config,
+        normalized_query,
+        limit=max(1, limit),
+        collection=collection,
+        tag=tag,
+    )
     payload = {
         "status": "ok",
         "query": normalized_query,
+        "collection": str(collection or "").strip(),
+        "tag": str(tag or "").strip(),
         "resultCount": len(rows),
         "summary": f"Pronadjeno je {len(rows)} dokument pogodaka.",
         "results": rows,
@@ -324,6 +361,8 @@ def answer_with_knowledge(
     config: ControlCenterConfig | None = None,
     search_func: Callable[[str], dict[str, Any]] | None = None,
     opener: Callable[..., Any] = urlopen,
+    collection: str = "",
+    tag: str = "",
 ) -> dict[str, Any]:
     config = config or get_config()
     normalized_query = str(query or "").strip()
@@ -349,7 +388,13 @@ def answer_with_knowledge(
         web_payload["history"] = load_knowledge_history(config)
         return web_payload
 
-    document_payload = run_knowledge_query(normalized_query, config=config, limit=DEFAULT_QUERY_LIMIT)
+    document_payload = run_knowledge_query(
+        normalized_query,
+        config=config,
+        limit=DEFAULT_QUERY_LIMIT,
+        collection=collection,
+        tag=tag,
+    )
     document_results = list(document_payload.get("results", []))
     if normalized_mode == "documents-only" and not document_results:
         return _knowledge_answer_error(
@@ -434,6 +479,8 @@ def answer_with_knowledge(
         "status": "ok",
         "query": normalized_query,
         "mode": normalized_mode,
+        "collection": str(collection or "").strip(),
+        "tag": str(tag or "").strip(),
         "summary": "Knowledge answer je spreman.",
         "answer": str(answer_text or ""),
         "answerModel": model_name,
@@ -445,6 +492,9 @@ def answer_with_knowledge(
         },
         "documentResultCount": len(document_results),
         "documentResults": document_results,
+        "usedCollections": sorted({str(item.get("collection", "") or "") for item in document_results if str(item.get("collection", "") or "").strip()}),
+        "usedTags": sorted({tag_item for item in document_results for tag_item in _normalize_tags(item.get("tags", []))}),
+        "citations": _build_document_citations(document_results),
         "webResultCount": int(web_payload.get("resultCount", 0) or 0) if isinstance(web_payload, dict) else 0,
         "webResults": list(web_payload.get("results", [])) if isinstance(web_payload, dict) else [],
     }
@@ -498,6 +548,8 @@ def _answer_with_web_only(
         "status": str(payload.get("status", "") or "error"),
         "query": query,
         "mode": "web-only",
+        "collection": "",
+        "tag": "",
         "summary": str(payload.get("summary", "") or ""),
         "answer": str(payload.get("answer", "") or ""),
         "answerModel": str(payload.get("answerModel", "") or ""),
@@ -505,6 +557,9 @@ def _answer_with_web_only(
         "usage": payload.get("usage", {}),
         "documentResultCount": 0,
         "documentResults": [],
+        "usedCollections": [],
+        "usedTags": [],
+        "citations": [],
         "webResultCount": int(payload.get("resultCount", 0) or 0),
         "webResults": list(payload.get("results", [])) if isinstance(payload.get("results"), list) else [],
     }
@@ -697,7 +752,16 @@ def _search_documents(
     query: str,
     *,
     limit: int,
+    collection: str = "",
+    tag: str = "",
 ) -> list[dict[str, Any]]:
+    source_map = {
+        str(source.get("id", "") or ""): source
+        for source in _load_sources(config)
+        if isinstance(source, dict)
+    }
+    normalized_collection = str(collection or "").strip().lower()
+    normalized_tag = str(tag or "").strip().lower()
     with _connect_index(config) as connection:
         connection.row_factory = sqlite3.Row
         try:
@@ -718,7 +782,7 @@ def _search_documents(
                 ORDER BY score
                 LIMIT ?
                 """,
-                (_normalize_match_query(query), limit),
+                (_normalize_match_query(query), max(limit * 5, limit)),
             )
             rows = cursor.fetchall()
         except sqlite3.OperationalError:
@@ -729,25 +793,73 @@ def _search_documents(
                 WHERE lower(name) LIKE ? OR lower(content) LIKE ?
                 LIMIT ?
                 """,
-                (f"%{query.lower()}%", f"%{query.lower()}%", limit),
+                (f"%{query.lower()}%", f"%{query.lower()}%", max(limit * 5, limit)),
             )
             rows = cursor.fetchall()
     results: list[dict[str, Any]] = []
     for row in rows:
+        source_id = str(row["source_id"])
+        source_payload = source_map.get(source_id, {})
+        source_collection = str(source_payload.get("collection", "") or "")
+        source_tags = _normalize_tags(source_payload.get("tags", []))
+        if normalized_collection and source_collection.lower() != normalized_collection:
+            continue
+        if normalized_tag and normalized_tag not in {item.lower() for item in source_tags}:
+            continue
         content = str(row["content"] or "")
         results.append(
             {
                 "docId": str(row["doc_id"]),
-                "sourceId": str(row["source_id"]),
+                "sourceId": source_id,
                 "path": str(row["path"]),
                 "name": str(row["name"]),
                 "fileType": str(row["file_type"]),
+                "collection": source_collection,
+                "tags": source_tags,
                 "charCount": int(row["char_count"] or 0),
                 "score": float(row["score"] or 0.0),
                 "snippet": _build_snippet(content, query),
             }
         )
+        if len(results) >= limit:
+            break
     return results
+
+
+def _build_document_citations(document_results: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    citations: list[dict[str, Any]] = []
+    for index, item in enumerate(document_results, start=1):
+        citations.append(
+            {
+                "index": index,
+                "name": str(item.get("name", "") or ""),
+                "path": str(item.get("path", "") or ""),
+                "collection": str(item.get("collection", "") or ""),
+                "tags": _normalize_tags(item.get("tags", [])),
+                "snippet": str(item.get("snippet", "") or ""),
+            }
+        )
+    return citations
+
+
+def _normalize_tags(value: object) -> list[str]:
+    if isinstance(value, str):
+        raw_items = [part.strip() for part in value.split(",")]
+    elif isinstance(value, list):
+        raw_items = [str(part or "").strip() for part in value]
+    else:
+        raw_items = []
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for item in raw_items:
+        if not item:
+            continue
+        lowered = item.lower()
+        if lowered in seen:
+            continue
+        seen.add(lowered)
+        deduped.append(item)
+    return deduped
 
 
 def _normalize_match_query(query: str) -> str:
@@ -873,6 +985,8 @@ def _knowledge_answer_error(
     return {
         "status": "error",
         "mode": mode,
+        "collection": "",
+        "tag": "",
         "summary": summary,
         "answer": "",
         "answerModel": "",
@@ -884,6 +998,9 @@ def _knowledge_answer_error(
         },
         "documentResultCount": len(document_results or []),
         "documentResults": document_results or [],
+        "usedCollections": sorted({str(item.get("collection", "") or "") for item in (document_results or []) if str(item.get("collection", "") or "").strip()}),
+        "usedTags": sorted({tag_item for item in (document_results or []) for tag_item in _normalize_tags(item.get("tags", []))}),
+        "citations": _build_document_citations(document_results or []),
         "webResultCount": int(web_payload.get("resultCount", 0) or 0) if isinstance(web_payload, dict) else 0,
         "webResults": list(web_payload.get("results", [])) if isinstance(web_payload, dict) else [],
     }

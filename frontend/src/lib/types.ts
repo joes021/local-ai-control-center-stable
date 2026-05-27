@@ -288,6 +288,126 @@ export type BenchmarkComparePayload = {
   };
 };
 
+export type ObservabilityPayload = {
+  generatedAt: string;
+  system: {
+    hostname: string;
+    platformLabel: string;
+    cpuPercent: number | null;
+    ramTotalGiB: number | null;
+    ramUsedGiB: number | null;
+    ramFreeGiB: number | null;
+    gpuAvailable: boolean;
+    gpuName: string;
+    vramTotalGiB: number | null;
+    vramUsedGiB: number | null;
+    vramFreeGiB: number | null;
+  };
+  runtime: {
+    activeRuntime: string;
+    activeModel: string;
+    runtimeLiveStatus: string;
+    runtimeLiveReason: string;
+    baseUrl: string;
+    port: number | null;
+  };
+  telemetry: {
+    input24h: number;
+    output24h: number;
+    total24h: number;
+    cost24hUsd: number;
+    activeRoutes: number;
+    activeRoutesLabel: string;
+    liveNowTokensPerSecond: number | null;
+    flowStateLabel: string;
+    flowStateReason: string;
+    lastUpdatedAt: string;
+    promptSharePercent: number;
+    completionSharePercent: number;
+    launchQueueSignal: {
+      label: string;
+      summary: string;
+    };
+  };
+  activity: {
+    requestCount: number;
+    averageTotalMs: number | null;
+    lastMeasuredAt: string | null;
+    stability: {
+      label: string;
+      score: number;
+      reason: string;
+    };
+  };
+  logSignals: Array<{
+    level: string;
+    source: string;
+    message: string;
+    timestamp: string;
+  }>;
+};
+
+export type FleetMachineSnapshot = {
+  version: string;
+  health: string;
+  activeModel: string;
+  activeRuntime: string;
+  runtimeLiveStatus: string;
+  runtimeSummary: string;
+  uiUrl: string;
+  webUrl: string;
+  liveNowTokensPerSecond: number | null;
+  flowStateLabel: string;
+  input24h: number;
+  output24h: number;
+};
+
+export type FleetMachine = {
+  id: string;
+  name: string;
+  baseUrl: string;
+  addedAt: string;
+  lastCheckedAt: string;
+  snapshot: FleetMachineSnapshot;
+  lastError: string;
+};
+
+export type FleetSummaryPayload = {
+  machineCount: number;
+  generatedAt: string;
+  machines: FleetMachine[];
+};
+
+export type JobKindOption = {
+  id: string;
+  label: string;
+  summary: string;
+};
+
+export type JobRecord = {
+  id: string;
+  name: string;
+  kind: string;
+  intervalMinutes: number;
+  enabled: boolean;
+  targetId: string;
+  workflowPresetId: string;
+  createdAt: string;
+  updatedAt: string;
+  nextRunAt: string;
+  lastRunAt: string;
+  lastStatus: string;
+  lastSummary: string;
+  lastDetails: Record<string, unknown>;
+};
+
+export type JobsSummaryPayload = {
+  generatedAt: string;
+  jobCount: number;
+  jobs: JobRecord[];
+  availableKinds: JobKindOption[];
+};
+
 export type ModelEntry = {
   id: string;
   label: string;
@@ -542,6 +662,8 @@ export type UpdateProgressPayload = {
 
 export type SettingsPayload = {
   profile: string;
+  themeId: string;
+  workflowPresetId?: string;
   context: number;
   outputTokens: number;
   workingDirectory: string;
@@ -561,12 +683,55 @@ export type SettingsPayload = {
   webSearchMaxResults: number;
   webSearchTimeoutSeconds: number;
   webSearchPromptPrefix: string;
+  availableThemes: ThemeOption[];
+  availableWorkflowPresets: WorkflowPreset[];
   availableSearchProviders: SearchProviderOption[];
   searchProviderStatus: SearchProviderStatusPayload;
   builtInSettingsProfiles: SettingsProfilePreset[];
   userSettingsProfiles: SettingsProfilePreset[];
   selectedSettingsProfileId: string;
   selectedSettingsProfileName: string;
+  selectedWorkflowPresetId: string;
+};
+
+export type ThemeOption = {
+  id: string;
+  label: string;
+  summary: string;
+  accent: string;
+  textColor: string;
+};
+
+export type WorkflowPreset = {
+  id: string;
+  label: string;
+  summary: string;
+  badges: string[];
+  settingsPatch: Partial<
+    Pick<
+      SettingsPayload,
+      | "profile"
+      | "context"
+      | "outputTokens"
+      | "thinkingMode"
+      | "webSearchMode"
+      | "webSearchProvider"
+    >
+  >;
+  searchDefaults: {
+    provider: string;
+    suggestedAction: "search" | "answer" | "compare";
+    queryHint: string;
+  };
+  knowledgeDefaults: {
+    mode: "documents-only" | "documents+web" | "web-only";
+    queryHint: string;
+  };
+  benchmarkDefaults: {
+    batteryId: string;
+    launchTarget: "selected" | "battery";
+    runLabel: string;
+  };
 };
 
 export type SettingsProfileValues = {
@@ -778,6 +943,8 @@ export type KnowledgeSourceItem = {
   path: string;
   kind: string;
   exists: boolean;
+  collection: string;
+  tags: string[];
   documentCount: number;
   indexedDocumentCount: number;
   errorCount: number;
@@ -800,6 +967,8 @@ export type KnowledgeDocumentResult = {
   path: string;
   name: string;
   fileType: string;
+  collection: string;
+  tags: string[];
   charCount: number;
   score: number;
   snippet: string;
@@ -812,6 +981,12 @@ export type KnowledgeSummaryPayload = {
   indexedDocumentCount: number;
   errorCount: number;
   history: KnowledgeHistoryItem[];
+  collections: string[];
+  tags: string[];
+  reindexStatus: {
+    lastReindexAt: string;
+    summary: string;
+  };
   supportedExtensions: string[];
   answerModes: string[];
 };
@@ -834,6 +1009,8 @@ export type KnowledgeReindexPayload = {
 export type KnowledgeQueryPayload = {
   status: string;
   query: string;
+  collection?: string;
+  tag?: string;
   resultCount: number;
   summary: string;
   results: KnowledgeDocumentResult[];
@@ -853,8 +1030,20 @@ export type KnowledgeAnswerPayload = {
     completionTokens: number | null;
     totalTokens: number | null;
   };
+  collection?: string;
+  tag?: string;
   documentResultCount: number;
   documentResults: KnowledgeDocumentResult[];
+  usedCollections: string[];
+  usedTags: string[];
+  citations: Array<{
+    index: number;
+    name: string;
+    path: string;
+    collection: string;
+    tags: string[];
+    snippet: string;
+  }>;
   webResultCount: number;
   webResults: SearchResultItem[];
   history?: KnowledgeHistoryItem[];

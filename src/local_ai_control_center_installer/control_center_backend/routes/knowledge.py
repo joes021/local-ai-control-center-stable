@@ -23,10 +23,14 @@ def knowledge_summary() -> dict[str, object]:
 
 class KnowledgeSourceRequest(BaseModel):
     path: str = ""
+    collection: str = ""
+    tags: list[str] = []
 
 
 @router.post("/api/knowledge/sources/add")
 def knowledge_source_add(payload: KnowledgeSourceRequest) -> dict[str, object]:
+    if payload.collection or payload.tags:
+        return add_knowledge_source(payload.path, collection=payload.collection, tags=payload.tags)
     return add_knowledge_source(payload.path)
 
 
@@ -47,13 +51,20 @@ def knowledge_reindex() -> dict[str, object]:
 class KnowledgeQueryRequest(BaseModel):
     query: str = ""
     mode: str = "documents-only"
+    collection: str = ""
+    tag: str = ""
 
 
 @router.post("/api/knowledge/query")
 def knowledge_query(payload: KnowledgeQueryRequest) -> dict[str, object]:
-    return run_knowledge_query(payload.query)
+    return run_knowledge_query(payload.query, collection=payload.collection, tag=payload.tag)
 
 
 @router.post("/api/knowledge/answer")
 def knowledge_answer(payload: KnowledgeQueryRequest) -> dict[str, object]:
-    return answer_with_knowledge(payload.query, mode=payload.mode)
+    return answer_with_knowledge(
+        payload.query,
+        mode=payload.mode,
+        collection=payload.collection,
+        tag=payload.tag,
+    )

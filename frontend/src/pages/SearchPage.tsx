@@ -4,16 +4,19 @@ import { CustomSelect } from "../components/CustomSelect";
 import {
   answerWithLocalModel,
   bootstrapManagedSearchProvider,
+  fetchSettings,
   fetchSearchProviderStatus,
   fetchSearchSummary,
   runSearchQuery,
 } from "../lib/api";
+import { resolveSelectedWorkflowPreset } from "../lib/workflowPresets";
 import type {
   SearchAnswerPayload,
   SearchProviderOption,
   SearchProviderStatusPayload,
   SearchQueryPayload,
   SearchSummaryPayload,
+  SettingsPayload,
 } from "../lib/types";
 
 function renderSearchModeLabel(mode: string, prefix: string) {
@@ -89,16 +92,23 @@ export function SearchPage({ onOpenSettings }: SearchPageProps) {
   const [answerPayload, setAnswerPayload] = useState<SearchAnswerPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [providerNotice, setProviderNotice] = useState<string | null>(null);
+  const [settingsPayload, setSettingsPayload] = useState<SettingsPayload | null>(null);
   const [providerBusy, setProviderBusy] = useState<"" | "check" | "setup">("");
   const [loadingSearch, setLoadingSearch] = useState(false);
   const [loadingAnswer, setLoadingAnswer] = useState(false);
   const [loadingCompare, setLoadingCompare] = useState(false);
 
   async function loadSummary() {
-    const payload = await fetchSearchSummary();
+    const [payload, nextSettings] = await Promise.all([fetchSearchSummary(), fetchSettings()]);
     setSummary(payload);
     setProviderStatus(payload.providerStatus);
-    setSelectedProvider((current) => current || payload.settings.provider);
+    setSettingsPayload(nextSettings);
+    setSelectedProvider(
+      (current) =>
+        current ||
+        resolveSelectedWorkflowPreset(nextSettings)?.searchDefaults.provider ||
+        payload.settings.provider,
+    );
   }
 
   async function refreshSelectedProviderStatus(providerId: string) {
@@ -191,6 +201,10 @@ export function SearchPage({ onOpenSettings }: SearchPageProps) {
     }
     return `Mode: ${renderSearchModeLabel(summary.settings.mode, summary.settings.promptPrefix)} | Default provider: ${providerLabel(summary.settings.provider, summary.availableProviders)} | Trenutni provider: ${providerLabel(selectedProvider || summary.settings.provider, summary.availableProviders)} | Aktivni endpoint: ${providerStatus.effectiveBaseUrl || "nije potreban"}`;
   }, [providerStatus, selectedProvider, summary]);
+  const currentWorkflowPreset = useMemo(
+    () => resolveSelectedWorkflowPreset(settingsPayload),
+    [settingsPayload],
+  );
 
   if (error) {
     return <div className="error-panel">{error}</div>;
@@ -214,6 +228,11 @@ export function SearchPage({ onOpenSettings }: SearchPageProps) {
           Ovaj tab koristi isti shared search sloj kao i OpenCode `local-lacc` provider. Cloud
           `opencode` modeli ne prolaze kroz ovaj lokalni proxy put.
         </p>
+        {currentWorkflowPreset ? (
+          <p className="helper-text">
+            Workflow preset: {currentWorkflowPreset.label} | {currentWorkflowPreset.summary}
+          </p>
+        ) : null}
       </section>
 
       <section className="status-card wide-card">
@@ -319,7 +338,10 @@ export function SearchPage({ onOpenSettings }: SearchPageProps) {
         <div className="settings-action-row">
           <input
             className="settings-path-input"
-            placeholder="Upisi pitanje ili temu za web search"
+            placeholder={
+              currentWorkflowPreset?.searchDefaults.queryHint ||
+              "Upisi pitanje ili temu za web search"
+            }
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             onKeyDown={(event) => {

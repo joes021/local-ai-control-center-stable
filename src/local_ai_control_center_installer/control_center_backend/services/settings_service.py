@@ -285,6 +285,225 @@ ALLOWED_CAPABILITY_MODES = {
     "auto-commands",
 }
 ALLOWED_PROFILES = {"speed", "balanced", "video"}
+ALLOWED_THEMES = {
+    "dark-chocolate",
+    "light",
+    "dark",
+    "neon-green",
+    "marine-blue",
+}
+THEME_OPTIONS = [
+    {
+        "id": "dark-chocolate",
+        "label": "Dark Chocolate",
+        "summary": "Topla tamna podloga sa bronzanim i cijan akcentima.",
+        "accent": "#f2b84b",
+        "textColor": "#f7dfb0",
+    },
+    {
+        "id": "light",
+        "label": "Light",
+        "summary": "Svetla radna tema sa toplim zlatnim akcentom.",
+        "accent": "#d59b2f",
+        "textColor": "#7f5a12",
+    },
+    {
+        "id": "dark",
+        "label": "Dark",
+        "summary": "Neutralna tamna tema sa hladnijim plavo-sivim tonom.",
+        "accent": "#6f8fd8",
+        "textColor": "#bfd4ff",
+    },
+    {
+        "id": "neon-green",
+        "label": "Neon Green",
+        "summary": "Visokokontrastna terminalsko-neonska tema za jak signal.",
+        "accent": "#58ff8f",
+        "textColor": "#c8ffd9",
+    },
+    {
+        "id": "marine-blue",
+        "label": "Marine Blue",
+        "summary": "Duboki plavi komandni most sa morskim cijan akcentom.",
+        "accent": "#39b7ff",
+        "textColor": "#cbe8ff",
+    },
+]
+WORKFLOW_PRESET_SPECS = [
+    {
+        "id": "research",
+        "label": "Research",
+        "summary": "Web + docs tok za istrazivanje i sintezu.",
+        "badges": ["web", "docs", "balanced"],
+        "settingsPatch": {
+            "profile": "balanced",
+            "context": 262144,
+            "outputTokens": 8192,
+            "thinkingMode": "mid",
+            "webSearchMode": "on-demand",
+            "webSearchProvider": "searxng",
+        },
+        "searchDefaults": {
+            "provider": "searxng",
+            "suggestedAction": "answer",
+            "queryHint": "Upisi istrazivacko pitanje ili temu koju treba proveriti na web-u.",
+        },
+        "knowledgeDefaults": {
+            "mode": "documents+web",
+            "queryHint": "Pitaj nesto sto treba ukrstiti kroz lokalne dokumente i web izvore.",
+        },
+        "benchmarkDefaults": {
+            "batteryId": "default",
+            "launchTarget": "selected",
+            "runLabel": "Pokreni jedan proverni benchmark za istrazivacki tok.",
+        },
+    },
+    {
+        "id": "code",
+        "label": "Code",
+        "summary": "Kraci output i fokus na kod, bez agresivnog web sloja.",
+        "badges": ["code", "fast", "docs"],
+        "settingsPatch": {
+            "profile": "speed",
+            "context": 131072,
+            "outputTokens": 4096,
+            "thinkingMode": "low",
+            "webSearchMode": "off",
+            "webSearchProvider": "duckduckgo",
+        },
+        "searchDefaults": {
+            "provider": "duckduckgo",
+            "suggestedAction": "search",
+            "queryHint": "Upisi biblioteku, error ili API temu koju treba brzo proveriti.",
+        },
+        "knowledgeDefaults": {
+            "mode": "documents-only",
+            "queryHint": "Postavi pitanje za lokalni kod, beleške ili dokumentaciju.",
+        },
+        "benchmarkDefaults": {
+            "batteryId": "default",
+            "launchTarget": "selected",
+            "runLabel": "Pokreni kratak benchmark za coding setup.",
+        },
+    },
+    {
+        "id": "low-vram",
+        "label": "Low VRAM",
+        "summary": "Stedljiv preset za manje GPU budzete i laksi runtime.",
+        "badges": ["safe", "low-vram", "fast"],
+        "settingsPatch": {
+            "profile": "speed",
+            "context": 65536,
+            "outputTokens": 2048,
+            "thinkingMode": "low",
+            "webSearchMode": "on-demand",
+            "webSearchProvider": "duckduckgo",
+        },
+        "searchDefaults": {
+            "provider": "duckduckgo",
+            "suggestedAction": "answer",
+            "queryHint": "Pitaj nesto gde je bitan sto laksi runtime i kraci odgovor.",
+        },
+        "knowledgeDefaults": {
+            "mode": "documents-only",
+            "queryHint": "Pitaj nesto iz lokalnih dokumenata bez dodatnog web opterecenja.",
+        },
+        "benchmarkDefaults": {
+            "batteryId": "default",
+            "launchTarget": "selected",
+            "runLabel": "Pokreni lagani benchmark za low VRAM put.",
+        },
+    },
+    {
+        "id": "long-context",
+        "label": "Long context",
+        "summary": "Naglasak na velikom context-u i duzem kontinuitetu.",
+        "badges": ["262k", "analysis", "balanced"],
+        "settingsPatch": {
+            "profile": "balanced",
+            "context": 262144,
+            "outputTokens": 8192,
+            "thinkingMode": "mid",
+            "webSearchMode": "on-demand",
+            "webSearchProvider": "searxng",
+        },
+        "searchDefaults": {
+            "provider": "searxng",
+            "suggestedAction": "answer",
+            "queryHint": "Pitaj nesto sto trazi puno konteksta i vise koraka objasnjenja.",
+        },
+        "knowledgeDefaults": {
+            "mode": "documents+web",
+            "queryHint": "Pitaj nesto gde se vise dokumenata i izvora spaja u jednu sliku.",
+        },
+        "benchmarkDefaults": {
+            "batteryId": "default",
+            "launchTarget": "battery",
+            "runLabel": "Pokreni battery benchmark za duzi context.",
+        },
+    },
+    {
+        "id": "docs-plus-web",
+        "label": "Docs + web",
+        "summary": "Knowledge-first tok sa obaveznim citanjem lokalnih izvora i web dopunom.",
+        "badges": ["knowledge", "citations", "web"],
+        "settingsPatch": {
+            "profile": "balanced",
+            "context": 131072,
+            "outputTokens": 6144,
+            "thinkingMode": "mid",
+            "webSearchMode": "on-demand",
+            "webSearchProvider": "searxng",
+        },
+        "searchDefaults": {
+            "provider": "searxng",
+            "suggestedAction": "search",
+            "queryHint": "Prvo prikupi web izvore, pa onda odgovori uz lokalne dokumente.",
+        },
+        "knowledgeDefaults": {
+            "mode": "documents+web",
+            "queryHint": "Pitaj nesto gde zelis i lokalne dokumente i web izvore u istom odgovoru.",
+        },
+        "benchmarkDefaults": {
+            "batteryId": "default",
+            "launchTarget": "selected",
+            "runLabel": "Pokreni proveru za docs + web tok.",
+        },
+    },
+    {
+        "id": "benchmark-battery",
+        "label": "Benchmark battery",
+        "summary": "Preset za telemetriju, merenje i ponovljiv benchmark tok.",
+        "badges": ["benchmark", "telemetry", "compare"],
+        "settingsPatch": {
+            "profile": "speed",
+            "context": 32768,
+            "outputTokens": 2048,
+            "thinkingMode": "no-thinking",
+            "webSearchMode": "off",
+            "webSearchProvider": "duckduckgo",
+        },
+        "searchDefaults": {
+            "provider": "duckduckgo",
+            "suggestedAction": "compare",
+            "queryHint": "Pitaj nesto samo ako hoces da proveris search signal pre benchmark-a.",
+        },
+        "knowledgeDefaults": {
+            "mode": "documents-only",
+            "queryHint": "Koristi lokalne dokumente samo kada benchmark notes traze dodatni kontekst.",
+        },
+        "benchmarkDefaults": {
+            "batteryId": "default",
+            "launchTarget": "battery",
+            "runLabel": "Pokreni celu benchmark battery sekvencu.",
+        },
+    },
+]
+ALLOWED_WORKFLOW_PRESET_IDS = {
+    str(item.get("id", "") or "").strip()
+    for item in WORKFLOW_PRESET_SPECS
+    if str(item.get("id", "") or "").strip()
+}
 ALLOWED_WEB_SEARCH_MODES = {"off", "on-demand", "always"}
 ALLOWED_WEB_SEARCH_PROVIDERS = {"searxng", "duckduckgo"}
 WEB_SEARCH_PROVIDER_OPTIONS = [
@@ -402,6 +621,8 @@ def load_settings_payload(
     profile_catalog = load_settings_profile_catalog(config, effective_settings=effective)
     payload = {
         "profile": effective["profile"],
+        "themeId": effective["themeId"],
+        "workflowPresetId": effective["workflowPresetId"],
         "context": effective["context"],
         "outputTokens": effective["outputTokens"],
         "workingDirectory": effective["workingDirectory"],
@@ -421,11 +642,14 @@ def load_settings_payload(
         "webSearchMaxResults": effective["webSearchMaxResults"],
         "webSearchTimeoutSeconds": effective["webSearchTimeoutSeconds"],
         "webSearchPromptPrefix": effective["webSearchPromptPrefix"],
+        "availableThemes": load_theme_options(),
+        "availableWorkflowPresets": load_workflow_presets(),
         "availableSearchProviders": load_web_search_provider_options(),
         "builtInSettingsProfiles": profile_catalog["builtInProfiles"],
         "userSettingsProfiles": profile_catalog["userProfiles"],
         "selectedSettingsProfileId": profile_catalog["selectedProfileId"],
         "selectedSettingsProfileName": profile_catalog["selectedProfileName"],
+        "selectedWorkflowPresetId": effective["workflowPresetId"],
     }
     if include_search_provider_status:
         from local_ai_control_center_installer.control_center_backend.services.search_provider_service import (
@@ -474,6 +698,10 @@ def apply_settings(
             overrides = {}
         overrides[active_model_id] = _project_model_override_settings(normalized)
         atomic_write_json(config.model_overrides_path, {"models": overrides})
+        updated_global = dict(current_global)
+        updated_global["themeId"] = normalized["themeId"]
+        updated_global["workflowPresetId"] = normalized["workflowPresetId"]
+        atomic_write_json(config.settings_path, updated_global)
         return action_result(
             "ok",
             "apply-settings",
@@ -810,6 +1038,8 @@ def _normalize_global_settings(
 ) -> dict[str, object]:
     defaults = {
         "profile": "balanced",
+        "themeId": "dark-chocolate",
+        "workflowPresetId": "research",
         "context": 262144,
         "outputTokens": 8192,
         "workingDirectory": str(config.install_root),
@@ -839,6 +1069,14 @@ def _normalize_global_settings(
 
 def load_web_search_provider_options() -> list[dict[str, object]]:
     return [dict(option) for option in WEB_SEARCH_PROVIDER_OPTIONS]
+
+
+def load_theme_options() -> list[dict[str, object]]:
+    return [dict(option) for option in THEME_OPTIONS]
+
+
+def load_workflow_presets() -> list[dict[str, object]]:
+    return [dict(option) for option in WORKFLOW_PRESET_SPECS]
 
 
 def _build_builtin_settings_profiles(
@@ -880,6 +1118,17 @@ def _normalize_settings_payload(
     normalized_profile = str(payload.get("profile", current["profile"]) or current["profile"]).strip().lower()
     if normalized_profile not in ALLOWED_PROFILES:
         normalized_profile = str(current["profile"])
+
+    normalized_theme_id = str(payload.get("themeId", current.get("themeId", "dark-chocolate")) or current.get("themeId", "dark-chocolate")).strip().lower()
+    if normalized_theme_id not in ALLOWED_THEMES:
+        normalized_theme_id = str(current.get("themeId", "dark-chocolate"))
+
+    normalized_workflow_preset_id = str(
+        payload.get("workflowPresetId", current.get("workflowPresetId", "research"))
+        or current.get("workflowPresetId", "research")
+    ).strip().lower()
+    if normalized_workflow_preset_id not in ALLOWED_WORKFLOW_PRESET_IDS:
+        normalized_workflow_preset_id = str(current.get("workflowPresetId", "research"))
 
     normalized_access_mode = str(payload.get("accessMode", current["accessMode"]) or current["accessMode"]).strip().lower()
     if normalized_access_mode not in ALLOWED_ACCESS_MODES:
@@ -972,6 +1221,8 @@ def _normalize_settings_payload(
 
     return {
         "profile": normalized_profile,
+        "themeId": normalized_theme_id,
+        "workflowPresetId": normalized_workflow_preset_id,
         "context": _positive_int(payload.get("context"), int(current["context"])),
         "outputTokens": _positive_int(payload.get("outputTokens"), int(current["outputTokens"])),
         "workingDirectory": working_directory,

@@ -125,6 +125,18 @@ class ControlCenterConfig:
         return self.control_center_config_root / "knowledge-index.sqlite3"
 
     @property
+    def fleet_registry_path(self) -> Path:
+        return self.control_center_config_root / "fleet-machines.json"
+
+    @property
+    def jobs_registry_path(self) -> Path:
+        return self.control_center_config_root / "jobs-registry.json"
+
+    @property
+    def observability_snapshots_path(self) -> Path:
+        return self.control_center_config_root / "observability-snapshots.json"
+
+    @property
     def updates_download_root(self) -> Path:
         return self.install_root / "updates"
 
