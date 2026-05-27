@@ -136,6 +136,33 @@ def test_search_provider_status_reports_healthy_for_valid_json_response(
     assert status["canQuery"] is True
 
 
+def test_search_provider_status_reports_duckduckgo_as_ready_without_bootstrap(
+    tmp_path: Path,
+    monkeypatch,
+):
+    install_root = tmp_path / "install-root"
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    _write_settings(
+        install_root,
+        {
+            "webSearchMode": "always",
+            "webSearchProvider": "duckduckgo",
+            "webSearchBaseUrl": "",
+        },
+    )
+
+    status = load_search_provider_status(
+        opener=lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("network should not run")),
+    )
+
+    assert status["status"] == "healthy"
+    assert status["provider"] == "duckduckgo"
+    assert status["providerLabel"] == "DuckDuckGo"
+    assert status["canQuery"] is True
+    assert status["canBootstrap"] is False
+    assert "bez api kljuca" in str(status["summary"]).lower()
+
+
 def test_bootstrap_search_provider_reports_blocked_when_wsl_is_unavailable(
     tmp_path: Path,
     monkeypatch,

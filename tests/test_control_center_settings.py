@@ -72,7 +72,7 @@ def test_settings_route_persists_global_defaults_and_model_override(
             "modelOverrideExists": False,
             "accessMode": "local-only",
             "webSearchMode": "on-demand",
-            "webSearchProvider": "searxng",
+            "webSearchProvider": "duckduckgo",
             "webSearchBaseUrl": "http://127.0.0.1:18080",
             "webSearchMaxResults": 7,
             "webSearchTimeoutSeconds": 12,
@@ -94,8 +94,8 @@ def test_settings_route_persists_global_defaults_and_model_override(
     assert payload["settingsScope"] == "global"
     assert payload["selectedSettingsProfileId"] == "custom"
     assert payload["webSearchMode"] == "on-demand"
-    assert payload["webSearchProvider"] == "searxng"
-    assert payload["webSearchBaseUrl"] == "http://127.0.0.1:18080"
+    assert payload["webSearchProvider"] == "duckduckgo"
+    assert payload["webSearchBaseUrl"] == ""
     assert payload["webSearchMaxResults"] == 7
     assert payload["webSearchTimeoutSeconds"] == 12
     assert payload["webSearchPromptPrefix"] == "!web"
@@ -137,7 +137,8 @@ def test_settings_route_persists_global_defaults_and_model_override(
     assert override_payload["workingDirectory"] == str(tmp_path / "workspace-override")
     assert override_payload["buildSteps"] == 160
     assert override_payload["webSearchMode"] == "on-demand"
-    assert override_payload["webSearchBaseUrl"] == "http://127.0.0.1:18080"
+    assert override_payload["webSearchProvider"] == "duckduckgo"
+    assert override_payload["webSearchBaseUrl"] == ""
     assert override_payload["webSearchMaxResults"] == 7
     assert override_payload["webSearchTimeoutSeconds"] == 12
     assert override_payload["webSearchPromptPrefix"] == "!web"

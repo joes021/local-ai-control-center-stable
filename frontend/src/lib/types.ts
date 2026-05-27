@@ -534,6 +534,7 @@ export type SettingsPayload = {
   webSearchMaxResults: number;
   webSearchTimeoutSeconds: number;
   webSearchPromptPrefix: string;
+  availableSearchProviders: SearchProviderOption[];
   searchProviderStatus: SearchProviderStatusPayload;
   builtInSettingsProfiles: SettingsProfilePreset[];
   userSettingsProfiles: SettingsProfilePreset[];
@@ -666,7 +667,17 @@ export type SearchSettingsSnapshot = {
   promptPrefix: string;
 };
 
+export type SearchProviderOption = {
+  id: string;
+  label: string;
+  supportsBootstrap: boolean;
+  supportsManualBaseUrl: boolean;
+  summary: string;
+};
+
 export type SearchProviderStatusPayload = {
+  provider: string;
+  providerLabel: string;
   status: string;
   label: string;
   summary: string;
@@ -702,6 +713,7 @@ export type SearchHistoryItem = {
 
 export type SearchSummaryPayload = {
   settings: SearchSettingsSnapshot;
+  availableProviders: SearchProviderOption[];
   history: SearchHistoryItem[];
   providerStatus: SearchProviderStatusPayload;
 };
@@ -714,6 +726,7 @@ export type SearchProviderActionPayload = {
 export type SearchQueryPayload = {
   status: string;
   provider: string;
+  providerLabel: string;
   mode: string;
   query: string;
   resultCount: number;

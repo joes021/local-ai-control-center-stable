@@ -182,6 +182,14 @@ export function SettingsPage() {
     () => settingsProfiles.find((profile) => profile.id === selectedSettingsProfileId) ?? null,
     [selectedSettingsProfileId, settingsProfiles],
   );
+  const currentSearchProviderOption = useMemo(
+    () =>
+      settings
+        ? settings.availableSearchProviders.find((provider) => provider.id === settings.webSearchProvider) ??
+          null
+        : null,
+    [settings],
+  );
 
   if (error) {
     return <div className="error-panel">{error}</div>;
@@ -525,8 +533,43 @@ export function SettingsPage() {
           </article>
 
           <article className="settings-field settings-field-wide">
-            <span className="settings-field-label">Managed local SearxNG (Windows + WSL)</span>
-            <strong className="status-value">{settings.searchProviderStatus.label}</strong>
+            <span className="settings-field-label">Search provider</span>
+            <div className="settings-control-block settings-control-block-wide">
+              <CustomSelect
+                value={settings.webSearchProvider}
+                options={settings.availableSearchProviders.map((provider) => ({
+                  value: provider.id,
+                  label: provider.label,
+                }))}
+                onChange={(value) => {
+                  const nextSettings = {
+                    ...settings,
+                    webSearchProvider: value,
+                    webSearchBaseUrl: value === "searxng" ? settings.webSearchBaseUrl : "",
+                  };
+                  setSettings(nextSettings);
+                  void fetchSearchProviderStatus(value).then(updateProviderStatus);
+                }}
+                ariaLabel="Izaberi search provider"
+              />
+            </div>
+            <p className="helper-text">
+              {currentSearchProviderOption?.summary || "Izaberi provider za Search, Knowledge i local-lacc search augmentation."}
+            </p>
+            <p className="helper-text">
+              Ako hoces javni provider bez API kljuca, biraj DuckDuckGo (public web, no key).
+            </p>
+          </article>
+
+          <article className="settings-field settings-field-wide">
+            <span className="settings-field-label">
+              {settings.webSearchProvider === "searxng"
+                ? "Managed local SearxNG (Windows + WSL)"
+                : "DuckDuckGo public web (no key)"}
+            </span>
+            <strong className="status-value">
+              {settings.searchProviderStatus.providerLabel}: {settings.searchProviderStatus.label}
+            </strong>
             <p className="helper-text">{settings.searchProviderStatus.summary}</p>
             <div className="summary-metrics">
               <span>Source: {settings.searchProviderStatus.source || "--"}</span>
@@ -541,7 +584,7 @@ export function SettingsPage() {
                 onClick={async () => {
                   setProviderBusy("check");
                   try {
-                    const providerStatus = await fetchSearchProviderStatus();
+                    const providerStatus = await fetchSearchProviderStatus(settings.webSearchProvider);
                     updateProviderStatus(providerStatus);
                     setResult({
                       status: providerStatus.status === "healthy" ? "ok" : "error",
@@ -560,35 +603,43 @@ export function SettingsPage() {
               >
                 {providerBusy === "check" ? "Checking..." : "Check health"}
               </button>
-              <button
-                type="button"
-                disabled={providerBusy !== "" || settings.searchProviderStatus.canBootstrap === false}
-                title={
-                  settings.searchProviderStatus.canBootstrap
-                    ? undefined
-                    : settings.searchProviderStatus.bootstrapSummary
-                }
-                onClick={async () => {
-                  setProviderBusy("setup");
-                  try {
-                    const payload = await bootstrapManagedSearchProvider();
-                    updateProviderStatus(payload.providerStatus);
-                    setResult(payload.result);
-                    await reload();
-                  } finally {
-                    setProviderBusy("");
+              {settings.webSearchProvider === "searxng" ? (
+                <button
+                  type="button"
+                  disabled={providerBusy !== "" || settings.searchProviderStatus.canBootstrap === false}
+                  title={
+                    settings.searchProviderStatus.canBootstrap
+                      ? undefined
+                      : settings.searchProviderStatus.bootstrapSummary
                   }
-                }}
-              >
-                {providerBusy === "setup"
-                  ? "Setting up managed SearxNG..."
-                  : "Setup managed SearxNG (Windows + WSL)"}
-              </button>
+                  onClick={async () => {
+                    setProviderBusy("setup");
+                    try {
+                      const payload = await bootstrapManagedSearchProvider(settings.webSearchProvider);
+                      updateProviderStatus(payload.providerStatus);
+                      setResult(payload.result);
+                      await reload();
+                    } finally {
+                      setProviderBusy("");
+                    }
+                  }}
+                >
+                  {providerBusy === "setup"
+                    ? "Setting up managed SearxNG..."
+                    : "Setup managed SearxNG (Windows + WSL)"}
+                </button>
+              ) : null}
             </div>
-            <p className="helper-text">
-              Ovaj automatski setup koristi WSL da lokalno podigne SearxNG. Manualni URL ispod je
-              odvojeni rezim i ne zahteva WSL.
-            </p>
+            {settings.webSearchProvider === "searxng" ? (
+              <p className="helper-text">
+                Ovaj automatski setup koristi WSL da lokalno podigne SearxNG. Manualni URL ispod je
+                odvojeni rezim i ne zahteva WSL.
+              </p>
+            ) : (
+              <p className="helper-text">
+                DuckDuckGo radi kao javni provider i ne trazi WSL, bootstrap ni manualni endpoint.
+              </p>
+            )}
           </article>
 
           <article className="settings-field settings-field-wide">
@@ -616,25 +667,27 @@ export function SettingsPage() {
             </p>
           </article>
 
-          <article className="settings-field settings-field-wide">
-            <span className="settings-field-label">Manual SearxNG base URL (optional, no WSL)</span>
-            <div className="settings-path-row">
-              <input
-                className="settings-path-input"
-                value={settings.webSearchBaseUrl}
-                onChange={(event) =>
-                  setSettings({
-                    ...settings,
-                    webSearchBaseUrl: event.target.value,
-                  })
-                }
-              />
-            </div>
-            <p className="helper-text">
-              Ostavi prazno ako hoces da Search koristi managed lokalni SearxNG koji aplikacija sama
-              podigne preko WSL-a.
-            </p>
-          </article>
+          {settings.webSearchProvider === "searxng" ? (
+            <article className="settings-field settings-field-wide">
+              <span className="settings-field-label">Manual SearxNG base URL (optional, no WSL)</span>
+              <div className="settings-path-row">
+                <input
+                  className="settings-path-input"
+                  value={settings.webSearchBaseUrl}
+                  onChange={(event) =>
+                    setSettings({
+                      ...settings,
+                      webSearchBaseUrl: event.target.value,
+                    })
+                  }
+                />
+              </div>
+              <p className="helper-text">
+                Ostavi prazno ako hoces da Search koristi managed lokalni SearxNG koji aplikacija sama
+                podigne preko WSL-a.
+              </p>
+            </article>
+          ) : null}
 
           <article className="settings-field">
             <span className="settings-field-label">Search results limit</span>

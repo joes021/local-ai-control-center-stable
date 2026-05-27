@@ -243,6 +243,8 @@ def test_app_source_and_packaged_frontend_include_search_navigation():
     assert "Search workspace" in bundled_text
     assert "Find web sources" in bundled_text
     assert "Search + answer locally" in bundled_text
+    assert "Compare providers" in bundled_text
+    assert "DuckDuckGo" in bundled_text
     assert "Final answer from local model" in bundled_text
     assert "Setup managed SearxNG (Windows + WSL)" in bundled_text
     assert "SearxNG nije podesen" in bundled_text
@@ -278,6 +280,8 @@ def test_settings_and_opencode_source_include_web_search_controls_and_guidance()
     opencode_source = Path("frontend/src/pages/OpenCodePage.tsx").read_text(encoding="utf-8")
 
     assert "Web search mode" in settings_source
+    assert "Search provider" in settings_source
+    assert "DuckDuckGo (public web, no key)" in settings_source
     assert "Manual SearxNG base URL (optional, no WSL)" in settings_source
     assert "Setup managed SearxNG (Windows + WSL)" in settings_source
     assert "Managed local SearxNG (Windows + WSL)" in settings_source
@@ -291,12 +295,27 @@ def test_settings_and_opencode_source_include_web_search_controls_and_guidance()
 def test_search_page_source_makes_web_results_clickable_and_guides_toward_answer():
     source = Path("frontend/src/pages/SearchPage.tsx").read_text(encoding="utf-8")
 
+    assert "Compare providers" in source
+    assert "DuckDuckGo" in source
+    assert "Search provider" in source
     assert "Find web sources" in source
     assert "Search + answer locally" in source
     assert "Final answer from local model" in source
     assert "Ovo su izvori, ne finalan odgovor." in source
     assert 'target="_blank"' in source
     assert "Open source" in source
+
+
+def test_home_page_source_uses_single_system_overview_card():
+    source = Path("frontend/src/pages/HomePage.tsx").read_text(encoding="utf-8")
+
+    assert "System overview" in source
+    assert "Control Center health" in source
+    assert "Aktivan runtime" in source
+    assert "Status runtime servera" in source
+    assert "Aktivni model" in source
+    assert "Profil" in source
+    assert "Dostupni runtime-i" in source
 
 
 def test_benchmark_page_source_includes_compare_export_and_idle_truth():

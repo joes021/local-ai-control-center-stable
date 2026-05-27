@@ -286,7 +286,23 @@ ALLOWED_CAPABILITY_MODES = {
 }
 ALLOWED_PROFILES = {"speed", "balanced", "video"}
 ALLOWED_WEB_SEARCH_MODES = {"off", "on-demand", "always"}
-ALLOWED_WEB_SEARCH_PROVIDERS = {"searxng"}
+ALLOWED_WEB_SEARCH_PROVIDERS = {"searxng", "duckduckgo"}
+WEB_SEARCH_PROVIDER_OPTIONS = [
+    {
+        "id": "searxng",
+        "label": "SearxNG (managed or manual)",
+        "supportsBootstrap": True,
+        "supportsManualBaseUrl": True,
+        "summary": "Najfleksibilniji lokalni provider sa managed WSL bootstrap tokom.",
+    },
+    {
+        "id": "duckduckgo",
+        "label": "DuckDuckGo (public web, no key)",
+        "supportsBootstrap": False,
+        "supportsManualBaseUrl": False,
+        "summary": "Javni web search bez API kljuca, best-effort HTML integracija.",
+    },
+]
 LEGACY_DEFAULT_WEB_SEARCH_BASE_URL = "http://127.0.0.1:8080"
 ALLOWED_WEB_SEARCH_BASE_URL_MODES = {"managed-auto", "manual"}
 DEFAULT_WEB_SEARCH_BASE_URL_MODE = "managed-auto"
@@ -405,6 +421,7 @@ def load_settings_payload(
         "webSearchMaxResults": effective["webSearchMaxResults"],
         "webSearchTimeoutSeconds": effective["webSearchTimeoutSeconds"],
         "webSearchPromptPrefix": effective["webSearchPromptPrefix"],
+        "availableSearchProviders": load_web_search_provider_options(),
         "builtInSettingsProfiles": profile_catalog["builtInProfiles"],
         "userSettingsProfiles": profile_catalog["userProfiles"],
         "selectedSettingsProfileId": profile_catalog["selectedProfileId"],
@@ -820,6 +837,10 @@ def _normalize_global_settings(
     )
 
 
+def load_web_search_provider_options() -> list[dict[str, object]]:
+    return [dict(option) for option in WEB_SEARCH_PROVIDER_OPTIONS]
+
+
 def _build_builtin_settings_profiles(
     config: ControlCenterConfig,
 ) -> list[dict[str, object]]:
@@ -900,7 +921,10 @@ def _normalize_settings_payload(
     if normalized_web_search_base_url_mode not in ALLOWED_WEB_SEARCH_BASE_URL_MODES:
         normalized_web_search_base_url_mode = DEFAULT_WEB_SEARCH_BASE_URL_MODE
 
-    if (
+    if normalized_web_search_provider == "duckduckgo":
+        normalized_web_search_base_url_mode = DEFAULT_WEB_SEARCH_BASE_URL_MODE
+        web_search_base_url = ""
+    elif (
         "webSearchBaseUrlMode" not in payload
         and raw_web_search_base_url.rstrip("/") == LEGACY_DEFAULT_WEB_SEARCH_BASE_URL.rstrip("/")
     ):

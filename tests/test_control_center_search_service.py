@@ -1,4 +1,5 @@
 import json
+import ssl
 from pathlib import Path
 
 from local_ai_control_center_installer.control_center_backend.services.search_service import (
@@ -160,6 +161,190 @@ def test_perform_search_query_reports_clear_error_for_html_response(
     assert payload["status"] == "error"
     assert "nije vratio JSON" in payload["summary"]
     assert "/search" in payload["summary"]
+
+
+def test_perform_search_query_supports_duckduckgo_html_results(
+    tmp_path: Path,
+    monkeypatch,
+):
+    install_root = tmp_path / "install-root"
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    _write_settings(
+        install_root,
+        {
+            "webSearchMode": "always",
+            "webSearchProvider": "duckduckgo",
+            "webSearchBaseUrl": "",
+            "webSearchMaxResults": 2,
+            "webSearchTimeoutSeconds": 11,
+            "webSearchPromptPrefix": "/web",
+        },
+    )
+
+    html = """
+    <html>
+      <body>
+        <div class="result results_links results_links_deep web-result">
+          <a class="result__a" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fexample.invalid%2Fone">First result</a>
+          <a class="result__snippet">First snippet</a>
+        </div>
+        <div class="result results_links results_links_deep web-result">
+          <a class="result__a" href="https://example.invalid/two">Second result</a>
+          <div class="result__snippet">Second snippet</div>
+        </div>
+      </body>
+    </html>
+    """
+
+    def fake_opener(request, timeout):
+        assert "duckduckgo.com" in request.full_url
+        assert "q=kv+cache" in request.full_url
+        assert timeout == 11
+        return _FakeRawResponse(html)
+
+    payload = perform_search_query("kv cache", opener=fake_opener)
+
+    assert payload["status"] == "ok"
+    assert payload["provider"] == "duckduckgo"
+    assert payload["resultCount"] == 2
+    assert payload["results"][0]["title"] == "First result"
+    assert payload["results"][0]["url"] == "https://example.invalid/one"
+    assert payload["results"][0]["snippet"] == "First snippet"
+    assert payload["results"][0]["engine"] == "duckduckgo"
+    assert payload["summary"] == "Pronadjeno je 2 web rezultata preko DuckDuckGo."
+
+
+def test_perform_search_query_duckduckgo_uses_ssl_context_when_opener_supports_it(
+    tmp_path: Path,
+    monkeypatch,
+):
+    install_root = tmp_path / "install-root"
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    _write_settings(
+        install_root,
+        {
+            "webSearchMode": "always",
+            "webSearchProvider": "duckduckgo",
+            "webSearchBaseUrl": "",
+            "webSearchMaxResults": 1,
+            "webSearchTimeoutSeconds": 11,
+            "webSearchPromptPrefix": "/web",
+        },
+    )
+
+    seen: dict[str, object] = {}
+
+    def fake_opener(request, timeout, context=None):
+        seen["url"] = request.full_url
+        seen["timeout"] = timeout
+        seen["context"] = context
+        return _FakeRawResponse(
+            """
+            <html>
+              <body>
+                <div class="result results_links results_links_deep web-result">
+                  <a class="result__a" href="https://example.invalid/secure">Secure result</a>
+                  <div class="result__snippet">Secure snippet</div>
+                </div>
+              </body>
+            </html>
+            """
+        )
+
+    payload = perform_search_query("secure query", opener=fake_opener)
+
+    assert payload["status"] == "ok"
+    assert "duckduckgo.com" in str(seen["url"])
+    assert seen["timeout"] == 11
+    assert isinstance(seen["context"], ssl.SSLContext)
+
+
+def test_perform_search_query_duckduckgo_retries_with_relaxed_tls_on_cert_failure(
+    tmp_path: Path,
+    monkeypatch,
+):
+    install_root = tmp_path / "install-root"
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    _write_settings(
+        install_root,
+        {
+            "webSearchMode": "always",
+            "webSearchProvider": "duckduckgo",
+            "webSearchBaseUrl": "",
+            "webSearchMaxResults": 1,
+            "webSearchTimeoutSeconds": 11,
+            "webSearchPromptPrefix": "/web",
+        },
+    )
+
+    calls: list[ssl.SSLContext | None] = []
+
+    def fake_opener(request, timeout, context=None):
+        calls.append(context)
+        if len(calls) == 1:
+            raise ssl.SSLCertVerificationError("verify failed")
+        return _FakeRawResponse(
+            """
+            <html>
+              <body>
+                <div class="result results_links results_links_deep web-result">
+                  <a class="result__a" href="https://example.invalid/fallback">Fallback result</a>
+                  <div class="result__snippet">Fallback snippet</div>
+                </div>
+              </body>
+            </html>
+            """
+        )
+
+    payload = perform_search_query("fallback query", opener=fake_opener)
+
+    assert payload["status"] == "ok"
+    assert payload["resultCount"] == 1
+    assert payload["results"][0]["title"] == "Fallback result"
+    assert len(calls) == 2
+    assert isinstance(calls[0], ssl.SSLContext)
+    assert isinstance(calls[1], ssl.SSLContext)
+    assert calls[1].check_hostname is False
+
+
+def test_perform_search_query_supports_provider_override(
+    tmp_path: Path,
+    monkeypatch,
+):
+    install_root = tmp_path / "install-root"
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    _write_settings(
+        install_root,
+        {
+            "webSearchMode": "always",
+            "webSearchProvider": "searxng",
+            "webSearchBaseUrl": "http://127.0.0.1:18080",
+            "webSearchMaxResults": 2,
+            "webSearchTimeoutSeconds": 9,
+            "webSearchPromptPrefix": "/web",
+        },
+    )
+
+    payload = perform_search_query(
+        "kv cache",
+        provider_override="duckduckgo",
+        opener=lambda request, timeout: _FakeRawResponse(
+            """
+            <html>
+              <body>
+                <div class="result results_links results_links_deep web-result">
+                  <a class="result__a" href="https://example.invalid/override">Override result</a>
+                  <div class="result__snippet">Override snippet</div>
+                </div>
+              </body>
+            </html>
+            """
+        ),
+    )
+
+    assert payload["status"] == "ok"
+    assert payload["provider"] == "duckduckgo"
+    assert payload["results"][0]["title"] == "Override result"
 
 
 def test_prepare_proxy_chat_completion_body_skips_search_when_mode_is_off(

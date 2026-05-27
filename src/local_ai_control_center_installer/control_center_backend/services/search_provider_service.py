@@ -17,6 +17,7 @@ from local_ai_control_center_installer.control_center_backend.config import (
 )
 from local_ai_control_center_installer.control_center_backend.services.settings_service import (
     LEGACY_DEFAULT_WEB_SEARCH_BASE_URL,
+    ALLOWED_WEB_SEARCH_PROVIDERS,
     load_effective_settings_state,
 )
 from local_ai_control_center_installer.control_center_backend.services.state_helpers import (
@@ -63,48 +64,100 @@ def load_search_provider_state(
 
 def resolve_search_provider_target(
     config: ControlCenterConfig | None = None,
+    *,
+    provider_override: str | None = None,
 ) -> dict[str, str]:
     config = config or get_config()
     settings = load_effective_settings_state(config)
+    provider = resolve_search_provider(config, provider_override=provider_override)
     state = load_search_provider_state(config)
     managed = state["managed"]
     manual_url = str(settings.get("webSearchBaseUrl", "") or "").strip()
     managed_url = str(managed.get("baseUrl", "") or "").strip() if managed.get("enabled") else ""
 
+    if provider == "duckduckgo":
+        return {
+            "provider": provider,
+            "source": "public-web",
+            "configuredBaseUrl": "",
+            "effectiveBaseUrl": "",
+        }
+
     if manual_url and not _is_legacy_default_url(manual_url):
         return {
+            "provider": provider,
             "source": "manual",
             "configuredBaseUrl": manual_url,
             "effectiveBaseUrl": manual_url,
         }
     if managed_url:
         return {
+            "provider": provider,
             "source": "managed",
             "configuredBaseUrl": manual_url,
             "effectiveBaseUrl": managed_url,
         }
     if manual_url:
         return {
+            "provider": provider,
             "source": "legacy-default" if _is_legacy_default_url(manual_url) else "manual",
             "configuredBaseUrl": manual_url,
             "effectiveBaseUrl": manual_url,
         }
     return {
+        "provider": provider,
         "source": "none",
         "configuredBaseUrl": "",
         "effectiveBaseUrl": "",
     }
 
 
+def resolve_search_provider(
+    config: ControlCenterConfig | None = None,
+    *,
+    provider_override: str | None = None,
+) -> str:
+    config = config or get_config()
+    settings = load_effective_settings_state(config)
+    candidate = str(
+        provider_override
+        or settings.get("webSearchProvider", "searxng")
+        or "searxng"
+    ).strip().lower()
+    if candidate not in ALLOWED_WEB_SEARCH_PROVIDERS:
+        return "searxng"
+    return candidate
+
+
 def load_search_provider_status(
     config: ControlCenterConfig | None = None,
     *,
+    provider_override: str | None = None,
     opener: Callable[..., Any] = urlopen,
     command_runner: Callable[..., Any] = subprocess.run,
 ) -> dict[str, Any]:
     config = config or get_config()
     state = load_search_provider_state(config)
-    target = resolve_search_provider_target(config)
+    provider = resolve_search_provider(config, provider_override=provider_override)
+    target = resolve_search_provider_target(config, provider_override=provider)
+
+    if provider == "duckduckgo":
+        return _build_status_payload(
+            status="healthy",
+            label="DuckDuckGo spreman",
+            summary="DuckDuckGo public web search je spreman bez API kljuca. Rezultati koriste best-effort HTML integraciju.",
+            provider=provider,
+            provider_label="DuckDuckGo",
+            source="public-web",
+            configured_base_url="",
+            effective_base_url="https://html.duckduckgo.com/html/",
+            service_label="DuckDuckGo HTML",
+            can_query=True,
+            can_bootstrap=False,
+            state=state,
+            bootstrap={"reason": "Managed bootstrap nije potreban za DuckDuckGo."},
+        )
+
     bootstrap = _describe_bootstrap_capability(command_runner)
 
     if not target["effectiveBaseUrl"]:
@@ -112,7 +165,10 @@ def load_search_provider_status(
         if last_bootstrap_status == "bootstrap-blocked":
             return _build_status_payload(
                 status="bootstrap-blocked",
+                label=_status_label("bootstrap-blocked", provider),
                 summary=f"SearxNG nije podesen. Managed bootstrap je blokiran: {state['managed'].get('lastBootstrapMessage', '')}",
+                provider=provider,
+                provider_label="SearxNG",
                 source=target["source"],
                 configured_base_url=target["configuredBaseUrl"],
                 effective_base_url="",
@@ -125,7 +181,10 @@ def load_search_provider_status(
         if not bootstrap["available"]:
             return _build_status_payload(
                 status="not-configured",
+                label=_status_label("not-configured", provider),
                 summary=f"SearxNG nije podesen. Managed bootstrap trenutno nije dostupan: {bootstrap['reason']}",
+                provider=provider,
+                provider_label="SearxNG",
                 source=target["source"],
                 configured_base_url=target["configuredBaseUrl"],
                 effective_base_url="",
@@ -137,7 +196,10 @@ def load_search_provider_status(
             )
         return _build_status_payload(
             status="not-configured",
+            label=_status_label("not-configured", provider),
             summary="SearxNG nije podesen. Pokreni Setup local SearxNG ili unesi rucni base URL.",
+            provider=provider,
+            provider_label="SearxNG",
             source=target["source"],
             configured_base_url=target["configuredBaseUrl"],
             effective_base_url="",
@@ -152,7 +214,10 @@ def load_search_provider_status(
     if target["source"] == "legacy-default" and probe["status"] == "unreachable":
         return _build_status_payload(
             status="not-configured",
+            label=_status_label("not-configured", provider),
             summary="Legacy 127.0.0.1:8080 vise se ne smatra podrazumevanim SearxNG endpointom. Pokreni Setup local SearxNG ili unesi pravi base URL.",
+            provider=provider,
+            provider_label="SearxNG",
             source=target["source"],
             configured_base_url=target["configuredBaseUrl"],
             effective_base_url=target["effectiveBaseUrl"],
@@ -165,7 +230,10 @@ def load_search_provider_status(
 
     return _build_status_payload(
         status=str(probe["status"]),
+        label=_status_label(str(probe["status"]), provider),
         summary=str(probe["summary"]),
+        provider=provider,
+        provider_label="SearxNG",
         source=target["source"],
         configured_base_url=target["configuredBaseUrl"],
         effective_base_url=target["effectiveBaseUrl"],
@@ -180,10 +248,27 @@ def load_search_provider_status(
 def bootstrap_search_provider(
     config: ControlCenterConfig | None = None,
     *,
+    provider_override: str | None = None,
     command_runner: Callable[..., Any] = subprocess.run,
     opener: Callable[..., Any] = urlopen,
 ) -> dict[str, Any]:
     config = config or get_config()
+    provider = resolve_search_provider(config, provider_override=provider_override)
+    if provider != "searxng":
+        return {
+            "result": action_result(
+                "error",
+                "bootstrap-search-provider",
+                "Managed bootstrap je trenutno podrzan samo za SearxNG provider.",
+                stderr="Managed bootstrap je trenutno podrzan samo za SearxNG provider.",
+            ),
+            "providerStatus": load_search_provider_status(
+                config,
+                provider_override=provider,
+                opener=opener,
+                command_runner=command_runner,
+            ),
+        }
     state = load_search_provider_state(config)
     bootstrap = _describe_bootstrap_capability(command_runner, refresh=True)
     if not bootstrap["available"]:
@@ -208,6 +293,7 @@ def bootstrap_search_provider(
             ),
             "providerStatus": load_search_provider_status(
                 config,
+                provider_override=provider,
                 opener=opener,
                 command_runner=command_runner,
             ),
@@ -263,6 +349,7 @@ def bootstrap_search_provider(
             ),
             "providerStatus": load_search_provider_status(
                 config,
+                provider_override=provider,
                 opener=opener,
                 command_runner=command_runner,
             ),
@@ -283,6 +370,7 @@ def bootstrap_search_provider(
     )
     provider_status = load_search_provider_status(
         config,
+        provider_override=provider,
         opener=opener,
         command_runner=command_runner,
     )
@@ -301,6 +389,7 @@ def bootstrap_search_provider(
         )
         provider_status = load_search_provider_status(
             config,
+            provider_override=provider,
             opener=opener,
             command_runner=command_runner,
         )
@@ -495,7 +584,10 @@ def _store_cached_bootstrap_capability(value: dict[str, Any]) -> None:
 def _build_status_payload(
     *,
     status: str,
+    label: str,
     summary: str,
+    provider: str,
+    provider_label: str,
     source: str,
     configured_base_url: str,
     effective_base_url: str,
@@ -506,8 +598,10 @@ def _build_status_payload(
     bootstrap: dict[str, Any],
 ) -> dict[str, Any]:
     return {
+        "provider": provider,
+        "providerLabel": provider_label,
         "status": status,
-        "label": _status_label(status),
+        "label": label,
         "summary": summary,
         "source": source,
         "configuredBaseUrl": configured_base_url,
@@ -520,7 +614,12 @@ def _build_status_payload(
     }
 
 
-def _status_label(value: str) -> str:
+def _status_label(value: str, provider: str) -> str:
+    if provider == "duckduckgo":
+        return {
+            "healthy": "DuckDuckGo spreman",
+            "error": "DuckDuckGo greska",
+        }.get(value, value)
     return {
         "not-configured": "SearxNG nije podesen",
         "healthy": "SearxNG spreman",

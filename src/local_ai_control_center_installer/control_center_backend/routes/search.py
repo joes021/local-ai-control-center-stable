@@ -13,6 +13,9 @@ from local_ai_control_center_installer.control_center_backend.services.search_se
     load_web_search_settings,
     perform_search_query,
 )
+from local_ai_control_center_installer.control_center_backend.services.settings_service import (
+    load_web_search_provider_options,
+)
 
 
 router = APIRouter()
@@ -22,6 +25,7 @@ router = APIRouter()
 def search_summary() -> dict[str, object]:
     return {
         "settings": load_web_search_settings(),
+        "availableProviders": load_web_search_provider_options(),
         "history": load_search_history(),
         "providerStatus": load_search_provider_status(),
     }
@@ -29,12 +33,18 @@ def search_summary() -> dict[str, object]:
 
 class SearchQueryRequest(BaseModel):
     query: str = ""
+    provider: str = ""
+
+
+class SearchProviderRequest(BaseModel):
+    provider: str = ""
 
 
 @router.post("/api/search/query")
 def search_query(payload: SearchQueryRequest) -> dict[str, object]:
     return perform_search_query(
         payload.query,
+        provider_override=payload.provider or None,
         mode_label="manual",
         record_history=True,
     )
@@ -42,14 +52,19 @@ def search_query(payload: SearchQueryRequest) -> dict[str, object]:
 
 @router.post("/api/search/answer")
 def search_answer(payload: SearchQueryRequest) -> dict[str, object]:
-    return answer_with_local_model(payload.query)
+    return answer_with_local_model(
+        payload.query,
+        provider_override=payload.provider or None,
+    )
 
 
 @router.post("/api/search/provider/check")
-def search_provider_check() -> dict[str, object]:
-    return load_search_provider_status()
+def search_provider_check(payload: SearchProviderRequest | None = None) -> dict[str, object]:
+    provider = payload.provider if payload else ""
+    return load_search_provider_status(provider_override=provider or None)
 
 
 @router.post("/api/search/provider/bootstrap")
-def search_provider_bootstrap() -> dict[str, object]:
-    return bootstrap_search_provider()
+def search_provider_bootstrap(payload: SearchProviderRequest | None = None) -> dict[str, object]:
+    provider = payload.provider if payload else ""
+    return bootstrap_search_provider(provider_override=provider or None)

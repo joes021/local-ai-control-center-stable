@@ -299,24 +299,38 @@ export async function fetchSearchSummary(): Promise<SearchSummaryPayload> {
   return response.json() as Promise<SearchSummaryPayload>;
 }
 
-export async function fetchSearchProviderStatus(): Promise<SearchProviderStatusPayload> {
-  return postJson<Record<string, never>, SearchProviderStatusPayload>("/api/search/provider/check", {});
+export async function fetchSearchProviderStatus(provider?: string): Promise<SearchProviderStatusPayload> {
+  return postJson<{ provider?: string }, SearchProviderStatusPayload>("/api/search/provider/check", {
+    provider,
+  });
 }
 
-export async function bootstrapManagedSearchProvider(): Promise<SearchProviderActionPayload> {
-  return postJson<Record<string, never>, SearchProviderActionPayload>(
+export async function bootstrapManagedSearchProvider(provider?: string): Promise<SearchProviderActionPayload> {
+  return postJson<{ provider?: string }, SearchProviderActionPayload>(
     "/api/search/provider/bootstrap",
-    {},
+    { provider },
     900000,
   );
 }
 
-export async function runSearchQuery(query: string): Promise<SearchQueryPayload> {
-  return postJson<{ query: string }, SearchQueryPayload>("/api/search/query", { query });
+export async function runSearchQuery(
+  query: string,
+  options?: { provider?: string },
+): Promise<SearchQueryPayload> {
+  return postJson<{ query: string; provider?: string }, SearchQueryPayload>("/api/search/query", {
+    query,
+    provider: options?.provider,
+  });
 }
 
-export async function answerWithLocalModel(query: string): Promise<SearchAnswerPayload> {
-  return postJson<{ query: string }, SearchAnswerPayload>("/api/search/answer", { query });
+export async function answerWithLocalModel(
+  query: string,
+  options?: { provider?: string },
+): Promise<SearchAnswerPayload> {
+  return postJson<{ query: string; provider?: string }, SearchAnswerPayload>("/api/search/answer", {
+    query,
+    provider: options?.provider,
+  });
 }
 
 export async function fetchKnowledgeSummary(): Promise<KnowledgeSummaryPayload> {

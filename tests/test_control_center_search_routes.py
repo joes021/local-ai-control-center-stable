@@ -35,7 +35,7 @@ def test_search_routes_expose_settings_history_query_and_answer(tmp_path: Path, 
         "local_ai_control_center_installer.control_center_backend.routes.search.perform_search_query",
         lambda query, **kwargs: {
             "status": "ok",
-            "provider": "searxng",
+            "provider": str(kwargs.get("provider_override") or "searxng"),
             "mode": "manual",
             "query": query,
             "resultCount": 1,
@@ -60,9 +60,9 @@ def test_search_routes_expose_settings_history_query_and_answer(tmp_path: Path, 
     )
     monkeypatch.setattr(
         "local_ai_control_center_installer.control_center_backend.routes.search.answer_with_local_model",
-        lambda query: {
+        lambda query, **kwargs: {
             "status": "ok",
-            "provider": "searxng",
+            "provider": str(kwargs.get("provider_override") or "searxng"),
             "mode": "manual",
             "query": query,
             "resultCount": 1,
@@ -88,10 +88,12 @@ def test_search_routes_expose_settings_history_query_and_answer(tmp_path: Path, 
     )
     monkeypatch.setattr(
         "local_ai_control_center_installer.control_center_backend.routes.search.load_search_provider_status",
-        lambda **kwargs: {
+        lambda provider_override=None, **kwargs: {
             "status": "healthy",
             "label": "Healthy",
             "summary": "Managed SearxNG radi.",
+            "provider": str(provider_override or "searxng"),
+            "providerLabel": "SearxNG" if str(provider_override or "searxng") == "searxng" else "DuckDuckGo",
             "source": "manual",
             "serviceLabel": "SearxNG",
             "configuredBaseUrl": "http://127.0.0.1:18080",
@@ -102,7 +104,7 @@ def test_search_routes_expose_settings_history_query_and_answer(tmp_path: Path, 
     )
     monkeypatch.setattr(
         "local_ai_control_center_installer.control_center_backend.routes.search.bootstrap_search_provider",
-        lambda **kwargs: {
+        lambda provider_override=None, **kwargs: {
             "result": {
                 "status": "ok",
                 "action": "bootstrap-search-provider",
@@ -113,6 +115,8 @@ def test_search_routes_expose_settings_history_query_and_answer(tmp_path: Path, 
                 "status": "healthy",
                 "label": "Healthy",
                 "summary": "Managed SearxNG radi.",
+                "provider": str(provider_override or "searxng"),
+                "providerLabel": "SearxNG",
                 "source": "managed",
                 "serviceLabel": "SearxNG",
                 "configuredBaseUrl": "",
@@ -137,14 +141,19 @@ def test_search_routes_expose_settings_history_query_and_answer(tmp_path: Path, 
     assert query_response.json()["query"] == "qwen3.6 browser"
     assert query_response.json()["results"][0]["title"] == "Result title"
 
-    answer_response = client.post("/api/search/answer", json={"query": "objasni kv cache"})
+    answer_response = client.post(
+        "/api/search/answer",
+        json={"query": "objasni kv cache", "provider": "duckduckgo"},
+    )
     assert answer_response.status_code == 200
     assert answer_response.json()["answer"] == "Odgovor iz lokalnog modela."
     assert answer_response.json()["answerRuntime"] == "llama.cpp"
+    assert answer_response.json()["provider"] == "duckduckgo"
 
-    check_response = client.post("/api/search/provider/check")
+    check_response = client.post("/api/search/provider/check", json={"provider": "duckduckgo"})
     assert check_response.status_code == 200
     assert check_response.json()["status"] == "healthy"
+    assert check_response.json()["provider"] == "duckduckgo"
 
     bootstrap_response = client.post("/api/search/provider/bootstrap")
     assert bootstrap_response.status_code == 200

@@ -1,18 +1,27 @@
 from __future__ import annotations
 
+import html
 import json
+import ssl
 from datetime import datetime, timezone
+from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any, Callable
 from urllib.error import HTTPError, URLError
-from urllib.parse import parse_qsl, quote_plus, urlsplit, urlunsplit
+from urllib.parse import parse_qsl, quote_plus, unquote, urlsplit, urlunsplit
 from urllib.request import Request, urlopen
+
+try:
+    import certifi
+except ImportError:  # pragma: no cover - dependency should be present in packaged builds
+    certifi = None
 
 from local_ai_control_center_installer.control_center_backend.config import (
     ControlCenterConfig,
     get_config,
 )
 from local_ai_control_center_installer.control_center_backend.services.search_provider_service import (
+    resolve_search_provider,
     resolve_search_provider_target,
 )
 from local_ai_control_center_installer.control_center_backend.services.server_service import (
@@ -36,6 +45,11 @@ SEARCH_REQUEST_TIMEOUT_FALLBACK_SECONDS = 20
 LOCAL_MODEL_ANSWER_TIMEOUT_SECONDS = 180.0
 MAX_SNIPPET_LENGTH = 480
 
+SEARCH_PROVIDER_LABELS = {
+    "searxng": "SearxNG",
+    "duckduckgo": "DuckDuckGo",
+}
+
 
 def load_web_search_settings(
     config: ControlCenterConfig | None = None,
@@ -56,13 +70,19 @@ def perform_search_query(
     query: str,
     *,
     config: ControlCenterConfig | None = None,
+    provider_override: str | None = None,
     opener: Callable[..., Any] = urlopen,
     mode_label: str = "manual",
     record_history: bool = False,
 ) -> dict[str, Any]:
     config = config or get_config()
     settings = load_web_search_settings(config)
-    target = resolve_search_provider_target(config)
+    provider = resolve_search_provider(config, provider_override=provider_override)
+    settings = {
+        **settings,
+        "provider": provider,
+    }
+    target = resolve_search_provider_target(config, provider_override=provider)
     normalized_query = str(query or "").strip()
     if not normalized_query:
         return _search_error_payload(
@@ -70,58 +90,30 @@ def perform_search_query(
             summary="Search query je prazan.",
             settings=settings,
         )
-    if not target["effectiveBaseUrl"]:
-        return _search_error_payload(
-            query=normalized_query,
-            summary="SearxNG nije podesen. Pokreni Setup local SearxNG ili unesi pravi base URL.",
-            settings=settings,
-        )
-
-    request_url = _build_searxng_request_url(str(target["effectiveBaseUrl"]), normalized_query)
-    request = Request(
-        request_url,
-        headers={"Accept": "application/json"},
-        method="GET",
-    )
     try:
-        with opener(request, timeout=float(settings["timeoutSeconds"])) as response:
-            raw_payload = _decode_searxng_payload(
-                response.read().decode("utf-8", errors="replace"),
-                request_url=request_url,
-            )
-    except HTTPError as exc:
-        return _search_error_payload(
+        results = _perform_provider_query(
+            provider,
             query=normalized_query,
-            summary=f"SearxNG je vratio HTTP {exc.code}.",
+            target=target,
+            opener=opener,
+            timeout_seconds=float(settings["timeoutSeconds"]),
+            limit=int(settings["maxResults"]),
             settings=settings,
         )
-    except ValueError as exc:
+    except _SearchProviderError as exc:
         return _search_error_payload(
             query=normalized_query,
             summary=str(exc),
             settings=settings,
         )
-    except (OSError, URLError, TimeoutError, json.JSONDecodeError) as exc:
-        if target["source"] == "legacy-default" and str(target["effectiveBaseUrl"]).rstrip("/") == LEGACY_DEFAULT_WEB_SEARCH_BASE_URL.rstrip("/"):
-            return _search_error_payload(
-                query=normalized_query,
-                summary="Legacy 127.0.0.1:8080 vise se ne smatra podrazumevanim SearxNG endpointom. Pokreni Setup local SearxNG ili unesi pravi base URL.",
-                settings=settings,
-            )
-        return _search_error_payload(
-            query=normalized_query,
-            summary=f"SearxNG query nije uspeo: {exc}",
-            settings=settings,
-        )
-
-    results = _normalize_searxng_results(raw_payload, limit=int(settings["maxResults"]))
     payload = {
         "status": "ok",
-        "provider": str(settings["provider"]),
+        "provider": provider,
+        "providerLabel": _provider_label(provider),
         "mode": mode_label,
         "query": normalized_query,
         "resultCount": len(results),
-        "summary": f"Pronadjeno je {len(results)} web rezultata preko SearxNG.",
+        "summary": f"Pronadjeno je {len(results)} web rezultata preko {_provider_label(provider)}.",
         "results": results,
         "history": [],
     }
@@ -215,15 +207,18 @@ def answer_with_local_model(
     query: str,
     *,
     config: ControlCenterConfig | None = None,
+    provider_override: str | None = None,
     search_func: Callable[[str], dict[str, Any]] | None = None,
     opener: Callable[..., Any] = urlopen,
 ) -> dict[str, Any]:
     config = config or get_config()
+    provider = resolve_search_provider(config, provider_override=provider_override)
     runtime_ready = ensure_runtime_ready(config)
     if runtime_ready.get("status") != "ok":
         return {
             "status": "error",
-            "provider": "searxng",
+            "provider": provider,
+            "providerLabel": _provider_label(provider),
             "mode": "manual",
             "query": str(query or "").strip(),
             "resultCount": 0,
@@ -244,6 +239,7 @@ def answer_with_local_model(
         lambda next_query: perform_search_query(
             next_query,
             config=config,
+            provider_override=provider,
             mode_label="manual",
             record_history=True,
         )
@@ -329,6 +325,159 @@ def answer_with_local_model(
     }
 
 
+class _SearchProviderError(RuntimeError):
+    pass
+
+
+class _DuckDuckGoResultParser(HTMLParser):
+    def __init__(self, *, limit: int):
+        super().__init__(convert_charrefs=True)
+        self.limit = max(limit, 1)
+        self.results: list[dict[str, object]] = []
+        self._capture_kind = ""
+        self._chunks: list[str] = []
+        self._current_href = ""
+        self._snippet_target_index: int | None = None
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if len(self.results) >= self.limit:
+            return
+        attributes = {key: value or "" for key, value in attrs}
+        class_names = set(attributes.get("class", "").split())
+        if tag == "a" and "result__a" in class_names:
+            self._capture_kind = "title"
+            self._chunks = []
+            self._current_href = attributes.get("href", "")
+            self._snippet_target_index = None
+            return
+        if (
+            tag in {"a", "div", "span"}
+            and "result__snippet" in class_names
+            and self.results
+            and not self.results[-1]["snippet"]
+        ):
+            self._capture_kind = "snippet"
+            self._chunks = []
+            self._snippet_target_index = len(self.results) - 1
+            return
+        if tag == "br" and self._capture_kind:
+            self._chunks.append(" ")
+
+    def handle_endtag(self, tag: str) -> None:
+        if self._capture_kind == "title" and tag == "a":
+            title = _clean_html_text("".join(self._chunks))
+            url = _normalize_duckduckgo_result_url(self._current_href)
+            if title and url:
+                self.results.append(
+                    {
+                        "title": title,
+                        "url": url,
+                        "snippet": "",
+                        "engine": "duckduckgo",
+                    }
+                )
+            self._capture_kind = ""
+            self._chunks = []
+            self._current_href = ""
+            return
+        if self._capture_kind == "snippet" and tag in {"a", "div", "span"}:
+            snippet = _clean_html_text("".join(self._chunks))[:MAX_SNIPPET_LENGTH]
+            if (
+                snippet
+                and self._snippet_target_index is not None
+                and self._snippet_target_index < len(self.results)
+            ):
+                self.results[self._snippet_target_index]["snippet"] = snippet
+            self._capture_kind = ""
+            self._chunks = []
+            self._snippet_target_index = None
+
+    def handle_data(self, data: str) -> None:
+        if self._capture_kind:
+            self._chunks.append(data)
+
+
+def _perform_provider_query(
+    provider: str,
+    *,
+    query: str,
+    target: dict[str, str],
+    opener: Callable[..., Any],
+    timeout_seconds: float,
+    limit: int,
+    settings: dict[str, object],
+) -> list[dict[str, object]]:
+    if provider == "duckduckgo":
+        ssl_context = _build_outbound_ssl_context()
+        request_url = _build_duckduckgo_request_url(query)
+        request = Request(
+            request_url,
+            headers={
+                "Accept": "text/html",
+                "User-Agent": "LocalAIControlCenter/1.0 (+DuckDuckGo HTML search)",
+            },
+            method="GET",
+        )
+        try:
+            raw_text = _read_text_response(
+                opener,
+                request,
+                timeout=timeout_seconds,
+                ssl_context=ssl_context,
+            )
+        except HTTPError as exc:
+            raise _SearchProviderError(f"DuckDuckGo je vratio HTTP {exc.code}.") from None
+        except (OSError, URLError, TimeoutError) as exc:
+            if _is_tls_verification_error(exc):
+                try:
+                    raw_text = _read_text_response(
+                        opener,
+                        request,
+                        timeout=timeout_seconds,
+                        ssl_context=_build_relaxed_ssl_context(),
+                    )
+                except HTTPError as retry_exc:
+                    raise _SearchProviderError(f"DuckDuckGo je vratio HTTP {retry_exc.code}.") from None
+                except (OSError, URLError, TimeoutError) as retry_exc:
+                    raise _SearchProviderError(f"DuckDuckGo query nije uspeo: {retry_exc}") from None
+            else:
+                raise _SearchProviderError(f"DuckDuckGo query nije uspeo: {exc}") from None
+        return _normalize_duckduckgo_results(raw_text, limit=limit)
+
+    if not target["effectiveBaseUrl"]:
+        raise _SearchProviderError(
+            "SearxNG nije podesen. Pokreni Setup local SearxNG ili unesi pravi base URL."
+        )
+
+    request_url = _build_searxng_request_url(str(target["effectiveBaseUrl"]), query)
+    request = Request(
+        request_url,
+        headers={"Accept": "application/json"},
+        method="GET",
+    )
+    try:
+        with opener(request, timeout=timeout_seconds) as response:
+            raw_payload = _decode_searxng_payload(
+                response.read().decode("utf-8", errors="replace"),
+                request_url=request_url,
+            )
+    except HTTPError as exc:
+        raise _SearchProviderError(f"SearxNG je vratio HTTP {exc.code}.") from None
+    except ValueError as exc:
+        raise _SearchProviderError(str(exc)) from None
+    except (OSError, URLError, TimeoutError, json.JSONDecodeError) as exc:
+        if (
+            target["source"] == "legacy-default"
+            and str(target["effectiveBaseUrl"]).rstrip("/")
+            == LEGACY_DEFAULT_WEB_SEARCH_BASE_URL.rstrip("/")
+        ):
+            raise _SearchProviderError(
+                "Legacy 127.0.0.1:8080 vise se ne smatra podrazumevanim SearxNG endpointom. Pokreni Setup local SearxNG ili unesi pravi base URL."
+            ) from None
+        raise _SearchProviderError(f"SearxNG query nije uspeo: {exc}") from None
+    return _normalize_searxng_results(raw_payload, limit=limit)
+
+
 def _normalize_searxng_results(
     payload: object,
     *,
@@ -379,6 +528,18 @@ def _build_searxng_request_url(base_url: str, query: str) -> str:
     query_pairs.extend([("q", query), ("format", "json")])
     encoded_query = "&".join(f"{quote_plus(key)}={quote_plus(value)}" for key, value in query_pairs)
     return urlunsplit((scheme, netloc, search_path, encoded_query, ""))
+
+
+def _build_duckduckgo_request_url(query: str) -> str:
+    encoded_query = quote_plus(str(query or "").strip())
+    return f"https://html.duckduckgo.com/html/?q={encoded_query}"
+
+
+def _normalize_duckduckgo_results(raw_text: str, *, limit: int) -> list[dict[str, object]]:
+    parser = _DuckDuckGoResultParser(limit=limit)
+    parser.feed(raw_text)
+    parser.close()
+    return parser.results[: max(limit, 1)]
 
 
 def _decode_searxng_payload(raw_text: str, *, request_url: str) -> object:
@@ -528,6 +689,7 @@ def _search_error_payload(
     return {
         "status": "error",
         "provider": str(settings["provider"]),
+        "providerLabel": _provider_label(str(settings["provider"])),
         "mode": "manual",
         "query": query,
         "resultCount": 0,
@@ -593,3 +755,79 @@ def _int_or_none(value: object) -> int | None:
     except (TypeError, ValueError):
         return None
     return parsed if parsed >= 0 else None
+
+
+def _normalize_duckduckgo_result_url(value: str) -> str:
+    candidate = str(value or "").strip()
+    if not candidate:
+        return ""
+    if candidate.startswith("//"):
+        candidate = f"https:{candidate}"
+    elif candidate.startswith("/"):
+        candidate = f"https://duckduckgo.com{candidate}"
+    split = urlsplit(candidate)
+    if split.netloc.endswith("duckduckgo.com") and split.path.startswith("/l/"):
+        params = dict(parse_qsl(split.query, keep_blank_values=True))
+        redirected = params.get("uddg", "")
+        if redirected:
+            return unquote(redirected)
+    return candidate
+
+
+def _clean_html_text(value: str) -> str:
+    normalized = html.unescape(str(value or ""))
+    return " ".join(normalized.split()).strip()
+
+
+def _provider_label(provider: str) -> str:
+    return SEARCH_PROVIDER_LABELS.get(str(provider or "").strip().lower(), provider)
+
+
+def _build_outbound_ssl_context() -> ssl.SSLContext:
+    if certifi is not None:
+        return ssl.create_default_context(cafile=certifi.where())
+    return ssl.create_default_context()
+
+
+def _open_request(
+    opener: Callable[..., Any],
+    request: Request,
+    *,
+    timeout: float,
+    ssl_context: ssl.SSLContext | None = None,
+):
+    if ssl_context is None:
+        return opener(request, timeout=timeout)
+    try:
+        return opener(request, timeout=timeout, context=ssl_context)
+    except TypeError:
+        return opener(request, timeout=timeout)
+
+
+def _read_text_response(
+    opener: Callable[..., Any],
+    request: Request,
+    *,
+    timeout: float,
+    ssl_context: ssl.SSLContext | None = None,
+) -> str:
+    with _open_request(
+        opener,
+        request,
+        timeout=timeout,
+        ssl_context=ssl_context,
+    ) as response:
+        return response.read().decode("utf-8", errors="replace")
+
+
+def _build_relaxed_ssl_context() -> ssl.SSLContext:
+    return ssl._create_unverified_context()
+
+
+def _is_tls_verification_error(exc: BaseException) -> bool:
+    if isinstance(exc, ssl.SSLCertVerificationError):
+        return True
+    if isinstance(exc, URLError):
+        reason = exc.reason
+        return isinstance(reason, ssl.SSLCertVerificationError)
+    return False
