@@ -22,6 +22,15 @@ type WorkflowPresetDraft = {
   context: number;
   outputTokens: number;
   thinkingMode: string;
+  temperature: number;
+  topK: number;
+  topP: number;
+  minP: number;
+  repeatPenalty: number;
+  repeatLastN: number;
+  presencePenalty: number;
+  frequencyPenalty: number;
+  seed: number;
   webSearchMode: string;
   webSearchProvider: string;
   searchProvider: string;
@@ -84,6 +93,15 @@ function createDraftFromPreset(preset: WorkflowPreset): WorkflowPresetDraft {
     context: preset.settingsPatch.context ?? 262144,
     outputTokens: preset.settingsPatch.outputTokens ?? 8192,
     thinkingMode: preset.settingsPatch.thinkingMode ?? "mid",
+    temperature: preset.settingsPatch.temperature ?? 0.8,
+    topK: preset.settingsPatch.topK ?? 40,
+    topP: preset.settingsPatch.topP ?? 0.95,
+    minP: preset.settingsPatch.minP ?? 0.05,
+    repeatPenalty: preset.settingsPatch.repeatPenalty ?? 1,
+    repeatLastN: preset.settingsPatch.repeatLastN ?? 64,
+    presencePenalty: preset.settingsPatch.presencePenalty ?? 0,
+    frequencyPenalty: preset.settingsPatch.frequencyPenalty ?? 0,
+    seed: preset.settingsPatch.seed ?? -1,
     webSearchMode: preset.settingsPatch.webSearchMode ?? "off",
     webSearchProvider: preset.settingsPatch.webSearchProvider ?? "searxng",
     searchProvider: preset.searchDefaults.provider,
@@ -193,6 +211,15 @@ function buildWorkflowPresetPayload(
       context: draft.context,
       outputTokens: draft.outputTokens,
       thinkingMode: draft.thinkingMode,
+      temperature: draft.temperature,
+      topK: draft.topK,
+      topP: draft.topP,
+      minP: draft.minP,
+      repeatPenalty: draft.repeatPenalty,
+      repeatLastN: draft.repeatLastN,
+      presencePenalty: draft.presencePenalty,
+      frequencyPenalty: draft.frequencyPenalty,
+      seed: draft.seed,
       webSearchMode: draft.webSearchMode,
       webSearchProvider: draft.webSearchProvider,
     },
@@ -561,6 +588,142 @@ export function WorkflowsPage({
               }
               ariaLabel="Izaberi thinking mode workflow preseta"
             />
+          </article>
+
+          <article className="settings-field settings-field-wide">
+            <span className="settings-field-label">Inference i sampling</span>
+            <p className="helper-text">
+              Ove vrednosti se čuvaju unutar workflow preseta i mogu da preuzmu runtime komande,
+              lokalni model i `OpenCode local-lacc` fallback kada preset aktiviraš kroz portal.
+            </p>
+            <div className="workflow-editor-grid">
+              <article className="settings-field">
+                <span className="settings-field-label">Temperature</span>
+                <input
+                  type="number"
+                  step="0.05"
+                  value={editorDraft.temperature}
+                  onChange={(event) =>
+                    setEditorDraft({
+                      ...editorDraft,
+                      temperature: Number(event.target.value || 0),
+                    })
+                  }
+                />
+              </article>
+              <article className="settings-field">
+                <span className="settings-field-label">Top-k</span>
+                <input
+                  type="number"
+                  step="1"
+                  value={editorDraft.topK}
+                  onChange={(event) =>
+                    setEditorDraft({
+                      ...editorDraft,
+                      topK: Number(event.target.value || 0),
+                    })
+                  }
+                />
+              </article>
+              <article className="settings-field">
+                <span className="settings-field-label">Top-p</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={editorDraft.topP}
+                  onChange={(event) =>
+                    setEditorDraft({
+                      ...editorDraft,
+                      topP: Number(event.target.value || 0),
+                    })
+                  }
+                />
+              </article>
+              <article className="settings-field">
+                <span className="settings-field-label">Min-p</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={editorDraft.minP}
+                  onChange={(event) =>
+                    setEditorDraft({
+                      ...editorDraft,
+                      minP: Number(event.target.value || 0),
+                    })
+                  }
+                />
+              </article>
+              <article className="settings-field">
+                <span className="settings-field-label">Repeat penalty</span>
+                <input
+                  type="number"
+                  step="0.05"
+                  value={editorDraft.repeatPenalty}
+                  onChange={(event) =>
+                    setEditorDraft({
+                      ...editorDraft,
+                      repeatPenalty: Number(event.target.value || 0),
+                    })
+                  }
+                />
+              </article>
+              <article className="settings-field">
+                <span className="settings-field-label">Repeat last N</span>
+                <input
+                  type="number"
+                  step="1"
+                  value={editorDraft.repeatLastN}
+                  onChange={(event) =>
+                    setEditorDraft({
+                      ...editorDraft,
+                      repeatLastN: Number(event.target.value || 0),
+                    })
+                  }
+                />
+              </article>
+              <article className="settings-field">
+                <span className="settings-field-label">Presence penalty</span>
+                <input
+                  type="number"
+                  step="0.05"
+                  value={editorDraft.presencePenalty}
+                  onChange={(event) =>
+                    setEditorDraft({
+                      ...editorDraft,
+                      presencePenalty: Number(event.target.value || 0),
+                    })
+                  }
+                />
+              </article>
+              <article className="settings-field">
+                <span className="settings-field-label">Frequency penalty</span>
+                <input
+                  type="number"
+                  step="0.05"
+                  value={editorDraft.frequencyPenalty}
+                  onChange={(event) =>
+                    setEditorDraft({
+                      ...editorDraft,
+                      frequencyPenalty: Number(event.target.value || 0),
+                    })
+                  }
+                />
+              </article>
+              <article className="settings-field">
+                <span className="settings-field-label">Seed</span>
+                <input
+                  type="number"
+                  step="1"
+                  value={editorDraft.seed}
+                  onChange={(event) =>
+                    setEditorDraft({
+                      ...editorDraft,
+                      seed: Number(event.target.value || 0),
+                    })
+                  }
+                />
+              </article>
+            </div>
           </article>
 
           <article className="settings-field">

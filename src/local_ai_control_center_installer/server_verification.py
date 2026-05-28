@@ -570,6 +570,15 @@ def _build_server_command(
     *,
     ctx_size: int | None = None,
     spec_type: str | None = None,
+    temperature: float | None = None,
+    top_k: int | None = None,
+    top_p: float | None = None,
+    min_p: float | None = None,
+    repeat_penalty: float | None = None,
+    repeat_last_n: int | None = None,
+    presence_penalty: float | None = None,
+    frequency_penalty: float | None = None,
+    seed: int | None = None,
 ) -> list[str]:
     command = [
         str(target.server_executable),
@@ -584,6 +593,24 @@ def _build_server_command(
         command.extend(["--ctx-size", str(ctx_size)])
     if isinstance(spec_type, str) and spec_type.strip():
         command.extend(["--spec-type", spec_type.strip()])
+    if isinstance(temperature, (int, float)):
+        command.extend(["--temp", str(float(temperature))])
+    if isinstance(top_k, int) and top_k >= 0:
+        command.extend(["--top-k", str(top_k)])
+    if isinstance(top_p, (int, float)):
+        command.extend(["--top-p", str(float(top_p))])
+    if isinstance(min_p, (int, float)):
+        command.extend(["--min-p", str(float(min_p))])
+    if isinstance(repeat_penalty, (int, float)):
+        command.extend(["--repeat-penalty", str(float(repeat_penalty))])
+    if isinstance(repeat_last_n, int) and repeat_last_n >= -1:
+        command.extend(["--repeat-last-n", str(repeat_last_n)])
+    if isinstance(presence_penalty, (int, float)):
+        command.extend(["--presence-penalty", str(float(presence_penalty))])
+    if isinstance(frequency_penalty, (int, float)):
+        command.extend(["--frequency-penalty", str(float(frequency_penalty))])
+    if isinstance(seed, int):
+        command.extend(["--seed", str(seed)])
     return command
 
 

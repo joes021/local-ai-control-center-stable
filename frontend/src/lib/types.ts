@@ -68,6 +68,7 @@ export type ServerStatusPayload = {
     activeRuntime: string;
     activeRuntimeLabel: string;
     activeCommand: string;
+    activeCmdCommand?: string;
     modelPath: string;
     notes: string[];
     variants: Array<{
@@ -79,7 +80,9 @@ export type ServerStatusPayload = {
       modelPath: string;
       context: number | null;
       specType: string;
+      samplingSummary?: string;
       command: string;
+      cmdCommand?: string;
     }>;
   };
 };
@@ -690,6 +693,15 @@ export type SettingsPayload = {
   workflowPresetId?: string;
   context: number;
   outputTokens: number;
+  temperature: number;
+  topK: number;
+  topP: number;
+  minP: number;
+  repeatPenalty: number;
+  repeatLastN: number;
+  presencePenalty: number;
+  frequencyPenalty: number;
+  seed: number;
   workingDirectory: string;
   thinkingMode: string;
   buildSteps: number;
@@ -709,6 +721,7 @@ export type SettingsPayload = {
   webSearchPromptPrefix: string;
   availableThemes: ThemeOption[];
   availableWorkflowPresets: WorkflowPreset[];
+  availableGenerationStarters: GenerationStarterPreset[];
   availableSearchProviders: SearchProviderOption[];
   searchProviderStatus: SearchProviderStatusPayload;
   builtInSettingsProfiles: SettingsProfilePreset[];
@@ -726,6 +739,25 @@ export type ThemeOption = {
   textColor: string;
 };
 
+export type GenerationStarterPreset = {
+  id: string;
+  label: string;
+  summary: string;
+  source: string;
+  settings: Pick<
+    SettingsPayload,
+    | "temperature"
+    | "topK"
+    | "topP"
+    | "minP"
+    | "repeatPenalty"
+    | "repeatLastN"
+    | "presencePenalty"
+    | "frequencyPenalty"
+    | "seed"
+  >;
+};
+
 export type WorkflowPreset = {
   id: string;
   name: string;
@@ -740,6 +772,15 @@ export type WorkflowPreset = {
       | "context"
       | "outputTokens"
       | "thinkingMode"
+      | "temperature"
+      | "topK"
+      | "topP"
+      | "minP"
+      | "repeatPenalty"
+      | "repeatLastN"
+      | "presencePenalty"
+      | "frequencyPenalty"
+      | "seed"
       | "webSearchMode"
       | "webSearchProvider"
     >
@@ -764,6 +805,15 @@ export type SettingsProfileValues = {
   profile: string;
   context: number;
   outputTokens: number;
+  temperature: number;
+  topK: number;
+  topP: number;
+  minP: number;
+  repeatPenalty: number;
+  repeatLastN: number;
+  presencePenalty: number;
+  frequencyPenalty: number;
+  seed: number;
   workingDirectory: string;
   thinkingMode: string;
   buildSteps: number;
@@ -876,6 +926,7 @@ export type OpenCodeStatusPayload = {
       value: string;
     }>;
     summary: string;
+    generationSummary?: string;
   };
   auditRiskLevel: string;
   auditSummary: string;

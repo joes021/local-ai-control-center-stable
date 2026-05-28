@@ -530,6 +530,104 @@ DEFAULT_WEB_SEARCH_BASE_URL = ""
 DEFAULT_WEB_SEARCH_MAX_RESULTS = 5
 DEFAULT_WEB_SEARCH_TIMEOUT_SECONDS = 20
 DEFAULT_WEB_SEARCH_PROMPT_PREFIX = "/web"
+GENERATION_STARTER_PRESETS = [
+    {
+        "id": "llama-cpp-default",
+        "label": "llama.cpp default",
+        "summary": "Konzervativni start iz llama.cpp server README podrazumevanih sampling vrednosti.",
+        "settings": {
+            "temperature": 0.8,
+            "topK": 40,
+            "topP": 0.95,
+            "minP": 0.05,
+            "repeatPenalty": 1.0,
+            "repeatLastN": 64,
+            "presencePenalty": 0.0,
+            "frequencyPenalty": 0.0,
+            "seed": -1,
+        },
+    },
+    {
+        "id": "qwen-instruct",
+        "label": "Qwen instruct",
+        "summary": "Qwen Quickstart preporuka za instruct put: 0.7 / 0.8 / 20 / 0.",
+        "settings": {
+            "temperature": 0.7,
+            "topK": 20,
+            "topP": 0.8,
+            "minP": 0.0,
+            "repeatPenalty": 1.0,
+            "repeatLastN": 64,
+            "presencePenalty": 0.0,
+            "frequencyPenalty": 0.0,
+            "seed": -1,
+        },
+    },
+    {
+        "id": "qwen-thinking",
+        "label": "Qwen thinking",
+        "summary": "Qwen Quickstart preporuka za thinking put: 0.6 / 0.95 / 20 / 0.",
+        "settings": {
+            "temperature": 0.6,
+            "topK": 20,
+            "topP": 0.95,
+            "minP": 0.0,
+            "repeatPenalty": 1.0,
+            "repeatLastN": 64,
+            "presencePenalty": 0.0,
+            "frequencyPenalty": 0.0,
+            "seed": -1,
+        },
+    },
+    {
+        "id": "llama-instruct",
+        "label": "Llama instruct",
+        "summary": "Meta Llama instruct polazna tacka: temperatura 0.6 i top-p 0.9.",
+        "settings": {
+            "temperature": 0.6,
+            "topK": 40,
+            "topP": 0.9,
+            "minP": 0.0,
+            "repeatPenalty": 1.0,
+            "repeatLastN": 64,
+            "presencePenalty": 0.0,
+            "frequencyPenalty": 0.0,
+            "seed": -1,
+        },
+    },
+    {
+        "id": "gemma-default",
+        "label": "Gemma default",
+        "summary": "Google Gemma generation_config: temperatura 1.0, top-k 64, top-p 0.95.",
+        "settings": {
+            "temperature": 1.0,
+            "topK": 64,
+            "topP": 0.95,
+            "minP": 0.0,
+            "repeatPenalty": 1.0,
+            "repeatLastN": 64,
+            "presencePenalty": 0.0,
+            "frequencyPenalty": 0.0,
+            "seed": -1,
+        },
+    },
+    {
+        "id": "deterministic-code",
+        "label": "Deterministicki kod",
+        "summary": "Niza temperatura za stabilnije code i forum-to-forum poredjenje.",
+        "settings": {
+            "temperature": 0.2,
+            "topK": 40,
+            "topP": 0.9,
+            "minP": 0.0,
+            "repeatPenalty": 1.0,
+            "repeatLastN": 64,
+            "presencePenalty": 0.0,
+            "frequencyPenalty": 0.0,
+            "seed": -1,
+        },
+    },
+]
 SETTINGS_PROFILE_COMPARE_KEYS = (
     "profile",
     "context",
@@ -541,6 +639,15 @@ SETTINGS_PROFILE_COMPARE_KEYS = (
     "generalSteps",
     "exploreSteps",
     "accessMode",
+    "temperature",
+    "topK",
+    "topP",
+    "minP",
+    "repeatPenalty",
+    "repeatLastN",
+    "presencePenalty",
+    "frequencyPenalty",
+    "seed",
 )
 SETTINGS_PROFILE_BUILTIN_SPECS = [
     {
@@ -628,6 +735,15 @@ def load_settings_payload(
         "outputTokens": effective["outputTokens"],
         "workingDirectory": effective["workingDirectory"],
         "thinkingMode": effective["thinkingMode"],
+        "temperature": effective["temperature"],
+        "topK": effective["topK"],
+        "topP": effective["topP"],
+        "minP": effective["minP"],
+        "repeatPenalty": effective["repeatPenalty"],
+        "repeatLastN": effective["repeatLastN"],
+        "presencePenalty": effective["presencePenalty"],
+        "frequencyPenalty": effective["frequencyPenalty"],
+        "seed": effective["seed"],
         "buildSteps": effective["buildSteps"],
         "planSteps": effective["planSteps"],
         "generalSteps": effective["generalSteps"],
@@ -644,6 +760,7 @@ def load_settings_payload(
         "webSearchTimeoutSeconds": effective["webSearchTimeoutSeconds"],
         "webSearchPromptPrefix": effective["webSearchPromptPrefix"],
         "availableThemes": load_theme_options(),
+        "availableGenerationStarters": load_generation_starter_presets(),
         "availableWorkflowPresets": load_workflow_presets(config),
         "availableSearchProviders": load_web_search_provider_options(),
         "builtInSettingsProfiles": profile_catalog["builtInProfiles"],
@@ -887,6 +1004,15 @@ def _normalize_workflow_preset_payload(
         "context": normalized_settings["context"],
         "outputTokens": normalized_settings["outputTokens"],
         "thinkingMode": normalized_settings["thinkingMode"],
+        "temperature": normalized_settings["temperature"],
+        "topK": normalized_settings["topK"],
+        "topP": normalized_settings["topP"],
+        "minP": normalized_settings["minP"],
+        "repeatPenalty": normalized_settings["repeatPenalty"],
+        "repeatLastN": normalized_settings["repeatLastN"],
+        "presencePenalty": normalized_settings["presencePenalty"],
+        "frequencyPenalty": normalized_settings["frequencyPenalty"],
+        "seed": normalized_settings["seed"],
         "webSearchMode": normalized_settings["webSearchMode"],
         "webSearchProvider": normalized_settings["webSearchProvider"],
     }
@@ -1163,6 +1289,15 @@ def _normalize_global_settings(
         "outputTokens": 8192,
         "workingDirectory": str(config.install_root),
         "thinkingMode": "mid",
+        "temperature": 0.8,
+        "topK": 40,
+        "topP": 0.95,
+        "minP": 0.05,
+        "repeatPenalty": 1.0,
+        "repeatLastN": 64,
+        "presencePenalty": 0.0,
+        "frequencyPenalty": 0.0,
+        "seed": -1,
         "buildSteps": 140,
         "planSteps": 100,
         "generalSteps": 110,
@@ -1193,6 +1328,16 @@ def load_web_search_provider_options() -> list[dict[str, object]]:
 
 def load_theme_options() -> list[dict[str, object]]:
     return [dict(option) for option in THEME_OPTIONS]
+
+
+def load_generation_starter_presets() -> list[dict[str, object]]:
+    return [
+        {
+            **dict(option),
+            "settings": dict(option.get("settings", {})),
+        }
+        for option in GENERATION_STARTER_PRESETS
+    ]
 
 
 def load_workflow_presets(
@@ -1355,6 +1500,55 @@ def _normalize_settings_payload(
     if normalized_capability_mode not in ALLOWED_CAPABILITY_MODES:
         normalized_capability_mode = str(current.get("capabilityMode", "confirm-commands"))
 
+    normalized_temperature = _bounded_float(
+        payload.get("temperature", current.get("temperature", 0.8)),
+        float(current.get("temperature", 0.8)),
+        minimum=0.0,
+        maximum=2.0,
+    )
+    normalized_top_k = _non_negative_int(
+        payload.get("topK", current.get("topK", 40)),
+        int(current.get("topK", 40) or 40),
+    )
+    normalized_top_p = _bounded_float(
+        payload.get("topP", current.get("topP", 0.95)),
+        float(current.get("topP", 0.95)),
+        minimum=0.0,
+        maximum=1.0,
+    )
+    normalized_min_p = _bounded_float(
+        payload.get("minP", current.get("minP", 0.05)),
+        float(current.get("minP", 0.05)),
+        minimum=0.0,
+        maximum=1.0,
+    )
+    normalized_repeat_penalty = _bounded_float(
+        payload.get("repeatPenalty", current.get("repeatPenalty", 1.0)),
+        float(current.get("repeatPenalty", 1.0)),
+        minimum=0.0,
+        maximum=2.5,
+    )
+    normalized_repeat_last_n = _repeat_last_n_value(
+        payload.get("repeatLastN", current.get("repeatLastN", 64)),
+        int(current.get("repeatLastN", 64) or 64),
+    )
+    normalized_presence_penalty = _bounded_float(
+        payload.get("presencePenalty", current.get("presencePenalty", 0.0)),
+        float(current.get("presencePenalty", 0.0)),
+        minimum=-2.0,
+        maximum=2.0,
+    )
+    normalized_frequency_penalty = _bounded_float(
+        payload.get("frequencyPenalty", current.get("frequencyPenalty", 0.0)),
+        float(current.get("frequencyPenalty", 0.0)),
+        minimum=-2.0,
+        maximum=2.0,
+    )
+    normalized_seed = _integer_value(
+        payload.get("seed", current.get("seed", -1)),
+        int(current.get("seed", -1) or -1),
+    )
+
     normalized_web_search_mode = str(
         payload.get("webSearchMode", current.get("webSearchMode", "off"))
         or current.get("webSearchMode", "off")
@@ -1440,6 +1634,15 @@ def _normalize_settings_payload(
         "outputTokens": _positive_int(payload.get("outputTokens"), int(current["outputTokens"])),
         "workingDirectory": working_directory,
         "thinkingMode": thinking_mode,
+        "temperature": normalized_temperature,
+        "topK": normalized_top_k,
+        "topP": normalized_top_p,
+        "minP": normalized_min_p,
+        "repeatPenalty": normalized_repeat_penalty,
+        "repeatLastN": normalized_repeat_last_n,
+        "presencePenalty": normalized_presence_penalty,
+        "frequencyPenalty": normalized_frequency_penalty,
+        "seed": normalized_seed,
         "buildSteps": build_steps,
         "planSteps": plan_steps,
         "generalSteps": general_steps,
@@ -1499,7 +1702,7 @@ def _format_settings_profile_summary(settings: dict[str, object]) -> str:
     output_value = int(settings["outputTokens"]) // 1024
     return (
         f"{settings['profile']} | {context_value}k ctx | "
-        f"{output_value}k out | {settings['thinkingMode']}"
+        f"{output_value}k out | {settings['thinkingMode']} | temp {settings['temperature']}"
     )
 
 
@@ -1524,6 +1727,15 @@ def _project_model_override_settings(settings: dict[str, object]) -> dict[str, o
         "accessMode",
         "securityMode",
         "capabilityMode",
+        "temperature",
+        "topK",
+        "topP",
+        "minP",
+        "repeatPenalty",
+        "repeatLastN",
+        "presencePenalty",
+        "frequencyPenalty",
+        "seed",
     }
     return {key: settings[key] for key in allowed_keys}
 
@@ -1548,6 +1760,49 @@ def _positive_int(value: object, fallback: int) -> int:
     except (TypeError, ValueError):
         return fallback
     return candidate if candidate > 0 else fallback
+
+
+def _non_negative_int(value: object, fallback: int) -> int:
+    try:
+        candidate = int(value)
+    except (TypeError, ValueError):
+        return fallback
+    return candidate if candidate >= 0 else fallback
+
+
+def _integer_value(value: object, fallback: int) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return fallback
+
+
+def _repeat_last_n_value(value: object, fallback: int) -> int:
+    try:
+        candidate = int(value)
+    except (TypeError, ValueError):
+        return fallback
+    if candidate == -1:
+        return -1
+    return candidate if candidate >= 0 else fallback
+
+
+def _bounded_float(
+    value: object,
+    fallback: float,
+    *,
+    minimum: float,
+    maximum: float,
+) -> float:
+    try:
+        candidate = float(value)
+    except (TypeError, ValueError):
+        return fallback
+    if candidate < minimum:
+        return minimum
+    if candidate > maximum:
+        return maximum
+    return candidate
 
 
 def _infer_thinking_mode(

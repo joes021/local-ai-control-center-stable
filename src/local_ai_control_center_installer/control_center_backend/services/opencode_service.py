@@ -374,7 +374,11 @@ def _build_opencode_launch_preview(
             "powershellCommand": powershell_command,
             "workingDirectory": str(settings["workingDirectory"]),
             "environment": env_items,
-            "summary": "OpenCode koristi managed config i iste profile/korake koje vidiš u panelu.",
+            "generationSummary": _build_generation_defaults_summary(settings),
+            "summary": (
+                "OpenCode koristi managed config, a local-lacc inference podrazumevana sampling "
+                "podesavanja dobija kroz runtime proxy sloj iz Control Center-a."
+            ),
         }
 
     powershell_lines = [
@@ -392,9 +396,10 @@ def _build_opencode_launch_preview(
         "powershellCommand": "\n".join(powershell_lines),
         "workingDirectory": str(settings["workingDirectory"]),
         "environment": env_items,
+        "generationSummary": _build_generation_defaults_summary(settings),
         "summary": (
             "OpenCode model i provider dolaze iz managed-config.json, a local-lacc u sebi koristi "
-            "trenutni runtime i aktivni model iz Control Center-a."
+            "trenutni runtime, aktivni model i sampling podrazumevana podesavanja iz Control Center-a."
         ),
     }
 
@@ -517,6 +522,16 @@ def _build_local_provider_search_summary(settings: dict[str, object]) -> str:
             f"krene prefiksom {prefix}."
         )
     return "Local-lacc provider trenutno radi bez automatskog web search augmentation-a."
+
+
+def _build_generation_defaults_summary(settings: dict[str, object]) -> str:
+    return (
+        f"temp {settings.get('temperature', 0.8)} | top-k {settings.get('topK', 40)} | "
+        f"top-p {settings.get('topP', 0.95)} | min-p {settings.get('minP', 0.05)} | "
+        f"repeat {settings.get('repeatPenalty', 1.0)} / last-n {settings.get('repeatLastN', 64)} | "
+        f"presence {settings.get('presencePenalty', 0.0)} | "
+        f"frequency {settings.get('frequencyPenalty', 0.0)} | seed {settings.get('seed', -1)}"
+    )
 
 
 def _build_session_state(

@@ -9,13 +9,15 @@ function formatRuntimeCommandMeta(
   context: number | null,
   specType: string,
 ): string {
-  const parts = [
-    context ? `ctx-size ${context}` : "ctx-size --",
-  ];
+  const parts = [context ? `ctx-size ${context}` : "ctx-size --"];
   if (specType) {
     parts.push(`spec-type ${specType}`);
   }
   return parts.join(" | ");
+}
+
+function formatShellLabel(label: string, shell: "powershell" | "cmd"): string {
+  return shell === "powershell" ? `${label} / PowerShell` : `${label} / cmd.exe`;
 }
 
 export function ServerPage() {
@@ -144,7 +146,10 @@ export function ServerPage() {
 
       <StatusCard label="Status servera" value={serverStatus?.status ?? "--"} />
       <StatusCard label="Health servera" value={serverStatus?.health ?? "--"} />
-      <StatusCard label="PID servera" value={serverStatus?.pid ? String(serverStatus.pid) : "nije potvrđen"} />
+      <StatusCard
+        label="PID servera"
+        value={serverStatus?.pid ? String(serverStatus.pid) : "nije potvrđen"}
+      />
       <StatusCard label="Port servera" value={serverStatus ? String(serverStatus.port) : "--"} />
 
       <section className="status-card wide-card">
@@ -152,9 +157,12 @@ export function ServerPage() {
         <strong className="status-value">{serverStatus?.lastReason || "Nema lifecycle poruke."}</strong>
         <p className="helper-text">Health URL: {serverStatus?.healthUrl || "--"}</p>
         <p className="helper-text">Lokalni web: {serverStatus?.localWebUrl || "nije dostupan"}</p>
-        <p className="helper-text">Tailscale veb: {serverStatus?.tailscaleWebUrl || "nije izložen kroz Tailscale"}</p>
         <p className="helper-text">
-          Runtime live signal: {serverStatus?.runtimeLiveStatus || "--"} | {serverStatus?.runtimeLiveReason || "Nema dodatnih detalja."}
+          Tailscale veb: {serverStatus?.tailscaleWebUrl || "nije izložen kroz Tailscale"}
+        </p>
+        <p className="helper-text">
+          Runtime live signal: {serverStatus?.runtimeLiveStatus || "--"} |{" "}
+          {serverStatus?.runtimeLiveReason || "Nema dodatnih detalja."}
         </p>
       </section>
 
@@ -164,8 +172,12 @@ export function ServerPage() {
           {serverStatus?.commandPreview?.activeRuntimeLabel || "Runtime command preview"}
         </strong>
         <p className="helper-text">
-          Ovo je PowerShell ekvivalent onoga što portal radi kada pokreće runtime server.
-          Lokalni model se prosleđuje kroz --model argument.
+          Ovde vidiš ručni ekvivalent onoga što portal radi kada pokreće runtime server. Lokalni model
+          se prosleđuje kroz `--model` argument, a najbitnije vrednosti za poređenje su `ctx-size` i
+          sampling parametri.
+        </p>
+        <p className="helper-text">
+          `PowerShell` koristi prefiks `&`, dok `cmd.exe` koristi istu komandu bez tog prefiksa.
         </p>
         <div className="command-preview-stack">
           {serverStatus?.commandPreview?.variants.map((variant) => (
@@ -177,14 +189,34 @@ export function ServerPage() {
                     {variant.available ? "Spreman za launch" : "Preview sa upozorenjem"}
                   </strong>
                 </div>
-                <button
-                  type="button"
-                  className="secondary-button"
-                  disabled={!variant.command}
-                  onClick={() => void copyCommand(variant.command, `${variant.runtimeLabel} komanda`)}
-                >
-                  Kopiraj komandu
-                </button>
+                <div className="inline-actions">
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    disabled={!variant.command}
+                    onClick={() =>
+                      void copyCommand(
+                        variant.command,
+                        formatShellLabel(variant.runtimeLabel, "powershell"),
+                      )
+                    }
+                  >
+                    Kopiraj PowerShell
+                  </button>
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    disabled={!variant.cmdCommand}
+                    onClick={() =>
+                      void copyCommand(
+                        variant.cmdCommand || "",
+                        formatShellLabel(variant.runtimeLabel, "cmd"),
+                      )
+                    }
+                  >
+                    Kopiraj cmd.exe
+                  </button>
+                </div>
               </div>
               <p className="helper-text">{variant.summary}</p>
               <p className="helper-text">Runtime binar: {variant.binaryPath || "--"}</p>
@@ -192,8 +224,16 @@ export function ServerPage() {
               <p className="helper-text">
                 {formatRuntimeCommandMeta(variant.context, variant.specType)}
               </p>
+              {variant.samplingSummary ? (
+                <p className="helper-text">Sampling: {variant.samplingSummary}</p>
+              ) : null}
               <div className="details-block">
+                <span className="status-label">PowerShell</span>
                 <pre>{variant.command || "Komanda nije dostupna dok binar ili model ne budu spremni."}</pre>
+              </div>
+              <div className="details-block">
+                <span className="status-label">cmd.exe</span>
+                <pre>{variant.cmdCommand || "cmd.exe varijanta nije dostupna dok binar ili model ne budu spremni."}</pre>
               </div>
             </article>
           ))}

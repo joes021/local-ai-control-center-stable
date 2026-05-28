@@ -193,6 +193,11 @@ export function OpenCodePage() {
         <p className="helper-text">Launcher .cmd: {opencode.launchPreview.launcherPath}</p>
         <p className="helper-text">Radni direktorijum: {opencode.launchPreview.workingDirectory}</p>
         <p className="helper-text">{opencode.launchPreview.summary}</p>
+        {opencode.launchPreview.generationSummary ? (
+          <p className="helper-text">
+            Efektivna local-lacc inference podrazumevana podešavanja: {opencode.launchPreview.generationSummary}
+          </p>
+        ) : null}
         <div className="inline-actions">
           <button
             type="button"

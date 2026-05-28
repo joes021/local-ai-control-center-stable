@@ -182,6 +182,7 @@ def start_server(
         port,
         ctx_size=_resolve_runtime_context_size(config, runtime_state),
         spec_type=_resolve_spec_type(runtime_state, binary_path),
+        **_load_generation_argument_values(config),
     )
     log_path = config.install_root / "logs" / "runtime-server.log"
     log_path.parent.mkdir(parents=True, exist_ok=True)
@@ -542,14 +543,17 @@ def _build_server_command_preview(
         variants[0],
     )
     return {
-        "shellLabel": "PowerShell",
+        "shellLabel": "PowerShell / cmd.exe",
         "activeRuntime": active_runtime,
         "activeRuntimeLabel": _runtime_label(active_runtime),
         "activeCommand": str(active_variant.get("command", "") or ""),
+        "activeCmdCommand": str(active_variant.get("cmdCommand", "") or ""),
         "modelPath": str(model_path),
         "notes": [
             "Lokalni model se prosleđuje kroz --model argument.",
             "Isti runtime koristi isti port i isti --ctx-size koji vidiš ovde.",
+            "PowerShell prikaz počinje sa & jer tako PowerShell pokreće citiranu .exe putanju.",
+            "cmd.exe varijanta je odvojena i ne koristi & operator.",
         ],
         "variants": variants,
     }
@@ -570,6 +574,7 @@ def _build_server_command_variant(
     model_path = Path(str(runtime_state.get("active_model_path", "") or ""))
     context_size = _resolve_runtime_context_size_for_runtime(config, runtime_state, runtime_name)
     spec_type = _resolve_spec_type_for_runtime(runtime_state, binary_path, runtime_name)
+    generation_arguments = _load_generation_argument_values(config)
     command: list[str] = []
     summary = ""
     supported = False
@@ -588,6 +593,7 @@ def _build_server_command_variant(
             port,
             ctx_size=context_size,
             spec_type=spec_type,
+            **generation_arguments,
         )
         supported, support_reason = classify_runtime_model_support(
             model_id=model_id,
@@ -610,7 +616,9 @@ def _build_server_command_variant(
         "modelPath": str(model_path),
         "context": context_size,
         "specType": spec_type or "",
+        "samplingSummary": _build_generation_summary(generation_arguments),
         "command": _format_powershell_command(command) if command else "",
+        "cmdCommand": _format_cmd_command(command) if command else "",
     }
 
 
@@ -622,8 +630,50 @@ def _format_powershell_command(command: list[str]) -> str:
     return " ".join(rendered)
 
 
+def _format_cmd_command(command: list[str]) -> str:
+    if not command:
+        return ""
+    rendered = [_quote_cmd_argument(command[0])]
+    rendered.extend(_quote_cmd_argument(item) for item in command[1:])
+    return " ".join(rendered)
+
+
 def _quote_powershell_argument(value: str) -> str:
     if _POWERSHELL_SAFE_ARGUMENT_RE.fullmatch(value):
         return value
     escaped = value.replace('"', '`"')
     return f'"{escaped}"'
+
+
+def _quote_cmd_argument(value: str) -> str:
+    if _POWERSHELL_SAFE_ARGUMENT_RE.fullmatch(value):
+        return value
+    escaped = value.replace('"', '\\"')
+    return f'"{escaped}"'
+
+
+def _load_generation_argument_values(
+    config: ControlCenterConfig,
+) -> dict[str, object]:
+    settings = load_effective_settings_state(config)
+    return {
+        "temperature": float(settings.get("temperature", 0.8)),
+        "top_k": int(settings.get("topK", 40)),
+        "top_p": float(settings.get("topP", 0.95)),
+        "min_p": float(settings.get("minP", 0.05)),
+        "repeat_penalty": float(settings.get("repeatPenalty", 1.0)),
+        "repeat_last_n": int(settings.get("repeatLastN", 64)),
+        "presence_penalty": float(settings.get("presencePenalty", 0.0)),
+        "frequency_penalty": float(settings.get("frequencyPenalty", 0.0)),
+        "seed": int(settings.get("seed", -1)),
+    }
+
+
+def _build_generation_summary(arguments: dict[str, object]) -> str:
+    return (
+        f"temp {arguments['temperature']} | top-k {arguments['top_k']} | "
+        f"top-p {arguments['top_p']} | min-p {arguments['min_p']} | "
+        f"repeat {arguments['repeat_penalty']} / last-n {arguments['repeat_last_n']} | "
+        f"presence {arguments['presence_penalty']} | frequency {arguments['frequency_penalty']} | "
+        f"seed {arguments['seed']}"
+    )

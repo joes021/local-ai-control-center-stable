@@ -88,9 +88,13 @@ def test_server_status_route_reports_started_runtime_snapshot(
     assert payload["localWebUrl"] == "http://127.0.0.1:39281/"
     assert payload["tailscaleWebUrl"] == ""
     assert payload["hasWarning"] is False
-    assert payload["commandPreview"]["shellLabel"] == "PowerShell"
+    assert payload["commandPreview"]["shellLabel"] == "PowerShell / cmd.exe"
     assert "--model" in payload["commandPreview"]["activeCommand"]
     assert "gemma-4-E4B-it-Q4_K_M.gguf" in payload["commandPreview"]["activeCommand"]
+    assert "--temp 0.8" in payload["commandPreview"]["activeCommand"]
+    assert "--top-k 40" in payload["commandPreview"]["activeCommand"]
+    assert "--top-p 0.95" in payload["commandPreview"]["activeCommand"]
+    assert payload["commandPreview"]["activeCmdCommand"].startswith('"')
     assert payload["commandPreview"]["modelPath"].endswith("gemma-4-E4B-it-Q4_K_M.gguf")
     assert any("Lokalni model" in note for note in payload["commandPreview"]["notes"])
 
@@ -192,6 +196,12 @@ def test_server_start_route_spawns_runtime_process(
     assert "--port" in command
     assert "39281" in command
     assert "--model" in command
+    assert "--temp" in command
+    assert "0.8" in command
+    assert "--top-k" in command
+    assert "--top-p" in command
+    assert "--repeat-last-n" in command
+    assert "--seed" in command
     assert any(str(item).endswith("gemma-4-E4B-it-Q4_K_M.gguf") for item in command)
 
 

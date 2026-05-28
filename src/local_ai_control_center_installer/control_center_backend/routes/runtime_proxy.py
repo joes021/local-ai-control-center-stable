@@ -13,6 +13,9 @@ from local_ai_control_center_installer.control_center_backend.services.search_se
     perform_search_query,
     prepare_proxy_chat_completion_body,
 )
+from local_ai_control_center_installer.control_center_backend.services.settings_service import (
+    load_effective_settings_state,
+)
 from local_ai_control_center_installer.control_center_backend.services.status_service import (
     load_runtime_state,
 )
@@ -48,6 +51,9 @@ async def runtime_proxy(upstream_path: str, request: Request):
             body,
             search_func=perform_search_query,
         )
+        body = _apply_generation_defaults(body)
+    elif request.method.upper() == "POST" and path == "/v1/completions" and isinstance(body, dict):
+        body = _apply_generation_defaults(body)
 
     stream_requested = isinstance(body, dict) and bool(body.get("stream"))
     proxied = _invoke_forward_runtime_request(
@@ -198,3 +204,24 @@ def _invoke_forward_runtime_request(
         body=body,
         headers=headers,
     )
+
+
+def _apply_generation_defaults(payload: dict[str, object]) -> dict[str, object]:
+    settings = load_effective_settings_state()
+    next_payload = dict(payload)
+    defaults = {
+        "temperature": float(settings.get("temperature", 0.8)),
+        "top_p": float(settings.get("topP", 0.95)),
+        "top_k": int(settings.get("topK", 40)),
+        "min_p": float(settings.get("minP", 0.05)),
+        "repeat_penalty": float(settings.get("repeatPenalty", 1.0)),
+        "repeat_last_n": int(settings.get("repeatLastN", 64)),
+        "presence_penalty": float(settings.get("presencePenalty", 0.0)),
+        "frequency_penalty": float(settings.get("frequencyPenalty", 0.0)),
+        "seed": int(settings.get("seed", -1)),
+        "max_tokens": int(settings.get("outputTokens", 8192)),
+    }
+    for key, value in defaults.items():
+        if key not in next_payload or next_payload.get(key) is None:
+            next_payload[key] = value
+    return next_payload

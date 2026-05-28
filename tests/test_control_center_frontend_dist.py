@@ -1,4 +1,4 @@
-import re
+﻿import re
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -157,11 +157,14 @@ def test_server_and_opencode_source_include_equivalent_launch_command_panels():
     opencode_source = Path("frontend/src/pages/OpenCodePage.tsx").read_text(encoding="utf-8")
 
     assert "Ekvivalentne CLI komande" in server_source
-    assert "Kopiraj komandu" in server_source
-    assert "Lokalni model se prosleđuje kroz --model argument." in server_source
+    assert "Kopiraj PowerShell" in server_source
+    assert "Kopiraj cmd.exe" in server_source
+    assert "sampling parametri" in server_source
+    assert "PowerShell` koristi prefiks `&`" in server_source
     assert "Ekvivalentna OpenCode komanda" in opencode_source
     assert "Launcher .cmd" in opencode_source
     assert "PowerShell prikaz" in opencode_source
+    assert "Efektivna local-lacc inference podrazumevana podešavanja" in opencode_source
 
     dist_root = Path(
         "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
@@ -172,9 +175,11 @@ def test_server_and_opencode_source_include_equivalent_launch_command_panels():
     bundled_text = "\n".join(path.read_text(encoding="utf-8") for path in js_assets)
 
     assert "Ekvivalentne CLI komande" in bundled_text
-    assert "Lokalni model se prosleđuje kroz --model argument." in bundled_text
+    assert "Kopiraj cmd.exe" in bundled_text
+    assert "sampling parametri" in bundled_text
     assert "Ekvivalentna OpenCode komanda" in bundled_text
     assert "Launcher .cmd" in bundled_text
+    assert "Efektivna local-lacc inference podrazumevana podešavanja" in bundled_text
 
 
 def test_settings_source_uses_stable_option_grids_and_balanced_core_layout():
@@ -721,3 +726,39 @@ def test_home_and_opencode_source_use_backend_open_action_contract():
     assert "opencode?.canOpen === false" in home_source
     assert "opencode.openActionLabel" in opencode_source
     assert "opencode.canOpen === false" in opencode_source
+
+
+def test_settings_and_workflows_source_include_generation_sampling_controls():
+    settings_source = Path("frontend/src/pages/SettingsPage.tsx").read_text(encoding="utf-8")
+    workflows_source = Path("frontend/src/pages/WorkflowsPage.tsx").read_text(
+        encoding="utf-8"
+    )
+    workflow_presets_source = Path("frontend/src/lib/workflowPresets.ts").read_text(
+        encoding="utf-8"
+    )
+    dist_root = Path(
+        "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
+    )
+    js_assets = list((dist_root / "assets").glob("index-*.js"))
+
+    assert "Generacija i sampling" in settings_source
+    assert "Temperature" in settings_source
+    assert "Top-k" in settings_source
+    assert "Top-p" in settings_source
+    assert "Min-p" in settings_source
+    assert "Repeat penalty" in settings_source
+    assert "Repeat last N" in settings_source
+    assert "Presence penalty" in settings_source
+    assert "Frequency penalty" in settings_source
+    assert "Seed" in settings_source
+    assert "Inference i sampling" in workflows_source
+    assert "temperature: 0.2" in workflow_presets_source
+    assert "topK: 20" in workflow_presets_source
+    assert js_assets
+
+    bundled_text = "\n".join(path.read_text(encoding="utf-8") for path in js_assets)
+
+    assert "Generacija i sampling" in bundled_text
+    assert "Inference i sampling" in bundled_text
+    assert "Repeat penalty" in bundled_text
+    assert "Frequency penalty" in bundled_text

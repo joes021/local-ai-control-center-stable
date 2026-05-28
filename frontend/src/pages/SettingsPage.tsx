@@ -83,6 +83,15 @@ const SETTINGS_PROFILE_COMPARE_KEYS: Array<keyof SettingsProfileValues> = [
   "profile",
   "context",
   "outputTokens",
+  "temperature",
+  "topK",
+  "topP",
+  "minP",
+  "repeatPenalty",
+  "repeatLastN",
+  "presencePenalty",
+  "frequencyPenalty",
+  "seed",
   "workingDirectory",
   "thinkingMode",
   "buildSteps",
@@ -135,6 +144,18 @@ function resolveTokenChoice(value: number): string {
   return matched?.value ?? "custom";
 }
 
+function formatGenerationStarterValues(
+  starter: SettingsPayload["availableGenerationStarters"][number]["settings"],
+): string {
+  return [
+    `temp ${starter.temperature}`,
+    `top-k ${starter.topK}`,
+    `top-p ${starter.topP}`,
+    `min-p ${starter.minP}`,
+    `repeat ${starter.repeatPenalty}`,
+  ].join(" | ");
+}
+
 function matchesSettingsProfile(
   settings: SettingsPayload,
   profile: SettingsProfilePreset,
@@ -159,6 +180,15 @@ function buildSettingsProfileDraft(settings: SettingsPayload): SettingsProfileVa
     profile: settings.profile,
     context: settings.context,
     outputTokens: settings.outputTokens,
+    temperature: settings.temperature,
+    topK: settings.topK,
+    topP: settings.topP,
+    minP: settings.minP,
+    repeatPenalty: settings.repeatPenalty,
+    repeatLastN: settings.repeatLastN,
+    presencePenalty: settings.presencePenalty,
+    frequencyPenalty: settings.frequencyPenalty,
+    seed: settings.seed,
     workingDirectory: settings.workingDirectory,
     thinkingMode: settings.thinkingMode,
     buildSteps: settings.buildSteps,
@@ -280,6 +310,15 @@ export function SettingsPage() {
       context: preset.settingsPatch.context ?? activeSettings.context,
       outputTokens: preset.settingsPatch.outputTokens ?? activeSettings.outputTokens,
       thinkingMode: preset.settingsPatch.thinkingMode ?? activeSettings.thinkingMode,
+      temperature: preset.settingsPatch.temperature ?? activeSettings.temperature,
+      topK: preset.settingsPatch.topK ?? activeSettings.topK,
+      topP: preset.settingsPatch.topP ?? activeSettings.topP,
+      minP: preset.settingsPatch.minP ?? activeSettings.minP,
+      repeatPenalty: preset.settingsPatch.repeatPenalty ?? activeSettings.repeatPenalty,
+      repeatLastN: preset.settingsPatch.repeatLastN ?? activeSettings.repeatLastN,
+      presencePenalty: preset.settingsPatch.presencePenalty ?? activeSettings.presencePenalty,
+      frequencyPenalty: preset.settingsPatch.frequencyPenalty ?? activeSettings.frequencyPenalty,
+      seed: preset.settingsPatch.seed ?? activeSettings.seed,
       webSearchMode: preset.settingsPatch.webSearchMode ?? activeSettings.webSearchMode,
       webSearchProvider: preset.settingsPatch.webSearchProvider ?? activeSettings.webSearchProvider,
     });
@@ -661,6 +700,175 @@ export function SettingsPage() {
                 />
               ) : null}
             </div>
+          </article>
+
+          <article className="settings-field settings-field-wide">
+            <span className="settings-field-label">Generacija i sampling</span>
+            <p className="helper-text">
+              Ovo su inference argumenti koji najviše utiču na ponašanje `llama.cpp`, lokalnog modela
+              i `OpenCode local-lacc` toka. Iste vrednosti se koriste i za start komandu servera i kao
+              podrazumevani runtime-proxy fallback kada klijent ne pošalje svoje sampling parametre.
+            </p>
+            <div className="settings-option-grid">
+              {settings.availableGenerationStarters.map((starter) => (
+                <button
+                  key={starter.id}
+                  type="button"
+                  className="theme-option-card"
+                  onClick={() =>
+                    setSettings({
+                      ...settings,
+                      temperature: starter.settings.temperature,
+                      topK: starter.settings.topK,
+                      topP: starter.settings.topP,
+                      minP: starter.settings.minP,
+                      repeatPenalty: starter.settings.repeatPenalty,
+                      repeatLastN: starter.settings.repeatLastN,
+                      presencePenalty: starter.settings.presencePenalty,
+                      frequencyPenalty: starter.settings.frequencyPenalty,
+                      seed: starter.settings.seed,
+                    })
+                  }
+                >
+                  <span className="theme-option-name">{starter.label}</span>
+                  <span className="theme-option-copy">{starter.summary}</span>
+                  <span className="muted-line">{starter.source}</span>
+                  <span className="muted-line">{formatGenerationStarterValues(starter.settings)}</span>
+                </button>
+              ))}
+            </div>
+            <div className="workflow-editor-grid">
+              <article className="settings-field">
+                <span className="settings-field-label">Temperature</span>
+                <input
+                  type="number"
+                  step="0.05"
+                  value={settings.temperature}
+                  onChange={(event) =>
+                    setSettings({
+                      ...settings,
+                      temperature: Number(event.target.value || 0),
+                    })
+                  }
+                />
+              </article>
+              <article className="settings-field">
+                <span className="settings-field-label">Top-k</span>
+                <input
+                  type="number"
+                  step="1"
+                  value={settings.topK}
+                  onChange={(event) =>
+                    setSettings({
+                      ...settings,
+                      topK: Number(event.target.value || 0),
+                    })
+                  }
+                />
+              </article>
+              <article className="settings-field">
+                <span className="settings-field-label">Top-p</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={settings.topP}
+                  onChange={(event) =>
+                    setSettings({
+                      ...settings,
+                      topP: Number(event.target.value || 0),
+                    })
+                  }
+                />
+              </article>
+              <article className="settings-field">
+                <span className="settings-field-label">Min-p</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={settings.minP}
+                  onChange={(event) =>
+                    setSettings({
+                      ...settings,
+                      minP: Number(event.target.value || 0),
+                    })
+                  }
+                />
+              </article>
+              <article className="settings-field">
+                <span className="settings-field-label">Repeat penalty</span>
+                <input
+                  type="number"
+                  step="0.05"
+                  value={settings.repeatPenalty}
+                  onChange={(event) =>
+                    setSettings({
+                      ...settings,
+                      repeatPenalty: Number(event.target.value || 0),
+                    })
+                  }
+                />
+              </article>
+              <article className="settings-field">
+                <span className="settings-field-label">Repeat last N</span>
+                <input
+                  type="number"
+                  step="1"
+                  value={settings.repeatLastN}
+                  onChange={(event) =>
+                    setSettings({
+                      ...settings,
+                      repeatLastN: Number(event.target.value || 0),
+                    })
+                  }
+                />
+              </article>
+              <article className="settings-field">
+                <span className="settings-field-label">Presence penalty</span>
+                <input
+                  type="number"
+                  step="0.05"
+                  value={settings.presencePenalty}
+                  onChange={(event) =>
+                    setSettings({
+                      ...settings,
+                      presencePenalty: Number(event.target.value || 0),
+                    })
+                  }
+                />
+              </article>
+              <article className="settings-field">
+                <span className="settings-field-label">Frequency penalty</span>
+                <input
+                  type="number"
+                  step="0.05"
+                  value={settings.frequencyPenalty}
+                  onChange={(event) =>
+                    setSettings({
+                      ...settings,
+                      frequencyPenalty: Number(event.target.value || 0),
+                    })
+                  }
+                />
+              </article>
+              <article className="settings-field">
+                <span className="settings-field-label">Seed</span>
+                <input
+                  type="number"
+                  step="1"
+                  value={settings.seed}
+                  onChange={(event) =>
+                    setSettings({
+                      ...settings,
+                      seed: Number(event.target.value || 0),
+                    })
+                  }
+                />
+              </article>
+            </div>
+            <p className="helper-text">
+              Qwen instruct preporuke često idu oko `temp 0.7`, `top-p 0.8`, `top-k 20`, dok je za
+              coding i reprodukciju korisno spustiti temperaturu i koristiti fiksiran seed.
+            </p>
           </article>
 
           <article className="settings-field settings-field-wide">

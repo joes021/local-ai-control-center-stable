@@ -52,7 +52,24 @@ def test_settings_route_persists_global_defaults_and_model_override(
     assert initial.json()["webSearchMaxResults"] == 5
     assert initial.json()["webSearchTimeoutSeconds"] == 20
     assert initial.json()["webSearchPromptPrefix"] == "/web"
+    assert initial.json()["temperature"] == 0.8
+    assert initial.json()["topK"] == 40
+    assert initial.json()["topP"] == 0.95
+    assert initial.json()["minP"] == 0.05
+    assert initial.json()["repeatPenalty"] == 1.0
+    assert initial.json()["repeatLastN"] == 64
+    assert initial.json()["presencePenalty"] == 0.0
+    assert initial.json()["frequencyPenalty"] == 0.0
+    assert initial.json()["seed"] == -1
     assert initial.json()["themeId"] == "dark-chocolate"
+    assert [item["id"] for item in initial.json()["availableGenerationStarters"]] == [
+        "llama-cpp-default",
+        "qwen-instruct",
+        "qwen-thinking",
+        "llama-instruct",
+        "gemma-default",
+        "deterministic-code",
+    ]
     assert [item["id"] for item in initial.json()["availableThemes"]] == [
         "dark-chocolate",
         "light",
@@ -79,6 +96,15 @@ def test_settings_route_persists_global_defaults_and_model_override(
             "outputTokens": 2048,
             "workingDirectory": str(tmp_path / "workspace"),
             "thinkingMode": "low",
+            "temperature": 0.2,
+            "topK": 40,
+            "topP": 0.9,
+            "minP": 0.0,
+            "repeatPenalty": 1.0,
+            "repeatLastN": 128,
+            "presencePenalty": 0.1,
+            "frequencyPenalty": 0.0,
+            "seed": 42,
             "buildSteps": 1,
             "planSteps": 1,
             "generalSteps": 1,
@@ -108,6 +134,15 @@ def test_settings_route_persists_global_defaults_and_model_override(
     assert payload["outputTokens"] == 2048
     assert payload["workingDirectory"] == str(tmp_path / "workspace")
     assert payload["thinkingMode"] == "low"
+    assert payload["temperature"] == 0.2
+    assert payload["topK"] == 40
+    assert payload["topP"] == 0.9
+    assert payload["minP"] == 0.0
+    assert payload["repeatPenalty"] == 1.0
+    assert payload["repeatLastN"] == 128
+    assert payload["presencePenalty"] == 0.1
+    assert payload["frequencyPenalty"] == 0.0
+    assert payload["seed"] == 42
     assert payload["buildSteps"] == 40
     assert payload["planSteps"] == 30
     assert payload["settingsScope"] == "global"
@@ -129,6 +164,15 @@ def test_settings_route_persists_global_defaults_and_model_override(
             "outputTokens": 4096,
             "workingDirectory": str(tmp_path / "workspace-override"),
             "thinkingMode": "high",
+            "temperature": 0.7,
+            "topK": 20,
+            "topP": 0.8,
+            "minP": 0.0,
+            "repeatPenalty": 1.1,
+            "repeatLastN": 96,
+            "presencePenalty": 0.4,
+            "frequencyPenalty": 0.2,
+            "seed": -1,
             "buildSteps": 1,
             "planSteps": 1,
             "generalSteps": 1,
@@ -158,6 +202,15 @@ def test_settings_route_persists_global_defaults_and_model_override(
     assert override_payload["profile"] == "video"
     assert override_payload["context"] == 131072
     assert override_payload["workingDirectory"] == str(tmp_path / "workspace-override")
+    assert override_payload["temperature"] == 0.7
+    assert override_payload["topK"] == 20
+    assert override_payload["topP"] == 0.8
+    assert override_payload["minP"] == 0.0
+    assert override_payload["repeatPenalty"] == 1.1
+    assert override_payload["repeatLastN"] == 96
+    assert override_payload["presencePenalty"] == 0.4
+    assert override_payload["frequencyPenalty"] == 0.2
+    assert override_payload["seed"] == -1
     assert override_payload["buildSteps"] == 160
     assert override_payload["webSearchMode"] == "on-demand"
     assert override_payload["webSearchProvider"] == "duckduckgo"
@@ -190,6 +243,15 @@ def test_settings_route_saves_and_deletes_custom_settings_profiles(
                 "workingDirectory": str(tmp_path / "deep-workspace"),
                 "thinkingMode": "high",
                 "accessMode": "tailscale",
+                "temperature": 0.2,
+                "topK": 40,
+                "topP": 0.9,
+                "minP": 0.0,
+                "repeatPenalty": 1.0,
+                "repeatLastN": 128,
+                "presencePenalty": 0.1,
+                "frequencyPenalty": 0.0,
+                "seed": 7,
             },
         },
     )
@@ -200,12 +262,21 @@ def test_settings_route_saves_and_deletes_custom_settings_profiles(
     assert len(payload["userSettingsProfiles"]) == 1
     custom_profile = payload["userSettingsProfiles"][0]
     assert custom_profile["name"] == "My deep profile"
-    assert custom_profile["summary"] == "video | 64k ctx | 4k out | high"
+    assert custom_profile["summary"] == "video | 64k ctx | 4k out | high | temp 0.2"
     assert custom_profile["settings"]["profile"] == "video"
     assert custom_profile["settings"]["context"] == 65536
     assert custom_profile["settings"]["outputTokens"] == 4096
     assert custom_profile["settings"]["workingDirectory"] == str(tmp_path / "deep-workspace")
     assert custom_profile["settings"]["thinkingMode"] == "high"
+    assert custom_profile["settings"]["temperature"] == 0.2
+    assert custom_profile["settings"]["topK"] == 40
+    assert custom_profile["settings"]["topP"] == 0.9
+    assert custom_profile["settings"]["minP"] == 0.0
+    assert custom_profile["settings"]["repeatPenalty"] == 1.0
+    assert custom_profile["settings"]["repeatLastN"] == 128
+    assert custom_profile["settings"]["presencePenalty"] == 0.1
+    assert custom_profile["settings"]["frequencyPenalty"] == 0.0
+    assert custom_profile["settings"]["seed"] == 7
     assert custom_profile["settings"]["buildSteps"] == 160
     assert custom_profile["settings"]["accessMode"] == "tailscale"
     assert "webSearchMode" not in custom_profile["settings"]
@@ -260,6 +331,15 @@ def test_settings_route_saves_updates_and_deletes_custom_workflow_presets(
                 "context": 65536,
                 "outputTokens": 3072,
                 "thinkingMode": "low",
+                "temperature": 0.2,
+                "topK": 40,
+                "topP": 0.9,
+                "minP": 0.0,
+                "repeatPenalty": 1.0,
+                "repeatLastN": 64,
+                "presencePenalty": 0.0,
+                "frequencyPenalty": 0.0,
+                "seed": -1,
                 "webSearchMode": "on-demand",
                 "webSearchProvider": "duckduckgo",
             },
@@ -297,6 +377,8 @@ def test_settings_route_saves_updates_and_deletes_custom_workflow_presets(
     assert user_preset["summary"] == "Korisnički coding preset sa malo više web pomoći."
     assert user_preset["badges"] == ["code", "custom", "web"]
     assert user_preset["settingsPatch"]["context"] == 65536
+    assert user_preset["settingsPatch"]["temperature"] == 0.2
+    assert user_preset["settingsPatch"]["topP"] == 0.9
     assert user_preset["searchDefaults"]["suggestedAction"] == "answer"
     assert user_preset["knowledgeDefaults"]["mode"] == "documents-only"
     assert user_preset["benchmarkDefaults"]["launchTarget"] == "selected"
@@ -313,6 +395,15 @@ def test_settings_route_saves_updates_and_deletes_custom_workflow_presets(
                 "context": 131072,
                 "outputTokens": 4096,
                 "thinkingMode": "mid",
+                "temperature": 0.6,
+                "topK": 20,
+                "topP": 0.95,
+                "minP": 0.0,
+                "repeatPenalty": 1.0,
+                "repeatLastN": 64,
+                "presencePenalty": 0.3,
+                "frequencyPenalty": 0.0,
+                "seed": 123,
                 "webSearchMode": "on-demand",
                 "webSearchProvider": "duckduckgo",
             },
@@ -342,6 +433,8 @@ def test_settings_route_saves_updates_and_deletes_custom_workflow_presets(
     assert updated_user_preset["summary"] == "Ažurirani coding preset sa dužim context-om."
     assert updated_user_preset["badges"] == ["code", "custom", "longer-context"]
     assert updated_user_preset["settingsPatch"]["context"] == 131072
+    assert updated_user_preset["settingsPatch"]["temperature"] == 0.6
+    assert updated_user_preset["settingsPatch"]["topP"] == 0.95
     assert updated_user_preset["knowledgeDefaults"]["mode"] == "documents+web"
     assert updated_user_preset["benchmarkDefaults"]["launchTarget"] == "battery"
 
@@ -353,6 +446,15 @@ def test_settings_route_saves_updates_and_deletes_custom_workflow_presets(
             "outputTokens": 4096,
             "workingDirectory": str(install_root),
             "thinkingMode": "mid",
+            "temperature": 0.6,
+            "topK": 20,
+            "topP": 0.95,
+            "minP": 0.0,
+            "repeatPenalty": 1.0,
+            "repeatLastN": 64,
+            "presencePenalty": 0.3,
+            "frequencyPenalty": 0.0,
+            "seed": 123,
             "buildSteps": 1,
             "planSteps": 1,
             "generalSteps": 1,
