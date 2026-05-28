@@ -1001,6 +1001,12 @@ code {
   margin-top: 18px;
 }
 
+.workflow-editor-feedback {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+
 .theme-option-card {
   display: grid;
   gap: 10px;
@@ -1113,6 +1119,21 @@ select:-webkit-autofill {
   gap: 10px 16px;
   margin-top: 12px;
   color: var(--app-text-muted);
+}
+
+.command-preview-stack {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.command-preview-card {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border-radius: 16px;
+  border: 1px solid var(--app-card-soft-border);
+  background: var(--app-card-soft-bg);
 }
 
 .warning-badge {

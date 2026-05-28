@@ -71,6 +71,10 @@ const BENCHMARK_TARGET_OPTIONS = [
   { value: "battery", label: "Pokreni celu battery sekvencu" },
 ];
 
+const WORKFLOW_PRESET_SUMMARY_MAX_LENGTH = 220;
+const WORKFLOW_PRESET_BADGE_MAX_COUNT = 6;
+const WORKFLOW_PRESET_BADGE_MAX_LENGTH = 20;
+
 function createDraftFromPreset(preset: WorkflowPreset): WorkflowPresetDraft {
   return {
     name: preset.name || preset.label,
@@ -95,6 +99,80 @@ function createDraftFromPreset(preset: WorkflowPreset): WorkflowPresetDraft {
 
 function cloneDraft(draft: WorkflowPresetDraft): WorkflowPresetDraft {
   return { ...draft };
+}
+
+function areDraftsEqual(left: WorkflowPresetDraft | null, right: WorkflowPresetDraft | null): boolean {
+  if (!left || !right) {
+    return false;
+  }
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function buildClonedPresetName(name: string, presets: WorkflowPreset[]): string {
+  const existingNames = new Set(
+    presets.map((preset) => preset.name.trim().toLowerCase()).filter(Boolean),
+  );
+  const baseName = `Kopija - ${name.trim() || "Novi preset"}`;
+  if (!existingNames.has(baseName.toLowerCase())) {
+    return baseName;
+  }
+  let suffix = 2;
+  while (existingNames.has(`${baseName} ${suffix}`.toLowerCase())) {
+    suffix += 1;
+  }
+  return `${baseName} ${suffix}`;
+}
+
+function buildClonedDraft(
+  draft: WorkflowPresetDraft,
+  presets: WorkflowPreset[],
+): WorkflowPresetDraft {
+  return {
+    ...cloneDraft(draft),
+    name: buildClonedPresetName(draft.name, presets),
+  };
+}
+
+function validateWorkflowPresetDraft(
+  draft: WorkflowPresetDraft | null,
+  presets: WorkflowPreset[],
+  updatePresetId: string,
+): string[] {
+  if (!draft) {
+    return [];
+  }
+  const errors: string[] = [];
+  const normalizedName = draft.name.trim().toLowerCase();
+  if (!normalizedName) {
+    errors.push("Ime preseta je obavezno.");
+  }
+  const duplicate = presets.find((preset) => {
+    if (updatePresetId && preset.id === updatePresetId) {
+      return false;
+    }
+    return preset.name.trim().toLowerCase() === normalizedName;
+  });
+  if (normalizedName && duplicate) {
+    errors.push("Preset sa tim imenom već postoji.");
+  }
+  if (draft.summary.trim().length > WORKFLOW_PRESET_SUMMARY_MAX_LENGTH) {
+    errors.push(
+      `Kratak opis može da ima najviše ${WORKFLOW_PRESET_SUMMARY_MAX_LENGTH} karaktera.`,
+    );
+  }
+  const badges = draft.badgesText
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+  if (badges.length > WORKFLOW_PRESET_BADGE_MAX_COUNT) {
+    errors.push(`Možeš da koristiš najviše ${WORKFLOW_PRESET_BADGE_MAX_COUNT} badge oznaka.`);
+  }
+  if (badges.some((badge) => badge.length > WORKFLOW_PRESET_BADGE_MAX_LENGTH)) {
+    errors.push(
+      `Jedna badge oznaka može da ima najviše ${WORKFLOW_PRESET_BADGE_MAX_LENGTH} karaktera.`,
+    );
+  }
+  return errors;
 }
 
 function buildWorkflowPresetPayload(
@@ -176,6 +254,7 @@ export function WorkflowsPage({
   const [error, setError] = useState<string | null>(null);
   const [busyPresetId, setBusyPresetId] = useState("");
   const [editorPresetId, setEditorPresetId] = useState("");
+  const [editorUpdatePresetId, setEditorUpdatePresetId] = useState("");
   const [editorBaseline, setEditorBaseline] = useState<WorkflowPresetDraft | null>(null);
   const [editorDraft, setEditorDraft] = useState<WorkflowPresetDraft | null>(null);
   const [editorBusy, setEditorBusy] = useState<
@@ -197,6 +276,7 @@ export function WorkflowsPage({
       if (chosenPreset) {
         const nextBaseline = createDraftFromPreset(chosenPreset);
         setEditorPresetId(chosenPreset.id);
+        setEditorUpdatePresetId(chosenPreset.kind === "user" ? chosenPreset.id : "");
         setEditorBaseline(nextBaseline);
         setEditorDraft(cloneDraft(nextBaseline));
       }
@@ -221,6 +301,14 @@ export function WorkflowsPage({
     () => presets.find((preset) => preset.id === editorPresetId) ?? null,
     [editorPresetId, presets],
   );
+  const editorIsDirty = useMemo(
+    () => !areDraftsEqual(editorDraft, editorBaseline),
+    [editorBaseline, editorDraft],
+  );
+  const editorValidationErrors = useMemo(
+    () => validateWorkflowPresetDraft(editorDraft, presets, editorUpdatePresetId),
+    [editorDraft, editorUpdatePresetId, presets],
+  );
   const searchProviderOptions = useMemo(
     () =>
       settingsPayload?.availableSearchProviders.map((provider) => ({
@@ -244,7 +332,8 @@ export function WorkflowsPage({
 
   const selectedWorkflowPresetId =
     settingsPayload.selectedWorkflowPresetId || settingsPayload.workflowPresetId;
-  const isEditingUserPreset = selectedPreset?.kind === "user";
+  const isEditingUserPreset =
+    selectedPreset?.kind === "user" && editorUpdatePresetId === selectedPreset.id;
 
   return (
     <>
@@ -271,7 +360,7 @@ export function WorkflowsPage({
                 <strong className="theme-option-name">{preset.label}</strong>
                 <p className="theme-option-copy">{preset.summary}</p>
                 <div className="summary-metrics">
-                  <span>{preset.kind === "user" ? "korisnički" : "ugrađeni"}</span>
+                  <span>{preset.kind === "user" ? "korisnički preset" : "ugrađeni preset"}</span>
                   {preset.badges.map((badge) => (
                     <span key={`${preset.id}-${badge}`}>{badge}</span>
                   ))}
@@ -316,6 +405,7 @@ export function WorkflowsPage({
                     onClick={() => {
                       const nextBaseline = createDraftFromPreset(preset);
                       setEditorPresetId(preset.id);
+                      setEditorUpdatePresetId(preset.kind === "user" ? preset.id : "");
                       setEditorBaseline(nextBaseline);
                       setEditorDraft(cloneDraft(nextBaseline));
                       setResult({
@@ -346,15 +436,28 @@ export function WorkflowsPage({
 
       <section className="status-card wide-card">
         <span className="status-label">Editor workflow preseta</span>
-        <strong className="status-value">
-          {selectedPreset
-            ? `${selectedPreset.label} (${selectedPreset.kind === "user" ? "korisnički" : "ugrađeni"})`
-            : "Nema učitanog preseta"}
-        </strong>
+        <strong className="status-value">{editorDraft.name || "Novi korisnički preset"}</strong>
+        <div className="summary-metrics">
+          <span>
+            Izvor:{" "}
+            {selectedPreset
+              ? `${selectedPreset.label} (${selectedPreset.kind === "user" ? "korisnički preset" : "ugrađeni preset"})`
+              : "nema učitanog izvora"}
+          </span>
+          <span>
+            {editorUpdatePresetId
+              ? "Sačuvavanje menja postojeći korisnički preset."
+              : "Sačuvavanje pravi novi korisnički preset."}
+          </span>
+          <span>{editorIsDirty ? "Nesačuvane izmene" : "Editor je usklađen."}</span>
+        </div>
         <p className="helper-text">
           Ugrađeni preset možeš da iskoristiš kao osnovu i da ga sačuvaš kao novi korisnički
-          preset. Korisnički preset možeš i da menjaš i da brišeš.
+          preset. Korisnički preset možeš da menjaš, kloniraš i brišeš.
         </p>
+        {editorIsDirty ? (
+          <div className="warning-badge">Nesačuvane izmene čekaju čuvanje ili poništavanje.</div>
+        ) : null}
 
         <div className="workflow-editor-grid">
           <article className="settings-field">
@@ -396,7 +499,10 @@ export function WorkflowsPage({
                 })
               }
             />
-            <p className="helper-text">Upiši oznake razdvojene zarezima, na primer: code, web, custom.</p>
+            <p className="helper-text">
+              Upiši oznake razdvojene zarezima, na primer: code, web, custom. Najviše{" "}
+              {WORKFLOW_PRESET_BADGE_MAX_COUNT} oznaka, do {WORKFLOW_PRESET_BADGE_MAX_LENGTH} karaktera po oznaci.
+            </p>
           </article>
 
           <article className="settings-field">
@@ -603,11 +709,28 @@ export function WorkflowsPage({
           </article>
         </div>
 
+        <div className="workflow-editor-feedback">
+          <p className="helper-text">
+            Kratak opis: {editorDraft.summary.trim().length} / {WORKFLOW_PRESET_SUMMARY_MAX_LENGTH}
+          </p>
+          <p className="helper-text">
+            Poništi izmene u editoru vraća editor na poslednju učitanu verziju preseta ili na
+            početnu kloniranu kopiju.
+          </p>
+          {editorValidationErrors.length ? (
+            <div className="error-panel">
+              {editorValidationErrors.map((item) => (
+                <div key={item}>{item}</div>
+              ))}
+            </div>
+          ) : null}
+        </div>
+
         <div className="inline-actions workflow-editor-actions">
           <button
             type="button"
             className="secondary-button"
-            disabled={!editorBaseline || editorBusy !== ""}
+            disabled={!editorBaseline || !editorIsDirty || editorBusy !== ""}
             onClick={() => {
               if (!editorBaseline) {
                 return;
@@ -617,18 +740,38 @@ export function WorkflowsPage({
               setResult({
                 status: "ok",
                 action: "reset-workflow-preset-editor",
-                summary: "Editor workflow preseta je vraćen na podrazumevana podešavanja.",
+                summary: "Editor workflow preseta je vraćen na poslednju učitanu verziju.",
                 details: { returncode: 0, stdout: "", stderr: "" },
               });
               setEditorBusy("");
             }}
           >
-            Vrati na default podešavanja
+            Poništi izmene u editoru
           </button>
 
           <button
             type="button"
+            className="secondary-button"
             disabled={editorBusy !== ""}
+            onClick={() => {
+              const clonedDraft = buildClonedDraft(editorDraft, presets);
+              setEditorUpdatePresetId("");
+              setEditorBaseline(cloneDraft(clonedDraft));
+              setEditorDraft(cloneDraft(clonedDraft));
+              setResult({
+                status: "ok",
+                action: "clone-workflow-preset-editor",
+                summary: "Napravljen je klon preseta u editoru. Sačuvaj ga kao novi preset kada budeš zadovoljan.",
+                details: { returncode: 0, stdout: "", stderr: "" },
+              });
+            }}
+          >
+            Kloniraj preset
+          </button>
+
+          <button
+            type="button"
+            disabled={editorBusy !== "" || editorValidationErrors.length > 0}
             onClick={async () => {
               setEditorBusy("save-new");
               try {
@@ -651,7 +794,7 @@ export function WorkflowsPage({
 
           <button
             type="button"
-            disabled={!isEditingUserPreset || editorBusy !== ""}
+            disabled={!isEditingUserPreset || editorBusy !== "" || editorValidationErrors.length > 0}
             onClick={async () => {
               if (!selectedPreset) {
                 return;

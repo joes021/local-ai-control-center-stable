@@ -502,6 +502,9 @@ WORKFLOW_PRESET_SPECS = [
 ALLOWED_WORKFLOW_SEARCH_ACTIONS = {"search", "answer", "compare"}
 ALLOWED_WORKFLOW_KNOWLEDGE_MODES = {"documents-only", "documents+web", "web-only"}
 ALLOWED_WORKFLOW_BENCHMARK_TARGETS = {"selected", "battery"}
+WORKFLOW_PRESET_SUMMARY_MAX_LENGTH = 220
+WORKFLOW_PRESET_BADGE_MAX_COUNT = 6
+WORKFLOW_PRESET_BADGE_MAX_LENGTH = 20
 ALLOWED_WEB_SEARCH_MODES = {"off", "on-demand", "always"}
 ALLOWED_WEB_SEARCH_PROVIDERS = {"searxng", "duckduckgo"}
 WEB_SEARCH_PROVIDER_OPTIONS = [
@@ -890,15 +893,23 @@ def _normalize_workflow_preset_payload(
 
     raw_badges = raw.get("badges", [])
     if isinstance(raw_badges, str):
-        badges = [item.strip() for item in raw_badges.split(",") if item.strip()]
+        badge_candidates = [item.strip() for item in raw_badges.split(",") if item.strip()]
     elif isinstance(raw_badges, list):
-        badges = [
+        badge_candidates = [
             str(item or "").strip()
             for item in raw_badges
             if str(item or "").strip()
         ]
     else:
-        badges = []
+        badge_candidates = []
+    seen_badges: set[str] = set()
+    badges: list[str] = []
+    for badge in badge_candidates:
+        normalized_badge = badge.lower()
+        if normalized_badge in seen_badges:
+            continue
+        seen_badges.add(normalized_badge)
+        badges.append(badge)
 
     search_raw = raw.get("searchDefaults", {})
     search_defaults = search_raw if isinstance(search_raw, dict) else {}
@@ -1196,7 +1207,11 @@ def load_workflow_presets(
         }
         for option in WORKFLOW_PRESET_SPECS
     ]
-    return [*built_in_presets, *load_workflow_user_presets(config)]
+    user_presets = sorted(
+        load_workflow_user_presets(config),
+        key=lambda item: str(item.get("name", "") or item.get("label", "") or "").strip().lower(),
+    )
+    return [*built_in_presets, *user_presets]
 
 
 def load_workflow_user_presets(
@@ -1229,6 +1244,11 @@ def save_workflow_user_preset(
         raise ValueError("Ime workflow preseta je obavezno.")
 
     requested_id = str(payload.get("presetId", "") or "").strip()
+    _validate_workflow_user_preset(
+        normalized,
+        requested_id=requested_id,
+        existing_presets=load_workflow_presets(config),
+    )
     existing_presets = load_workflow_user_presets(config)
     if requested_id and any(str(item.get("id", "") or "") == requested_id for item in existing_presets):
         normalized["id"] = requested_id
@@ -1572,6 +1592,45 @@ def _resolve_active_model_label(
 def _build_user_preset_id(name: str) -> str:
     slug = re.sub(r"[^a-z0-9]+", "-", name.strip().lower()).strip("-") or "preset"
     return f"user-{slug}-{uuid4().hex[:6]}"
+
+
+def _validate_workflow_user_preset(
+    preset: dict[str, object],
+    *,
+    requested_id: str,
+    existing_presets: list[dict[str, object]],
+) -> None:
+    name = str(preset.get("name", "") or "").strip()
+    if not name:
+        raise ValueError("Ime workflow preseta je obavezno.")
+
+    normalized_name = name.lower()
+    for item in existing_presets:
+        item_id = str(item.get("id", "") or "").strip()
+        item_name = str(item.get("name", "") or item.get("label", "") or "").strip().lower()
+        if not item_name or item_id == requested_id:
+            continue
+        if item_name == normalized_name:
+            raise ValueError("Workflow preset sa tim imenom već postoji.")
+
+    summary = str(preset.get("summary", "") or "").strip()
+    if len(summary) > WORKFLOW_PRESET_SUMMARY_MAX_LENGTH:
+        raise ValueError(
+            f"Kratak opis workflow preseta može da ima najviše {WORKFLOW_PRESET_SUMMARY_MAX_LENGTH} karaktera."
+        )
+
+    badges = preset.get("badges", [])
+    normalized_badges = badges if isinstance(badges, list) else []
+    if len(normalized_badges) > WORKFLOW_PRESET_BADGE_MAX_COUNT:
+        raise ValueError(
+            f"Workflow preset može da ima najviše {WORKFLOW_PRESET_BADGE_MAX_COUNT} badge oznaka."
+        )
+
+    for badge in normalized_badges:
+        if len(str(badge or "").strip()) > WORKFLOW_PRESET_BADGE_MAX_LENGTH:
+            raise ValueError(
+                f"Svaka badge oznaka može da ima najviše {WORKFLOW_PRESET_BADGE_MAX_LENGTH} karaktera."
+            )
 
 
 def _load_workflow_preset_ids(config: ControlCenterConfig) -> set[str]:

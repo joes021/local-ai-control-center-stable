@@ -187,9 +187,15 @@ export function resolveWorkflowPresets(settings: SettingsPayload | null): Workfl
   if (!settings) {
     return FALLBACK_WORKFLOW_PRESETS;
   }
-  return settings.availableWorkflowPresets.length
+  const presets = settings.availableWorkflowPresets.length
     ? settings.availableWorkflowPresets
     : FALLBACK_WORKFLOW_PRESETS;
+  return [...presets].sort((left, right) => {
+    if (left.kind !== right.kind) {
+      return left.kind === "built-in" ? -1 : 1;
+    }
+    return left.label.localeCompare(right.label, "sr");
+  });
 }
 
 export function resolveSelectedWorkflowPreset(settings: SettingsPayload | null): WorkflowPreset | null {

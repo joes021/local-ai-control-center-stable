@@ -5,6 +5,19 @@ import { StatusCard } from "../components/StatusCard";
 import { fetchServerStatus, startServer, stopServer } from "../lib/api";
 import type { ActionResult, ServerStatusPayload } from "../lib/types";
 
+function formatRuntimeCommandMeta(
+  context: number | null,
+  specType: string,
+): string {
+  const parts = [
+    context ? `ctx-size ${context}` : "ctx-size --",
+  ];
+  if (specType) {
+    parts.push(`spec-type ${specType}`);
+  }
+  return parts.join(" | ");
+}
+
 export function ServerPage() {
   const [serverStatus, setServerStatus] = useState<ServerStatusPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -40,6 +53,28 @@ export function ServerPage() {
       summary: `Otvoren llama.cpp web: ${url}`,
       details: { returncode: 0, stdout: url, stderr: "" },
     });
+  }
+
+  async function copyCommand(text: string, label: string) {
+    if (!text.trim()) {
+      setError(`Nema komande za kopiranje: ${label}.`);
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+      setResult({
+        status: "ok",
+        action: "copy-command-preview",
+        summary: `${label} je kopirana u clipboard.`,
+        details: { returncode: 0, stdout: text, stderr: "" },
+      });
+    } catch (reason: unknown) {
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : `Komanda nije mogla da se kopira: ${label}.`,
+      );
+    }
   }
 
   useEffect(() => {
@@ -121,6 +156,48 @@ export function ServerPage() {
         <p className="helper-text">
           Runtime live signal: {serverStatus?.runtimeLiveStatus || "--"} | {serverStatus?.runtimeLiveReason || "Nema dodatnih detalja."}
         </p>
+      </section>
+
+      <section className="status-card wide-card">
+        <span className="status-label">Ekvivalentne CLI komande</span>
+        <strong className="status-value">
+          {serverStatus?.commandPreview?.activeRuntimeLabel || "Runtime command preview"}
+        </strong>
+        <p className="helper-text">
+          Ovo je PowerShell ekvivalent onoga što portal radi kada pokreće runtime server.
+          Lokalni model se prosleđuje kroz --model argument.
+        </p>
+        <div className="command-preview-stack">
+          {serverStatus?.commandPreview?.variants.map((variant) => (
+            <article className="command-preview-card" key={variant.runtime}>
+              <div className="section-header">
+                <div>
+                  <span className="status-label">{variant.runtimeLabel}</span>
+                  <strong className="status-value">
+                    {variant.available ? "Spreman za launch" : "Preview sa upozorenjem"}
+                  </strong>
+                </div>
+                <button
+                  type="button"
+                  className="secondary-button"
+                  disabled={!variant.command}
+                  onClick={() => void copyCommand(variant.command, `${variant.runtimeLabel} komanda`)}
+                >
+                  Kopiraj komandu
+                </button>
+              </div>
+              <p className="helper-text">{variant.summary}</p>
+              <p className="helper-text">Runtime binar: {variant.binaryPath || "--"}</p>
+              <p className="helper-text">Model putanja: {variant.modelPath || "--"}</p>
+              <p className="helper-text">
+                {formatRuntimeCommandMeta(variant.context, variant.specType)}
+              </p>
+              <div className="details-block">
+                <pre>{variant.command || "Komanda nije dostupna dok binar ili model ne budu spremni."}</pre>
+              </div>
+            </article>
+          ))}
+        </div>
       </section>
 
       <ActionResultPanel result={result} />

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from pathlib import Path
+import re
 import subprocess
 import time
 
@@ -17,6 +18,7 @@ from local_ai_control_center_installer.control_center_backend.services.settings_
     load_turboquant_config,
 )
 from local_ai_control_center_installer.control_center_backend.services.status_service import (
+    classify_runtime_model_support,
     find_runtime_pid,
     load_runtime_state,
     probe_server_health,
@@ -32,6 +34,7 @@ from local_ai_control_center_installer.server_verification import (
 
 RUNTIME_READY_TIMEOUT_SECONDS = 180.0
 RUNTIME_READY_POLL_INTERVAL_SECONDS = 1.0
+_POWERSHELL_SAFE_ARGUMENT_RE = re.compile(r"^[A-Za-z0-9_./:-]+$")
 
 
 def load_server_status(
@@ -104,6 +107,7 @@ def load_server_status(
         "stopBlockedReason": stop_blocked_reason,
         "canOpenWeb": can_open_web,
         "openWebBlockedReason": open_web_blocked_reason,
+        "commandPreview": _build_server_command_preview(config, runtime_state),
     }
 
 
@@ -383,8 +387,21 @@ def _resolve_runtime_context_size(
     config: ControlCenterConfig,
     runtime_state: dict[str, object],
 ) -> int | None:
+    return _resolve_runtime_context_size_for_runtime(
+        config,
+        runtime_state,
+        str(runtime_state.get("active_runtime", "") or ""),
+    )
+
+
+def _resolve_runtime_context_size_for_runtime(
+    config: ControlCenterConfig,
+    runtime_state: dict[str, object],
+    runtime_name: str,
+) -> int | None:
     active_runtime = str(runtime_state.get("active_runtime", "") or "").strip().lower()
-    if active_runtime == "turboquant":
+    normalized_runtime = str(runtime_name or active_runtime).strip().lower()
+    if normalized_runtime == "turboquant":
         turbo_config = load_turboquant_config(config)
         return _positive_int_or_none(turbo_config.get("context"))
     settings = load_effective_settings_state(config)
@@ -403,8 +420,20 @@ def _resolve_spec_type(
     runtime_state: dict[str, object],
     binary_path: Path,
 ) -> str | None:
-    active_runtime = str(runtime_state.get("active_runtime", "") or "").strip().lower()
-    if active_runtime != "llama.cpp":
+    return _resolve_spec_type_for_runtime(
+        runtime_state,
+        binary_path,
+        str(runtime_state.get("active_runtime", "") or ""),
+    )
+
+
+def _resolve_spec_type_for_runtime(
+    runtime_state: dict[str, object],
+    binary_path: Path,
+    runtime_name: str,
+) -> str | None:
+    normalized_runtime = str(runtime_name or "").strip().lower()
+    if normalized_runtime != "llama.cpp":
         return None
     active_model_id = str(runtime_state.get("active_model_id", "") or "").lower()
     active_model_path = Path(str(runtime_state.get("active_model_path", "") or ""))
@@ -415,7 +444,11 @@ def _resolve_spec_type(
     )
     if "mtp" not in joined:
         return None
-    if not runtime_supports_draft_mtp(binary_path):
+    try:
+        supports_draft_mtp = runtime_supports_draft_mtp(binary_path)
+    except OSError:
+        supports_draft_mtp = False
+    if not supports_draft_mtp:
         return None
     return "draft-mtp"
 
@@ -476,3 +509,121 @@ def _stop_orphaned_runtime_processes(install_root: Path) -> bool:
 
 def _quote_powershell_string(value: str) -> str:
     return "'" + value.replace("'", "''") + "'"
+
+
+def _build_server_command_preview(
+    config: ControlCenterConfig,
+    runtime_state: dict[str, object],
+) -> dict[str, object]:
+    model_path = Path(str(runtime_state.get("active_model_path", "") or ""))
+    active_runtime = str(runtime_state.get("active_runtime", "") or "").strip().lower() or "llama.cpp"
+    variants = [
+        _build_server_command_variant(
+            config,
+            runtime_state,
+            runtime_name="llama.cpp",
+            runtime_label="llama.cpp",
+            binary_path=Path(str(runtime_state.get("llama_binary", "") or "")),
+            runtime_available=bool(runtime_state.get("llama_available", False)),
+            runtime_reason=str(runtime_state.get("llama_reason", "") or ""),
+        ),
+        _build_server_command_variant(
+            config,
+            runtime_state,
+            runtime_name="turboquant",
+            runtime_label="TurboQuant",
+            binary_path=Path(str(runtime_state.get("turbo_binary", "") or "")),
+            runtime_available=bool(runtime_state.get("turbo_available", False)),
+            runtime_reason=str(runtime_state.get("turbo_reason", "") or ""),
+        ),
+    ]
+    active_variant = next(
+        (item for item in variants if item["runtime"] == active_runtime),
+        variants[0],
+    )
+    return {
+        "shellLabel": "PowerShell",
+        "activeRuntime": active_runtime,
+        "activeRuntimeLabel": _runtime_label(active_runtime),
+        "activeCommand": str(active_variant.get("command", "") or ""),
+        "modelPath": str(model_path),
+        "notes": [
+            "Lokalni model se prosleđuje kroz --model argument.",
+            "Isti runtime koristi isti port i isti --ctx-size koji vidiš ovde.",
+        ],
+        "variants": variants,
+    }
+
+
+def _build_server_command_variant(
+    config: ControlCenterConfig,
+    runtime_state: dict[str, object],
+    *,
+    runtime_name: str,
+    runtime_label: str,
+    binary_path: Path,
+    runtime_available: bool,
+    runtime_reason: str,
+) -> dict[str, object]:
+    port = int(runtime_state.get("port", 0) or 0)
+    model_id = str(runtime_state.get("active_model_id", "") or "")
+    model_path = Path(str(runtime_state.get("active_model_path", "") or ""))
+    context_size = _resolve_runtime_context_size_for_runtime(config, runtime_state, runtime_name)
+    spec_type = _resolve_spec_type_for_runtime(runtime_state, binary_path, runtime_name)
+    command: list[str] = []
+    summary = ""
+    supported = False
+    if not binary_path.is_file():
+        summary = f"{runtime_label} binar nije pronađen u ovoj instalaciji."
+    elif not model_path.is_file():
+        summary = "Aktivni model nije pronađen, pa komanda nije potpuna."
+    else:
+        command = _build_server_command(
+            ServerVerificationTarget(
+                server_executable=binary_path,
+                model_id=model_id,
+                model_path=model_path,
+                active_model_config_path=config.install_root / "config" / "active-model.json",
+            ),
+            port,
+            ctx_size=context_size,
+            spec_type=spec_type,
+        )
+        supported, support_reason = classify_runtime_model_support(
+            model_id=model_id,
+            model_path=model_path,
+            runtime_name=runtime_name,
+            runtime_binary_path=binary_path,
+        )
+        if not runtime_available:
+            summary = runtime_reason or f"{runtime_label} trenutno ne prolazi launch proveru."
+        elif not supported:
+            summary = support_reason
+        else:
+            summary = f"Ovo je ekvivalentna komanda za {runtime_label} sa aktivnim modelom i trenutnim context podešavanjem."
+    return {
+        "runtime": runtime_name,
+        "runtimeLabel": runtime_label,
+        "available": runtime_available and supported and bool(command),
+        "summary": summary,
+        "binaryPath": str(binary_path),
+        "modelPath": str(model_path),
+        "context": context_size,
+        "specType": spec_type or "",
+        "command": _format_powershell_command(command) if command else "",
+    }
+
+
+def _format_powershell_command(command: list[str]) -> str:
+    if not command:
+        return ""
+    rendered = [f"& {_quote_powershell_argument(command[0])}"]
+    rendered.extend(_quote_powershell_argument(item) for item in command[1:])
+    return " ".join(rendered)
+
+
+def _quote_powershell_argument(value: str) -> str:
+    if _POWERSHELL_SAFE_ARGUMENT_RE.fullmatch(value):
+        return value
+    escaped = value.replace('"', '`"')
+    return f'"{escaped}"'

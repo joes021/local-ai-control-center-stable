@@ -63,6 +63,25 @@ export type ServerStatusPayload = {
   stopBlockedReason?: string;
   canOpenWeb?: boolean;
   openWebBlockedReason?: string;
+  commandPreview: {
+    shellLabel: string;
+    activeRuntime: string;
+    activeRuntimeLabel: string;
+    activeCommand: string;
+    modelPath: string;
+    notes: string[];
+    variants: Array<{
+      runtime: string;
+      runtimeLabel: string;
+      available: boolean;
+      summary: string;
+      binaryPath: string;
+      modelPath: string;
+      context: number | null;
+      specType: string;
+      command: string;
+    }>;
+  };
 };
 
 export type BenchmarkHistoryItem = {
@@ -841,6 +860,18 @@ export type OpenCodeStatusPayload = {
   webSearchPromptPrefix?: string;
   localProviderUsesSearchProxy?: boolean;
   localProviderSearchSummary?: string;
+  launchPreview: {
+    shellLabel: string;
+    launcherPath: string;
+    launcherCommand: string;
+    powershellCommand: string;
+    workingDirectory: string;
+    environment: Array<{
+      key: string;
+      value: string;
+    }>;
+    summary: string;
+  };
   auditRiskLevel: string;
   auditSummary: string;
 };

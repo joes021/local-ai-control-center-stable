@@ -85,6 +85,12 @@ def load_opencode_status_payload(
         "webSearchPromptPrefix": str(settings.get("webSearchPromptPrefix", "/web") or "/web"),
         "localProviderUsesSearchProxy": True,
         "localProviderSearchSummary": _build_local_provider_search_summary(settings),
+        "launchPreview": _build_opencode_launch_preview(
+            config=config,
+            executable_path=executable_path,
+            managed_config_path=config_path,
+            settings=settings,
+        ),
         "auditRiskLevel": "",
         "auditSummary": (
             "Installer-managed OpenCode bootstrap je spreman."
@@ -325,6 +331,74 @@ def _write_opencode_launcher(
     launcher_path.write_text("\r\n".join(lines) + "\r\n", encoding="utf-8")
 
 
+def _build_opencode_launch_preview(
+    *,
+    config: ControlCenterConfig,
+    executable_path: Path,
+    managed_config_path: Path,
+    settings: dict[str, object],
+) -> dict[str, object]:
+    launcher_name = "Open-OpenCode.cmd" if is_windows_platform() else "Open-OpenCode.sh"
+    launcher_path = config.install_root / "control-center" / launcher_name
+    env = _build_opencode_launch_environment(
+        managed_config_path=managed_config_path,
+        settings=settings,
+        profile="",
+    )
+    env_items = [
+        {"key": key, "value": str(env.get(key, ""))}
+        for key in [
+            "OPENCODE_CONFIG",
+            "LACC_PROFILE",
+            "LACC_OPENCODE_SECURITY_MODE",
+            "LACC_OPENCODE_CAPABILITY_MODE",
+            "LACC_OPENCODE_BUILD_STEPS",
+            "LACC_OPENCODE_PLAN_STEPS",
+            "LACC_OPENCODE_GENERAL_STEPS",
+            "LACC_OPENCODE_EXPLORE_STEPS",
+        ]
+    ]
+    if not is_windows_platform():
+        shell_command = f'bash "{launcher_path}"'
+        powershell_command = "\n".join(
+            [
+                f'cd "{settings["workingDirectory"]}"',
+                *(f'export {item["key"]}="{item["value"]}"' for item in env_items),
+                f'"{executable_path}"',
+            ]
+        )
+        return {
+            "shellLabel": "Shell",
+            "launcherPath": str(launcher_path),
+            "launcherCommand": shell_command,
+            "powershellCommand": powershell_command,
+            "workingDirectory": str(settings["workingDirectory"]),
+            "environment": env_items,
+            "summary": "OpenCode koristi managed config i iste profile/korake koje vidiš u panelu.",
+        }
+
+    powershell_lines = [
+        f'Set-Location "{settings["workingDirectory"]}"',
+        *(
+            f'$env:{item["key"]} = "{_escape_powershell_value(str(item["value"]))}"'
+            for item in env_items
+        ),
+        f'& "{executable_path}"',
+    ]
+    return {
+        "shellLabel": "PowerShell",
+        "launcherPath": str(launcher_path),
+        "launcherCommand": f'cmd.exe /d /k "{launcher_path}"',
+        "powershellCommand": "\n".join(powershell_lines),
+        "workingDirectory": str(settings["workingDirectory"]),
+        "environment": env_items,
+        "summary": (
+            "OpenCode model i provider dolaze iz managed-config.json, a local-lacc u sebi koristi "
+            "trenutni runtime i aktivni model iz Control Center-a."
+        ),
+    }
+
+
 def _launch_opencode_launcher(launcher_path: Path) -> None:
     if not is_windows_platform():
         terminal_command = _build_linux_terminal_command(launcher_path)
@@ -364,6 +438,10 @@ def _build_linux_terminal_command(launcher_path: Path) -> list[str] | None:
         if shutil.which(candidate[0]):
             return candidate
     return None
+
+
+def _escape_powershell_value(value: str) -> str:
+    return value.replace('"', '`"')
 
 
 def _ensure_executable_bit(path: Path) -> None:

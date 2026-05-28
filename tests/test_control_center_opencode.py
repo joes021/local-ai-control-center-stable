@@ -51,6 +51,11 @@ def test_opencode_status_route_reports_packaged_installation(
     assert payload["canOpen"] is True
     assert payload["openActionLabel"] == "Otvori OpenCode"
     assert payload["openBlockedReason"] == ""
+    assert payload["launchPreview"]["shellLabel"] == "PowerShell"
+    assert payload["launchPreview"]["launcherPath"].endswith("Open-OpenCode.cmd")
+    assert "cmd.exe /d /k" in payload["launchPreview"]["launcherCommand"]
+    assert "$env:OPENCODE_CONFIG" in payload["launchPreview"]["powershellCommand"]
+    assert "opencode.exe" in payload["launchPreview"]["powershellCommand"]
 
 
 def test_opencode_status_route_reports_app_only_when_runtime_is_not_connected(

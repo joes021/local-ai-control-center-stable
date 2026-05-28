@@ -284,6 +284,14 @@ def test_settings_route_saves_updates_and_deletes_custom_workflow_presets(
 
     payload = client.get("/api/settings").json()
     workflow_presets = payload["availableWorkflowPresets"]
+    assert [item["id"] for item in workflow_presets[:6]] == [
+        "research",
+        "code",
+        "low-vram",
+        "long-context",
+        "docs-plus-web",
+        "benchmark-battery",
+    ]
     user_preset = next(item for item in workflow_presets if item["kind"] == "user")
     assert user_preset["name"] == "My code deep dive"
     assert user_preset["summary"] == "Korisnički coding preset sa malo više web pomoći."
@@ -378,6 +386,85 @@ def test_settings_route_saves_updates_and_deletes_custom_workflow_presets(
     deleted_payload = client.get("/api/settings").json()
     assert all(item["id"] != user_preset["id"] for item in deleted_payload["availableWorkflowPresets"])
     assert deleted_payload["selectedWorkflowPresetId"] == "research"
+
+
+def test_workflow_preset_save_route_rejects_duplicate_name_and_invalid_copy(
+    tmp_path: Path,
+    monkeypatch,
+):
+    install_root = tmp_path / "install-root"
+    _write_active_model_config(install_root)
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+
+    client = TestClient(app)
+
+    duplicate_response = client.post(
+        "/api/settings/workflow-presets/save",
+        json={
+            "name": "Code",
+            "summary": "Pokušaj da se pregazi ugrađeni preset.",
+            "badges": ["code"],
+            "settingsPatch": {
+                "profile": "speed",
+                "context": 65536,
+                "outputTokens": 4096,
+                "thinkingMode": "low",
+                "webSearchMode": "off",
+                "webSearchProvider": "duckduckgo",
+            },
+            "searchDefaults": {
+                "provider": "duckduckgo",
+                "suggestedAction": "search",
+                "queryHint": "hint",
+            },
+            "knowledgeDefaults": {
+                "mode": "documents-only",
+                "queryHint": "hint",
+            },
+            "benchmarkDefaults": {
+                "batteryId": "default",
+                "launchTarget": "selected",
+                "runLabel": "Run",
+            },
+        },
+    )
+    assert duplicate_response.status_code == 200
+    assert duplicate_response.json()["status"] == "error"
+    assert "već postoji" in duplicate_response.json()["summary"]
+
+    invalid_response = client.post(
+        "/api/settings/workflow-presets/save",
+        json={
+            "name": "Moja kopija",
+            "summary": "x" * 221,
+            "badges": ["jedan", "dva", "tri", "četiri", "pet", "šest", "sedam"],
+            "settingsPatch": {
+                "profile": "speed",
+                "context": 65536,
+                "outputTokens": 4096,
+                "thinkingMode": "low",
+                "webSearchMode": "off",
+                "webSearchProvider": "duckduckgo",
+            },
+            "searchDefaults": {
+                "provider": "duckduckgo",
+                "suggestedAction": "search",
+                "queryHint": "hint",
+            },
+            "knowledgeDefaults": {
+                "mode": "documents-only",
+                "queryHint": "hint",
+            },
+            "benchmarkDefaults": {
+                "batteryId": "default",
+                "launchTarget": "selected",
+                "runLabel": "Run",
+            },
+        },
+    )
+    assert invalid_response.status_code == 200
+    assert invalid_response.json()["status"] == "error"
+    assert "najviše 220 karaktera" in invalid_response.json()["summary"]
 
 
 def test_settings_route_migrates_legacy_default_search_url_to_unconfigured_state(

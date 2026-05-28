@@ -101,6 +101,28 @@ export function OpenCodePage() {
     return matchedPreset ? formatPresetLabel(matchedPreset) : "Custom values";
   }, [stepEditor, stepSchema]);
 
+  async function copyText(text: string, label: string) {
+    if (!text.trim()) {
+      setError(`Nema sadržaja za kopiranje: ${label}.`);
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+      setResult({
+        status: "ok",
+        action: "copy-opencode-preview",
+        summary: `${label} je kopiran u clipboard.`,
+        details: { returncode: 0, stdout: text, stderr: "" },
+      });
+    } catch (reason: unknown) {
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : `Kopiranje nije uspelo: ${label}.`,
+      );
+    }
+  }
+
   if (error) {
     return <div className="error-panel">{error}</div>;
   }
@@ -159,6 +181,46 @@ export function OpenCodePage() {
           {opencode.runtimeLiveReason || "Nema dodatnih runtime detalja."}
         </p>
         <p className="helper-text">Audit: {opencode.auditSummary || "Nema dodatnih OpenCode detalja."}</p>
+      </section>
+
+      <section className="status-card wide-card">
+        <span className="status-label">Ekvivalentna OpenCode komanda</span>
+        <strong className="status-value">{opencode.launchPreview.shellLabel}</strong>
+        <p className="helper-text">
+          Ovo je najbliži ručni prikaz onoga što portal radi kada otvara OpenCode. Managed config
+          određuje provider i model, a `local-lacc` zatim koristi trenutni runtime i aktivni model iz panela.
+        </p>
+        <p className="helper-text">Launcher .cmd: {opencode.launchPreview.launcherPath}</p>
+        <p className="helper-text">Radni direktorijum: {opencode.launchPreview.workingDirectory}</p>
+        <p className="helper-text">{opencode.launchPreview.summary}</p>
+        <div className="inline-actions">
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={() => void copyText(opencode.launchPreview.launcherCommand, "Launcher komanda")}
+          >
+            Kopiraj launcher
+          </button>
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={() => void copyText(opencode.launchPreview.powershellCommand, "PowerShell prikaz")}
+          >
+            Kopiraj PowerShell
+          </button>
+        </div>
+        <div className="command-preview-card">
+          <span className="status-label">Launcher .cmd</span>
+          <div className="details-block">
+            <pre>{opencode.launchPreview.launcherCommand}</pre>
+          </div>
+        </div>
+        <div className="command-preview-card">
+          <span className="status-label">PowerShell prikaz</span>
+          <div className="details-block">
+            <pre>{opencode.launchPreview.powershellCommand}</pre>
+          </div>
+        </div>
       </section>
 
       <section className="status-card wide-card">
