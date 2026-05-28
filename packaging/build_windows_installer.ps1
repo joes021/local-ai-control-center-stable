@@ -135,8 +135,18 @@ try {
         throw "PyInstaller build failed."
     }
 
+    $versionedSetupPath = Join-Path $distRoot $setupFileName
+    if (-not (Test-Path $versionedSetupPath)) {
+        throw "Versioned setup file was not produced."
+    }
+
+    $latestSetupPath = Join-Path $distRoot "LocalAIControlCenterSetup-latest.exe"
+    Copy-Item $versionedSetupPath $latestSetupPath -Force
+
     Write-Host "Built installer:"
-    Write-Host (Join-Path $distRoot $setupFileName)
+    Write-Host $versionedSetupPath
+    Write-Host "Latest setup alias:"
+    Write-Host $latestSetupPath
 }
 finally {
     if ($specPath -and (Test-Path $specPath)) {

@@ -34,3 +34,26 @@ def test_windows_installer_entry_prefers_repo_src_before_importing_package():
 
     assert 'Path(__file__).resolve().parents[1] / "src"' in entry_script
     assert "sys.path.insert(0, str(_REPO_SRC))" in entry_script
+
+
+def test_build_windows_installer_script_creates_latest_setup_alias():
+    script = Path("packaging/build_windows_installer.ps1").read_text(encoding="utf-8")
+
+    assert "LocalAIControlCenterSetup-latest.exe" in script
+    assert "Copy-Item $versionedSetupPath $latestSetupPath -Force" in script
+
+
+def test_publish_github_release_script_uploads_latest_setup_alias():
+    script = Path("packaging/publish_github_release.ps1").read_text(encoding="utf-8")
+
+    assert "LocalAIControlCenterSetup-latest.exe" in script
+    assert "gh release" in script
+    assert "releases/latest/download/LocalAIControlCenterSetup-latest.exe" not in script
+
+
+def test_readme_promotes_direct_latest_setup_download():
+    readme = Path("README.md").read_text(encoding="utf-8")
+
+    assert "LocalAIControlCenterSetup-latest.exe" in readme
+    assert "releases/latest/download/LocalAIControlCenterSetup-latest.exe" in readme
+    assert "LocalAIControlCenterSetup-v0.4.37.exe" not in readme
