@@ -308,9 +308,18 @@ code {
 
 .top-nav {
   display: flex;
-  gap: 10px;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
   flex-wrap: wrap;
   margin-bottom: 20px;
+}
+
+.top-nav-primary {
+  display: flex;
+  flex: 1 1 720px;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
 .nav-button {
@@ -334,6 +343,89 @@ code {
   background: var(--app-accent);
   color: var(--app-accent-contrast);
   border-color: var(--app-accent);
+}
+
+.nav-more-shell {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.nav-more-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 112px;
+}
+
+.nav-more-chevron {
+  font-size: 0.82rem;
+  transition: transform 140ms ease;
+}
+
+.nav-more-chevron-open {
+  transform: rotate(180deg);
+}
+
+.nav-menu-panel {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  z-index: 80;
+  width: min(420px, calc(100vw - 32px));
+  border: 1px solid var(--app-card-border);
+  background: var(--app-panel-elevated-bg);
+  backdrop-filter: blur(18px);
+  border-radius: 20px;
+  box-shadow: 0 24px 42px rgba(0, 0, 0, 0.24);
+  padding: 16px;
+}
+
+.nav-menu-current {
+  margin: 0 0 12px;
+  color: var(--app-text-muted);
+  font-size: 0.92rem;
+}
+
+.nav-menu-section + .nav-menu-section {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--app-card-soft-border);
+}
+
+.nav-menu-section-label {
+  margin: 0 0 10px;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--app-text-soft);
+}
+
+.nav-menu-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.nav-menu-item {
+  border: 1px solid var(--app-card-soft-border);
+  background: var(--app-card-soft-bg);
+  color: var(--app-text);
+  border-radius: 14px;
+  padding: 10px 12px;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 180ms ease,
+    background 180ms ease,
+    color 180ms ease,
+    transform 140ms ease;
+}
+
+.nav-menu-item-active {
+  border-color: var(--app-accent);
+  background: var(--app-warning-bg);
+  color: var(--app-text);
 }
 
 .status-card,
@@ -466,6 +558,33 @@ code {
 }
 
 @media (max-width: 860px) {
+  .top-nav {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .top-nav-primary {
+    flex-basis: auto;
+  }
+
+  .nav-more-shell {
+    width: 100%;
+  }
+
+  .nav-more-button {
+    width: 100%;
+  }
+
+  .nav-menu-panel {
+    left: 0;
+    right: auto;
+    width: 100%;
+  }
+
+  .nav-menu-grid {
+    grid-template-columns: 1fr;
+  }
+
   .home-server-grid,
   .home-detail-grid {
     grid-template-columns: 1fr;
@@ -972,6 +1091,18 @@ code {
   color: var(--app-accent-contrast);
 }
 
+.nav-menu-item:hover:not(:disabled) {
+  transform: translateY(-1px);
+  border-color: var(--app-button-hover-border);
+  background: var(--app-button-hover-bg);
+  box-shadow: 0 16px 28px rgba(0, 0, 0, 0.2);
+}
+
+.nav-menu-item-active:hover:not(:disabled) {
+  border-color: var(--app-accent-strong);
+  background: linear-gradient(180deg, var(--app-warning-bg), color-mix(in srgb, var(--app-warning-bg) 65%, transparent));
+}
+
 .nav-button:active:not(:disabled),
 .inline-actions button:active:not(:disabled),
 .form-grid button:active:not(:disabled),
@@ -985,6 +1116,7 @@ code {
 }
 
 .nav-button:focus-visible,
+.nav-menu-item:focus-visible,
 .inline-actions button:focus-visible,
 .form-grid button:focus-visible,
 .settings-action-row button:focus-visible,
@@ -998,6 +1130,7 @@ code {
 }
 
 .nav-button:disabled,
+.nav-menu-item:disabled,
 .inline-actions button:disabled,
 .form-grid button:disabled,
 .settings-action-row button:disabled,

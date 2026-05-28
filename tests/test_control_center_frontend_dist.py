@@ -147,6 +147,50 @@ def test_jobs_source_and_navigation_are_present():
     assert "Sačuvaj posao" in jobs_source
 
 
+def test_app_source_and_packaged_frontend_use_primary_tabs_plus_more_menu():
+    app_source = Path("frontend/src/App.tsx").read_text(encoding="utf-8")
+    styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
+    dist_root = Path(
+        "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
+    )
+    js_assets = list((dist_root / "assets").glob("index-*.js"))
+    css_assets = list((dist_root / "assets").glob("index-*.css"))
+
+    assert "Više" in app_source
+    assert "Početna" in app_source
+    assert "Server" in app_source
+    assert "Modeli" in app_source
+    assert "OpenCode" in app_source
+    assert "Pretraga" in app_source
+    assert "Podešavanja" in app_source
+    assert "nav-more-button" in app_source
+    assert "nav-menu-panel" in app_source
+    assert "nav-menu-section-label" in app_source
+    assert ".top-nav-primary" in styles_source
+    assert ".nav-more-shell" in styles_source
+    assert ".nav-more-button" in styles_source
+    assert ".nav-menu-panel" in styles_source
+    assert ".nav-menu-section-label" in styles_source
+    assert js_assets
+    assert css_assets
+
+    bundled_js = "\n".join(path.read_text(encoding="utf-8") for path in js_assets)
+    bundled_css = "\n".join(path.read_text(encoding="utf-8") for path in css_assets)
+
+    assert "Više" in bundled_js
+    assert "Početna" in bundled_js
+    assert "Modeli" in bundled_js
+    assert "Podešavanja" in bundled_js
+    assert "nav-more-button" in bundled_js
+    assert "nav-menu-panel" in bundled_js
+    assert "nav-menu-section-label" in bundled_js
+    assert ".top-nav-primary" in bundled_css
+    assert ".nav-more-shell" in bundled_css
+    assert ".nav-more-button" in bundled_css
+    assert ".nav-menu-panel" in bundled_css
+    assert ".nav-menu-section-label" in bundled_css
+
+
 def test_workflows_source_and_navigation_are_present():
     app_source = Path("frontend/src/App.tsx").read_text(encoding="utf-8")
     workflows_source = Path("frontend/src/pages/WorkflowsPage.tsx").read_text(encoding="utf-8")
