@@ -805,9 +805,13 @@ def test_settings_source_explains_inference_parameters_and_uses_compact_summary_
     assert "Za kodiranje:" in settings_source
     assert "Za kreativniji chat:" in settings_source
     assert "Za stabilne benchmarke:" in settings_source
+    assert "Brzi orijentiri" in settings_source
+    assert "Niže = mirnije" in settings_source
+    assert "Fiksan broj = ponovljivije" in settings_source
     assert "inference-parameter-grid" in settings_source
     assert "inference-spotlight-shell" in styles_source
     assert "inference-parameter-note" in styles_source
+    assert "inference-summary-chip-note" in styles_source
     assert js_assets
     assert css_assets
 
@@ -818,6 +822,10 @@ def test_settings_source_explains_inference_parameters_and_uses_compact_summary_
     assert "Za kodiranje:" in bundled_js
     assert "Za kreativniji chat:" in bundled_js
     assert "Za stabilne benchmarke:" in bundled_js
+    assert "Brzi orijentiri" in bundled_js
+    assert "Niže = mirnije" in bundled_js
+    assert "Fiksan broj = ponovljivije" in bundled_js
     assert "inference-parameter-grid" in bundled_js
     assert "inference-spotlight-shell" in bundled_css
     assert "inference-parameter-note" in bundled_css
+    assert "inference-summary-chip-note" in bundled_css

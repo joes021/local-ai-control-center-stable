@@ -117,6 +117,7 @@ type InferenceParameterDefinition = {
   label: string;
   step: string;
   description: string;
+  quickHint: string;
   coding: string;
   creative: string;
   benchmark: string;
@@ -129,6 +130,7 @@ const INFERENCE_PARAMETER_DEFINITIONS: InferenceParameterDefinition[] = [
     step: "0.05",
     description:
       "Kontroliše koliko je generacija mirna ili razigrana. Niže vrednosti daju stabilnije i predvidljivije odgovore.",
+    quickHint: "Niže = mirnije, više = kreativnije.",
     coding: "0.1 - 0.3 za preciznije kodiranje i manje lutanja.",
     creative: "0.7 - 0.9 za opušteniji chat i više varijacija.",
     benchmark: "0.0 - 0.2 kada hoćeš stabilno poređenje između run-ova.",
@@ -139,6 +141,7 @@ const INFERENCE_PARAMETER_DEFINITIONS: InferenceParameterDefinition[] = [
     step: "1",
     description:
       "Ograničava koliko sledećih kandidata model uopšte razmatra pre izbora tokena.",
+    quickHint: "Manje = fokus, više = širi izbor.",
     coding: "20 - 40 za fokusiraniji i disciplinovan izlaz.",
     creative: "40 - 100 kada želiš širi izbor reči i ideja.",
     benchmark: "20 - 40 da signal ostane uporediv i miran.",
@@ -149,6 +152,7 @@ const INFERENCE_PARAMETER_DEFINITIONS: InferenceParameterDefinition[] = [
     step: "0.01",
     description:
       "Seče raspodelu verovatnoća na najverovatniji deo. Niže vrednosti smiruju sampling.",
+    quickHint: "Niže = stroži sampling i manje lutanja.",
     coding: "0.8 - 0.95 za dobar balans tačnosti i fleksibilnosti.",
     creative: "0.9 - 0.98 za širi i življi stil odgovora.",
     benchmark: "0.8 - 0.95 da ostaneš bliže realnom svakodnevnom radu.",
@@ -159,6 +163,7 @@ const INFERENCE_PARAMETER_DEFINITIONS: InferenceParameterDefinition[] = [
     step: "0.01",
     description:
       "Odbacuje veoma slabe kandidate čak i kada su upali u top-p skup. Dobar je za čišći izlaz.",
+    quickHint: "Seče slabe kandidate i čisti izlaz.",
     coding: "0.03 - 0.08 za manje šuma u odgovoru.",
     creative: "0.02 - 0.06 ako želiš više prostora za neočekivane izbore.",
     benchmark: "0.05 - 0.1 kada hoćeš mirniji i stabilniji tok tokena.",
@@ -169,6 +174,7 @@ const INFERENCE_PARAMETER_DEFINITIONS: InferenceParameterDefinition[] = [
     step: "0.05",
     description:
       "Kažnjava ponavljanje istih tokena. Više vrednosti smanjuju petljanje, ali mogu da ukoče izlaz.",
+    quickHint: "Smanjuje petljanje i dosadno ponavljanje.",
     coding: "1.0 - 1.1 da ne uguši tehničku preciznost.",
     creative: "1.05 - 1.15 za manje dosadnog ponavljanja.",
     benchmark: "1.0 ako meriš čist runtime bez dodatnog stilskog pritiska.",
@@ -179,6 +185,7 @@ const INFERENCE_PARAMETER_DEFINITIONS: InferenceParameterDefinition[] = [
     step: "1",
     description:
       "Kaže koliko poslednjih tokena ulazi u proveru za repeat penalty. Veći broj gleda duži rep istorije.",
+    quickHint: "Veće vrednosti gledaju duži rep istorije.",
     coding: "64 - 128 je praktičan i lagan izbor.",
     creative: "128 - 256 kad želiš da model duže pamti šta je već rekao.",
     benchmark: "64 da test ostane lagan i dosledan.",
@@ -189,6 +196,7 @@ const INFERENCE_PARAMETER_DEFINITIONS: InferenceParameterDefinition[] = [
     step: "0.05",
     description:
       "Gura model da uvodi nove pojmove umesto da se vrti oko istih tema.",
+    quickHint: "Više = lakše uvodi nove teme i ideje.",
     coding: "0.0 - 0.2 jer kod obično traži fokus, ne širenje teme.",
     creative: "0.2 - 0.6 za brainstorming i raznovrsniji razgovor.",
     benchmark: "0.0 kada želiš što manje dodatnih uticaja na rezultat.",
@@ -199,6 +207,7 @@ const INFERENCE_PARAMETER_DEFINITIONS: InferenceParameterDefinition[] = [
     step: "0.05",
     description:
       "Smanjuje šansu da se isti tokeni često ponavljaju. Deluje blaže i finije od repeat penalty.",
+    quickHint: "Pegla često ponavljanje bez velikog nasilja.",
     coding: "0.0 - 0.15 za čiste i tehničke odgovore.",
     creative: "0.1 - 0.4 kada želiš raznovrsniji izraz.",
     benchmark: "0.0 da se merenje ne muti dodatnim stilskim filtrom.",
@@ -209,6 +218,7 @@ const INFERENCE_PARAMETER_DEFINITIONS: InferenceParameterDefinition[] = [
     step: "1",
     description:
       "Kontroliše reproduktivnost sampling-a. -1 znači nasumično, a fiksan broj daje ponovljiviji izlaz.",
+    quickHint: "Fiksan broj = ponovljivije, -1 = svežije.",
     coding: "42 ili 1234 kada porediš rezultate i želiš ponovljivost.",
     creative: "-1 za svežije i manje predvidljive odgovore.",
     benchmark: "42 ili drugi fiksan broj za poštenu uporedivost.",
@@ -299,6 +309,26 @@ function buildInferenceSummaryItems(settings: {
     { label: "Frequency", value: formatInferenceMetric(settings.frequencyPenalty) },
     { label: "Seed", value: formatInferenceMetric(settings.seed, 0) },
   ];
+}
+
+function resolveInferenceDefinitionForSummaryLabel(
+  label: string,
+): InferenceParameterDefinition | null {
+  const keyByLabel: Record<string, InferenceParameterKey> = {
+    Temp: "temperature",
+    "Top-k": "topK",
+    "Top-p": "topP",
+    "Min-p": "minP",
+    Repeat: "repeatPenalty",
+    "Last N": "repeatLastN",
+    Presence: "presencePenalty",
+    Frequency: "frequencyPenalty",
+    Seed: "seed",
+  };
+  const key = keyByLabel[label];
+  return key
+    ? INFERENCE_PARAMETER_DEFINITIONS.find((definition) => definition.key === key) ?? null
+    : null;
 }
 
 function matchesGenerationStarter(
@@ -473,10 +503,14 @@ export function SettingsPage() {
   const outputTokensChoice = resolveTokenChoice(settings.outputTokens);
   const activeSettings = settings;
   const activeInferenceSummary = buildInferenceSummaryItems(settings);
-  const primaryInferenceSummary = activeInferenceSummary.filter((item) =>
+  const activeInferenceSummaryCards = activeInferenceSummary.map((item) => ({
+    ...item,
+    definition: resolveInferenceDefinitionForSummaryLabel(item.label),
+  }));
+  const primaryInferenceSummary = activeInferenceSummaryCards.filter((item) =>
     INFERENCE_PRIMARY_LABELS.includes(item.label as (typeof INFERENCE_PRIMARY_LABELS)[number]),
   );
-  const secondaryInferenceSummary = activeInferenceSummary.filter(
+  const secondaryInferenceSummary = activeInferenceSummaryCards.filter(
     (item) =>
       !INFERENCE_PRIMARY_LABELS.includes(item.label as (typeof INFERENCE_PRIMARY_LABELS)[number]),
   );
@@ -740,6 +774,12 @@ export function SettingsPage() {
                 <strong className="status-value inference-spotlight-value">
                   {primaryInferenceSummary.map((item) => `${item.label} ${item.value}`).join(" | ")}
                 </strong>
+                <div className="inference-spotlight-tips">
+                  <span>Brzi orijentiri</span>
+                  <span>Za kod: niža `temperature`, niži `top-k`, fiksan `seed`.</span>
+                  <span>Za chat: viša `temperature` i širi `top-k` / `top-p`.</span>
+                  <span>Za benchmark: fiksan `seed` i mirniji sampling.</span>
+                </div>
                 <p className="helper-text">
                   Ove vrednosti trenutno ulaze u `llama.cpp` ili `TurboQuant` start komandu i
                   postaju local-lacc podrazumevana inference podešavanja kada klijent ne pošalje
@@ -756,6 +796,11 @@ export function SettingsPage() {
                     <div className="inference-primary-card" key={item.label}>
                       <span className="inference-primary-card-label">{item.label}</span>
                       <strong className="inference-primary-card-value">{item.value}</strong>
+                      {item.definition ? (
+                        <span className="inference-summary-chip-note">
+                          {item.definition.quickHint}
+                        </span>
+                      ) : null}
                     </div>
                   ))}
                 </div>
@@ -764,6 +809,11 @@ export function SettingsPage() {
                     <div className="inference-summary-chip" key={item.label}>
                       <span className="inference-summary-chip-label">{item.label}</span>
                       <strong className="inference-summary-chip-value">{item.value}</strong>
+                      {item.definition ? (
+                        <span className="inference-summary-chip-note">
+                          {item.definition.quickHint}
+                        </span>
+                      ) : null}
                     </div>
                   ))}
                 </div>
