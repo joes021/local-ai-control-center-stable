@@ -135,6 +135,19 @@ def test_workflows_source_and_navigation_are_present():
     assert "grid-template-columns: repeat(3, minmax(0, 1fr));" in styles_source
 
 
+def test_workflows_source_supports_user_editable_presets_and_reset_to_defaults():
+    workflows_source = Path("frontend/src/pages/WorkflowsPage.tsx").read_text(encoding="utf-8")
+    api_source = Path("frontend/src/lib/api.ts").read_text(encoding="utf-8")
+
+    assert "Vrati na default podešavanja" in workflows_source
+    assert "Sačuvaj kao novi preset" in workflows_source
+    assert "Sačuvaj izmene preseta" in workflows_source
+    assert "Obriši korisnički preset" in workflows_source
+    assert "Učitaj u editor" in workflows_source
+    assert "saveWorkflowPreset" in api_source
+    assert "deleteWorkflowPreset" in api_source
+
+
 def test_settings_source_uses_stable_option_grids_and_balanced_core_layout():
     settings_source = Path("frontend/src/pages/SettingsPage.tsx").read_text(encoding="utf-8")
     styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
@@ -145,6 +158,31 @@ def test_settings_source_uses_stable_option_grids_and_balanced_core_layout():
     assert "grid-template-columns: 1fr;" in styles_source
     assert "settings-cluster-grid-core" in styles_source
     assert "repeat(2, minmax(260px, 1fr))" in styles_source
+
+
+def test_settings_source_clearly_separates_general_search_and_turboquant_sections():
+    settings_source = Path("frontend/src/pages/SettingsPage.tsx").read_text(encoding="utf-8")
+    dist_root = Path(
+        "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
+    )
+    js_assets = list((dist_root / "assets").glob("index-*.js"))
+
+    assert "Kako da koristiš ovu stranu" in settings_source
+    assert "Opšta podešavanja" in settings_source
+    assert "Pretraga i izvori" in settings_source
+    assert "TurboQuant podešavanja" in settings_source
+    assert "Sačuvaj opšta podešavanja" in settings_source
+    assert "Sačuvaj TurboQuant podešavanja" in settings_source
+    assert js_assets
+
+    bundled_text = "\n".join(path.read_text(encoding="utf-8") for path in js_assets)
+
+    assert "Kako da koristiš ovu stranu" in bundled_text
+    assert "Opšta podešavanja" in bundled_text
+    assert "Pretraga i izvori" in bundled_text
+    assert "TurboQuant podešavanja" in bundled_text
+    assert "Sačuvaj opšta podešavanja" in bundled_text
+    assert "Sačuvaj TurboQuant podešavanja" in bundled_text
 
 
 def test_packaged_settings_action_and_browse_buttons_use_panel_button_theme():

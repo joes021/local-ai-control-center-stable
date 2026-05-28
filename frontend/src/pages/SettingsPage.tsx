@@ -301,6 +301,38 @@ export function SettingsPage() {
       <section className="status-card wide-card settings-cluster-card">
         <div className="section-header settings-cluster-header">
           <div>
+            <span className="status-label">Kako da koristiš ovu stranu</span>
+            <strong className="status-value">Jedan ekran, dva odvojena sistema podešavanja</strong>
+          </div>
+        </div>
+        <div className="settings-explainer-grid">
+          <article className="settings-explainer-card">
+            <span className="settings-field-label">1. Profili i opseg</span>
+            <p className="helper-text">
+              Ovde biraš da li menjaš globalna podrazumevana ili override za aktivni model, a profil i
+              workflow preset samo pune editor preporučenim vrednostima.
+            </p>
+          </article>
+          <article className="settings-explainer-card">
+            <span className="settings-field-label">2. Opšta podešavanja i pretraga</span>
+            <p className="helper-text">
+              Tema, context, output tokens, OpenCode profil i search provider postaju aktivni tek kada
+              klikneš na <code>Sačuvaj opšta podešavanja</code>.
+            </p>
+          </article>
+          <article className="settings-explainer-card">
+            <span className="settings-field-label">3. TurboQuant</span>
+            <p className="helper-text">
+              TurboQuant preset i parametri imaju odvojen editor i čuvaju se posebnim dugmetom
+              <code>Sačuvaj TurboQuant podešavanja</code>.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <section className="status-card wide-card settings-cluster-card">
+        <div className="section-header settings-cluster-header">
+          <div>
             <span className="status-label">Profili i opseg</span>
             <strong className="status-value">
               Aktivni model: {settings.activeModelLabel || "nema"} ({settings.activeModelId || "--"})
@@ -449,7 +481,8 @@ export function SettingsPage() {
       <section className="status-card wide-card settings-cluster-card">
         <div className="section-header settings-cluster-header">
           <div>
-            <span className="status-label">Core settings</span>
+            <span className="status-label">Opšta podešavanja</span>
+            <strong className="status-value">Glavni radni profil za portal i lokalni model</strong>
           </div>
         </div>
         <div className="settings-cluster-grid settings-cluster-grid-core">
@@ -659,6 +692,28 @@ export function SettingsPage() {
                 Pregledaj
               </button>
             </div>
+            <p className="helper-text">
+              Ovo važi za opšti radni kontekst portala, OpenCode integraciju i lokalne workflow tokove.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <section className="status-card wide-card settings-cluster-card">
+        <div className="section-header settings-cluster-header">
+          <div>
+            <span className="status-label">Pretraga i izvori</span>
+            <strong className="status-value">Kako Search, Knowledge i local-lacc dolaze do web rezultata</strong>
+          </div>
+        </div>
+        <div className="settings-cluster-grid settings-cluster-grid-core">
+          <article className="settings-field settings-field-wide">
+            <span className="settings-field-label">Šta se ovde zapravo čuva</span>
+            <p className="helper-text">
+              Ovaj blok kontroliše izbor search providera, health proveru, managed SearxNG setup, režim
+              pretrage i limite. Sve promene ovde takođe postaju aktivne tek kada klikneš na
+              <code>Sačuvaj opšta podešavanja</code>.
+            </p>
           </article>
 
           <article className="settings-field settings-field-wide">
@@ -762,7 +817,7 @@ export function SettingsPage() {
             {settings.webSearchProvider === "searxng" ? (
               <p className="helper-text">
                 Ovaj automatski setup koristi WSL da lokalno podigne SearxNG. Manualni URL ispod je
-                odvojeni rezim i ne zahteva WSL.
+                odvojeni režim i ne zahteva WSL.
               </p>
             ) : (
               <p className="helper-text">
@@ -791,8 +846,8 @@ export function SettingsPage() {
               />
             </div>
             <p className="helper-text">
-              Ovo važi za Search tab i za OpenCode kada koristi lokalni `local-lacc` provider.
-              Cloud `opencode` modeli ne prolaze kroz ovaj lokalni search sloj.
+              Ovo važi za Search tab i za OpenCode kada koristi lokalni `local-lacc` provider. Cloud
+              `opencode` modeli ne prolaze kroz ovaj lokalni search sloj.
             </p>
           </article>
 
@@ -874,7 +929,7 @@ export function SettingsPage() {
               await reload();
             }}
           >
-            Save model settings
+            Sačuvaj opšta podešavanja
           </button>
           <button
             type="button"
@@ -896,7 +951,24 @@ export function SettingsPage() {
           </button>
         </div>
         <p className="helper-text">
-          Glavne promene postaju stvarno aktivne tek kada klikneš na `Save model settings`.
+          Ovde se zajedno čuvaju opšta podešavanja i podešavanja pretrage za izabrani opseg.
+        </p>
+      </section>
+
+      <section className="status-card wide-card settings-cluster-card">
+        <div className="section-header settings-cluster-header">
+          <div>
+            <span className="status-label">TurboQuant podešavanja</span>
+            <strong className="status-value">Odvojeni preset i parametri samo za TurboQuant runtime</strong>
+          </div>
+        </div>
+        <p className="helper-text">
+          `safe` je najbezbedniji, `daily` je preporučeni balans, a `max-context` je agresivniji
+          kada juriš što duži kontekst.
+        </p>
+        <p className="helper-text">
+          TurboQuant editor ne menja opšta podešavanja. Njegove promene se čuvaju samo kroz posebno
+          dugme <code>Sačuvaj TurboQuant podešavanja</code>.
         </p>
       </section>
 
@@ -904,10 +976,6 @@ export function SettingsPage() {
         <div className="section-header">
           <span className="status-label">TurboQuant preseti</span>
         </div>
-        <p className="helper-text">
-          `safe` je najbezbedniji, `daily` je preporučeni balans, a `max-context` je agresivniji
-          kada juriš što duži kontekst.
-        </p>
         <div className="model-list">
           {allTurboPresets.map((preset) => (
             <article className="model-item" key={preset.id}>
@@ -1081,7 +1149,7 @@ export function SettingsPage() {
               await reload();
             }}
           >
-            Save TurboQuant config
+            Sačuvaj TurboQuant podešavanja
           </button>
         </div>
       </section>

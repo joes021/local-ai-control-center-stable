@@ -482,6 +482,41 @@ export async function deleteSettingsProfile(profileId: string): Promise<ActionRe
   return postJson("/api/settings/profiles/delete", { profileId });
 }
 
+export async function saveWorkflowPreset(payload: {
+  presetId?: string;
+  name: string;
+  summary: string;
+  badges: string[];
+  settingsPatch: {
+    profile: string;
+    context: number;
+    outputTokens: number;
+    thinkingMode: string;
+    webSearchMode: string;
+    webSearchProvider: string;
+  };
+  searchDefaults: {
+    provider: string;
+    suggestedAction: "search" | "answer" | "compare";
+    queryHint: string;
+  };
+  knowledgeDefaults: {
+    mode: "documents-only" | "documents+web" | "web-only";
+    queryHint: string;
+  };
+  benchmarkDefaults: {
+    batteryId: string;
+    launchTarget: "selected" | "battery";
+    runLabel: string;
+  };
+}): Promise<ActionResult> {
+  return postJson("/api/settings/workflow-presets/save", payload);
+}
+
+export async function deleteWorkflowPreset(presetId: string): Promise<ActionResult> {
+  return postJson("/api/settings/workflow-presets/delete", { presetId });
+}
+
 export async function fetchTurboQuantSchema(): Promise<TurboQuantSchemaPayload> {
   const response = await fetch("/api/settings/turboquant");
   if (!response.ok) {

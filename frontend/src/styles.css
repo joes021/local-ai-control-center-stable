@@ -686,6 +686,23 @@ code {
   grid-template-columns: repeat(2, minmax(260px, 1fr));
 }
 
+.settings-explainer-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.settings-explainer-card {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  min-width: 0;
+  padding: 14px;
+  border-radius: 16px;
+  border: 1px solid var(--app-card-soft-border);
+  background: var(--app-card-soft-bg);
+}
+
 .settings-field {
   min-width: 0;
   display: flex;
@@ -971,6 +988,17 @@ code {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
+}
+
+.workflow-editor-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.workflow-editor-actions {
+  margin-top: 18px;
 }
 
 .theme-option-card {
@@ -2192,12 +2220,17 @@ select:-webkit-autofill {
 }
 
 @media (max-width: 860px) {
+  .settings-explainer-grid,
   .settings-cluster-grid-core,
   .settings-cluster-grid-profiles {
     grid-template-columns: 1fr;
   }
 
   .settings-option-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .workflow-editor-grid {
     grid-template-columns: 1fr;
   }
 
@@ -2303,6 +2336,7 @@ select:-webkit-autofill {
 }
 
 @media (max-width: 1140px) {
+  .settings-explainer-grid,
   .settings-option-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -2312,6 +2346,10 @@ select:-webkit-autofill {
   }
 
   .workflow-preset-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .workflow-editor-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 

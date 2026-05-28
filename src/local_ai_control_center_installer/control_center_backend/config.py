@@ -61,6 +61,10 @@ class ControlCenterConfig:
         return self.control_center_config_root / "settings-profiles.json"
 
     @property
+    def workflow_presets_path(self) -> Path:
+        return self.control_center_config_root / "workflow-presets.json"
+
+    @property
     def opencode_step_presets_path(self) -> Path:
         return self.control_center_config_root / "opencode-step-presets.json"
 

@@ -239,6 +239,147 @@ def test_settings_route_saves_and_deletes_custom_settings_profiles(
     assert deleted["selectedSettingsProfileId"] == "custom"
 
 
+def test_settings_route_saves_updates_and_deletes_custom_workflow_presets(
+    tmp_path: Path,
+    monkeypatch,
+):
+    install_root = tmp_path / "install-root"
+    _write_active_model_config(install_root)
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+
+    client = TestClient(app)
+
+    save_response = client.post(
+        "/api/settings/workflow-presets/save",
+        json={
+            "name": "My code deep dive",
+            "summary": "Korisnički coding preset sa malo više web pomoći.",
+            "badges": ["code", "custom", "web"],
+            "settingsPatch": {
+                "profile": "speed",
+                "context": 65536,
+                "outputTokens": 3072,
+                "thinkingMode": "low",
+                "webSearchMode": "on-demand",
+                "webSearchProvider": "duckduckgo",
+            },
+            "searchDefaults": {
+                "provider": "duckduckgo",
+                "suggestedAction": "answer",
+                "queryHint": "Proveri biblioteku ili error pre odgovora.",
+            },
+            "knowledgeDefaults": {
+                "mode": "documents-only",
+                "queryHint": "Koristi lokalni kod i beleške kao prvi izvor.",
+            },
+            "benchmarkDefaults": {
+                "batteryId": "default",
+                "launchTarget": "selected",
+                "runLabel": "Pokreni coding benchmark.",
+            },
+        },
+    )
+    assert save_response.status_code == 200
+    assert save_response.json()["status"] == "ok"
+
+    payload = client.get("/api/settings").json()
+    workflow_presets = payload["availableWorkflowPresets"]
+    user_preset = next(item for item in workflow_presets if item["kind"] == "user")
+    assert user_preset["name"] == "My code deep dive"
+    assert user_preset["summary"] == "Korisnički coding preset sa malo više web pomoći."
+    assert user_preset["badges"] == ["code", "custom", "web"]
+    assert user_preset["settingsPatch"]["context"] == 65536
+    assert user_preset["searchDefaults"]["suggestedAction"] == "answer"
+    assert user_preset["knowledgeDefaults"]["mode"] == "documents-only"
+    assert user_preset["benchmarkDefaults"]["launchTarget"] == "selected"
+
+    update_response = client.post(
+        "/api/settings/workflow-presets/save",
+        json={
+            "presetId": user_preset["id"],
+            "name": "My code deep dive",
+            "summary": "Ažurirani coding preset sa dužim context-om.",
+            "badges": ["code", "custom", "longer-context"],
+            "settingsPatch": {
+                "profile": "speed",
+                "context": 131072,
+                "outputTokens": 4096,
+                "thinkingMode": "mid",
+                "webSearchMode": "on-demand",
+                "webSearchProvider": "duckduckgo",
+            },
+            "searchDefaults": {
+                "provider": "duckduckgo",
+                "suggestedAction": "search",
+                "queryHint": "Ažurirani search hint.",
+            },
+            "knowledgeDefaults": {
+                "mode": "documents+web",
+                "queryHint": "Spoji lokalne dokumente i web kada je potrebno.",
+            },
+            "benchmarkDefaults": {
+                "batteryId": "default",
+                "launchTarget": "battery",
+                "runLabel": "Pokreni coding battery benchmark.",
+            },
+        },
+    )
+    assert update_response.status_code == 200
+    assert update_response.json()["status"] == "ok"
+
+    updated_payload = client.get("/api/settings").json()
+    updated_user_preset = next(
+        item for item in updated_payload["availableWorkflowPresets"] if item["id"] == user_preset["id"]
+    )
+    assert updated_user_preset["summary"] == "Ažurirani coding preset sa dužim context-om."
+    assert updated_user_preset["badges"] == ["code", "custom", "longer-context"]
+    assert updated_user_preset["settingsPatch"]["context"] == 131072
+    assert updated_user_preset["knowledgeDefaults"]["mode"] == "documents+web"
+    assert updated_user_preset["benchmarkDefaults"]["launchTarget"] == "battery"
+
+    apply_response = client.post(
+        "/api/settings/apply",
+        json={
+            "profile": "speed",
+            "context": 131072,
+            "outputTokens": 4096,
+            "workingDirectory": str(install_root),
+            "thinkingMode": "mid",
+            "buildSteps": 1,
+            "planSteps": 1,
+            "generalSteps": 1,
+            "exploreSteps": 1,
+            "settingsScope": "global",
+            "activeModelId": "recommended-6gb",
+            "activeModelLabel": "gemma-4-E4B-it-Q4_K_M.gguf",
+            "modelOverrideExists": False,
+            "accessMode": "local-only",
+            "webSearchMode": "on-demand",
+            "webSearchProvider": "duckduckgo",
+            "webSearchBaseUrl": "",
+            "webSearchMaxResults": 5,
+            "webSearchTimeoutSeconds": 20,
+            "webSearchPromptPrefix": "/web",
+            "themeId": "dark-chocolate",
+            "workflowPresetId": user_preset["id"],
+        },
+    )
+    assert apply_response.status_code == 200
+    assert apply_response.json()["status"] == "ok"
+    assert client.get("/api/settings").json()["selectedWorkflowPresetId"] == user_preset["id"]
+
+    delete_response = client.post(
+        "/api/settings/workflow-presets/delete",
+        json={"presetId": user_preset["id"]},
+    )
+    assert delete_response.status_code == 200
+    assert delete_response.json()["status"] == "ok"
+
+    deleted_payload = client.get("/api/settings").json()
+    assert all(item["id"] != user_preset["id"] for item in deleted_payload["availableWorkflowPresets"])
+    assert deleted_payload["selectedWorkflowPresetId"] == "research"
+
+
 def test_settings_route_migrates_legacy_default_search_url_to_unconfigured_state(
     tmp_path: Path,
     monkeypatch,

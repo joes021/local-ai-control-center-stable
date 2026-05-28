@@ -3,6 +3,8 @@ import type { SettingsPayload, WorkflowPreset } from "./types";
 export const FALLBACK_WORKFLOW_PRESETS: WorkflowPreset[] = [
   {
     id: "research",
+    name: "Research",
+    kind: "built-in",
     label: "Research",
     summary: "Web + docs tok za istraživanje i sintezu.",
     badges: ["web", "docs", "balanced"],
@@ -31,6 +33,8 @@ export const FALLBACK_WORKFLOW_PRESETS: WorkflowPreset[] = [
   },
   {
     id: "code",
+    name: "Code",
+    kind: "built-in",
     label: "Code",
     summary: "Kraći output i fokus na kod, bez agresivnog veb sloja.",
     badges: ["code", "fast", "docs"],
@@ -59,6 +63,8 @@ export const FALLBACK_WORKFLOW_PRESETS: WorkflowPreset[] = [
   },
   {
     id: "low-vram",
+    name: "Low VRAM",
+    kind: "built-in",
     label: "Low VRAM",
     summary: "Štedljiv preset za manje GPU budžete i lakši runtime.",
     badges: ["safe", "low-vram", "fast"],
@@ -87,6 +93,8 @@ export const FALLBACK_WORKFLOW_PRESETS: WorkflowPreset[] = [
   },
   {
     id: "long-context",
+    name: "Long context",
+    kind: "built-in",
     label: "Long context",
     summary: "Naglasak na velikom context-u i dužem kontinuitetu.",
     badges: ["262k", "analysis", "balanced"],
@@ -115,6 +123,8 @@ export const FALLBACK_WORKFLOW_PRESETS: WorkflowPreset[] = [
   },
   {
     id: "docs-plus-web",
+    name: "Docs + web",
+    kind: "built-in",
     label: "Docs + web",
     summary: "Knowledge-first tok sa obaveznim čitanjem lokalnih izvora i veb dopunom.",
     badges: ["knowledge", "citations", "web"],
@@ -143,6 +153,8 @@ export const FALLBACK_WORKFLOW_PRESETS: WorkflowPreset[] = [
   },
   {
     id: "benchmark-battery",
+    name: "Benchmark battery",
+    kind: "built-in",
     label: "Benchmark battery",
     summary: "Preset za telemetriju, merenje i ponovljiv benchmark tok.",
     badges: ["benchmark", "telemetry", "compare"],

@@ -704,6 +704,8 @@ export type ThemeOption = {
 
 export type WorkflowPreset = {
   id: string;
+  name: string;
+  kind: "built-in" | "user";
   label: string;
   summary: string;
   badges: string[];

@@ -1,9 +1,167 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { ActionResultPanel } from "../components/ActionResultPanel";
-import { applySettings, fetchSettings } from "../lib/api";
-import { resolveWorkflowPresets } from "../lib/workflowPresets";
-import type { ActionResult, SettingsPayload } from "../lib/types";
+import { CustomSelect } from "../components/CustomSelect";
+import {
+  applySettings,
+  deleteWorkflowPreset,
+  fetchSettings,
+  saveWorkflowPreset,
+} from "../lib/api";
+import {
+  resolveSelectedWorkflowPreset,
+  resolveWorkflowPresets,
+} from "../lib/workflowPresets";
+import type { ActionResult, SettingsPayload, WorkflowPreset } from "../lib/types";
+
+type WorkflowPresetDraft = {
+  name: string;
+  summary: string;
+  badgesText: string;
+  profile: string;
+  context: number;
+  outputTokens: number;
+  thinkingMode: string;
+  webSearchMode: string;
+  webSearchProvider: string;
+  searchProvider: string;
+  searchSuggestedAction: "search" | "answer" | "compare";
+  searchQueryHint: string;
+  knowledgeMode: "documents-only" | "documents+web" | "web-only";
+  knowledgeQueryHint: string;
+  benchmarkBatteryId: string;
+  benchmarkLaunchTarget: "selected" | "battery";
+  benchmarkRunLabel: string;
+};
+
+const PROFILE_OPTIONS = [
+  { value: "balanced", label: "balanced" },
+  { value: "speed", label: "speed" },
+  { value: "video", label: "video" },
+];
+
+const THINKING_MODE_OPTIONS = [
+  { value: "no-thinking", label: "no-thinking" },
+  { value: "low", label: "low" },
+  { value: "mid", label: "mid" },
+  { value: "high", label: "high" },
+  { value: "extra-high", label: "extra-high" },
+];
+
+const WEB_SEARCH_MODE_OPTIONS = [
+  { value: "off", label: "Off" },
+  { value: "on-demand", label: "On-demand" },
+  { value: "always", label: "Always" },
+];
+
+const SEARCH_ACTION_OPTIONS = [
+  { value: "search", label: "Prikaži izvore" },
+  { value: "answer", label: "Odgovori lokalno" },
+  { value: "compare", label: "Uporedi provajdere" },
+];
+
+const KNOWLEDGE_MODE_OPTIONS = [
+  { value: "documents-only", label: "Samo dokumenti" },
+  { value: "documents+web", label: "Dokumenti + veb" },
+  { value: "web-only", label: "Samo veb" },
+];
+
+const BENCHMARK_TARGET_OPTIONS = [
+  { value: "selected", label: "Pokreni selected scenario" },
+  { value: "battery", label: "Pokreni celu battery sekvencu" },
+];
+
+function createDraftFromPreset(preset: WorkflowPreset): WorkflowPresetDraft {
+  return {
+    name: preset.name || preset.label,
+    summary: preset.summary,
+    badgesText: preset.badges.join(", "),
+    profile: preset.settingsPatch.profile ?? "balanced",
+    context: preset.settingsPatch.context ?? 262144,
+    outputTokens: preset.settingsPatch.outputTokens ?? 8192,
+    thinkingMode: preset.settingsPatch.thinkingMode ?? "mid",
+    webSearchMode: preset.settingsPatch.webSearchMode ?? "off",
+    webSearchProvider: preset.settingsPatch.webSearchProvider ?? "searxng",
+    searchProvider: preset.searchDefaults.provider,
+    searchSuggestedAction: preset.searchDefaults.suggestedAction,
+    searchQueryHint: preset.searchDefaults.queryHint,
+    knowledgeMode: preset.knowledgeDefaults.mode,
+    knowledgeQueryHint: preset.knowledgeDefaults.queryHint,
+    benchmarkBatteryId: preset.benchmarkDefaults.batteryId,
+    benchmarkLaunchTarget: preset.benchmarkDefaults.launchTarget,
+    benchmarkRunLabel: preset.benchmarkDefaults.runLabel,
+  };
+}
+
+function cloneDraft(draft: WorkflowPresetDraft): WorkflowPresetDraft {
+  return { ...draft };
+}
+
+function buildWorkflowPresetPayload(
+  draft: WorkflowPresetDraft,
+  options?: { presetId?: string },
+) {
+  const badges = draft.badgesText
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+  return {
+    presetId: options?.presetId,
+    name: draft.name.trim(),
+    summary: draft.summary.trim(),
+    badges,
+    settingsPatch: {
+      profile: draft.profile,
+      context: draft.context,
+      outputTokens: draft.outputTokens,
+      thinkingMode: draft.thinkingMode,
+      webSearchMode: draft.webSearchMode,
+      webSearchProvider: draft.webSearchProvider,
+    },
+    searchDefaults: {
+      provider: draft.searchProvider,
+      suggestedAction: draft.searchSuggestedAction,
+      queryHint: draft.searchQueryHint.trim(),
+    },
+    knowledgeDefaults: {
+      mode: draft.knowledgeMode,
+      queryHint: draft.knowledgeQueryHint.trim(),
+    },
+    benchmarkDefaults: {
+      batteryId: draft.benchmarkBatteryId.trim() || "default",
+      launchTarget: draft.benchmarkLaunchTarget,
+      runLabel: draft.benchmarkRunLabel.trim(),
+    },
+  };
+}
+
+function chooseEditorPreset(
+  payload: SettingsPayload,
+  options?: { preferredPresetId?: string; preferredPresetName?: string },
+): WorkflowPreset | null {
+  const presets = resolveWorkflowPresets(payload);
+  if (!presets.length) {
+    return null;
+  }
+  if (options?.preferredPresetId) {
+    const matchedById = presets.find((preset) => preset.id === options.preferredPresetId);
+    if (matchedById) {
+      return matchedById;
+    }
+  }
+  if (options?.preferredPresetName) {
+    const normalizedName = options.preferredPresetName.trim().toLowerCase();
+    const matchedByName = presets.find(
+      (preset) =>
+        preset.name.trim().toLowerCase() === normalizedName ||
+        preset.label.trim().toLowerCase() === normalizedName,
+    );
+    if (matchedByName) {
+      return matchedByName;
+    }
+  }
+  return resolveSelectedWorkflowPreset(payload) ?? presets[0] ?? null;
+}
 
 export function WorkflowsPage({
   onOpenSearch,
@@ -17,15 +175,37 @@ export function WorkflowsPage({
   const [settingsPayload, setSettingsPayload] = useState<SettingsPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busyPresetId, setBusyPresetId] = useState("");
+  const [editorPresetId, setEditorPresetId] = useState("");
+  const [editorBaseline, setEditorBaseline] = useState<WorkflowPresetDraft | null>(null);
+  const [editorDraft, setEditorDraft] = useState<WorkflowPresetDraft | null>(null);
+  const [editorBusy, setEditorBusy] = useState<
+    "" | "save-new" | "save-update" | "delete" | "reset"
+  >("");
   const [result, setResult] = useState<ActionResult | null>(null);
 
-  async function load() {
+  async function load(options?: {
+    preferredPresetId?: string;
+    preferredPresetName?: string;
+  }) {
     try {
       const payload = await fetchSettings();
+      const chosenPreset = chooseEditorPreset(payload, options);
+
       setSettingsPayload(payload);
       setError(null);
+
+      if (chosenPreset) {
+        const nextBaseline = createDraftFromPreset(chosenPreset);
+        setEditorPresetId(chosenPreset.id);
+        setEditorBaseline(nextBaseline);
+        setEditorDraft(cloneDraft(nextBaseline));
+      }
     } catch (reason: unknown) {
-      setError(reason instanceof Error ? reason.message : "Radni prostor za radne tokove nije mogao da se učita.");
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : "Radni prostor za radne tokove nije mogao da se učita.",
+      );
     }
   }
 
@@ -37,14 +217,34 @@ export function WorkflowsPage({
     () => resolveWorkflowPresets(settingsPayload),
     [settingsPayload],
   );
+  const selectedPreset = useMemo(
+    () => presets.find((preset) => preset.id === editorPresetId) ?? null,
+    [editorPresetId, presets],
+  );
+  const searchProviderOptions = useMemo(
+    () =>
+      settingsPayload?.availableSearchProviders.map((provider) => ({
+        value: provider.id,
+        label: provider.label,
+      })) ?? [],
+    [settingsPayload],
+  );
 
   if (error) {
     return <div className="error-panel">{error}</div>;
   }
 
-  if (!settingsPayload) {
-    return <section className="status-card wide-card">Učitavam radni prostor za radne tokove...</section>;
+  if (!settingsPayload || !editorDraft) {
+    return (
+      <section className="status-card wide-card">
+        Učitavam radni prostor za radne tokove...
+      </section>
+    );
   }
+
+  const selectedWorkflowPresetId =
+    settingsPayload.selectedWorkflowPresetId || settingsPayload.workflowPresetId;
+  const isEditingUserPreset = selectedPreset?.kind === "user";
 
   return (
     <>
@@ -52,8 +252,8 @@ export function WorkflowsPage({
         <span className="status-label">Radni tokovi</span>
         <strong className="status-value">Radni prostor za radne tokove</strong>
         <p className="helper-text">
-          Preset sloj za najčešće radne tokove. Jednim klikom biraš pravac za Pretragu, Znanje,
-          Benchmark i radni profil bez lutanja kroz više tabova.
+          Ovde vidiš ugrađene workflow preset-e, možeš da ih aktiviraš za ceo portal i da
+          napraviš svoje korisničke varijante bez ručnog lutanja kroz Podešavanja.
         </p>
       </section>
 
@@ -61,7 +261,8 @@ export function WorkflowsPage({
         <span className="status-label">Katalog preseta</span>
         <div className="workflow-preset-grid">
           {presets.map((preset) => {
-            const isActive = settingsPayload.selectedWorkflowPresetId === preset.id;
+            const isActive = selectedWorkflowPresetId === preset.id;
+            const isLoadedInEditor = editorPresetId === preset.id;
             return (
               <article
                 className={`theme-option-card ${isActive ? "theme-option-card-active" : ""}`}
@@ -70,13 +271,15 @@ export function WorkflowsPage({
                 <strong className="theme-option-name">{preset.label}</strong>
                 <p className="theme-option-copy">{preset.summary}</p>
                 <div className="summary-metrics">
+                  <span>{preset.kind === "user" ? "korisnički" : "ugrađeni"}</span>
                   {preset.badges.map((badge) => (
                     <span key={`${preset.id}-${badge}`}>{badge}</span>
                   ))}
                 </div>
                 <p className="helper-text">
-                  Pretraga: {preset.searchDefaults.provider} | Znanje: {preset.knowledgeDefaults.mode} |
-                  Benchmark: {preset.benchmarkDefaults.runLabel}
+                  Pretraga: {preset.searchDefaults.provider} | Znanje:{" "}
+                  {preset.knowledgeDefaults.mode} | Benchmark:{" "}
+                  {preset.benchmarkDefaults.runLabel}
                 </p>
                 <div className="inline-actions">
                   <button
@@ -93,15 +296,37 @@ export function WorkflowsPage({
                         };
                         const action = await applySettings(payload);
                         setResult(action);
-                        await load();
+                        await load({ preferredPresetId: preset.id });
                       } catch (reason: unknown) {
-                        setError(reason instanceof Error ? reason.message : "Aktivacija workflow preseta nije uspela.");
+                        setError(
+                          reason instanceof Error
+                            ? reason.message
+                            : "Aktivacija workflow preseta nije uspela.",
+                        );
                       } finally {
                         setBusyPresetId("");
                       }
                     }}
                   >
                     Aktiviraj preset
+                  </button>
+                  <button
+                    type="button"
+                    className={isLoadedInEditor ? "secondary-button" : undefined}
+                    onClick={() => {
+                      const nextBaseline = createDraftFromPreset(preset);
+                      setEditorPresetId(preset.id);
+                      setEditorBaseline(nextBaseline);
+                      setEditorDraft(cloneDraft(nextBaseline));
+                      setResult({
+                        status: "ok",
+                        action: "load-workflow-preset-editor",
+                        summary: `Preset ${preset.label} je učitan u editor.`,
+                        details: { returncode: 0, stdout: "", stderr: "" },
+                      });
+                    }}
+                  >
+                    Učitaj u editor
                   </button>
                   <button type="button" onClick={onOpenSearch}>
                     Otvori pretragu
@@ -116,6 +341,368 @@ export function WorkflowsPage({
               </article>
             );
           })}
+        </div>
+      </section>
+
+      <section className="status-card wide-card">
+        <span className="status-label">Editor workflow preseta</span>
+        <strong className="status-value">
+          {selectedPreset
+            ? `${selectedPreset.label} (${selectedPreset.kind === "user" ? "korisnički" : "ugrađeni"})`
+            : "Nema učitanog preseta"}
+        </strong>
+        <p className="helper-text">
+          Ugrađeni preset možeš da iskoristiš kao osnovu i da ga sačuvaš kao novi korisnički
+          preset. Korisnički preset možeš i da menjaš i da brišeš.
+        </p>
+
+        <div className="workflow-editor-grid">
+          <article className="settings-field">
+            <span className="settings-field-label">Ime preseta</span>
+            <input
+              type="text"
+              value={editorDraft.name}
+              onChange={(event) =>
+                setEditorDraft({
+                  ...editorDraft,
+                  name: event.target.value,
+                })
+              }
+            />
+          </article>
+
+          <article className="settings-field settings-field-wide">
+            <span className="settings-field-label">Kratak opis</span>
+            <textarea
+              value={editorDraft.summary}
+              onChange={(event) =>
+                setEditorDraft({
+                  ...editorDraft,
+                  summary: event.target.value,
+                })
+              }
+            />
+          </article>
+
+          <article className="settings-field settings-field-wide">
+            <span className="settings-field-label">Badge oznake</span>
+            <input
+              type="text"
+              value={editorDraft.badgesText}
+              onChange={(event) =>
+                setEditorDraft({
+                  ...editorDraft,
+                  badgesText: event.target.value,
+                })
+              }
+            />
+            <p className="helper-text">Upiši oznake razdvojene zarezima, na primer: code, web, custom.</p>
+          </article>
+
+          <article className="settings-field">
+            <span className="settings-field-label">Profil</span>
+            <CustomSelect
+              value={editorDraft.profile}
+              options={PROFILE_OPTIONS}
+              onChange={(value) =>
+                setEditorDraft({
+                  ...editorDraft,
+                  profile: value,
+                })
+              }
+              ariaLabel="Izaberi profil workflow preseta"
+            />
+          </article>
+
+          <article className="settings-field">
+            <span className="settings-field-label">Context</span>
+            <input
+              type="number"
+              value={editorDraft.context}
+              onChange={(event) =>
+                setEditorDraft({
+                  ...editorDraft,
+                  context: Number(event.target.value || 0),
+                })
+              }
+            />
+          </article>
+
+          <article className="settings-field">
+            <span className="settings-field-label">Output tokens</span>
+            <input
+              type="number"
+              value={editorDraft.outputTokens}
+              onChange={(event) =>
+                setEditorDraft({
+                  ...editorDraft,
+                  outputTokens: Number(event.target.value || 0),
+                })
+              }
+            />
+          </article>
+
+          <article className="settings-field">
+            <span className="settings-field-label">Thinking mode</span>
+            <CustomSelect
+              value={editorDraft.thinkingMode}
+              options={THINKING_MODE_OPTIONS}
+              onChange={(value) =>
+                setEditorDraft({
+                  ...editorDraft,
+                  thinkingMode: value,
+                })
+              }
+              ariaLabel="Izaberi thinking mode workflow preseta"
+            />
+          </article>
+
+          <article className="settings-field">
+            <span className="settings-field-label">Web search mode</span>
+            <CustomSelect
+              value={editorDraft.webSearchMode}
+              options={WEB_SEARCH_MODE_OPTIONS}
+              onChange={(value) =>
+                setEditorDraft({
+                  ...editorDraft,
+                  webSearchMode: value,
+                })
+              }
+              ariaLabel="Izaberi web search mode workflow preseta"
+            />
+          </article>
+
+          <article className="settings-field">
+            <span className="settings-field-label">Provider pretrage u podešavanjima</span>
+            <CustomSelect
+              value={editorDraft.webSearchProvider}
+              options={searchProviderOptions}
+              onChange={(value) =>
+                setEditorDraft({
+                  ...editorDraft,
+                  webSearchProvider: value,
+                  searchProvider: value,
+                })
+              }
+              ariaLabel="Izaberi podrazumevani provider workflow preseta"
+            />
+          </article>
+
+          <article className="settings-field">
+            <span className="settings-field-label">Search provider</span>
+            <CustomSelect
+              value={editorDraft.searchProvider}
+              options={searchProviderOptions}
+              onChange={(value) =>
+                setEditorDraft({
+                  ...editorDraft,
+                  searchProvider: value,
+                })
+              }
+              ariaLabel="Izaberi provider za Search tab"
+            />
+          </article>
+
+          <article className="settings-field">
+            <span className="settings-field-label">Search akcija</span>
+            <CustomSelect
+              value={editorDraft.searchSuggestedAction}
+              options={SEARCH_ACTION_OPTIONS}
+              onChange={(value) =>
+                setEditorDraft({
+                  ...editorDraft,
+                  searchSuggestedAction: value as WorkflowPresetDraft["searchSuggestedAction"],
+                })
+              }
+              ariaLabel="Izaberi podrazumevanu Search akciju"
+            />
+          </article>
+
+          <article className="settings-field settings-field-wide">
+            <span className="settings-field-label">Search query hint</span>
+            <textarea
+              value={editorDraft.searchQueryHint}
+              onChange={(event) =>
+                setEditorDraft({
+                  ...editorDraft,
+                  searchQueryHint: event.target.value,
+                })
+              }
+            />
+          </article>
+
+          <article className="settings-field">
+            <span className="settings-field-label">Knowledge mode</span>
+            <CustomSelect
+              value={editorDraft.knowledgeMode}
+              options={KNOWLEDGE_MODE_OPTIONS}
+              onChange={(value) =>
+                setEditorDraft({
+                  ...editorDraft,
+                  knowledgeMode: value as WorkflowPresetDraft["knowledgeMode"],
+                })
+              }
+              ariaLabel="Izaberi Knowledge mode"
+            />
+          </article>
+
+          <article className="settings-field settings-field-wide">
+            <span className="settings-field-label">Knowledge query hint</span>
+            <textarea
+              value={editorDraft.knowledgeQueryHint}
+              onChange={(event) =>
+                setEditorDraft({
+                  ...editorDraft,
+                  knowledgeQueryHint: event.target.value,
+                })
+              }
+            />
+          </article>
+
+          <article className="settings-field">
+            <span className="settings-field-label">Benchmark battery ID</span>
+            <input
+              type="text"
+              value={editorDraft.benchmarkBatteryId}
+              onChange={(event) =>
+                setEditorDraft({
+                  ...editorDraft,
+                  benchmarkBatteryId: event.target.value,
+                })
+              }
+            />
+          </article>
+
+          <article className="settings-field">
+            <span className="settings-field-label">Benchmark launch target</span>
+            <CustomSelect
+              value={editorDraft.benchmarkLaunchTarget}
+              options={BENCHMARK_TARGET_OPTIONS}
+              onChange={(value) =>
+                setEditorDraft({
+                  ...editorDraft,
+                  benchmarkLaunchTarget: value as WorkflowPresetDraft["benchmarkLaunchTarget"],
+                })
+              }
+              ariaLabel="Izaberi benchmark launch target"
+            />
+          </article>
+
+          <article className="settings-field settings-field-wide">
+            <span className="settings-field-label">Benchmark run label</span>
+            <input
+              type="text"
+              value={editorDraft.benchmarkRunLabel}
+              onChange={(event) =>
+                setEditorDraft({
+                  ...editorDraft,
+                  benchmarkRunLabel: event.target.value,
+                })
+              }
+            />
+          </article>
+        </div>
+
+        <div className="inline-actions workflow-editor-actions">
+          <button
+            type="button"
+            className="secondary-button"
+            disabled={!editorBaseline || editorBusy !== ""}
+            onClick={() => {
+              if (!editorBaseline) {
+                return;
+              }
+              setEditorBusy("reset");
+              setEditorDraft(cloneDraft(editorBaseline));
+              setResult({
+                status: "ok",
+                action: "reset-workflow-preset-editor",
+                summary: "Editor workflow preseta je vraćen na podrazumevana podešavanja.",
+                details: { returncode: 0, stdout: "", stderr: "" },
+              });
+              setEditorBusy("");
+            }}
+          >
+            Vrati na default podešavanja
+          </button>
+
+          <button
+            type="button"
+            disabled={editorBusy !== ""}
+            onClick={async () => {
+              setEditorBusy("save-new");
+              try {
+                const action = await saveWorkflowPreset(buildWorkflowPresetPayload(editorDraft));
+                setResult(action);
+                await load({ preferredPresetName: editorDraft.name });
+              } catch (reason: unknown) {
+                setError(
+                  reason instanceof Error
+                    ? reason.message
+                    : "Čuvanje novog workflow preseta nije uspelo.",
+                );
+              } finally {
+                setEditorBusy("");
+              }
+            }}
+          >
+            Sačuvaj kao novi preset
+          </button>
+
+          <button
+            type="button"
+            disabled={!isEditingUserPreset || editorBusy !== ""}
+            onClick={async () => {
+              if (!selectedPreset) {
+                return;
+              }
+              setEditorBusy("save-update");
+              try {
+                const action = await saveWorkflowPreset(
+                  buildWorkflowPresetPayload(editorDraft, { presetId: selectedPreset.id }),
+                );
+                setResult(action);
+                await load({ preferredPresetId: selectedPreset.id });
+              } catch (reason: unknown) {
+                setError(
+                  reason instanceof Error
+                    ? reason.message
+                    : "Ažuriranje workflow preseta nije uspelo.",
+                );
+              } finally {
+                setEditorBusy("");
+              }
+            }}
+          >
+            Sačuvaj izmene preseta
+          </button>
+
+          <button
+            type="button"
+            className="danger-button"
+            disabled={!isEditingUserPreset || editorBusy !== ""}
+            onClick={async () => {
+              if (!selectedPreset) {
+                return;
+              }
+              setEditorBusy("delete");
+              try {
+                const action = await deleteWorkflowPreset(selectedPreset.id);
+                setResult(action);
+                await load();
+              } catch (reason: unknown) {
+                setError(
+                  reason instanceof Error
+                    ? reason.message
+                    : "Brisanje korisničkog workflow preseta nije uspelo.",
+                );
+              } finally {
+                setEditorBusy("");
+              }
+            }}
+          >
+            Obriši korisnički preset
+          </button>
         </div>
       </section>
 

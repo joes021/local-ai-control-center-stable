@@ -499,11 +499,9 @@ WORKFLOW_PRESET_SPECS = [
         },
     },
 ]
-ALLOWED_WORKFLOW_PRESET_IDS = {
-    str(item.get("id", "") or "").strip()
-    for item in WORKFLOW_PRESET_SPECS
-    if str(item.get("id", "") or "").strip()
-}
+ALLOWED_WORKFLOW_SEARCH_ACTIONS = {"search", "answer", "compare"}
+ALLOWED_WORKFLOW_KNOWLEDGE_MODES = {"documents-only", "documents+web", "web-only"}
+ALLOWED_WORKFLOW_BENCHMARK_TARGETS = {"selected", "battery"}
 ALLOWED_WEB_SEARCH_MODES = {"off", "on-demand", "always"}
 ALLOWED_WEB_SEARCH_PROVIDERS = {"searxng", "duckduckgo"}
 WEB_SEARCH_PROVIDER_OPTIONS = [
@@ -643,7 +641,7 @@ def load_settings_payload(
         "webSearchTimeoutSeconds": effective["webSearchTimeoutSeconds"],
         "webSearchPromptPrefix": effective["webSearchPromptPrefix"],
         "availableThemes": load_theme_options(),
-        "availableWorkflowPresets": load_workflow_presets(),
+        "availableWorkflowPresets": load_workflow_presets(config),
         "availableSearchProviders": load_web_search_provider_options(),
         "builtInSettingsProfiles": profile_catalog["builtInProfiles"],
         "userSettingsProfiles": profile_catalog["userProfiles"],
@@ -860,6 +858,115 @@ def delete_settings_user_profile(
     return action_result("ok", "delete-settings-profile", "Settings profil je obrisan.")
 
 
+def _normalize_workflow_preset_payload(
+    payload: object,
+    config: ControlCenterConfig | None = None,
+) -> dict[str, object] | None:
+    config = config or get_config()
+    raw = payload if isinstance(payload, dict) else {}
+    name = str(raw.get("name", "") or raw.get("label", "") or "").strip()
+    if not name:
+        return None
+
+    baseline = _normalize_global_settings(
+        {},
+        config=config,
+        allowed_workflow_preset_ids={"research"},
+    )
+    normalized_settings = _normalize_settings_payload(
+        raw.get("settingsPatch", {}),
+        config=config,
+        current=baseline,
+        respect_explicit_steps=False,
+    )
+    settings_patch = {
+        "profile": normalized_settings["profile"],
+        "context": normalized_settings["context"],
+        "outputTokens": normalized_settings["outputTokens"],
+        "thinkingMode": normalized_settings["thinkingMode"],
+        "webSearchMode": normalized_settings["webSearchMode"],
+        "webSearchProvider": normalized_settings["webSearchProvider"],
+    }
+
+    raw_badges = raw.get("badges", [])
+    if isinstance(raw_badges, str):
+        badges = [item.strip() for item in raw_badges.split(",") if item.strip()]
+    elif isinstance(raw_badges, list):
+        badges = [
+            str(item or "").strip()
+            for item in raw_badges
+            if str(item or "").strip()
+        ]
+    else:
+        badges = []
+
+    search_raw = raw.get("searchDefaults", {})
+    search_defaults = search_raw if isinstance(search_raw, dict) else {}
+    search_provider = str(
+        search_defaults.get("provider", settings_patch["webSearchProvider"]) or settings_patch["webSearchProvider"]
+    ).strip().lower()
+    if search_provider not in ALLOWED_WEB_SEARCH_PROVIDERS:
+        search_provider = str(settings_patch["webSearchProvider"])
+    suggested_action = str(search_defaults.get("suggestedAction", "answer") or "answer").strip().lower()
+    if suggested_action not in ALLOWED_WORKFLOW_SEARCH_ACTIONS:
+        suggested_action = "answer"
+    search_query_hint = str(search_defaults.get("queryHint", "") or "").strip()
+
+    knowledge_raw = raw.get("knowledgeDefaults", {})
+    knowledge_defaults = knowledge_raw if isinstance(knowledge_raw, dict) else {}
+    knowledge_mode = str(knowledge_defaults.get("mode", "documents+web") or "documents+web").strip().lower()
+    if knowledge_mode not in ALLOWED_WORKFLOW_KNOWLEDGE_MODES:
+        knowledge_mode = "documents+web"
+    knowledge_query_hint = str(knowledge_defaults.get("queryHint", "") or "").strip()
+
+    benchmark_raw = raw.get("benchmarkDefaults", {})
+    benchmark_defaults = benchmark_raw if isinstance(benchmark_raw, dict) else {}
+    launch_target = str(benchmark_defaults.get("launchTarget", "selected") or "selected").strip().lower()
+    if launch_target not in ALLOWED_WORKFLOW_BENCHMARK_TARGETS:
+        launch_target = "selected"
+    battery_id = str(benchmark_defaults.get("batteryId", "default") or "default").strip() or "default"
+    run_label = str(benchmark_defaults.get("runLabel", "") or "").strip()
+
+    summary = str(raw.get("summary", "") or "").strip() or f"{name} workflow preset."
+    preset_id = str(raw.get("presetId", "") or raw.get("id", "") or "").strip()
+
+    return {
+        "id": preset_id,
+        "name": name,
+        "label": name,
+        "summary": summary,
+        "badges": badges,
+        "settingsPatch": settings_patch,
+        "searchDefaults": {
+            "provider": search_provider,
+            "suggestedAction": suggested_action,
+            "queryHint": search_query_hint,
+        },
+        "knowledgeDefaults": {
+            "mode": knowledge_mode,
+            "queryHint": knowledge_query_hint,
+        },
+        "benchmarkDefaults": {
+            "batteryId": battery_id,
+            "launchTarget": launch_target,
+            "runLabel": run_label,
+        },
+    }
+
+
+def _project_workflow_user_preset(preset: dict[str, object]) -> dict[str, object]:
+    return {
+        "id": str(preset.get("id", "") or "").strip(),
+        "name": str(preset.get("name", "") or preset.get("label", "") or "").strip(),
+        "summary": str(preset.get("summary", "") or "").strip(),
+        "badges": list(preset.get("badges", [])) if isinstance(preset.get("badges", []), list) else [],
+        "settingsPatch": dict(preset.get("settingsPatch", {})) if isinstance(preset.get("settingsPatch", {}), dict) else {},
+        "searchDefaults": dict(preset.get("searchDefaults", {})) if isinstance(preset.get("searchDefaults", {}), dict) else {},
+        "knowledgeDefaults": dict(preset.get("knowledgeDefaults", {})) if isinstance(preset.get("knowledgeDefaults", {}), dict) else {},
+        "benchmarkDefaults": dict(preset.get("benchmarkDefaults", {})) if isinstance(preset.get("benchmarkDefaults", {}), dict) else {},
+    }
+
+
 def load_turboquant_schema(
     config: ControlCenterConfig | None = None,
 ) -> dict[str, object]:
@@ -1035,6 +1142,7 @@ def _normalize_global_settings(
     payload: dict[str, object],
     *,
     config: ControlCenterConfig,
+    allowed_workflow_preset_ids: set[str] | None = None,
 ) -> dict[str, object]:
     defaults = {
         "profile": "balanced",
@@ -1064,6 +1172,7 @@ def _normalize_global_settings(
         config=config,
         current=defaults,
         respect_explicit_steps=True,
+        allowed_workflow_preset_ids=allowed_workflow_preset_ids,
     )
 
 
@@ -1075,8 +1184,89 @@ def load_theme_options() -> list[dict[str, object]]:
     return [dict(option) for option in THEME_OPTIONS]
 
 
-def load_workflow_presets() -> list[dict[str, object]]:
-    return [dict(option) for option in WORKFLOW_PRESET_SPECS]
+def load_workflow_presets(
+    config: ControlCenterConfig | None = None,
+) -> list[dict[str, object]]:
+    config = config or get_config()
+    built_in_presets = [
+        {
+            **dict(option),
+            "name": str(option.get("label", "") or option.get("id", "") or "").strip(),
+            "kind": "built-in",
+        }
+        for option in WORKFLOW_PRESET_SPECS
+    ]
+    return [*built_in_presets, *load_workflow_user_presets(config)]
+
+
+def load_workflow_user_presets(
+    config: ControlCenterConfig | None = None,
+) -> list[dict[str, object]]:
+    config = config or get_config()
+    payload = read_json_object(config.workflow_presets_path)
+    presets = payload.get("presets")
+    if not isinstance(presets, list):
+        return []
+    normalized: list[dict[str, object]] = []
+    for item in presets:
+        if not isinstance(item, dict):
+            continue
+        normalized_preset = _normalize_workflow_preset_payload(item)
+        if not normalized_preset:
+            continue
+        normalized_preset["kind"] = "user"
+        normalized.append(normalized_preset)
+    return normalized
+
+
+def save_workflow_user_preset(
+    payload: dict[str, object],
+    config: ControlCenterConfig | None = None,
+) -> dict[str, object]:
+    config = config or get_config()
+    normalized = _normalize_workflow_preset_payload(payload)
+    if not normalized:
+        raise ValueError("Ime workflow preseta je obavezno.")
+
+    requested_id = str(payload.get("presetId", "") or "").strip()
+    existing_presets = load_workflow_user_presets(config)
+    if requested_id and any(str(item.get("id", "") or "") == requested_id for item in existing_presets):
+        normalized["id"] = requested_id
+    else:
+        normalized["id"] = _build_user_preset_id(str(normalized["name"]))
+    normalized["kind"] = "user"
+
+    persisted: list[dict[str, object]] = []
+    for item in existing_presets:
+        item_id = str(item.get("id", "") or "")
+        item_name = str(item.get("name", "") or "").strip().lower()
+        if item_id == normalized["id"] or item_name == str(normalized["name"]).strip().lower():
+            continue
+        persisted.append(_project_workflow_user_preset(item))
+    persisted.append(_project_workflow_user_preset(normalized))
+    atomic_write_json(config.workflow_presets_path, {"presets": persisted})
+    return action_result("ok", "save-workflow-preset", f"Sačuvan workflow preset: {normalized['name']}")
+
+
+def delete_workflow_user_preset(
+    preset_id: str,
+    config: ControlCenterConfig | None = None,
+) -> dict[str, object]:
+    config = config or get_config()
+    existing_presets = load_workflow_user_presets(config)
+    filtered = [item for item in existing_presets if str(item.get("id", "") or "") != str(preset_id)]
+    if len(filtered) == len(existing_presets):
+        return action_result(
+            "error",
+            "delete-workflow-preset",
+            "Workflow preset nije pronađen.",
+            stderr="Workflow preset nije pronađen.",
+        )
+    atomic_write_json(
+        config.workflow_presets_path,
+        {"presets": [_project_workflow_user_preset(item) for item in filtered]},
+    )
+    return action_result("ok", "delete-workflow-preset", "Workflow preset je obrisan.")
 
 
 def _build_builtin_settings_profiles(
@@ -1114,6 +1304,7 @@ def _normalize_settings_payload(
     config: ControlCenterConfig,
     current: dict[str, object],
     respect_explicit_steps: bool,
+    allowed_workflow_preset_ids: set[str] | None = None,
 ) -> dict[str, object]:
     normalized_profile = str(payload.get("profile", current["profile"]) or current["profile"]).strip().lower()
     if normalized_profile not in ALLOWED_PROFILES:
@@ -1127,7 +1318,9 @@ def _normalize_settings_payload(
         payload.get("workflowPresetId", current.get("workflowPresetId", "research"))
         or current.get("workflowPresetId", "research")
     ).strip().lower()
-    if normalized_workflow_preset_id not in ALLOWED_WORKFLOW_PRESET_IDS:
+    if allowed_workflow_preset_ids is None:
+        allowed_workflow_preset_ids = _load_workflow_preset_ids(config)
+    if normalized_workflow_preset_id not in allowed_workflow_preset_ids:
         normalized_workflow_preset_id = str(current.get("workflowPresetId", "research"))
 
     normalized_access_mode = str(payload.get("accessMode", current["accessMode"]) or current["accessMode"]).strip().lower()
@@ -1379,3 +1572,22 @@ def _resolve_active_model_label(
 def _build_user_preset_id(name: str) -> str:
     slug = re.sub(r"[^a-z0-9]+", "-", name.strip().lower()).strip("-") or "preset"
     return f"user-{slug}-{uuid4().hex[:6]}"
+
+
+def _load_workflow_preset_ids(config: ControlCenterConfig) -> set[str]:
+    built_in_ids = {
+        str(item.get("id", "") or "").strip().lower()
+        for item in WORKFLOW_PRESET_SPECS
+        if str(item.get("id", "") or "").strip()
+    }
+    payload = read_json_object(config.workflow_presets_path)
+    stored = payload.get("presets")
+    if not isinstance(stored, list):
+        return built_in_ids
+
+    user_ids = {
+        str(item.get("id", "") or "").strip().lower()
+        for item in stored
+        if isinstance(item, dict) and str(item.get("id", "") or "").strip()
+    }
+    return built_in_ids | user_ids
