@@ -568,6 +568,40 @@ def test_packaged_frontend_contains_benchmark_compare_export_copy():
     assert "Odnos ulaza i izlaza" in bundled_text
 
 
+def test_theme_sensitive_controls_and_browser_surfaces_use_theme_variables():
+    styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
+
+    assert ".settings-field-label" in styles_source
+    assert "::placeholder" in styles_source
+    assert ".custom-select-trigger" in styles_source
+    assert ".custom-select-menu" in styles_source
+    assert ".compat-badge {" in styles_source
+    assert ".browser-table th {" in styles_source
+    assert ".browser-sort-button-active {" in styles_source
+    assert ".browser-badge," in styles_source
+    assert ".browser-source-huggingface {" in styles_source
+    assert "color: var(--app-text-soft);" in styles_source
+    assert "border: 1px solid var(--app-field-border);" in styles_source
+    assert "background: var(--app-field-bg-alt);" in styles_source
+    assert "color: var(--app-accent-strong);" in styles_source
+
+    dist_root = Path(
+        "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
+    )
+    css_assets = list((dist_root / "assets").glob("index-*.css"))
+
+    assert css_assets
+    bundled_css = "\n".join(path.read_text(encoding="utf-8") for path in css_assets)
+
+    assert ".custom-select-trigger" in bundled_css
+    assert ".compat-badge{" in bundled_css
+    assert ".browser-table th{" in bundled_css
+    assert ".browser-sort-button-active{" in bundled_css
+    assert "var(--app-field-border)" in bundled_css
+    assert "var(--app-field-bg-alt)" in bundled_css
+    assert "var(--app-accent-strong)" in bundled_css
+
+
 def test_compatibility_modal_source_and_packaged_frontend_include_runtime_breakdown_copy():
     source = Path("frontend/src/components/CompatibilityCalculatorPanel.tsx").read_text(encoding="utf-8")
 
