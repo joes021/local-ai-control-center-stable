@@ -29,6 +29,7 @@ const CHART_WIDTH = 640;
 const CHART_HEIGHT = 180;
 const CHART_OFFSET_X = 48;
 const CHART_OFFSET_Y = 10;
+const SAVED_RUNS_PER_PAGE = 10;
 
 const RANGE_OPTIONS = [
   { key: "1m", label: "1m", durationMs: 60_000 },
@@ -321,6 +322,7 @@ export function BenchmarkPage({ onOpenLogs }: { onOpenLogs: () => void }) {
   const [settingsPayload, setSettingsPayload] = useState<SettingsPayload | null>(null);
   const [selectedRangeKey, setSelectedRangeKey] = useState<RangeKey>("1m");
   const [nowTickMs, setNowTickMs] = useState(() => Date.now());
+  const [savedRunsPage, setSavedRunsPage] = useState(1);
   const isMountedRef = useRef(false);
   const inFlightRef = useRef(false);
   const requestIdRef = useRef(0);
@@ -421,6 +423,20 @@ export function BenchmarkPage({ onOpenLogs }: { onOpenLogs: () => void }) {
   };
   const activeRun = benchmark?.activeRun;
   const benchmarkEnvironment = benchmark?.environment;
+  const savedRuns = benchmark?.savedRuns ?? [];
+
+  const savedRunsTotalPages = useMemo(
+    () => Math.max(1, Math.ceil(savedRuns.length / SAVED_RUNS_PER_PAGE)),
+    [savedRuns.length],
+  );
+
+  useEffect(() => {
+    setSavedRunsPage((current) => Math.min(current, savedRunsTotalPages));
+  }, [savedRunsTotalPages]);
+
+  const savedRunsPageStart = (savedRunsPage - 1) * SAVED_RUNS_PER_PAGE;
+  const paginatedSavedRuns = savedRuns.slice(savedRunsPageStart, savedRunsPageStart + SAVED_RUNS_PER_PAGE);
+  const savedRunsPageEnd = Math.min(savedRunsPageStart + SAVED_RUNS_PER_PAGE, savedRuns.length);
 
   const normalizedSignalHistory = useMemo<HistoryPoint[]>(
     () =>
@@ -593,6 +609,7 @@ export function BenchmarkPage({ onOpenLogs }: { onOpenLogs: () => void }) {
   }
 
   async function handleClearHistory() {
+    setSavedRunsPage(1);
     const result = await clearBenchmarkHistory();
     setActionMessage(result.summary);
     await load();
@@ -748,63 +765,6 @@ export function BenchmarkPage({ onOpenLogs }: { onOpenLogs: () => void }) {
       </section>
 
       <TelemetryPanel benchmark={benchmark} variant="benchmark" />
-
-      <section className="status-card wide-card">
-        <span className="status-label">Kontekst benchmarka</span>
-        <div className="benchmark-context-grid">
-          <div className="benchmark-context-main">
-            <strong className="status-value">
-              Model: {benchmarkEnvironment?.modelLabel || "Nema aktivnog modela"}
-            </strong>
-            <p className="helper-text">
-              Runtime: {benchmarkEnvironment?.runtimeLabel || "--"} | Profil: {benchmarkEnvironment?.profile || "--"} |
-              Razmišljanje: {benchmarkEnvironment?.thinkingMode || "--"}
-            </p>
-          </div>
-          <div className="browser-chip-row">
-            <span className="browser-badge">Kontekst {formatCompactTokens(benchmarkEnvironment?.context)}</span>
-            <span className="browser-badge">Izlaz {formatCompactTokens(benchmarkEnvironment?.outputTokens)}</span>
-            <span className="browser-badge">
-              Stanje uživo {benchmark?.liveState?.status || "idle"}
-            </span>
-          </div>
-        </div>
-        <p className="helper-text">{benchmark?.liveState?.reason}</p>
-      </section>
-
-      <section className="status-card wide-card">
-        <span className="status-label">Pokretanje benchmarka</span>
-        <div className="benchmark-run-summary">
-          <div className="benchmark-run-main">
-            <strong className="status-value">
-              {activeRun?.mode === "battery"
-                ? `${activeRun.currentIndex}/${activeRun.totalScenarios} | ${
-                    activeRun.currentScenarioName || "čeka"
-                  }`
-                : activeRun?.scenarioName || "nema aktivnog testa"}
-            </strong>
-            <span className={`scenario-status-badge scenario-status-${activeRun?.status || "idle"}`}>
-              {activeRun?.status || "idle"}
-            </span>
-          </div>
-          <div className="benchmark-run-meta">
-            <span>{activeRun?.percent ?? 0}%</span>
-            <span>{activeRun?.message || "Benchmark nije pokrenut."}</span>
-          </div>
-        </div>
-        <div className="benchmark-run-status-list">
-          {(activeRun?.scenarioStatuses ?? []).map((item) => (
-            <article className="benchmark-run-status-row" key={item.scenarioId}>
-              <strong>{item.scenarioName}</strong>
-              <span className={`scenario-status-badge scenario-status-${item.status}`}>
-                {item.status}
-              </span>
-              <div className="muted-line">{item.summary}</div>
-            </article>
-          ))}
-        </div>
-        <div style={{ display: "none" }}>queued running done failed</div>
-      </section>
 
       <section className="status-card wide-card">
         <div className="benchmark-card-header">
@@ -1043,7 +1003,64 @@ export function BenchmarkPage({ onOpenLogs }: { onOpenLogs: () => void }) {
       </section>
 
       <section className="status-card wide-card">
-            <span className="status-label">Aktivnost zahteva</span>
+        <span className="status-label">Kontekst benchmarka</span>
+        <div className="benchmark-context-grid">
+          <div className="benchmark-context-main">
+            <strong className="status-value">
+              Model: {benchmarkEnvironment?.modelLabel || "Nema aktivnog modela"}
+            </strong>
+            <p className="helper-text">
+              Runtime: {benchmarkEnvironment?.runtimeLabel || "--"} | Profil: {benchmarkEnvironment?.profile || "--"} |
+              Razmišljanje: {benchmarkEnvironment?.thinkingMode || "--"}
+            </p>
+          </div>
+          <div className="browser-chip-row">
+            <span className="browser-badge">Kontekst {formatCompactTokens(benchmarkEnvironment?.context)}</span>
+            <span className="browser-badge">Izlaz {formatCompactTokens(benchmarkEnvironment?.outputTokens)}</span>
+            <span className="browser-badge">
+              Stanje uživo {benchmark?.liveState?.status || "idle"}
+            </span>
+          </div>
+        </div>
+        <p className="helper-text">{benchmark?.liveState?.reason}</p>
+      </section>
+
+      <section className="status-card wide-card">
+        <span className="status-label">Pokretanje benchmarka</span>
+        <div className="benchmark-run-summary">
+          <div className="benchmark-run-main">
+            <strong className="status-value">
+              {activeRun?.mode === "battery"
+                ? `${activeRun.currentIndex}/${activeRun.totalScenarios} | ${
+                    activeRun.currentScenarioName || "čeka"
+                  }`
+                : activeRun?.scenarioName || "nema aktivnog testa"}
+            </strong>
+            <span className={`scenario-status-badge scenario-status-${activeRun?.status || "idle"}`}>
+              {activeRun?.status || "idle"}
+            </span>
+          </div>
+          <div className="benchmark-run-meta">
+            <span>{activeRun?.percent ?? 0}%</span>
+            <span>{activeRun?.message || "Benchmark nije pokrenut."}</span>
+          </div>
+        </div>
+        <div className="benchmark-run-status-list">
+          {(activeRun?.scenarioStatuses ?? []).map((item) => (
+            <article className="benchmark-run-status-row" key={item.scenarioId}>
+              <strong>{item.scenarioName}</strong>
+              <span className={`scenario-status-badge scenario-status-${item.status}`}>
+                {item.status}
+              </span>
+              <div className="muted-line">{item.summary}</div>
+            </article>
+          ))}
+        </div>
+        <div style={{ display: "none" }}>queued running done failed</div>
+      </section>
+
+      <section className="status-card wide-card">
+        <span className="status-label">Aktivnost zahteva</span>
         <p className="helper-text">
           Zahtevi: {benchmark.requestCount} | Stabilnost: {benchmark.activity.stability.label} (
           {benchmark.activity.stability.score})
@@ -1085,6 +1102,32 @@ export function BenchmarkPage({ onOpenLogs }: { onOpenLogs: () => void }) {
             Uporedi izabrana pokretanja: {selectedCompareRunIds.length}
           </span>
         </div>
+        {savedRuns.length ? (
+          <div className="browser-pagination">
+            <span>
+              Prikazani rezultati {savedRunsPageStart + 1}-{savedRunsPageEnd} od {savedRuns.length} | Strana{" "}
+              {savedRunsPage} / {savedRunsTotalPages}
+            </span>
+            <div className="inline-actions compact-actions">
+              <button
+                type="button"
+                className="secondary-button"
+                disabled={savedRunsPage <= 1}
+                onClick={() => setSavedRunsPage((page) => Math.max(1, page - 1))}
+              >
+                Prethodna strana
+              </button>
+              <button
+                type="button"
+                className="secondary-button"
+                disabled={savedRunsPage >= savedRunsTotalPages}
+                onClick={() => setSavedRunsPage((page) => Math.min(savedRunsTotalPages, page + 1))}
+              >
+                Sledeća strana
+              </button>
+            </div>
+          </div>
+        ) : null}
         <div className="benchmark-compare-panel">
           {compareError ? <p className="helper-text">{compareError}</p> : null}
           {comparePayload ? (
@@ -1127,8 +1170,8 @@ export function BenchmarkPage({ onOpenLogs }: { onOpenLogs: () => void }) {
           )}
         </div>
         <div className="model-list">
-          {benchmark.savedRuns.length ? (
-            benchmark.savedRuns.map((run) => (
+          {savedRuns.length ? (
+            paginatedSavedRuns.map((run) => (
               <article className="model-item benchmark-saved-run-card" key={run.runId}>
                 <div className="section-header">
                   <div>

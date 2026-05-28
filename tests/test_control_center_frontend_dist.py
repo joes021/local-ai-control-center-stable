@@ -533,6 +533,17 @@ def test_benchmark_page_source_includes_compare_export_and_idle_truth():
     assert "Model:" in source
     assert "Runtime:" in source
 
+    assert "const SAVED_RUNS_PER_PAGE = 10;" in source
+    assert "Prikazani rezultati" in source
+    assert "Prethodna strana" in source
+    assert "Sledeća strana" in source
+    assert "setSavedRunsPage(1);" in source
+
+    telemetry_index = source.index("TelemetryPanel")
+    chart_index = source.index("Grafikon benchmarka")
+    history_index = source.index("Benchmark istorija")
+    assert telemetry_index < chart_index < history_index
+
 
 def test_api_source_supports_benchmark_compare_and_export():
     source = Path("frontend/src/lib/api.ts").read_text(encoding="utf-8")
@@ -566,6 +577,9 @@ def test_packaged_frontend_contains_benchmark_compare_export_copy():
     assert "Uživo sada" in bundled_text
     assert "Poslednji throughput signal" in bundled_text
     assert "Odnos ulaza i izlaza" in bundled_text
+    assert "Prikazani rezultati" in bundled_text
+    assert "Prethodna strana" in bundled_text
+    assert "Sledeća strana" in bundled_text
 
 
 def test_theme_sensitive_controls_and_browser_surfaces_use_theme_variables():
