@@ -91,6 +91,32 @@ def test_workflow_preset_source_mentions_core_presets():
     assert "Preset radnog toka" in benchmark_source
 
 
+def test_home_source_formats_runtime_binary_as_name_and_compact_location():
+    home_source = Path("frontend/src/pages/HomePage.tsx").read_text(encoding="utf-8")
+    styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
+    dist_root = Path(
+        "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
+    )
+    js_assets = list((dist_root / "assets").glob("index-*.js"))
+    css_assets = list((dist_root / "assets").glob("index-*.css"))
+
+    assert "describeRuntimeBinaryPath" in home_source
+    assert "Lokacija binara" in home_source
+    assert "runtime-binary-card" in home_source
+    assert "runtime-binary-file" in styles_source
+    assert "runtime-binary-location" in styles_source
+    assert js_assets
+    assert css_assets
+
+    bundled_js = "\n".join(path.read_text(encoding="utf-8") for path in js_assets)
+    bundled_css = "\n".join(path.read_text(encoding="utf-8") for path in css_assets)
+
+    assert "Lokacija binara" in bundled_js
+    assert "describeRuntimeBinaryPath" not in bundled_js
+    assert "runtime-binary-file" in bundled_css
+    assert "runtime-binary-location" in bundled_css
+
+
 def test_observability_source_and_navigation_are_present():
     app_source = Path("frontend/src/App.tsx").read_text(encoding="utf-8")
     observability_source = Path("frontend/src/pages/ObservabilityPage.tsx").read_text(encoding="utf-8")

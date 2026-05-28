@@ -37,6 +37,36 @@ function renderOpenCodeState(opencode: OpenCodeStatusPayload | null) {
   return "Dostupan";
 }
 
+function describeRuntimeBinaryPath(binaryPath: string | null | undefined) {
+  const normalized = String(binaryPath || "").trim().replace(/\//g, "\\");
+  if (!normalized) {
+    return null;
+  }
+  const parts = normalized.split("\\").filter(Boolean);
+  if (!parts.length) {
+    return {
+      fileName: normalized,
+      compactDirectory: "",
+      fullPath: normalized,
+    };
+  }
+
+  const fileName = parts[parts.length - 1] || normalized;
+  const directoryParts = parts.slice(0, -1);
+  const compactDirectory =
+    directoryParts.length <= 4
+      ? directoryParts.join("\\")
+      : `${directoryParts.slice(0, 2).join("\\")}\\…\\${directoryParts
+          .slice(-2)
+          .join("\\")}`;
+
+  return {
+    fileName,
+    compactDirectory,
+    fullPath: normalized,
+  };
+}
+
 export function HomePage() {
   const [status, setStatus] = useState<StatusPayload | null>(null);
   const [serverStatus, setServerStatus] = useState<ServerStatusPayload | null>(null);
@@ -113,6 +143,7 @@ export function HomePage() {
   }, []);
 
   const serverWarning = serverStatus?.warningSummary || "";
+  const runtimeBinary = describeRuntimeBinaryPath(status?.activeRuntimeBinary);
 
   return (
     <>
@@ -216,9 +247,17 @@ export function HomePage() {
 
           <section className="status-card">
             <span className="status-label">Binar u upotrebi</span>
-            <strong className="status-value">
-              {status?.activeRuntimeBinary || "Nije potvrđeno."}
-            </strong>
+            <div className="runtime-binary-card">
+              <strong className="status-value runtime-binary-file">
+                {runtimeBinary?.fileName || "Nije potvrđeno."}
+              </strong>
+              {runtimeBinary?.compactDirectory ? (
+                <div className="runtime-binary-location-block" title={runtimeBinary.fullPath}>
+                  <span className="runtime-binary-location-label">Lokacija binara</span>
+                  <span className="runtime-binary-location">{runtimeBinary.compactDirectory}</span>
+                </div>
+              ) : null}
+            </div>
             <p className="helper-text">
               Izvor potvrde: {status?.activeRuntimeBinarySource || "nema potvrde"}
             </p>
