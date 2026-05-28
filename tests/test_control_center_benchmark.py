@@ -356,6 +356,8 @@ def test_load_benchmark_summary_builds_24h_telemetry_snapshot(
     assert telemetry["activeRoutes"] == 1
     assert telemetry["activeRoutesLabel"] == "llama.cpp / Qwen3.6-35B-A3B-UD-IQ2_XXS.gguf / benchmark"
     assert telemetry["liveNowTokensPerSecond"] == 21.8
+    assert telemetry["lastSignalTokensPerSecond"] == 21.8
+    assert telemetry["lastSignalStateLabel"] == "aktivan live signal"
     assert telemetry["flowState"] == "active-generation"
     assert telemetry["flowStateLabel"] == "active generation"
     assert telemetry["inputSharePercent"] == 66.5
@@ -429,7 +431,10 @@ def test_load_benchmark_summary_falls_back_to_recent_benchmark_throughput_when_l
         "hasLiveSignal": False,
         "reason": "Runtime trenutno nema aktivan live throughput signal. Prikazujem poslednji benchmark throughput kao referencu dok nema novog live saobraćaja.",
     }
-    assert payload["telemetry"]["liveNowTokensPerSecond"] == 18.3
+    assert payload["telemetry"]["liveNowTokensPerSecond"] is None
+    assert payload["telemetry"]["lastSignalTokensPerSecond"] == 18.3
+    assert payload["telemetry"]["lastSignalStateLabel"] == "skorašnji benchmark"
+    assert payload["telemetry"]["lastSignalAt"] == (now - timedelta(minutes=4)).isoformat()
     assert payload["telemetry"]["flowState"] == "recent-benchmark"
     assert payload["telemetry"]["flowStateLabel"] == "skorašnji benchmark"
     assert payload["telemetry"]["lastUpdate"] == (now - timedelta(minutes=4)).isoformat()
@@ -479,6 +484,7 @@ def test_load_benchmark_summary_does_not_treat_stale_live_history_as_active_sign
         "reason": "Runtime trenutno nema aktivan throughput signal. Pokreni benchmark ili OpenCode zahtev da bi se live tok/s pojavio.",
     }
     assert payload["telemetry"]["liveNowTokensPerSecond"] is None
+    assert payload["telemetry"]["lastSignalTokensPerSecond"] is None
     assert payload["telemetry"]["flowState"] == "quiet"
 
 

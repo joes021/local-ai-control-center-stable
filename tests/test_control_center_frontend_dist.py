@@ -494,6 +494,7 @@ def test_home_page_source_uses_single_system_overview_card():
     assert "Izlaz 24h" in telemetry_source
     assert "Aktivne rute" in telemetry_source
     assert "Uživo sada" in telemetry_source
+    assert "Poslednji throughput signal" in telemetry_source
     assert "Stanje Control Center-a" in source
     assert "Aktivan runtime" in source
     assert "Status runtime servera" in source
@@ -518,6 +519,7 @@ def test_benchmark_page_source_includes_compare_export_and_idle_truth():
     assert "Izvezi JSON" in source
     assert "Izvezi CSV" in source
     assert "telemetry?.flowStateReason" in telemetry_source
+    assert "telemetry?.lastSignalTokensPerSecond" in telemetry_source
     assert "Izaberi najmanje dva saved run-a da bi compare prikaz bio aktivan." in source
     assert "Model:" in source
     assert "Runtime:" in source
@@ -551,6 +553,7 @@ def test_packaged_frontend_contains_benchmark_compare_export_copy():
     assert "Aktivne rute" in bundled_text
     assert "Trošak 24h" in bundled_text
     assert "Uživo sada" in bundled_text
+    assert "Poslednji throughput signal" in bundled_text
     assert "Odnos ulaza i izlaza" in bundled_text
 
 

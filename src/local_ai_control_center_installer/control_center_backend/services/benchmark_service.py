@@ -1415,8 +1415,9 @@ def _build_telemetry_summary(
 
     input_share_percent = round((input_24h_tokens / total_24h_tokens) * 100, 1) if total_24h_tokens > 0 else 0.0
     output_share_percent = round((output_24h_tokens / total_24h_tokens) * 100, 1) if total_24h_tokens > 0 else 0.0
-    visible_live_metric = live_current or recent_benchmark_fallback
-    last_update_metric = visible_live_metric or latest_history_metric
+    visible_live_metric = live_current
+    last_signal_metric = live_current or recent_benchmark_fallback
+    last_update_metric = last_signal_metric or latest_history_metric
 
     return {
         "windowHours": BENCHMARK_TELEMETRY_WINDOW_HOURS,
@@ -1436,6 +1437,15 @@ def _build_telemetry_summary(
         "liveNowTokensPerSecond": _metric_value(visible_live_metric, "totalTokensPerSecond")
         if visible_live_metric
         else None,
+        "lastSignalTokensPerSecond": _metric_value(last_signal_metric, "totalTokensPerSecond")
+        if last_signal_metric
+        else None,
+        "lastSignalLabel": str((last_signal_metric or {}).get("label", "") or ""),
+        "lastSignalStateLabel": _last_signal_state_label(
+            live_current=live_current,
+            recent_benchmark_fallback=recent_benchmark_fallback,
+        ),
+        "lastSignalAt": str((last_signal_metric or {}).get("measuredAt", "") or ""),
         "flowState": _telemetry_flow_state(live_state)[0],
         "flowStateLabel": _telemetry_flow_state(live_state)[1],
         "flowStateReason": str(live_state.get("reason", "") or ""),
@@ -1455,6 +1465,18 @@ def _telemetry_flow_state(live_state: dict[str, Any]) -> tuple[str, str]:
     if status == "recent-benchmark":
         return "recent-benchmark", "skorašnji benchmark"
     return "quiet", "quiet"
+
+
+def _last_signal_state_label(
+    *,
+    live_current: dict[str, Any] | None,
+    recent_benchmark_fallback: dict[str, Any] | None,
+) -> str:
+    if live_current is not None:
+        return "aktivan live signal"
+    if recent_benchmark_fallback is not None:
+        return "skorašnji benchmark"
+    return ""
 
 
 def _recent_benchmark_fallback(

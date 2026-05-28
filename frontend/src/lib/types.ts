@@ -128,6 +128,10 @@ export type BenchmarkTelemetrySummary = {
   activeRoutes: number;
   activeRoutesLabel: string;
   liveNowTokensPerSecond: number | null;
+  lastSignalTokensPerSecond: number | null;
+  lastSignalLabel: string;
+  lastSignalStateLabel: string;
+  lastSignalAt: string;
   flowState: string;
   flowStateLabel: string;
   flowStateReason: string;

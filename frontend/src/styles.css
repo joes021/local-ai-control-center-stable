@@ -608,6 +608,25 @@ code {
   font-size: 0.84rem;
 }
 
+.telemetry-last-signal {
+  display: grid;
+  gap: 4px;
+  padding-top: 6px;
+  border-top: 1px solid var(--app-card-soft-border);
+}
+
+.telemetry-last-signal-label {
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--app-text-soft);
+}
+
+.telemetry-last-signal-value {
+  font-size: 1.05rem;
+  color: var(--app-text-muted);
+}
+
 .telemetry-footer-grid,
 .telemetry-support-grid {
   display: grid;
