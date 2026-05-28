@@ -523,9 +523,9 @@ def test_benchmark_page_source_includes_compare_export_and_idle_truth():
     assert "Uporedi izabrana pokretanja" in source
     assert "Izvezi JSON" in source
     assert "Izvezi CSV" in source
-    assert "Pokreni bateriju x2" in source
-    assert "Pokreni bateriju x5" in source
-    assert "Pokreni bateriju x10" in source
+    assert "BX2" in source
+    assert "BX5" in source
+    assert "BX10" in source
     assert "await runBatteryBenchmark(selectedBattery.id, repeatCount);" in source
     assert "telemetry?.flowStateReason" in telemetry_source
     assert "telemetry?.lastSignalTokensPerSecond" in telemetry_source
@@ -580,6 +580,9 @@ def test_packaged_frontend_contains_benchmark_compare_export_copy():
     assert "Prikazani rezultati" in bundled_text
     assert "Prethodna strana" in bundled_text
     assert "Sledeća strana" in bundled_text
+    assert "BX2" in bundled_text
+    assert "BX5" in bundled_text
+    assert "BX10" in bundled_text
 
 
 def test_theme_sensitive_controls_and_browser_surfaces_use_theme_variables():

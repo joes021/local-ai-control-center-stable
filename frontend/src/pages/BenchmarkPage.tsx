@@ -671,14 +671,29 @@ export function BenchmarkPage({ onOpenLogs }: { onOpenLogs: () => void }) {
           <button type="button" onClick={() => void handleRunBattery(1)}>
             Pokreni celu bateriju
           </button>
-          <button type="button" className="secondary-button" onClick={() => void handleRunBattery(2)}>
-            Pokreni bateriju x2
+          <button
+            type="button"
+            className="secondary-button"
+            title="Pokreni bateriju x2"
+            onClick={() => void handleRunBattery(2)}
+          >
+            BX2
           </button>
-          <button type="button" className="secondary-button" onClick={() => void handleRunBattery(5)}>
-            Pokreni bateriju x5
+          <button
+            type="button"
+            className="secondary-button"
+            title="Pokreni bateriju x5"
+            onClick={() => void handleRunBattery(5)}
+          >
+            BX5
           </button>
-          <button type="button" className="secondary-button" onClick={() => void handleRunBattery(10)}>
-            Pokreni bateriju x10
+          <button
+            type="button"
+            className="secondary-button"
+            title="Pokreni bateriju x10"
+            onClick={() => void handleRunBattery(10)}
+          >
+            BX10
           </button>
           <button type="button" onClick={handleSaveBattery}>
             Sačuvaj bateriju
