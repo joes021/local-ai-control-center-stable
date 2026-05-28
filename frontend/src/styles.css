@@ -599,10 +599,27 @@ code {
   color: var(--app-text-soft);
 }
 
+.telemetry-live-shell {
+  min-height: clamp(2rem, 3.4vw, 3.2rem);
+  display: flex;
+  align-items: center;
+}
+
 .telemetry-live-value {
   font-size: clamp(2rem, 3.4vw, 3.2rem);
   line-height: 1;
   color: var(--app-text);
+  display: block;
+  min-height: 1em;
+  transition: opacity 0.16s ease;
+}
+
+.telemetry-live-value-active {
+  opacity: 1;
+}
+
+.telemetry-live-value-idle {
+  opacity: 0;
 }
 
 .telemetry-live-scale {
@@ -637,6 +654,11 @@ code {
   gap: 4px;
   padding-top: 6px;
   border-top: 1px solid var(--app-card-soft-border);
+}
+
+.telemetry-last-signal-persistent {
+  min-height: 76px;
+  align-content: start;
 }
 
 .telemetry-last-signal-label {

@@ -507,6 +507,21 @@ def test_home_page_source_uses_single_system_overview_card():
     assert "Dostupni runtime-i" in source
 
 
+def test_telemetry_source_and_styles_keep_live_now_layout_stable_when_signal_drops():
+    telemetry_source = Path("frontend/src/components/TelemetryPanel.tsx").read_text(encoding="utf-8")
+    styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
+
+    assert "const hasLiveNowSignal = telemetry?.liveNowTokensPerSecond != null;" in telemetry_source
+    assert 'const liveNowDisplay = hasLiveNowSignal ? liveNow : "\\u00A0";' in telemetry_source
+    assert "telemetry-live-shell" in telemetry_source
+    assert "telemetry-live-value-active" in telemetry_source
+    assert "telemetry-live-value-idle" in telemetry_source
+    assert "telemetry-last-signal telemetry-last-signal-persistent" in telemetry_source
+    assert ".telemetry-live-shell" in styles_source
+    assert ".telemetry-live-value-idle" in styles_source
+    assert ".telemetry-last-signal-persistent" in styles_source
+
+
 def test_benchmark_page_source_includes_compare_export_and_idle_truth():
     source = Path("frontend/src/pages/BenchmarkPage.tsx").read_text(encoding="utf-8")
     telemetry_source = Path("frontend/src/components/TelemetryPanel.tsx").read_text(encoding="utf-8")
@@ -591,6 +606,7 @@ def test_packaged_frontend_contains_benchmark_compare_export_copy():
     assert "Input tokeni" in bundled_text
     assert "Output tokeni" in bundled_text
     assert "Ukupno tokeni" in bundled_text
+    assert "telemetry-live-shell" in bundled_text
 
 
 def test_theme_sensitive_controls_and_browser_surfaces_use_theme_variables():

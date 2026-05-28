@@ -90,7 +90,8 @@ export function TelemetryPanel({
   const lastSignal = formatTelemetryThroughput(telemetry?.lastSignalTokensPerSecond);
   const lastSignalAt = formatTelemetryDate(telemetry?.lastSignalAt);
   const lastUpdate = formatTelemetryDate(telemetry?.lastUpdate);
-  const showLastSignal = telemetry?.liveNowTokensPerSecond == null && telemetry?.lastSignalTokensPerSecond != null;
+  const hasLiveNowSignal = telemetry?.liveNowTokensPerSecond != null;
+  const liveNowDisplay = hasLiveNowSignal ? liveNow : "\u00A0";
   const splitText = `${telemetry?.inputSharePercent?.toFixed(1) ?? "0.0"}% / ${
     telemetry?.outputSharePercent?.toFixed(1) ?? "0.0"
   }%`;
@@ -148,7 +149,15 @@ export function TelemetryPanel({
 
         <div className="telemetry-live-panel">
           <span className="telemetry-live-label">Uživo sada</span>
-          <strong className="telemetry-live-value">{liveNow}</strong>
+          <div className="telemetry-live-shell">
+            <strong
+              className={`telemetry-live-value ${
+                hasLiveNowSignal ? "telemetry-live-value-active" : "telemetry-live-value-idle"
+              }`}
+            >
+              {liveNowDisplay}
+            </strong>
+          </div>
           <div className="telemetry-live-scale">
             <div className="telemetry-live-scale-track">
               <div
@@ -166,8 +175,7 @@ export function TelemetryPanel({
           <p className="helper-text">
             {telemetry?.flowStateReason || "Telemetrija još nema signal uživo sa runtime-a."}
           </p>
-          {showLastSignal ? (
-            <div className="telemetry-last-signal">
+          <div className="telemetry-last-signal telemetry-last-signal-persistent">
               <span className="telemetry-last-signal-label">Poslednji throughput signal</span>
               <strong className="telemetry-last-signal-value">{lastSignal}</strong>
               <p className="helper-text">
@@ -176,7 +184,6 @@ export function TelemetryPanel({
                 {telemetry?.lastSignalAt ? ` | ${lastSignalAt}` : ""}
               </p>
             </div>
-          ) : null}
         </div>
       </div>
 
