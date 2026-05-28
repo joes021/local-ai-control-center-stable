@@ -487,6 +487,10 @@ def test_home_page_source_uses_single_system_overview_card():
     source = Path("frontend/src/pages/HomePage.tsx").read_text(encoding="utf-8")
     telemetry_source = Path("frontend/src/components/TelemetryPanel.tsx").read_text(encoding="utf-8")
 
+    assert "GENERAL_REFRESH_MS = 5000" in source
+    assert "BENCHMARK_REALTIME_REFRESH_MS = 1000" in source
+    assert "async function loadBenchmarkOnly()" in source
+    assert "void loadBenchmarkOnly();" in source
     assert "Pregled sistema" in source
     assert "TelemetryPanel" in source
     assert "Puls tokena" in telemetry_source
@@ -507,6 +511,7 @@ def test_benchmark_page_source_includes_compare_export_and_idle_truth():
     source = Path("frontend/src/pages/BenchmarkPage.tsx").read_text(encoding="utf-8")
     telemetry_source = Path("frontend/src/components/TelemetryPanel.tsx").read_text(encoding="utf-8")
 
+    assert "const REALTIME_REFRESH_MS = 1000;" in source
     assert "TelemetryPanel" in source
     assert "Telemetrija" in telemetry_source
     assert "Uživo: tok tokena, sinhronizacija i signal reda pokretanja" in telemetry_source

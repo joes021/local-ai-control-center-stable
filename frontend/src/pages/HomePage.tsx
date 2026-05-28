@@ -18,6 +18,9 @@ import type {
   StatusPayload,
 } from "../lib/types";
 
+const GENERAL_REFRESH_MS = 5000;
+const BENCHMARK_REALTIME_REFRESH_MS = 1000;
+
 function renderOpenCodeState(opencode: OpenCodeStatusPayload | null) {
   if (!opencode?.available) {
     return "Nedostupan";
@@ -49,19 +52,21 @@ export function HomePage() {
         fetchServerStatus(),
         fetchOpenCodeStatus(),
       ]);
-      let benchmarkPayload: BenchmarkPayload | null = null;
-      try {
-        benchmarkPayload = await fetchBenchmark();
-      } catch {
-        benchmarkPayload = null;
-      }
       setStatus(statusPayload);
       setServerStatus(serverPayload);
       setOpencode(opencodePayload);
-      setBenchmark(benchmarkPayload);
       setError(null);
     } catch (reason: unknown) {
       setError(reason instanceof Error ? reason.message : "Nepoznata greška");
+    }
+  }
+
+  async function loadBenchmarkOnly() {
+    try {
+      const benchmarkPayload = await fetchBenchmark();
+      setBenchmark(benchmarkPayload);
+    } catch {
+      setBenchmark(null);
     }
   }
 
@@ -78,12 +83,28 @@ export function HomePage() {
   useEffect(() => {
     let active = true;
     void loadStatus();
+    void loadBenchmarkOnly();
 
     const timer = window.setInterval(() => {
       if (active) {
         void loadStatus();
       }
-    }, 5000);
+    }, GENERAL_REFRESH_MS);
+
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    const timer = window.setInterval(() => {
+      if (active) {
+        void loadBenchmarkOnly();
+      }
+    }, BENCHMARK_REALTIME_REFRESH_MS);
 
     return () => {
       active = false;

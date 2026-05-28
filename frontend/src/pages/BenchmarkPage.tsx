@@ -23,7 +23,7 @@ import type {
   SettingsPayload,
 } from "../lib/types";
 
-const REALTIME_REFRESH_MS = 5000;
+const REALTIME_REFRESH_MS = 1000;
 const CHART_GAP_MS = REALTIME_REFRESH_MS + 1500;
 const CHART_WIDTH = 640;
 const CHART_HEIGHT = 180;
