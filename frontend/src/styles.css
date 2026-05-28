@@ -1196,15 +1196,59 @@ select:-webkit-autofill {
   gap: 14px;
 }
 
+.inference-spotlight-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(280px, 0.85fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.inference-spotlight-main,
+.inference-spotlight-rail {
+  display: grid;
+  gap: 12px;
+}
+
 .inference-spotlight-value {
   font-size: 1.02rem;
+  line-height: 1.45;
+}
+
+.inference-primary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.inference-primary-card {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid var(--app-field-border);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--app-card-soft-bg) 82%, rgba(255, 255, 255, 0.03)),
+    color-mix(in srgb, var(--app-card-bg) 78%, rgba(0, 0, 0, 0.08))
+  );
+}
+
+.inference-primary-card-label {
+  color: var(--app-text-soft);
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.inference-primary-card-value {
+  color: var(--app-text);
+  font-size: 1.05rem;
 }
 
 .inference-summary-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
   gap: 10px;
-  margin-top: 8px;
 }
 
 .inference-summary-chip {
@@ -1226,6 +1270,51 @@ select:-webkit-autofill {
 .inference-summary-chip-value {
   color: var(--app-text);
   font-size: 0.98rem;
+}
+
+.inference-guide-head {
+  display: grid;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.inference-parameter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.inference-parameter-card {
+  gap: 10px;
+}
+
+.inference-parameter-note {
+  margin: 0;
+  color: var(--app-text-soft);
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+
+.inference-parameter-ranges {
+  display: grid;
+  gap: 6px;
+}
+
+.inference-parameter-ranges span {
+  color: var(--app-text-muted);
+  font-size: 0.84rem;
+  line-height: 1.45;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--app-card-soft-border);
+  background: var(--app-card-soft-bg);
+}
+
+@media (max-width: 980px) {
+  .inference-spotlight-shell {
+    grid-template-columns: 1fr;
+  }
 }
 
 .command-preview-stack {

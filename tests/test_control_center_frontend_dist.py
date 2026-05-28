@@ -790,3 +790,34 @@ def test_settings_and_workflows_source_make_inference_settings_visible_without_d
 
     assert "Aktivna inference podešavanja" in bundled_text
     assert "Inference sažetak" in bundled_text
+
+
+def test_settings_source_explains_inference_parameters_and_uses_compact_summary_layout():
+    settings_source = Path("frontend/src/pages/SettingsPage.tsx").read_text(encoding="utf-8")
+    styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
+    dist_root = Path(
+        "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
+    )
+    js_assets = list((dist_root / "assets").glob("index-*.js"))
+    css_assets = list((dist_root / "assets").glob("index-*.css"))
+
+    assert "Šta radi i kada da ga menjaš" in settings_source
+    assert "Za kodiranje:" in settings_source
+    assert "Za kreativniji chat:" in settings_source
+    assert "Za stabilne benchmarke:" in settings_source
+    assert "inference-parameter-grid" in settings_source
+    assert "inference-spotlight-shell" in styles_source
+    assert "inference-parameter-note" in styles_source
+    assert js_assets
+    assert css_assets
+
+    bundled_js = "\n".join(path.read_text(encoding="utf-8") for path in js_assets)
+    bundled_css = "\n".join(path.read_text(encoding="utf-8") for path in css_assets)
+
+    assert "Šta radi i kada da ga menjaš" in bundled_js
+    assert "Za kodiranje:" in bundled_js
+    assert "Za kreativniji chat:" in bundled_js
+    assert "Za stabilne benchmarke:" in bundled_js
+    assert "inference-parameter-grid" in bundled_js
+    assert "inference-spotlight-shell" in bundled_css
+    assert "inference-parameter-note" in bundled_css

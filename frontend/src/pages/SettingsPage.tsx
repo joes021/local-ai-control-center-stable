@@ -100,6 +100,120 @@ const SETTINGS_PROFILE_COMPARE_KEYS: Array<keyof SettingsProfileValues> = [
   "exploreSteps",
   "accessMode",
 ];
+const INFERENCE_PRIMARY_LABELS = ["Temp", "Top-k", "Top-p", "Seed"] as const;
+type InferenceParameterKey =
+  | "temperature"
+  | "topK"
+  | "topP"
+  | "minP"
+  | "repeatPenalty"
+  | "repeatLastN"
+  | "presencePenalty"
+  | "frequencyPenalty"
+  | "seed";
+
+type InferenceParameterDefinition = {
+  key: InferenceParameterKey;
+  label: string;
+  step: string;
+  description: string;
+  coding: string;
+  creative: string;
+  benchmark: string;
+};
+
+const INFERENCE_PARAMETER_DEFINITIONS: InferenceParameterDefinition[] = [
+  {
+    key: "temperature",
+    label: "Temperature",
+    step: "0.05",
+    description:
+      "Kontroliše koliko je generacija mirna ili razigrana. Niže vrednosti daju stabilnije i predvidljivije odgovore.",
+    coding: "0.1 - 0.3 za preciznije kodiranje i manje lutanja.",
+    creative: "0.7 - 0.9 za opušteniji chat i više varijacija.",
+    benchmark: "0.0 - 0.2 kada hoćeš stabilno poređenje između run-ova.",
+  },
+  {
+    key: "topK",
+    label: "Top-k",
+    step: "1",
+    description:
+      "Ograničava koliko sledećih kandidata model uopšte razmatra pre izbora tokena.",
+    coding: "20 - 40 za fokusiraniji i disciplinovan izlaz.",
+    creative: "40 - 100 kada želiš širi izbor reči i ideja.",
+    benchmark: "20 - 40 da signal ostane uporediv i miran.",
+  },
+  {
+    key: "topP",
+    label: "Top-p",
+    step: "0.01",
+    description:
+      "Seče raspodelu verovatnoća na najverovatniji deo. Niže vrednosti smiruju sampling.",
+    coding: "0.8 - 0.95 za dobar balans tačnosti i fleksibilnosti.",
+    creative: "0.9 - 0.98 za širi i življi stil odgovora.",
+    benchmark: "0.8 - 0.95 da ostaneš bliže realnom svakodnevnom radu.",
+  },
+  {
+    key: "minP",
+    label: "Min-p",
+    step: "0.01",
+    description:
+      "Odbacuje veoma slabe kandidate čak i kada su upali u top-p skup. Dobar je za čišći izlaz.",
+    coding: "0.03 - 0.08 za manje šuma u odgovoru.",
+    creative: "0.02 - 0.06 ako želiš više prostora za neočekivane izbore.",
+    benchmark: "0.05 - 0.1 kada hoćeš mirniji i stabilniji tok tokena.",
+  },
+  {
+    key: "repeatPenalty",
+    label: "Repeat penalty",
+    step: "0.05",
+    description:
+      "Kažnjava ponavljanje istih tokena. Više vrednosti smanjuju petljanje, ali mogu da ukoče izlaz.",
+    coding: "1.0 - 1.1 da ne uguši tehničku preciznost.",
+    creative: "1.05 - 1.15 za manje dosadnog ponavljanja.",
+    benchmark: "1.0 ako meriš čist runtime bez dodatnog stilskog pritiska.",
+  },
+  {
+    key: "repeatLastN",
+    label: "Repeat last N",
+    step: "1",
+    description:
+      "Kaže koliko poslednjih tokena ulazi u proveru za repeat penalty. Veći broj gleda duži rep istorije.",
+    coding: "64 - 128 je praktičan i lagan izbor.",
+    creative: "128 - 256 kad želiš da model duže pamti šta je već rekao.",
+    benchmark: "64 da test ostane lagan i dosledan.",
+  },
+  {
+    key: "presencePenalty",
+    label: "Presence penalty",
+    step: "0.05",
+    description:
+      "Gura model da uvodi nove pojmove umesto da se vrti oko istih tema.",
+    coding: "0.0 - 0.2 jer kod obično traži fokus, ne širenje teme.",
+    creative: "0.2 - 0.6 za brainstorming i raznovrsniji razgovor.",
+    benchmark: "0.0 kada želiš što manje dodatnih uticaja na rezultat.",
+  },
+  {
+    key: "frequencyPenalty",
+    label: "Frequency penalty",
+    step: "0.05",
+    description:
+      "Smanjuje šansu da se isti tokeni često ponavljaju. Deluje blaže i finije od repeat penalty.",
+    coding: "0.0 - 0.15 za čiste i tehničke odgovore.",
+    creative: "0.1 - 0.4 kada želiš raznovrsniji izraz.",
+    benchmark: "0.0 da se merenje ne muti dodatnim stilskim filtrom.",
+  },
+  {
+    key: "seed",
+    label: "Seed",
+    step: "1",
+    description:
+      "Kontroliše reproduktivnost sampling-a. -1 znači nasumično, a fiksan broj daje ponovljiviji izlaz.",
+    coding: "42 ili 1234 kada porediš rezultate i želiš ponovljivost.",
+    creative: "-1 za svežije i manje predvidljive odgovore.",
+    benchmark: "42 ili drugi fiksan broj za poštenu uporedivost.",
+  },
+];
 
 function applyPresetToConfig(preset: TurboQuantPreset): TurboQuantConfig {
   return { ...preset.settings };
@@ -359,6 +473,20 @@ export function SettingsPage() {
   const outputTokensChoice = resolveTokenChoice(settings.outputTokens);
   const activeSettings = settings;
   const activeInferenceSummary = buildInferenceSummaryItems(settings);
+  const primaryInferenceSummary = activeInferenceSummary.filter((item) =>
+    INFERENCE_PRIMARY_LABELS.includes(item.label as (typeof INFERENCE_PRIMARY_LABELS)[number]),
+  );
+  const secondaryInferenceSummary = activeInferenceSummary.filter(
+    (item) =>
+      !INFERENCE_PRIMARY_LABELS.includes(item.label as (typeof INFERENCE_PRIMARY_LABELS)[number]),
+  );
+
+  function updateInferenceSetting(key: InferenceParameterKey, value: number) {
+    setSettings({
+      ...activeSettings,
+      [key]: value,
+    } as SettingsPayload);
+  }
 
   function applyWorkflowPreset(preset: WorkflowPreset) {
     setSettings({
@@ -606,30 +734,41 @@ export function SettingsPage() {
         </div>
         <div className="settings-cluster-grid settings-cluster-grid-core">
           <article className="settings-field settings-field-wide inference-spotlight-card">
-            <span className="settings-field-label">Aktivna inference podešavanja</span>
-            <strong className="status-value inference-spotlight-value">
-              {activeInferenceSummary
-                .filter((item) => ["Temp", "Top-k", "Top-p", "Seed"].includes(item.label))
-                .map((item) => `${item.label} ${item.value}`)
-                .join(" | ")}
-            </strong>
-            <div className="inference-summary-grid">
-              {activeInferenceSummary.map((item) => (
-                <div className="inference-summary-chip" key={item.label}>
-                  <span className="inference-summary-chip-label">{item.label}</span>
-                  <strong className="inference-summary-chip-value">{item.value}</strong>
+            <div className="inference-spotlight-shell">
+              <div className="inference-spotlight-main">
+                <span className="settings-field-label">Aktivna inference podešavanja</span>
+                <strong className="status-value inference-spotlight-value">
+                  {primaryInferenceSummary.map((item) => `${item.label} ${item.value}`).join(" | ")}
+                </strong>
+                <p className="helper-text">
+                  Ove vrednosti trenutno ulaze u `llama.cpp` ili `TurboQuant` start komandu i
+                  postaju local-lacc podrazumevana inference podešavanja kada klijent ne pošalje
+                  svoje sampling argumente.
+                </p>
+                <p className="helper-text">
+                  Workflow preset: {currentWorkflowPreset?.label || "--"} | Starter orijentir:{" "}
+                  {activeInferenceStarter?.label || "custom kombinacija"}
+                </p>
+              </div>
+              <div className="inference-spotlight-rail">
+                <div className="inference-primary-grid">
+                  {primaryInferenceSummary.map((item) => (
+                    <div className="inference-primary-card" key={item.label}>
+                      <span className="inference-primary-card-label">{item.label}</span>
+                      <strong className="inference-primary-card-value">{item.value}</strong>
+                    </div>
+                  ))}
                 </div>
-              ))}
+                <div className="inference-summary-grid">
+                  {secondaryInferenceSummary.map((item) => (
+                    <div className="inference-summary-chip" key={item.label}>
+                      <span className="inference-summary-chip-label">{item.label}</span>
+                      <strong className="inference-summary-chip-value">{item.value}</strong>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
-            <p className="helper-text">
-              Ove vrednosti trenutno ulaze u `llama.cpp` ili `TurboQuant` start komandu i postaju
-              local-lacc podrazumevana inference podešavanja kada klijent ne pošalje svoje sampling
-              argumente.
-            </p>
-            <p className="helper-text">
-              Workflow preset: {currentWorkflowPreset?.label || "--"} | Starter orijentir:{" "}
-              {activeInferenceStarter?.label || "custom kombinacija"}
-            </p>
           </article>
 
           <article className="settings-field">
@@ -844,133 +983,34 @@ export function SettingsPage() {
                 </button>
               ))}
             </div>
-            <div className="workflow-editor-grid">
-              <article className="settings-field">
-                <span className="settings-field-label">Temperature</span>
-                <input
-                  type="number"
-                  step="0.05"
-                  value={settings.temperature}
-                  onChange={(event) =>
-                    setSettings({
-                      ...settings,
-                      temperature: Number(event.target.value || 0),
-                    })
-                  }
-                />
-              </article>
-              <article className="settings-field">
-                <span className="settings-field-label">Top-k</span>
-                <input
-                  type="number"
-                  step="1"
-                  value={settings.topK}
-                  onChange={(event) =>
-                    setSettings({
-                      ...settings,
-                      topK: Number(event.target.value || 0),
-                    })
-                  }
-                />
-              </article>
-              <article className="settings-field">
-                <span className="settings-field-label">Top-p</span>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={settings.topP}
-                  onChange={(event) =>
-                    setSettings({
-                      ...settings,
-                      topP: Number(event.target.value || 0),
-                    })
-                  }
-                />
-              </article>
-              <article className="settings-field">
-                <span className="settings-field-label">Min-p</span>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={settings.minP}
-                  onChange={(event) =>
-                    setSettings({
-                      ...settings,
-                      minP: Number(event.target.value || 0),
-                    })
-                  }
-                />
-              </article>
-              <article className="settings-field">
-                <span className="settings-field-label">Repeat penalty</span>
-                <input
-                  type="number"
-                  step="0.05"
-                  value={settings.repeatPenalty}
-                  onChange={(event) =>
-                    setSettings({
-                      ...settings,
-                      repeatPenalty: Number(event.target.value || 0),
-                    })
-                  }
-                />
-              </article>
-              <article className="settings-field">
-                <span className="settings-field-label">Repeat last N</span>
-                <input
-                  type="number"
-                  step="1"
-                  value={settings.repeatLastN}
-                  onChange={(event) =>
-                    setSettings({
-                      ...settings,
-                      repeatLastN: Number(event.target.value || 0),
-                    })
-                  }
-                />
-              </article>
-              <article className="settings-field">
-                <span className="settings-field-label">Presence penalty</span>
-                <input
-                  type="number"
-                  step="0.05"
-                  value={settings.presencePenalty}
-                  onChange={(event) =>
-                    setSettings({
-                      ...settings,
-                      presencePenalty: Number(event.target.value || 0),
-                    })
-                  }
-                />
-              </article>
-              <article className="settings-field">
-                <span className="settings-field-label">Frequency penalty</span>
-                <input
-                  type="number"
-                  step="0.05"
-                  value={settings.frequencyPenalty}
-                  onChange={(event) =>
-                    setSettings({
-                      ...settings,
-                      frequencyPenalty: Number(event.target.value || 0),
-                    })
-                  }
-                />
-              </article>
-              <article className="settings-field">
-                <span className="settings-field-label">Seed</span>
-                <input
-                  type="number"
-                  step="1"
-                  value={settings.seed}
-                  onChange={(event) =>
-                    setSettings({
-                      ...settings,
-                      seed: Number(event.target.value || 0),
-                    })
-                  }
-                />
-              </article>
+            <div className="inference-guide-head">
+              <span className="settings-field-label">Šta radi i kada da ga menjaš</span>
+              <p className="helper-text">
+                Kratke smernice ispod služe kao praktičan početak. Za ozbiljno poređenje run-ova
+                drži se fiksnog `seed`-a i niže `temperature`, a za opušteniji razgovor pomeraj
+                `temperature`, `top-k` i `top-p`.
+              </p>
+            </div>
+            <div className="inference-parameter-grid">
+              {INFERENCE_PARAMETER_DEFINITIONS.map((field) => (
+                <article className="settings-field inference-parameter-card" key={field.key}>
+                  <span className="settings-field-label">{field.label}</span>
+                  <input
+                    type="number"
+                    step={field.step}
+                    value={settings[field.key]}
+                    onChange={(event) =>
+                      updateInferenceSetting(field.key, Number(event.target.value || 0))
+                    }
+                  />
+                  <p className="inference-parameter-note">{field.description}</p>
+                  <div className="inference-parameter-ranges">
+                    <span>Za kodiranje: {field.coding}</span>
+                    <span>Za kreativniji chat: {field.creative}</span>
+                    <span>Za stabilne benchmarke: {field.benchmark}</span>
+                  </div>
+                </article>
+              ))}
             </div>
             <p className="helper-text">
               Qwen instruct preporuke često idu oko `temp 0.7`, `top-p 0.8`, `top-k 20`, dok je za
