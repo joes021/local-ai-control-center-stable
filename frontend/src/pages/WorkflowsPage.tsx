@@ -84,6 +84,27 @@ const WORKFLOW_PRESET_SUMMARY_MAX_LENGTH = 220;
 const WORKFLOW_PRESET_BADGE_MAX_COUNT = 6;
 const WORKFLOW_PRESET_BADGE_MAX_LENGTH = 20;
 
+function formatInferenceMetric(value: number, fractionDigits = 2): string {
+  if (Number.isInteger(value)) {
+    return String(value);
+  }
+  return value.toFixed(fractionDigits).replace(/\.?0+$/, "");
+}
+
+function buildWorkflowInferenceSummary(preset: WorkflowPreset) {
+  const temperature = preset.settingsPatch.temperature ?? 0.8;
+  const topK = preset.settingsPatch.topK ?? 40;
+  const topP = preset.settingsPatch.topP ?? 0.95;
+  const seed = preset.settingsPatch.seed ?? -1;
+
+  return [
+    `temp ${formatInferenceMetric(temperature)}`,
+    `top-k ${formatInferenceMetric(topK, 0)}`,
+    `top-p ${formatInferenceMetric(topP)}`,
+    `seed ${formatInferenceMetric(seed, 0)}`,
+  ].join(" | ");
+}
+
 function createDraftFromPreset(preset: WorkflowPreset): WorkflowPresetDraft {
   return {
     name: preset.name || preset.label,
@@ -396,6 +417,9 @@ export function WorkflowsPage({
                   Pretraga: {preset.searchDefaults.provider} | Znanje:{" "}
                   {preset.knowledgeDefaults.mode} | Benchmark:{" "}
                   {preset.benchmarkDefaults.runLabel}
+                </p>
+                <p className="helper-text">
+                  Inference sažetak: {buildWorkflowInferenceSummary(preset)}
                 </p>
                 <div className="inline-actions">
                   <button

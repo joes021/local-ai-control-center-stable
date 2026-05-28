@@ -762,3 +762,31 @@ def test_settings_and_workflows_source_include_generation_sampling_controls():
     assert "Inference i sampling" in bundled_text
     assert "Repeat penalty" in bundled_text
     assert "Frequency penalty" in bundled_text
+
+
+def test_settings_and_workflows_source_make_inference_settings_visible_without_deep_editor_drilldown():
+    settings_source = Path("frontend/src/pages/SettingsPage.tsx").read_text(encoding="utf-8")
+    workflows_source = Path("frontend/src/pages/WorkflowsPage.tsx").read_text(
+        encoding="utf-8"
+    )
+    dist_root = Path(
+        "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
+    )
+    js_assets = list((dist_root / "assets").glob("index-*.js"))
+
+    assert "Aktivna inference podešavanja" in settings_source
+    assert "Temp" in settings_source
+    assert "Top-k" in settings_source
+    assert "Top-p" in settings_source
+    assert "Seed" in settings_source
+    assert "Inference sažetak" in workflows_source
+    assert "temp" in workflows_source
+    assert "top-k" in workflows_source
+    assert "top-p" in workflows_source
+    assert "seed" in workflows_source
+    assert js_assets
+
+    bundled_text = "\n".join(path.read_text(encoding="utf-8") for path in js_assets)
+
+    assert "Aktivna inference podešavanja" in bundled_text
+    assert "Inference sažetak" in bundled_text

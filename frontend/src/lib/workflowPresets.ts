@@ -237,12 +237,40 @@ export const FALLBACK_WORKFLOW_PRESETS: WorkflowPreset[] = [
   },
 ];
 
+function mergeWithFallbackPreset(preset: WorkflowPreset): WorkflowPreset {
+  const fallback = FALLBACK_WORKFLOW_PRESETS.find((item) => item.id === preset.id);
+  if (!fallback) {
+    return preset;
+  }
+  return {
+    ...fallback,
+    ...preset,
+    badges: preset.badges?.length ? preset.badges : fallback.badges,
+    settingsPatch: {
+      ...fallback.settingsPatch,
+      ...preset.settingsPatch,
+    },
+    searchDefaults: {
+      ...fallback.searchDefaults,
+      ...preset.searchDefaults,
+    },
+    knowledgeDefaults: {
+      ...fallback.knowledgeDefaults,
+      ...preset.knowledgeDefaults,
+    },
+    benchmarkDefaults: {
+      ...fallback.benchmarkDefaults,
+      ...preset.benchmarkDefaults,
+    },
+  };
+}
+
 export function resolveWorkflowPresets(settings: SettingsPayload | null): WorkflowPreset[] {
   if (!settings) {
     return FALLBACK_WORKFLOW_PRESETS;
   }
   const presets = settings.availableWorkflowPresets.length
-    ? settings.availableWorkflowPresets
+    ? settings.availableWorkflowPresets.map((preset) => mergeWithFallbackPreset(preset))
     : FALLBACK_WORKFLOW_PRESETS;
   return [...presets].sort((left, right) => {
     if (left.kind !== right.kind) {

@@ -156,6 +156,54 @@ function formatGenerationStarterValues(
   ].join(" | ");
 }
 
+function formatInferenceMetric(value: number, fractionDigits = 2): string {
+  if (Number.isInteger(value)) {
+    return String(value);
+  }
+  return value.toFixed(fractionDigits).replace(/\.?0+$/, "");
+}
+
+function buildInferenceSummaryItems(settings: {
+  temperature: number;
+  topK: number;
+  topP: number;
+  minP: number;
+  repeatPenalty: number;
+  repeatLastN: number;
+  presencePenalty: number;
+  frequencyPenalty: number;
+  seed: number;
+}) {
+  return [
+    { label: "Temp", value: formatInferenceMetric(settings.temperature) },
+    { label: "Top-k", value: formatInferenceMetric(settings.topK, 0) },
+    { label: "Top-p", value: formatInferenceMetric(settings.topP) },
+    { label: "Min-p", value: formatInferenceMetric(settings.minP) },
+    { label: "Repeat", value: formatInferenceMetric(settings.repeatPenalty) },
+    { label: "Last N", value: formatInferenceMetric(settings.repeatLastN, 0) },
+    { label: "Presence", value: formatInferenceMetric(settings.presencePenalty) },
+    { label: "Frequency", value: formatInferenceMetric(settings.frequencyPenalty) },
+    { label: "Seed", value: formatInferenceMetric(settings.seed, 0) },
+  ];
+}
+
+function matchesGenerationStarter(
+  settings: SettingsPayload,
+  starter: SettingsPayload["availableGenerationStarters"][number],
+): boolean {
+  return (
+    settings.temperature === starter.settings.temperature &&
+    settings.topK === starter.settings.topK &&
+    settings.topP === starter.settings.topP &&
+    settings.minP === starter.settings.minP &&
+    settings.repeatPenalty === starter.settings.repeatPenalty &&
+    settings.repeatLastN === starter.settings.repeatLastN &&
+    settings.presencePenalty === starter.settings.presencePenalty &&
+    settings.frequencyPenalty === starter.settings.frequencyPenalty &&
+    settings.seed === starter.settings.seed
+  );
+}
+
 function matchesSettingsProfile(
   settings: SettingsPayload,
   profile: SettingsProfilePreset,
@@ -277,6 +325,15 @@ export function SettingsPage() {
     () => resolveSelectedWorkflowPreset(settings),
     [settings],
   );
+  const activeInferenceStarter = useMemo(
+    () =>
+      settings
+        ? settings.availableGenerationStarters.find((starter) =>
+            matchesGenerationStarter(settings, starter),
+          ) ?? null
+        : null,
+    [settings],
+  );
 
   if (error) {
     return <div className="error-panel">{error}</div>;
@@ -301,6 +358,7 @@ export function SettingsPage() {
   const contextChoice = resolveTokenChoice(settings.context);
   const outputTokensChoice = resolveTokenChoice(settings.outputTokens);
   const activeSettings = settings;
+  const activeInferenceSummary = buildInferenceSummaryItems(settings);
 
   function applyWorkflowPreset(preset: WorkflowPreset) {
     setSettings({
@@ -449,6 +507,19 @@ export function SettingsPage() {
             <div className="settings-option-grid">
               {workflowPresets.map((preset) => {
                 const active = currentWorkflowPreset?.id === preset.id;
+                const presetInferenceSummary = buildInferenceSummaryItems({
+                  temperature: preset.settingsPatch.temperature ?? settings.temperature,
+                  topK: preset.settingsPatch.topK ?? settings.topK,
+                  topP: preset.settingsPatch.topP ?? settings.topP,
+                  minP: preset.settingsPatch.minP ?? settings.minP,
+                  repeatPenalty: preset.settingsPatch.repeatPenalty ?? settings.repeatPenalty,
+                  repeatLastN: preset.settingsPatch.repeatLastN ?? settings.repeatLastN,
+                  presencePenalty:
+                    preset.settingsPatch.presencePenalty ?? settings.presencePenalty,
+                  frequencyPenalty:
+                    preset.settingsPatch.frequencyPenalty ?? settings.frequencyPenalty,
+                  seed: preset.settingsPatch.seed ?? settings.seed,
+                });
                 return (
                   <button
                     key={preset.id}
@@ -459,6 +530,15 @@ export function SettingsPage() {
                     <span className="theme-option-name">{preset.label}</span>
                     <span className="theme-option-copy">{preset.summary}</span>
                     <span className="muted-line">{preset.badges.join(" | ")}</span>
+                    <span className="muted-line">
+                      Inference sažetak:{" "}
+                      {presetInferenceSummary
+                        .filter((item) =>
+                          ["Temp", "Top-k", "Top-p", "Seed"].includes(item.label),
+                        )
+                        .map((item) => `${item.label.toLowerCase()} ${item.value}`)
+                        .join(" | ")}
+                    </span>
                   </button>
                 );
               })}
@@ -525,6 +605,33 @@ export function SettingsPage() {
           </div>
         </div>
         <div className="settings-cluster-grid settings-cluster-grid-core">
+          <article className="settings-field settings-field-wide inference-spotlight-card">
+            <span className="settings-field-label">Aktivna inference podešavanja</span>
+            <strong className="status-value inference-spotlight-value">
+              {activeInferenceSummary
+                .filter((item) => ["Temp", "Top-k", "Top-p", "Seed"].includes(item.label))
+                .map((item) => `${item.label} ${item.value}`)
+                .join(" | ")}
+            </strong>
+            <div className="inference-summary-grid">
+              {activeInferenceSummary.map((item) => (
+                <div className="inference-summary-chip" key={item.label}>
+                  <span className="inference-summary-chip-label">{item.label}</span>
+                  <strong className="inference-summary-chip-value">{item.value}</strong>
+                </div>
+              ))}
+            </div>
+            <p className="helper-text">
+              Ove vrednosti trenutno ulaze u `llama.cpp` ili `TurboQuant` start komandu i postaju
+              local-lacc podrazumevana inference podešavanja kada klijent ne pošalje svoje sampling
+              argumente.
+            </p>
+            <p className="helper-text">
+              Workflow preset: {currentWorkflowPreset?.label || "--"} | Starter orijentir:{" "}
+              {activeInferenceStarter?.label || "custom kombinacija"}
+            </p>
+          </article>
+
           <article className="settings-field">
             <span className="settings-field-label">Access mode</span>
             <div className="settings-control-block">

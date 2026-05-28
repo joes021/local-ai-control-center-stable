@@ -86,6 +86,13 @@ def test_settings_route_persists_global_defaults_and_model_override(
         "docs-plus-web",
         "benchmark-battery",
     ]
+    code_preset = next(
+        item for item in initial.json()["availableWorkflowPresets"] if item["id"] == "code"
+    )
+    assert code_preset["settingsPatch"]["temperature"] == 0.2
+    assert code_preset["settingsPatch"]["topK"] == 20
+    assert code_preset["settingsPatch"]["topP"] == 0.9
+    assert code_preset["settingsPatch"]["seed"] == 7
     assert initial.json()["searchProviderStatus"]["status"] == "not-configured"
 
     response = client.post(

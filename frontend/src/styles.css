@@ -1192,6 +1192,42 @@ select:-webkit-autofill {
   color: var(--app-text-muted);
 }
 
+.inference-spotlight-card {
+  gap: 14px;
+}
+
+.inference-spotlight-value {
+  font-size: 1.02rem;
+}
+
+.inference-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.inference-summary-chip {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid var(--app-card-soft-border);
+  background: var(--app-card-soft-bg);
+}
+
+.inference-summary-chip-label {
+  color: var(--app-text-soft);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.inference-summary-chip-value {
+  color: var(--app-text);
+  font-size: 0.98rem;
+}
+
 .command-preview-stack {
   display: grid;
   gap: 12px;
