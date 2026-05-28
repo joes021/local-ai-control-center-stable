@@ -1457,6 +1457,13 @@ select:-webkit-autofill {
   margin-bottom: 16px;
 }
 
+.benchmark-chart-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 12px;
+}
+
 .benchmark-chart-status {
   color: #f5f2ea;
 }
@@ -1547,6 +1554,10 @@ select:-webkit-autofill {
   flex-direction: column;
   gap: 10px;
   min-width: 170px;
+}
+
+.benchmark-chart-metric-note {
+  margin-top: 6px;
 }
 
 .benchmark-export-row {
@@ -2339,8 +2350,12 @@ select:-webkit-autofill {
 
   .benchmark-card-header,
   .benchmark-chart-layout {
-    grid-template-columns: 1fr;
-    display: grid;
+      grid-template-columns: 1fr;
+      display: grid;
+    }
+
+  .benchmark-chart-controls {
+    align-items: flex-start;
   }
 
   .browser-metadata-grid {

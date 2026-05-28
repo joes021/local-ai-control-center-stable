@@ -526,6 +526,10 @@ def test_benchmark_page_source_includes_compare_export_and_idle_truth():
     assert "BX2" in source
     assert "BX5" in source
     assert "BX10" in source
+    assert "Prikaz na grafikonu" in source
+    assert "Input tokeni" in source
+    assert "Output tokeni" in source
+    assert "Ukupno tokeni" in source
     assert "await runBatteryBenchmark(selectedBattery.id, repeatCount);" in source
     assert "telemetry?.flowStateReason" in telemetry_source
     assert "telemetry?.lastSignalTokensPerSecond" in telemetry_source
@@ -583,6 +587,10 @@ def test_packaged_frontend_contains_benchmark_compare_export_copy():
     assert "BX2" in bundled_text
     assert "BX5" in bundled_text
     assert "BX10" in bundled_text
+    assert "Prikaz na grafikonu" in bundled_text
+    assert "Input tokeni" in bundled_text
+    assert "Output tokeni" in bundled_text
+    assert "Ukupno tokeni" in bundled_text
 
 
 def test_theme_sensitive_controls_and_browser_surfaces_use_theme_variables():

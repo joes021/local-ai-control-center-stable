@@ -44,6 +44,30 @@ type MetricKey =
   | "completionTokensPerSecond"
   | "totalTokensPerSecond";
 
+const METRIC_OPTIONS = [
+  {
+    key: "promptTokensPerSecond",
+    label: "Input tokeni",
+    shortLabel: "Input tok/s",
+    color: "#2c7be5",
+    pointStroke: "#f5f2ea",
+  },
+  {
+    key: "completionTokensPerSecond",
+    label: "Output tokeni",
+    shortLabel: "Output tok/s",
+    color: "#dc3f3a",
+    pointStroke: "#f5f2ea",
+  },
+  {
+    key: "totalTokensPerSecond",
+    label: "Ukupno tokeni",
+    shortLabel: "Ukupno tok/s",
+    color: "#f2b84b",
+    pointStroke: "#1d140d",
+  },
+] as const;
+
 type HistoryPoint = BenchmarkHistoryItem & {
   timestampMs: number;
 };
@@ -290,19 +314,24 @@ function buildTimeTicks(rangeStartMs: number, rangeEndMs: number, selectedRangeK
   });
 }
 
-function buildChartStatus(lastSample: HistoryPoint | null, nowTickMs: number) {
+function buildChartStatus(
+  lastSample: HistoryPoint | null,
+  nowTickMs: number,
+  metricKey: MetricKey,
+  metricLabel: string,
+) {
   if (!lastSample) {
-    return "cekam prve benchmark uzorke | poslednji throughput: --";
+    return `cekam prve benchmark uzorke | poslednji ${metricLabel.toLowerCase()}: --`;
   }
 
   const inactiveForMs = Math.max(0, nowTickMs - lastSample.timestampMs);
-  const lastThroughput = formatThroughput(lastSample.totalTokensPerSecond);
+  const lastThroughput = formatThroughput(lastSample[metricKey]);
 
   if (inactiveForMs <= CHART_GAP_MS) {
-    return `live | poslednji throughput: ${lastThroughput} | pre ${formatDurationLabel(inactiveForMs)}`;
+    return `live | ${metricLabel}: ${lastThroughput} | pre ${formatDurationLabel(inactiveForMs)}`;
   }
 
-  return `nema novih zahteva u poslednjih ${formatDurationLabel(inactiveForMs)} | poslednji throughput: ${lastThroughput}`;
+  return `nema novih zahteva u poslednjih ${formatDurationLabel(inactiveForMs)} | poslednji ${metricLabel.toLowerCase()}: ${lastThroughput}`;
 }
 
 function findRangeByKey(rangeKey: RangeKey) {
@@ -321,6 +350,7 @@ export function BenchmarkPage({ onOpenLogs }: { onOpenLogs: () => void }) {
   const [actionMessage, setActionMessage] = useState("");
   const [settingsPayload, setSettingsPayload] = useState<SettingsPayload | null>(null);
   const [selectedRangeKey, setSelectedRangeKey] = useState<RangeKey>("1m");
+  const [selectedMetricKey, setSelectedMetricKey] = useState<MetricKey>("totalTokensPerSecond");
   const [nowTickMs, setNowTickMs] = useState(() => Date.now());
   const [savedRunsPage, setSavedRunsPage] = useState(1);
   const isMountedRef = useRef(false);
@@ -384,6 +414,10 @@ export function BenchmarkPage({ onOpenLogs }: { onOpenLogs: () => void }) {
   const currentWorkflowPreset = useMemo(
     () => resolveSelectedWorkflowPreset(settingsPayload),
     [settingsPayload],
+  );
+  const selectedMetricOption = useMemo(
+    () => METRIC_OPTIONS.find((option) => option.key === selectedMetricKey) ?? METRIC_OPTIONS[2],
+    [selectedMetricKey],
   );
 
   useEffect(() => {
@@ -490,45 +524,17 @@ export function BenchmarkPage({ onOpenLogs }: { onOpenLogs: () => void }) {
         return normalizedSignalHistory[normalizedSignalHistory.length - 1] ?? null;
       })();
     const fallbackValues = [previousSample, lastSample]
-      .flatMap((item) =>
-        item
-          ? [
-              parseMetricValue(item.promptTokensPerSecond),
-              parseMetricValue(item.completionTokensPerSecond),
-              parseMetricValue(item.totalTokensPerSecond),
-            ]
-          : [],
-      )
+      .map((item) => (item ? parseMetricValue(item[selectedMetricKey]) : null))
       .filter((value): value is number => value !== null);
     const maxValue = Math.max(
-      ...visibleSamples.map((item) =>
-        Math.max(
-          parseMetricValue(item.promptTokensPerSecond) ?? 0,
-          parseMetricValue(item.completionTokensPerSecond) ?? 0,
-          parseMetricValue(item.totalTokensPerSecond) ?? 0,
-        ),
-      ),
+      ...visibleSamples.map((item) => parseMetricValue(item[selectedMetricKey]) ?? 0),
       ...fallbackValues,
       1,
     );
     const yAxisLabels = [maxValue, maxValue * 0.66, maxValue * 0.33, 0].map(formatYAxisLabel);
-    const promptPoints = buildMetricPoints(
+    const selectedPoints = buildMetricPoints(
       visibleSamples,
-      "promptTokensPerSecond",
-      rangeStartMs,
-      rangeEndMs,
-      maxValue,
-    );
-    const outputPoints = buildMetricPoints(
-      visibleSamples,
-      "completionTokensPerSecond",
-      rangeStartMs,
-      rangeEndMs,
-      maxValue,
-    );
-    const totalPoints = buildMetricPoints(
-      visibleSamples,
-      "totalTokensPerSecond",
+      selectedMetricKey,
       rangeStartMs,
       rangeEndMs,
       maxValue,
@@ -537,29 +543,32 @@ export function BenchmarkPage({ onOpenLogs }: { onOpenLogs: () => void }) {
     const lastSampleOutsideRange = Boolean(lastSample && lastSample.timestampMs < rangeStartMs);
 
     return {
-      promptPoints,
-      promptSegments: buildSolidSegments(promptPoints),
-      outputPoints,
-      outputSegments: buildSolidSegments(outputPoints),
-      totalPoints,
-      totalSegments: buildSolidSegments(totalPoints),
-      totalGapSegments: buildInactivitySegments(
-        totalPoints,
+      selectedPoints,
+      selectedSegments: buildSolidSegments(selectedPoints),
+      selectedGapSegments: buildInactivitySegments(
+        selectedPoints,
         rangeStartMs,
         rangeEndMs,
         maxValue,
-        previousSample ? parseMetricValue(previousSample.totalTokensPerSecond) : null,
+        previousSample ? parseMetricValue(previousSample[selectedMetricKey]) : null,
       ),
       rangeStartMs,
       rangeEndMs,
-      statusText: buildChartStatus(lastSample, nowTickMs),
+      statusText: buildChartStatus(lastSample, nowTickMs, selectedMetricKey, selectedMetricOption.shortLabel),
       tickMarks: buildTimeTicks(rangeStartMs, rangeEndMs, selectedRangeKey),
       visibleSamples,
       lastSampleOutsideRange,
       inactiveForMs,
       yAxisLabels,
     };
-  }, [benchmark?.liveCurrent, normalizedSignalHistory, nowTickMs, selectedRangeKey]);
+  }, [
+    benchmark?.liveCurrent,
+    normalizedSignalHistory,
+    nowTickMs,
+    selectedMetricKey,
+    selectedMetricOption.shortLabel,
+    selectedRangeKey,
+  ]);
 
   if (error) {
     return <div className="error-panel">{error}</div>;
@@ -787,19 +796,41 @@ export function BenchmarkPage({ onOpenLogs }: { onOpenLogs: () => void }) {
             <span className="status-label">Grafikon benchmarka</span>
             <strong className="status-value benchmark-chart-status">{chartModel.statusText}</strong>
           </div>
-          <div className="benchmark-range-segment" role="tablist" aria-label="Benchmark range">
-            {RANGE_OPTIONS.map((option) => (
-              <button
-                type="button"
-                key={option.key}
-                className={`benchmark-range-button${
-                  option.key === selectedRangeKey ? " benchmark-range-button-active" : ""
-                }`}
-                onClick={() => setSelectedRangeKey(option.key)}
-              >
-                {option.label}
-              </button>
-            ))}
+          <div className="benchmark-chart-controls">
+            <div>
+              <span className="status-label">Prikaz na grafikonu</span>
+              <div className="benchmark-range-segment" role="tablist" aria-label="Prikaz na grafikonu">
+                {METRIC_OPTIONS.map((option) => (
+                  <button
+                    type="button"
+                    key={option.key}
+                    className={`benchmark-range-button${
+                      option.key === selectedMetricKey ? " benchmark-range-button-active" : ""
+                    }`}
+                    onClick={() => setSelectedMetricKey(option.key)}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <span className="status-label">Vremenski opseg</span>
+              <div className="benchmark-range-segment" role="tablist" aria-label="Benchmark range">
+                {RANGE_OPTIONS.map((option) => (
+                  <button
+                    type="button"
+                    key={option.key}
+                    className={`benchmark-range-button${
+                      option.key === selectedRangeKey ? " benchmark-range-button-active" : ""
+                    }`}
+                    onClick={() => setSelectedRangeKey(option.key)}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
         <div className="benchmark-chart-layout">
@@ -866,7 +897,7 @@ export function BenchmarkPage({ onOpenLogs }: { onOpenLogs: () => void }) {
                   </text>
                 </g>
               ))}
-              {chartModel.totalGapSegments.map((segment) => (
+              {chartModel.selectedGapSegments.map((segment) => (
                 <line
                   key={segment.key}
                   x1={segment.x1}
@@ -880,71 +911,25 @@ export function BenchmarkPage({ onOpenLogs }: { onOpenLogs: () => void }) {
                   opacity="0.75"
                 />
               ))}
-              {chartModel.totalSegments.map((points, index) => (
+              {chartModel.selectedSegments.map((points, index) => (
                 <polyline
-                  key={`total-${index}`}
+                  key={`selected-${index}`}
                   fill="none"
-                  stroke="#f2b84b"
-                  strokeWidth="4"
-                  strokeOpacity="0.65"
-                  strokeDasharray="10 6"
+                  stroke={selectedMetricOption.color}
+                  strokeWidth="3.2"
                   strokeLinejoin="round"
                   strokeLinecap="round"
                   points={points}
                 />
               ))}
-              {chartModel.outputPoints.map((point) => (
-                <circle
-                  key={point.key}
-                  cx={point.x}
-                  cy={point.y}
-                  r="2.5"
-                  fill="#dc3f3a"
-                  stroke="#f5f2ea"
-                  strokeWidth="0.8"
-                />
-              ))}
-              {chartModel.outputSegments.map((points, index) => (
-                <polyline
-                  key={`output-${index}`}
-                  fill="none"
-                  stroke="#dc3f3a"
-                  strokeWidth="2.7"
-                  strokeLinejoin="round"
-                  strokeLinecap="round"
-                  points={points}
-                />
-              ))}
-              {chartModel.promptSegments.map((points, index) => (
-                <polyline
-                  key={`prompt-${index}`}
-                  fill="none"
-                  stroke="#2c7be5"
-                  strokeWidth="2.5"
-                  strokeLinejoin="round"
-                  strokeLinecap="round"
-                  points={points}
-                />
-              ))}
-              {chartModel.promptPoints.map((point) => (
-                <circle
-                  key={point.key}
-                  cx={point.x}
-                  cy={point.y}
-                  r="2.5"
-                  fill="#2c7be5"
-                  stroke="#f5f2ea"
-                  strokeWidth="0.8"
-                />
-              ))}
-              {chartModel.totalPoints.map((point) => (
+              {chartModel.selectedPoints.map((point) => (
                 <circle
                   key={point.key}
                   cx={point.x}
                   cy={point.y}
                   r="2.2"
-                  fill="#f2b84b"
-                  stroke="#1d140d"
+                  fill={selectedMetricOption.color}
+                  stroke={selectedMetricOption.pointStroke}
                   strokeWidth="0.9"
                 />
               ))}
@@ -960,45 +945,19 @@ export function BenchmarkPage({ onOpenLogs }: { onOpenLogs: () => void }) {
             ) : null}
           </div>
           <div className="benchmark-legend">
-            <span className="status-label">Legenda</span>
+            <span className="status-label">Aktivna metrika</span>
             <div className="helper-text">
               <span
                 style={{
                   display: "inline-block",
                   width: "14px",
                   height: "14px",
-                  background: "#2c7be5",
+                  background: selectedMetricOption.color,
                   marginRight: "8px",
                   borderRadius: "999px",
                 }}
               />
-              Input tok/s
-            </div>
-            <div className="helper-text">
-              <span
-                style={{
-                  display: "inline-block",
-                  width: "14px",
-                  height: "14px",
-                  background: "#dc3f3a",
-                  marginRight: "8px",
-                  borderRadius: "999px",
-                }}
-              />
-              Output tok/s
-            </div>
-            <div className="helper-text">
-              <span
-                style={{
-                  display: "inline-block",
-                  width: "14px",
-                  height: "14px",
-                  background: "#f2b84b",
-                  marginRight: "8px",
-                  borderRadius: "999px",
-                }}
-              />
-              Ukupno tok/s
+              {selectedMetricOption.shortLabel}
             </div>
             <div className="helper-text">
               <span
@@ -1013,6 +972,9 @@ export function BenchmarkPage({ onOpenLogs }: { onOpenLogs: () => void }) {
               />
               Neaktivan period
             </div>
+            <p className="helper-text benchmark-chart-metric-note">
+              Skala Y ose se sada prilagođava samo izabranoj metrici, tako da graf ne razvlače druge serije.
+            </p>
           </div>
         </div>
       </section>
