@@ -17,7 +17,10 @@ def _write_opencode_fixture(install_root: Path) -> None:
         json.dumps(
             {
                 "model": "local-lacc/recommended-6gb",
-                "providers": {"local-lacc": {"options": {"baseURL": "http://127.0.0.1:39281/v1"}}},
+                "enabled_providers": ["local-lacc", "opencode"],
+                "provider": {
+                    "local-lacc": {"options": {"baseURL": "http://127.0.0.1:39281/v1"}}
+                },
             }
         ),
         encoding="utf-8",
@@ -57,6 +60,10 @@ def test_opencode_status_route_reports_packaged_installation(
     assert "$env:OPENCODE_CONFIG" in payload["launchPreview"]["powershellCommand"]
     assert "opencode.exe" in payload["launchPreview"]["powershellCommand"]
     assert "temp 0.8" in payload["launchPreview"]["generationSummary"]
+    assert payload["launchPreview"]["managedConfig"]["model"] == "local-lacc/recommended-6gb"
+    assert payload["launchPreview"]["managedConfig"]["selectedProvider"] == "local-lacc"
+    assert payload["launchPreview"]["managedConfig"]["localProviderBaseUrl"] == "http://127.0.0.1:39281/v1"
+    assert payload["launchPreview"]["managedConfig"]["enabledProviders"] == ["local-lacc", "opencode"]
 
 
 def test_opencode_status_route_reports_app_only_when_runtime_is_not_connected(

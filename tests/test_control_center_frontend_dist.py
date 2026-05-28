@@ -187,9 +187,14 @@ def test_server_and_opencode_source_include_equivalent_launch_command_panels():
     assert "Kopiraj cmd.exe" in server_source
     assert "sampling parametri" in server_source
     assert "PowerShell` koristi prefiks `&`" in server_source
+    assert "Ako ručno lepiš komandu u Command Prompt" in server_source
     assert "Ekvivalentna OpenCode komanda" in opencode_source
     assert "Launcher .cmd" in opencode_source
     assert "PowerShell prikaz" in opencode_source
+    assert "Managed config ulazi" in opencode_source
+    assert "Env promenljive" in opencode_source
+    assert "Provider" in opencode_source
+    assert "Base URL" in opencode_source
     assert "Efektivna local-lacc inference podrazumevana podešavanja" in opencode_source
 
     dist_root = Path(
@@ -203,8 +208,12 @@ def test_server_and_opencode_source_include_equivalent_launch_command_panels():
     assert "Ekvivalentne CLI komande" in bundled_text
     assert "Kopiraj cmd.exe" in bundled_text
     assert "sampling parametri" in bundled_text
+    assert "Ako ručno lepiš komandu u Command Prompt" in bundled_text
     assert "Ekvivalentna OpenCode komanda" in bundled_text
     assert "Launcher .cmd" in bundled_text
+    assert "Managed config ulazi" in bundled_text
+    assert "Env promenljive" in bundled_text
+    assert "Base URL" in bundled_text
     assert "Efektivna local-lacc inference podrazumevana podešavanja" in bundled_text
 
 

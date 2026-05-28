@@ -101,6 +101,14 @@ export function OpenCodePage() {
     return matchedPreset ? formatPresetLabel(matchedPreset) : "Custom values";
   }, [stepEditor, stepSchema]);
 
+  const opencodeEnvironmentPreview = useMemo(
+    () =>
+      opencode?.launchPreview?.environment
+        ?.map((item) => `${item.key}=${item.value}`)
+        .join("\n") || "",
+    [opencode],
+  );
+
   async function copyText(text: string, label: string) {
     if (!text.trim()) {
       setError(`Nema sadržaja za kopiranje: ${label}.`);
@@ -190,6 +198,10 @@ export function OpenCodePage() {
           Ovo je najbliži ručni prikaz onoga što portal radi kada otvara OpenCode. Managed config
           određuje provider i model, a `local-lacc` zatim koristi trenutni runtime i aktivni model iz panela.
         </p>
+        <p className="helper-text">
+          Ako želiš ručno da ga startuješ iz običnog `cmd.exe`, koristi launcher `.cmd`. PowerShell
+          prikaz ispod samo razlaže iste korake u čitljiv niz `Set-Location` + `env` + `opencode.exe`.
+        </p>
         <p className="helper-text">Launcher .cmd: {opencode.launchPreview.launcherPath}</p>
         <p className="helper-text">Radni direktorijum: {opencode.launchPreview.workingDirectory}</p>
         <p className="helper-text">{opencode.launchPreview.summary}</p>
@@ -224,6 +236,37 @@ export function OpenCodePage() {
           <span className="status-label">PowerShell prikaz</span>
           <div className="details-block">
             <pre>{opencode.launchPreview.powershellCommand}</pre>
+          </div>
+        </div>
+        <div className="command-preview-card">
+          <span className="status-label">Managed config ulazi</span>
+          <div className="summary-metrics">
+            <span>
+              Provider: {opencode.launchPreview.managedConfig.selectedProvider || "nije prepoznat"}
+            </span>
+            <span>Model: {opencode.launchPreview.managedConfig.model || "nije postavljen"}</span>
+            <span>
+              Base URL: {opencode.launchPreview.managedConfig.localProviderBaseUrl || "nije pronađen"}
+            </span>
+          </div>
+          <p className="helper-text">
+            Omogućeni provider-i:{" "}
+            {opencode.launchPreview.managedConfig.enabledProviders.length
+              ? opencode.launchPreview.managedConfig.enabledProviders.join(", ")
+              : "nisu prijavljeni"}
+          </p>
+          <p className="helper-text">
+            Model i provider dolaze iz `managed-config.json`, a `baseURL` pokazuje gde OpenCode traži
+            lokalni runtime proxy.
+          </p>
+        </div>
+        <div className="command-preview-card">
+          <span className="status-label">Env promenljive</span>
+          <p className="helper-text">
+            Ovo su promenljive koje launcher postavlja pre nego što pokrene `opencode.exe`.
+          </p>
+          <div className="details-block">
+            <pre>{opencodeEnvironmentPreview || "Nema dodatnih env promenljivih."}</pre>
           </div>
         </div>
       </section>

@@ -179,6 +179,10 @@ export function ServerPage() {
         <p className="helper-text">
           `PowerShell` koristi prefiks `&`, dok `cmd.exe` koristi istu komandu bez tog prefiksa.
         </p>
+        <p className="helper-text">
+          Ako ručno lepiš komandu u Command Prompt, kopiraj samo `cmd.exe` blok ispod. `PowerShell`
+          varijanta sa `&` nije namenjena za običan `cmd`.
+        </p>
         <div className="command-preview-stack">
           {serverStatus?.commandPreview?.variants.map((variant) => (
             <article className="command-preview-card" key={variant.runtime}>

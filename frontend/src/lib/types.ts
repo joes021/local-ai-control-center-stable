@@ -925,6 +925,12 @@ export type OpenCodeStatusPayload = {
       key: string;
       value: string;
     }>;
+    managedConfig: {
+      model: string;
+      selectedProvider: string;
+      localProviderBaseUrl: string;
+      enabledProviders: string[];
+    };
     summary: string;
     generationSummary?: string;
   };

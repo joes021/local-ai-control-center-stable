@@ -374,6 +374,7 @@ def _build_opencode_launch_preview(
             "powershellCommand": powershell_command,
             "workingDirectory": str(settings["workingDirectory"]),
             "environment": env_items,
+            "managedConfig": _build_managed_opencode_config_preview(managed_config_path),
             "generationSummary": _build_generation_defaults_summary(settings),
             "summary": (
                 "OpenCode koristi managed config, a local-lacc inference podrazumevana sampling "
@@ -396,6 +397,7 @@ def _build_opencode_launch_preview(
         "powershellCommand": "\n".join(powershell_lines),
         "workingDirectory": str(settings["workingDirectory"]),
         "environment": env_items,
+        "managedConfig": _build_managed_opencode_config_preview(managed_config_path),
         "generationSummary": _build_generation_defaults_summary(settings),
         "summary": (
             "OpenCode model i provider dolaze iz managed-config.json, a local-lacc u sebi koristi "
@@ -428,6 +430,55 @@ def _launch_opencode_launcher(launcher_path: Path) -> None:
         cwd=str(launcher_path.parent),
         creationflags=new_console_subprocess_creationflags(),
     )
+
+
+def _build_managed_opencode_config_preview(managed_config_path: Path) -> dict[str, object]:
+    fallback = {
+        "model": "",
+        "selectedProvider": "",
+        "localProviderBaseUrl": "",
+        "enabledProviders": [],
+    }
+    if not managed_config_path.is_file():
+        return fallback
+    try:
+        payload = json.loads(managed_config_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return fallback
+    if not isinstance(payload, dict):
+        return fallback
+
+    model = str(payload.get("model", "") or "")
+    selected_provider = model.split("/", 1)[0] if "/" in model else ""
+    provider_root = payload.get("provider")
+    if not isinstance(provider_root, dict):
+        provider_root = payload.get("providers")
+    if not isinstance(provider_root, dict):
+        provider_root = {}
+
+    enabled_providers = payload.get("enabled_providers")
+    if isinstance(enabled_providers, list):
+        enabled_provider_list = [str(item) for item in enabled_providers if str(item).strip()]
+    else:
+        enabled_provider_list = [str(key) for key in provider_root.keys() if str(key).strip()]
+
+    provider_id = selected_provider or "local-lacc"
+    provider_entry = provider_root.get(provider_id)
+    if not isinstance(provider_entry, dict):
+        provider_entry = provider_root.get("local-lacc")
+
+    base_url = ""
+    if isinstance(provider_entry, dict):
+        options = provider_entry.get("options")
+        if isinstance(options, dict):
+            base_url = str(options.get("baseURL", "") or options.get("baseUrl", "") or "")
+
+    return {
+        "model": model,
+        "selectedProvider": selected_provider,
+        "localProviderBaseUrl": base_url,
+        "enabledProviders": enabled_provider_list,
+    }
 
 
 def _build_linux_terminal_command(launcher_path: Path) -> list[str] | None:
