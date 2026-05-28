@@ -787,3 +787,106 @@ def test_start_selected_benchmark_queues_run_state_and_returns_action_id(
     assert run_state["status"] == "queued"
     assert run_state["scenarioId"] == "short"
     assert run_state["percent"] == 0
+
+
+def test_start_battery_benchmark_expands_repeat_count_into_longer_run(
+    tmp_path: Path,
+    monkeypatch,
+):
+    from local_ai_control_center_installer.control_center_backend.services import benchmark_service
+
+    install_root = tmp_path / "install-root"
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    _write_runtime_endpoint_config(install_root)
+    _write_active_model_config(install_root)
+
+    config = get_config()
+    config.control_center_config_root.mkdir(parents=True, exist_ok=True)
+    config.benchmark_batteries_path.write_text(
+        json.dumps(
+            {
+                "activeBatteryId": "soak",
+                "batteries": [
+                    {
+                        "id": "soak",
+                        "name": "Soak battery",
+                        "source": "user",
+                        "updatedAt": "2026-05-28T10:00:00+00:00",
+                        "scenarios": [
+                            {
+                                "id": "short",
+                                "name": "Short",
+                                "prompt": "Reply with exactly OK",
+                            },
+                            {
+                                "id": "long",
+                                "name": "Long",
+                                "prompt": "Explain local inference in depth.",
+                            },
+                        ],
+                    }
+                ],
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(
+        benchmark_service,
+        "ensure_runtime_ready",
+        lambda config=None: {"status": "ok", "summary": "Runtime spreman."},
+    )
+
+    started_threads: list[object] = []
+
+    class FakeThread:
+        def __init__(self, *, target, args, daemon):
+            self.target = target
+            self.args = args
+            self.daemon = daemon
+            started_threads.append(self)
+
+        def start(self):
+            return None
+
+    monkeypatch.setattr(benchmark_service.threading, "Thread", FakeThread)
+
+    result = benchmark_service.start_battery_benchmark("soak", repeat_count=5)
+
+    assert result["status"] == "accepted"
+    assert result["runId"].startswith("bench-")
+    assert "x5" in result["summary"]
+    assert started_threads
+
+    run_state = benchmark_service.load_benchmark_run_status()
+    assert run_state["status"] == "queued"
+    assert run_state["batteryId"] == "soak"
+    assert run_state["repeatCount"] == 5
+    assert run_state["totalScenarios"] == 10
+    assert len(run_state["scenarioStatuses"]) == 10
+    assert run_state["scenarioStatuses"][0]["scenarioName"] == "Short · prolaz 1/5"
+    assert run_state["scenarioStatuses"][1]["scenarioName"] == "Long · prolaz 1/5"
+    assert run_state["scenarioStatuses"][-1]["scenarioName"] == "Long · prolaz 5/5"
+    assert run_state["scenarioStatuses"][0]["scenarioId"] == "short__pass_1_of_5"
+    assert len(started_threads[0].args[3]) == 10
+    assert started_threads[0].args[3][0]["name"] == "Short · prolaz 1/5"
+    assert started_threads[0].args[3][-1]["name"] == "Long · prolaz 5/5"
+
+
+def test_start_battery_benchmark_rejects_invalid_repeat_count(
+    tmp_path: Path,
+    monkeypatch,
+):
+    from local_ai_control_center_installer.control_center_backend.services import benchmark_service
+
+    install_root = tmp_path / "install-root"
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    _write_runtime_endpoint_config(install_root)
+    _write_active_model_config(install_root)
+
+    result = benchmark_service.start_battery_benchmark("default", repeat_count=0)
+
+    assert result["status"] == "error"
+    assert "Broj ponavljanja" in result["summary"]

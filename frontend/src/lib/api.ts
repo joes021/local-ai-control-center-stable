@@ -154,8 +154,8 @@ export async function runSelectedBenchmark(scenarioId: string): Promise<{ status
   return postJson("/api/benchmark/run-selected", { scenarioId });
 }
 
-export async function runBatteryBenchmark(batteryId: string): Promise<{ status: string; summary: string; runId?: string }> {
-  return postJson("/api/benchmark/run-battery", { batteryId });
+export async function runBatteryBenchmark(batteryId: string, repeatCount = 1): Promise<{ status: string; summary: string; runId?: string }> {
+  return postJson("/api/benchmark/run-battery", { batteryId, repeatCount });
 }
 
 export async function fetchBenchmarkRunStatus(): Promise<BenchmarkRunStatusPayload> {

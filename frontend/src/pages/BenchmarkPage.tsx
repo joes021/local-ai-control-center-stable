@@ -568,8 +568,8 @@ export function BenchmarkPage({ onOpenLogs }: { onOpenLogs: () => void }) {
     await load();
   }
 
-  async function handleRunBattery() {
-    const result = await runBatteryBenchmark(selectedBattery.id);
+  async function handleRunBattery(repeatCount = 1) {
+    const result = await runBatteryBenchmark(selectedBattery.id, repeatCount);
     setActionMessage(result.summary);
     await load();
   }
@@ -651,8 +651,17 @@ export function BenchmarkPage({ onOpenLogs }: { onOpenLogs: () => void }) {
           <button type="button" onClick={handleRunSelected}>
             Pokreni izabrani test
           </button>
-          <button type="button" onClick={handleRunBattery}>
+          <button type="button" onClick={() => void handleRunBattery(1)}>
             Pokreni celu bateriju
+          </button>
+          <button type="button" className="secondary-button" onClick={() => void handleRunBattery(2)}>
+            Pokreni bateriju x2
+          </button>
+          <button type="button" className="secondary-button" onClick={() => void handleRunBattery(5)}>
+            Pokreni bateriju x5
+          </button>
+          <button type="button" className="secondary-button" onClick={() => void handleRunBattery(10)}>
+            Pokreni bateriju x10
           </button>
           <button type="button" onClick={handleSaveBattery}>
             Sačuvaj bateriju

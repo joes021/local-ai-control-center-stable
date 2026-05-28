@@ -41,6 +41,7 @@ BENCHMARK_LIVE_HISTORY_MAX_ITEMS = 200
 BENCHMARK_LIVE_HISTORY_RETENTION_SECONDS = 3600
 BENCHMARK_TELEMETRY_WINDOW_HOURS = 24
 BENCHMARK_PROXY_COST_PER_MILLION_TOKENS_USD = 0.10
+BENCHMARK_MAX_REPEAT_COUNT = 10
 _RUN_LOCK = threading.Lock()
 
 
@@ -431,9 +432,18 @@ def start_selected_benchmark(
 
 def start_battery_benchmark(
     battery_id: str,
+    *,
+    repeat_count: int = 1,
     config: ControlCenterConfig | None = None,
 ) -> dict[str, Any]:
     config = config or get_config()
+    normalized_repeat_count = _normalize_repeat_count(repeat_count)
+    if normalized_repeat_count is None:
+        return action_result(
+            "error",
+            "benchmark-run-battery",
+            f"Broj ponavljanja mora biti između 1 i {BENCHMARK_MAX_REPEAT_COUNT}.",
+        )
     battery_payload = _load_batteries(config)
     battery = next(
         (
@@ -448,6 +458,7 @@ def start_battery_benchmark(
     scenarios = [item for item in battery.get("scenarios", []) if isinstance(item, dict)]
     if not scenarios:
         return action_result("error", "benchmark-run-battery", "Baterija nema nijedan scenario.")
+    expanded_scenarios = _expand_battery_scenarios(scenarios, normalized_repeat_count)
 
     readiness = ensure_runtime_ready(config)
     if readiness.get("status") != "ok":
@@ -470,27 +481,34 @@ def start_battery_benchmark(
             "mode": "battery",
             "batteryId": str(battery.get("id", "")),
             "batteryName": str(battery.get("name", "")),
+            "repeatCount": normalized_repeat_count,
             "scenarioId": "",
             "scenarioName": "",
             "currentScenarioId": "",
             "currentScenarioName": "",
             "currentIndex": 0,
-            "totalScenarios": len(scenarios),
+            "totalScenarios": len(expanded_scenarios),
             "percent": 0,
             "startedAt": _now_iso(),
             "finishedAt": "",
             "message": f"Pokrećem full battery: {battery.get('name', battery_id)}",
-            "scenarioStatuses": _scenario_status_payload(scenarios),
+            "scenarioStatuses": _scenario_status_payload(expanded_scenarios),
         }
+        run_state["message"] = _build_battery_launch_message(str(battery.get("name", battery_id)), normalized_repeat_count)
         _save_run_state(config, run_state)
         thread = threading.Thread(
             target=_run_battery_worker,
-            args=(config, run_id, deepcopy(battery), [deepcopy(item) for item in scenarios]),
+            args=(config, run_id, deepcopy(battery), [deepcopy(item) for item in expanded_scenarios]),
             daemon=True,
         )
         thread.start()
     return {
-        **action_result("accepted", "benchmark-run-battery", "Full battery benchmark je pokrenut.", action_id=run_id),
+        **action_result(
+            "accepted",
+            "benchmark-run-battery",
+            f"Benchmark baterija x{normalized_repeat_count} je pokrenuta.",
+            action_id=run_id,
+        ),
         "runId": run_id,
     }
 
@@ -567,6 +585,7 @@ def _idle_run_state() -> dict[str, Any]:
         "mode": "idle",
         "batteryId": "",
         "batteryName": "",
+        "repeatCount": 1,
         "scenarioId": "",
         "scenarioName": "",
         "currentScenarioId": "",
@@ -979,6 +998,7 @@ def _run_battery_worker(
             "runId": run_id,
             "mode": "battery",
             "batteryName": str(battery.get("name", "")),
+            "repeatCount": _int_or_zero(run_state.get("repeatCount")) or 1,
             "scenarioName": "",
             **_saved_run_metadata(config),
             "status": overall_status,
@@ -1551,6 +1571,43 @@ def _scenario_status_payload(scenarios: list[dict[str, Any]]) -> list[dict[str, 
         }
         for item in scenarios
     ]
+
+
+def _normalize_repeat_count(value: object) -> int | None:
+    try:
+        normalized = int(value)
+    except (TypeError, ValueError):
+        return None
+    if normalized < 1 or normalized > BENCHMARK_MAX_REPEAT_COUNT:
+        return None
+    return normalized
+
+
+def _expand_battery_scenarios(
+    scenarios: list[dict[str, Any]],
+    repeat_count: int,
+) -> list[dict[str, Any]]:
+    expanded: list[dict[str, Any]] = []
+    for pass_index in range(1, repeat_count + 1):
+        for scenario_index, scenario in enumerate(scenarios, start=1):
+            copied = deepcopy(scenario)
+            base_id = str(copied.get("id", "") or f"scenario-{scenario_index}")
+            base_name = str(copied.get("name", "") or base_id)
+            if repeat_count > 1:
+                copied["id"] = f"{base_id}__pass_{pass_index}_of_{repeat_count}"
+                copied["name"] = f"{base_name} · prolaz {pass_index}/{repeat_count}"
+            copied["sourceScenarioId"] = base_id
+            copied["sourceScenarioName"] = base_name
+            copied["repeatIndex"] = pass_index
+            copied["repeatCount"] = repeat_count
+            expanded.append(copied)
+    return expanded
+
+
+def _build_battery_launch_message(battery_name: str, repeat_count: int) -> str:
+    if repeat_count <= 1:
+        return f"Pokrećem full battery: {battery_name}"
+    return f"Pokrećem full battery x{repeat_count}: {battery_name}"
 
 
 def _parse_iso_timestamp(value: object) -> datetime | None:

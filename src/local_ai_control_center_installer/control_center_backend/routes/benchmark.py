@@ -68,11 +68,12 @@ def benchmark_run_selected(payload: RunSelectedRequest) -> dict[str, object]:
 
 class RunBatteryRequest(BaseModel):
     batteryId: str = ""
+    repeatCount: int = 1
 
 
 @router.post("/api/benchmark/run-battery")
 def benchmark_run_battery(payload: RunBatteryRequest) -> dict[str, object]:
-    return start_battery_benchmark(payload.batteryId)
+    return start_battery_benchmark(payload.batteryId, repeat_count=payload.repeatCount)
 
 
 class SaveBatteryRequest(BaseModel):

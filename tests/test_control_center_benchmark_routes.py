@@ -158,10 +158,10 @@ def test_benchmark_run_and_clear_routes_delegate_to_backend_actions(monkeypatch)
     monkeypatch.setattr(
         benchmark_routes,
         "start_battery_benchmark",
-        lambda battery_id: {
+        lambda battery_id, repeat_count=1: {
             "status": "accepted",
             "action": "benchmark-run-battery",
-            "summary": f"battery:{battery_id}",
+            "summary": f"battery:{battery_id}:x{repeat_count}",
             "details": {"returncode": 0, "stdout": "", "stderr": ""},
             "runId": "bench-battery",
         },
@@ -183,7 +183,14 @@ def test_benchmark_run_and_clear_routes_delegate_to_backend_actions(monkeypatch)
 
     battery_response = client.post("/api/benchmark/run-battery", json={"batteryId": "default"})
     assert battery_response.status_code == 200
-    assert battery_response.json()["summary"] == "battery:default"
+    assert battery_response.json()["summary"] == "battery:default:x1"
+
+    repeated_battery_response = client.post(
+        "/api/benchmark/run-battery",
+        json={"batteryId": "default", "repeatCount": 5},
+    )
+    assert repeated_battery_response.status_code == 200
+    assert repeated_battery_response.json()["summary"] == "battery:default:x5"
 
     clear_response = client.post("/api/benchmark/clear-history")
     assert clear_response.status_code == 200

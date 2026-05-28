@@ -173,6 +173,7 @@ export type BenchmarkRunStatusPayload = {
   mode: string;
   batteryId: string;
   batteryName: string;
+  repeatCount: number;
   scenarioId: string;
   scenarioName: string;
   currentScenarioId: string;

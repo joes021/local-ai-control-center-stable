@@ -523,6 +523,10 @@ def test_benchmark_page_source_includes_compare_export_and_idle_truth():
     assert "Uporedi izabrana pokretanja" in source
     assert "Izvezi JSON" in source
     assert "Izvezi CSV" in source
+    assert "Pokreni bateriju x2" in source
+    assert "Pokreni bateriju x5" in source
+    assert "Pokreni bateriju x10" in source
+    assert "await runBatteryBenchmark(selectedBattery.id, repeatCount);" in source
     assert "telemetry?.flowStateReason" in telemetry_source
     assert "telemetry?.lastSignalTokensPerSecond" in telemetry_source
     assert "Izaberi najmanje dva saved run-a da bi compare prikaz bio aktivan." in source
@@ -537,6 +541,8 @@ def test_api_source_supports_benchmark_compare_and_export():
     assert "/api/benchmark/compare" in source
     assert "exportBenchmarkRuns" in source
     assert "/api/benchmark/export" in source
+    assert "runBatteryBenchmark(batteryId: string, repeatCount = 1)" in source
+    assert "repeatCount" in source
 
 
 def test_packaged_frontend_contains_benchmark_compare_export_copy():
