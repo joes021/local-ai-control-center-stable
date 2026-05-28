@@ -1406,6 +1406,69 @@ select:-webkit-autofill {
   background: var(--app-card-soft-bg);
 }
 
+.command-preview-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.opencode-config-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.opencode-config-item,
+.opencode-env-item {
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--app-card-soft-border);
+  background: color-mix(in srgb, var(--app-card-bg) 72%, rgba(255, 255, 255, 0.03));
+  min-width: 0;
+}
+
+.opencode-config-label,
+.opencode-env-key {
+  color: var(--app-text-soft);
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.opencode-config-value {
+  color: var(--app-text);
+  font-size: 0.98rem;
+  line-height: 1.45;
+}
+
+.opencode-config-value-break {
+  word-break: break-word;
+}
+
+.opencode-env-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.opencode-env-value {
+  display: block;
+  color: var(--app-text);
+  font-size: 0.9rem;
+  line-height: 1.45;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+@media (max-width: 900px) {
+  .command-preview-grid,
+  .opencode-config-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .warning-badge {
   margin-top: 12px;
   display: inline-flex;

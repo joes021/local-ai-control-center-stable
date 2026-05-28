@@ -195,6 +195,9 @@ def test_server_and_opencode_source_include_equivalent_launch_command_panels():
     assert "Env promenljive" in opencode_source
     assert "Provider" in opencode_source
     assert "Base URL" in opencode_source
+    assert "command-preview-grid" in opencode_source
+    assert "opencode-config-grid" in opencode_source
+    assert "opencode-env-grid" in opencode_source
     assert "Efektivna local-lacc inference podrazumevana podešavanja" in opencode_source
 
     dist_root = Path(
@@ -214,7 +217,15 @@ def test_server_and_opencode_source_include_equivalent_launch_command_panels():
     assert "Managed config ulazi" in bundled_text
     assert "Env promenljive" in bundled_text
     assert "Base URL" in bundled_text
+    assert "command-preview-grid" in bundled_text
+    assert "opencode-config-grid" in bundled_text
+    assert "opencode-env-grid" in bundled_text
     assert "Efektivna local-lacc inference podrazumevana podešavanja" in bundled_text
+
+    styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
+    assert ".command-preview-grid" in styles_source
+    assert ".opencode-config-grid" in styles_source
+    assert ".opencode-env-grid" in styles_source
 
 
 def test_settings_source_uses_stable_option_grids_and_balanced_core_layout():

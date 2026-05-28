@@ -101,14 +101,6 @@ export function OpenCodePage() {
     return matchedPreset ? formatPresetLabel(matchedPreset) : "Custom values";
   }, [stepEditor, stepSchema]);
 
-  const opencodeEnvironmentPreview = useMemo(
-    () =>
-      opencode?.launchPreview?.environment
-        ?.map((item) => `${item.key}=${item.value}`)
-        .join("\n") || "",
-    [opencode],
-  );
-
   async function copyText(text: string, label: string) {
     if (!text.trim()) {
       setError(`Nema sadržaja za kopiranje: ${label}.`);
@@ -226,47 +218,73 @@ export function OpenCodePage() {
             Kopiraj PowerShell
           </button>
         </div>
-        <div className="command-preview-card">
-          <span className="status-label">Launcher .cmd</span>
-          <div className="details-block">
-            <pre>{opencode.launchPreview.launcherCommand}</pre>
+        <div className="command-preview-grid">
+          <div className="command-preview-card">
+            <span className="status-label">Launcher .cmd</span>
+            <div className="details-block">
+              <pre>{opencode.launchPreview.launcherCommand}</pre>
+            </div>
           </div>
-        </div>
-        <div className="command-preview-card">
-          <span className="status-label">PowerShell prikaz</span>
-          <div className="details-block">
-            <pre>{opencode.launchPreview.powershellCommand}</pre>
+          <div className="command-preview-card">
+            <span className="status-label">PowerShell prikaz</span>
+            <div className="details-block">
+              <pre>{opencode.launchPreview.powershellCommand}</pre>
+            </div>
           </div>
-        </div>
-        <div className="command-preview-card">
-          <span className="status-label">Managed config ulazi</span>
-          <div className="summary-metrics">
-            <span>
-              Provider: {opencode.launchPreview.managedConfig.selectedProvider || "nije prepoznat"}
-            </span>
-            <span>Model: {opencode.launchPreview.managedConfig.model || "nije postavljen"}</span>
-            <span>
-              Base URL: {opencode.launchPreview.managedConfig.localProviderBaseUrl || "nije pronađen"}
-            </span>
+          <div className="command-preview-card">
+            <span className="status-label">Managed config ulazi</span>
+            <div className="opencode-config-grid">
+              <article className="opencode-config-item">
+                <span className="opencode-config-label">Provider</span>
+                <strong className="opencode-config-value">
+                  {opencode.launchPreview.managedConfig.selectedProvider || "nije prepoznat"}
+                </strong>
+              </article>
+              <article className="opencode-config-item">
+                <span className="opencode-config-label">Model</span>
+                <strong className="opencode-config-value opencode-config-value-break">
+                  {opencode.launchPreview.managedConfig.model || "nije postavljen"}
+                </strong>
+              </article>
+              <article className="opencode-config-item">
+                <span className="opencode-config-label">Base URL</span>
+                <strong className="opencode-config-value opencode-config-value-break">
+                  {opencode.launchPreview.managedConfig.localProviderBaseUrl || "nije pronađen"}
+                </strong>
+              </article>
+              <article className="opencode-config-item">
+                <span className="opencode-config-label">Omogućeni provider-i</span>
+                <strong className="opencode-config-value opencode-config-value-break">
+                  {opencode.launchPreview.managedConfig.enabledProviders.length
+                    ? opencode.launchPreview.managedConfig.enabledProviders.join(", ")
+                    : "nisu prijavljeni"}
+                </strong>
+              </article>
+            </div>
+            <p className="helper-text">
+              Model i provider dolaze iz `managed-config.json`, a `baseURL` pokazuje gde OpenCode traži
+              lokalni runtime proxy.
+            </p>
           </div>
-          <p className="helper-text">
-            Omogućeni provider-i:{" "}
-            {opencode.launchPreview.managedConfig.enabledProviders.length
-              ? opencode.launchPreview.managedConfig.enabledProviders.join(", ")
-              : "nisu prijavljeni"}
-          </p>
-          <p className="helper-text">
-            Model i provider dolaze iz `managed-config.json`, a `baseURL` pokazuje gde OpenCode traži
-            lokalni runtime proxy.
-          </p>
-        </div>
-        <div className="command-preview-card">
-          <span className="status-label">Env promenljive</span>
-          <p className="helper-text">
-            Ovo su promenljive koje launcher postavlja pre nego što pokrene `opencode.exe`.
-          </p>
-          <div className="details-block">
-            <pre>{opencodeEnvironmentPreview || "Nema dodatnih env promenljivih."}</pre>
+          <div className="command-preview-card">
+            <span className="status-label">Env promenljive</span>
+            <p className="helper-text">
+              Ovo su promenljive koje launcher postavlja pre nego što pokrene `opencode.exe`.
+            </p>
+            {opencode.launchPreview.environment.length ? (
+              <div className="opencode-env-grid">
+                {opencode.launchPreview.environment.map((item) => (
+                  <article className="opencode-env-item" key={item.key}>
+                    <span className="opencode-env-key">{item.key}</span>
+                    <code className="opencode-env-value">{item.value}</code>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <div className="details-block">
+                <pre>Nema dodatnih env promenljivih.</pre>
+              </div>
+            )}
           </div>
         </div>
       </section>
