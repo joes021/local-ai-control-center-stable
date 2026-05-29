@@ -55,8 +55,9 @@ try {
         $checksumPath
     )
 
-    & gh release view $tag --repo $Repository *> $null
-    if ($LASTEXITCODE -eq 0) {
+    & gh release view $tag --repo $Repository 1>$null 2>$null
+    $releaseExists = $LASTEXITCODE -eq 0
+    if ($releaseExists) {
         & gh release upload $tag @assets --repo $Repository --clobber
         if ($LASTEXITCODE -ne 0) {
             throw "Failed to upload release assets."
