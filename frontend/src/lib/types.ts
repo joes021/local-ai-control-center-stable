@@ -522,6 +522,23 @@ export type TuningLabSuccessCheckTemplate = {
   command: string;
 };
 
+export type TuningLabBatchTask = {
+  id: string;
+  label: string;
+  difficulty: string;
+  goal: string;
+  summary: string;
+  taskPrompt: string;
+  successChecks: TuningLabSuccessCheckSpec[];
+};
+
+export type TuningLabBatchPreset = {
+  id: string;
+  label: string;
+  summary: string;
+  tasks: TuningLabBatchTask[];
+};
+
 export type TuningLabRun = {
   runId: string;
   name: string;
@@ -566,6 +583,7 @@ export type TuningLabSummaryPayload = {
   historyTotalPages: number;
   goalOptions: TuningLabGoalOption[];
   successCheckTemplates: TuningLabSuccessCheckTemplate[];
+  batchPresets: TuningLabBatchPreset[];
   slots: TuningLabSlot[];
   context: {
     activeModel: string;

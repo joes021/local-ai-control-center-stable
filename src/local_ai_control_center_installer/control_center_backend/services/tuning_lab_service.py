@@ -177,6 +177,106 @@ _GOAL_DEFAULTS: dict[str, dict[str, object]] = {
     },
 }
 
+_BATCH_PRESETS: list[dict[str, Any]] = [
+    {
+        "id": "game-batch-01",
+        "label": "Game Batch 01",
+        "summary": "Prvi game benchmark batch: easy, medium i hard browser igra za poređenje tuning setova.",
+        "tasks": [
+            {
+                "id": "jumping-ball-runner",
+                "label": "Jumping Ball Runner",
+                "difficulty": "easy",
+                "goal": "code",
+                "summary": "Jedan HTML fajl, endless runner sa score, high score i restart tokom.",
+                "taskPrompt": (
+                    "Napravite kompletnu browser igru `Jumping Ball Runner` kao jedan jedini "
+                    "`index.html` fajl sa ugrađenim CSS i JavaScript kodom. Igra mora da radi "
+                    "lokalno samo otvaranjem `index.html`. Igrač kontroliše lopticu ili lik koji "
+                    "skače preko prepreka, cilj je da preživi što duže, a brzina mora postepeno da "
+                    "raste. Obavezno dodajte prikaz trenutnog skora, high score, retry ili restart "
+                    "dugme, šaren i jasan UI sa parallax pozadinom, tastaturne kontrole i jasna "
+                    "stanja start / gameplay / game over. Nema build alata ni framework-a. Na vrhu "
+                    "fajla ostavite kratak komentar šta je urađeno i koje su kontrole."
+                ),
+                "successChecks": [
+                    {
+                        "label": "HTML postoji",
+                        "command": "if (Test-Path index.html) { exit 0 } else { exit 1 }",
+                        "kind": "custom",
+                    },
+                    {
+                        "label": "Ključni stringovi postoje",
+                        "command": "Select-String -Path index.html -Pattern 'Jumping Ball Runner|High Score|Score' -AllMatches | Out-Null; if ($LASTEXITCODE -eq 0) { exit 0 } else { exit 1 }",
+                        "kind": "custom",
+                    },
+                ],
+            },
+            {
+                "id": "balloon-blaster",
+                "label": "Balloon Blaster",
+                "difficulty": "medium",
+                "goal": "code",
+                "summary": "Jedan HTML fajl, shooter sa combo sistemom, power-up-ovima i više nivoa težine.",
+                "taskPrompt": (
+                    "Napravite kompletnu browser igru `Balloon Blaster` kao jedan jedini "
+                    "`index.html` fajl sa ugrađenim CSS i JavaScript kodom. Shooter je pri dnu "
+                    "ekrana, baloni dolaze odozgo i igrač skuplja poene razbijanjem balona. "
+                    "Obavezno dodajte tri veličine balona sa različitim poenima, combo sistem, "
+                    "najmanje tri power-up mehanike, particle efekte pri pucanju, high score "
+                    "sačuvan lokalno i najmanje dva nivoa težine. Kontrole moraju da rade "
+                    "tastaturom, a bonus je miš ili touch. Mora da postoje start ekran, gameplay i "
+                    "pauza ili jasan game over / restart tok. Nema React-a, build alata ni "
+                    "framework-a. Na vrhu fajla dodajte kratak komentar sa opisom igre i kontrola."
+                ),
+                "successChecks": [
+                    {
+                        "label": "HTML postoji",
+                        "command": "if (Test-Path index.html) { exit 0 } else { exit 1 }",
+                        "kind": "custom",
+                    },
+                    {
+                        "label": "Ključni stringovi postoje",
+                        "command": "Select-String -Path index.html -Pattern 'Balloon Blaster|Combo|High Score' -AllMatches | Out-Null; if ($LASTEXITCODE -eq 0) { exit 0 } else { exit 1 }",
+                        "kind": "custom",
+                    },
+                ],
+            },
+            {
+                "id": "octopus-invaders",
+                "label": "Octopus Invaders",
+                "difficulty": "hard",
+                "goal": "code",
+                "summary": "Višefajlni vanilla JS canvas shooter sa README-jem, modulima i kompletnim game loop-om.",
+                "taskPrompt": (
+                    "Napravite browser igru `Octopus Invaders` kao višefajlni vanilla JavaScript "
+                    "projekat bez framework-a i biblioteka. Obavezna struktura: `index.html`, "
+                    "`README.md`, `css/styles.css`, `js/config.js`, `js/game.js`, `js/player.js`, "
+                    "`js/enemies.js`, `js/particles.js`, `js/background.js`, `js/ui.js` i "
+                    "`js/audio.js`. Igra je vertical space shooter na canvas-u i mora da radi "
+                    "lokalno kada se servira prost statički server. Dodajte start ekran, gameplay "
+                    "loop, pause, game over, različite neprijatelje, score, health, combo i makar "
+                    "jedan boss ili završni veći susret. README mora da objasni šta je igra, kako "
+                    "se pokreće, kontrole i strukturu projekta. Cilj je da igra radi iz prve bez "
+                    "ručnog dorađivanja."
+                ),
+                "successChecks": [
+                    {
+                        "label": "Glavni fajlovi postoje",
+                        "command": "$required = @('index.html','README.md','css/styles.css','js/config.js','js/game.js','js/player.js','js/enemies.js','js/particles.js','js/background.js','js/ui.js','js/audio.js'); foreach ($path in $required) { if (-not (Test-Path $path)) { exit 1 } }; exit 0",
+                        "kind": "custom",
+                    },
+                    {
+                        "label": "README i index referenca postoje",
+                        "command": "Select-String -Path README.md -Pattern 'kontrol|control|pokret' -AllMatches | Out-Null; if ($LASTEXITCODE -ne 0) { exit 1 }; Select-String -Path index.html -Pattern 'styles.css|config.js|game.js' -AllMatches | Out-Null; if ($LASTEXITCODE -eq 0) { exit 0 } else { exit 1 }",
+                        "kind": "custom",
+                    },
+                ],
+            },
+        ],
+    }
+]
+
 
 def load_tuning_lab_summary(
     *,
@@ -211,6 +311,7 @@ def load_tuning_lab_summary(
         "historyTotalPages": total_pages,
         "goalOptions": list(_GOAL_OPTIONS),
         "successCheckTemplates": list(_SUCCESS_CHECK_TEMPLATES),
+        "batchPresets": deepcopy(_BATCH_PRESETS),
         "slots": [
             _build_slot_from_settings(
                 slot_id="baseline",
@@ -347,6 +448,52 @@ def enqueue_tuning_experiment(
         "status": "accepted",
         "summary": f"Eksperiment {experiment['name']} je dodat u Tuning Lab red čekanja.",
         "runId": experiment["runId"],
+    }
+
+
+def enqueue_tuning_batch(
+    payload: dict[str, Any],
+    *,
+    config: ControlCenterConfig | None = None,
+    start_worker: bool = True,
+) -> dict[str, Any]:
+    resolved_config = config or get_config()
+    preset_id = str(payload.get("presetId", "") or "").strip()
+    preset = next((item for item in _BATCH_PRESETS if str(item.get("id", "") or "") == preset_id), None)
+    if preset is None:
+        return action_result("error", "queue-tuning-batch", "Traženi batch preset nije pronađen.")
+
+    working_directory = str(payload.get("workingDirectory", "") or "").strip()
+    provided_slots = payload.get("slots") if isinstance(payload.get("slots"), list) else []
+    run_ids: list[str] = []
+
+    with _RUN_LOCK:
+        run_state = _load_run_state(resolved_config)
+        queue = list(run_state["queue"])
+        for task in preset.get("tasks", []):
+            if not isinstance(task, dict):
+                continue
+            experiment = _normalize_experiment_payload(
+                {
+                    "name": f"{preset['label']} · {task.get('label', 'Task')}",
+                    "goal": str(task.get("goal", "code") or "code"),
+                    "taskPrompt": str(task.get("taskPrompt", "") or ""),
+                    "workingDirectory": working_directory,
+                    "successChecks": deepcopy(task.get("successChecks", [])),
+                    "slots": deepcopy(provided_slots),
+                },
+                resolved_config,
+            )
+            queue.append(experiment)
+            run_ids.append(str(experiment.get("runId", "") or ""))
+        _save_run_state(resolved_config, active_run=run_state["activeRun"], queue=queue)
+
+    if start_worker and run_ids:
+        _ensure_tuning_worker(resolved_config)
+    return {
+        "status": "accepted",
+        "summary": f"Batch {preset['label']} je dodat u Tuning Lab red čekanja.",
+        "runIds": run_ids,
     }
 
 

@@ -56,6 +56,8 @@ def test_tuning_lab_summary_defaults_to_three_slots_and_empty_history(tmp_path: 
     assert payload["slots"][2]["label"] == "Custom"
     assert payload["slots"][2]["source"] == "manual"
     assert payload["successCheckTemplates"][0]["id"] == "auto-detect"
+    assert payload["batchPresets"][0]["id"] == "game-batch-01"
+    assert payload["batchPresets"][0]["tasks"][0]["id"] == "jumping-ball-runner"
 
 
 def test_tuning_lab_prepares_copy_workspace_for_plain_directory(tmp_path: Path, monkeypatch):
@@ -438,3 +440,46 @@ def test_tuning_lab_queue_apply_export_and_failed_history_flow(tmp_path: Path, m
     updated_settings = settings_path.read_text(encoding="utf-8")
     assert '"temperature": 0.2' in updated_settings
     assert '"topK": 20' in updated_settings
+
+
+def test_tuning_lab_enqueue_batch_expands_three_runs(tmp_path: Path, monkeypatch):
+    from local_ai_control_center_installer.control_center_backend.services import tuning_lab_service
+
+    install_root = tmp_path / "install-root"
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    monkeypatch.setattr(
+        tuning_lab_service,
+        "_ensure_tuning_worker",
+        lambda config=None: None,
+    )
+
+    result = tuning_lab_service.enqueue_tuning_batch(
+        {
+            "presetId": "game-batch-01",
+            "workingDirectory": str(tmp_path / "project"),
+            "slots": [
+                {
+                    "id": "custom",
+                    "label": "Custom",
+                    "source": "manual",
+                    "settingsPatch": {
+                        "temperature": 0.33,
+                        "topK": 12,
+                    },
+                }
+            ],
+        },
+        start_worker=False,
+    )
+
+    assert result["status"] == "accepted"
+    assert len(result["runIds"]) == 3
+
+    summary = tuning_lab_service.load_tuning_lab_summary()
+    assert len(summary["queue"]) == 3
+    assert summary["queue"][0]["name"].endswith("Jumping Ball Runner")
+    assert summary["queue"][1]["name"].endswith("Balloon Blaster")
+    assert summary["queue"][2]["name"].endswith("Octopus Invaders")
+    assert summary["queue"][0]["successChecks"][0]["label"]
+    custom_slot = next(slot for slot in summary["queue"][0]["slots"] if slot["id"] == "custom")
+    assert custom_slot["settingsPatch"]["temperature"] == 0.33

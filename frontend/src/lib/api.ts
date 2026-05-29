@@ -437,6 +437,19 @@ export async function queueTuningLabExperiment(payload: {
   return postJson("/api/tuning-lab/queue", payload);
 }
 
+export async function queueTuningLabBatch(payload: {
+  presetId: string;
+  workingDirectory: string;
+  slots: Array<{
+    id: string;
+    label: string;
+    source: string;
+    settingsPatch: Record<string, unknown>;
+  }>;
+}): Promise<{ status: string; summary: string; runIds: string[] }> {
+  return postJson("/api/tuning-lab/queue-batch", payload);
+}
+
 export async function applyTuningLabWinner(
   runId: string,
   slotId?: string,

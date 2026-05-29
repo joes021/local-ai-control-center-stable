@@ -108,6 +108,31 @@ def test_tuning_lab_queue_route_accepts_experiment_payload(
     assert payload["runId"].startswith("tuning-")
 
 
+def test_tuning_lab_queue_batch_route_accepts_preset_payload(
+    tmp_path: Path,
+    monkeypatch,
+):
+    from local_ai_control_center_installer.control_center_backend.services import tuning_lab_service
+
+    install_root = tmp_path / "install-root"
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    monkeypatch.setattr(tuning_lab_service, "_ensure_tuning_worker", lambda config=None: None)
+
+    client = TestClient(app)
+    response = client.post(
+        "/api/tuning-lab/queue-batch",
+        json={
+            "presetId": "game-batch-01",
+            "workingDirectory": str(tmp_path),
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "accepted"
+    assert len(payload["runIds"]) == 3
+
+
 def test_tuning_lab_apply_export_and_import_routes_work(
     tmp_path: Path,
     monkeypatch,

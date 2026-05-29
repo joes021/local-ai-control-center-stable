@@ -7,10 +7,13 @@ import {
   fetchTuningLabRunStatus,
   fetchTuningLabSummary,
   importTuningSnippet,
+  queueTuningLabBatch,
   queueTuningLabExperiment,
 } from "../lib/api";
 import type {
   ActionResult,
+  TuningLabBatchPreset,
+  TuningLabBatchTask,
   TuningLabDiffFile,
   TuningLabRun,
   TuningLabSettingsPatch,
@@ -87,6 +90,37 @@ function buildDraftFromSummary(payload: TuningLabSummaryPayload): TuningDraft {
       settingsPatch: { ...slot.settingsPatch },
     })),
   };
+}
+
+function buildDraftForBatchTask(
+  current: TuningDraft,
+  preset: TuningLabBatchPreset,
+  task: TuningLabBatchTask,
+): TuningDraft {
+  return {
+    ...current,
+    name: `${preset.label} · ${task.label}`,
+    goal: task.goal,
+    taskPrompt: task.taskPrompt,
+    successChecks: task.successChecks.map((check) => ({
+      label: check.label,
+      command: check.command,
+      kind: check.kind,
+    })),
+  };
+}
+
+function buildBatchLoadLabel(difficulty: string) {
+  if (difficulty === "easy") {
+    return "Učitaj easy";
+  }
+  if (difficulty === "medium") {
+    return "Učitaj medium";
+  }
+  if (difficulty === "hard") {
+    return "Učitaj hard";
+  }
+  return `Učitaj ${difficulty}`;
 }
 
 function patchSlotSettings(
@@ -327,6 +361,7 @@ export function TuningLabPage() {
 
   const goalOptions = summary?.goalOptions ?? [];
   const successTemplates = summary?.successCheckTemplates ?? [];
+  const batchPresets = summary?.batchPresets ?? [];
   const activeRun = runStatus ?? summary?.activeRun ?? null;
 
   const recommendedSourceLabel = useMemo(() => {
@@ -416,6 +451,81 @@ export function TuningLabPage() {
           <span>Runtime: {summary.context.activeRuntime || "--"}</span>
           <span>Radni direktorijum: {summary.context.workingDirectory || "--"}</span>
           <span>Recommended izvor: {recommendedSourceLabel}</span>
+        </div>
+      </section>
+
+      <section className="status-card wide-card">
+        <span className="status-label">Gotovi batch testovi</span>
+        <strong className="status-value">Prvi uporedivi game batch za Tuning Lab</strong>
+        <p className="helper-text">
+          Ovi batch testovi su normalizovani za benchmark, tako da isti set podešavanja možeš da
+          porediš kroz `easy`, `medium` i `hard` zadatak bez ručnog kopiranja promptova.
+        </p>
+        <p className="helper-text">`Game Batch 01` je prvi gotov batch za browser igre.</p>
+        <div className="tuning-lab-batch-grid">
+          {batchPresets.map((preset) => (
+            <article className="status-card tuning-lab-slot-card" key={preset.id}>
+              <span className="status-label">{preset.label}</span>
+              <strong className="status-value">{preset.summary}</strong>
+              <div className="tuning-lab-batch-task-list">
+                {preset.tasks.map((task) => (
+                  <div className="tuning-lab-batch-task-row" key={task.id}>
+                    <div>
+                      <strong>
+                        {task.label} · {task.difficulty}
+                      </strong>
+                      <p className="helper-text">{task.summary}</p>
+                    </div>
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      onClick={() => {
+                        setDraft(buildDraftForBatchTask(draft, preset, task));
+                        setResult({
+                          status: "ok",
+                          action: "load-tuning-batch-task",
+                          summary: `${preset.label} · ${task.label} je učitan u editor.`,
+                          details: {
+                            returncode: 0,
+                            stdout: task.taskPrompt,
+                            stderr: "",
+                          },
+                        });
+                      }}
+                    >
+                      {buildBatchLoadLabel(task.difficulty)}
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <div className="inline-actions">
+                <button
+                  type="button"
+                  disabled={!draft.workingDirectory.trim() || isQueueing}
+                  onClick={() =>
+                    void (async () => {
+                      setIsQueueing(true);
+                      await runMutation(async () =>
+                        queueTuningLabBatch({
+                          presetId: preset.id,
+                          workingDirectory: draft.workingDirectory,
+                          slots: draft.slots.map((slot) => ({
+                            id: slot.id,
+                            label: slot.label,
+                            source: slot.source,
+                            settingsPatch: slot.settingsPatch,
+                          })),
+                        }),
+                      );
+                      setIsQueueing(false);
+                    })()
+                  }
+                >
+                  Pokreni ceo batch
+                </button>
+              </div>
+            </article>
+          ))}
         </div>
       </section>
 

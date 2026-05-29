@@ -2742,6 +2742,29 @@ select:-webkit-autofill {
   gap: 14px;
 }
 
+.tuning-lab-batch-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  margin-top: 16px;
+}
+
+.tuning-lab-batch-task-list {
+  display: grid;
+  gap: 12px;
+}
+
+.tuning-lab-batch-task-row {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--app-card-soft-border);
+  background: var(--app-card-soft-bg);
+}
+
 .tuning-lab-compact-grid {
   display: grid;
   gap: 12px;
@@ -2995,6 +3018,7 @@ select:-webkit-autofill {
   .tuning-lab-progress-grid,
   .tuning-lab-filter-grid,
   .tuning-lab-diff-browser,
+  .tuning-lab-batch-task-row,
   .tuning-lab-layout,
   .tuning-lab-slot-grid,
   .tuning-lab-compact-grid,

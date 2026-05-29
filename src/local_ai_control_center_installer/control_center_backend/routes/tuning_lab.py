@@ -5,6 +5,7 @@ from pydantic import BaseModel
 
 from local_ai_control_center_installer.control_center_backend.services.tuning_lab_service import (
     apply_tuning_lab_winner,
+    enqueue_tuning_batch,
     enqueue_tuning_experiment,
     export_tuning_lab_run,
     import_tuning_snippet,
@@ -44,6 +45,17 @@ class QueueTuningExperimentRequest(BaseModel):
 @router.post("/api/tuning-lab/queue")
 def tuning_lab_queue(payload: QueueTuningExperimentRequest) -> dict[str, object]:
     return enqueue_tuning_experiment(payload.model_dump())
+
+
+class QueueTuningBatchRequest(BaseModel):
+    presetId: str = ""
+    workingDirectory: str = ""
+    slots: list[dict[str, object]] = []
+
+
+@router.post("/api/tuning-lab/queue-batch")
+def tuning_lab_queue_batch(payload: QueueTuningBatchRequest) -> dict[str, object]:
+    return enqueue_tuning_batch(payload.model_dump())
 
 
 class ApplyTuningWinnerRequest(BaseModel):

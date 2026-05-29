@@ -230,10 +230,16 @@ def test_tuning_lab_source_and_navigation_are_present():
 
     assert "Tuning Lab" in app_source
     assert "queueTuningLabExperiment" in api_source
+    assert "queueTuningLabBatch" in api_source
     assert "applyTuningLabWinner" in api_source
     assert "exportTuningLabRun" in api_source
     assert "importTuningSnippet" in api_source
     assert "Tuning Lab" in page_source
+    assert "Game Batch 01" in page_source
+    assert "Pokreni ceo batch" in page_source
+    assert "Učitaj easy" in page_source
+    assert "Učitaj medium" in page_source
+    assert "Učitaj hard" in page_source
     assert "Dodaj u queue" in page_source
     assert "Primeni pobednički set" in page_source
     assert "Export / share" in page_source
