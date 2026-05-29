@@ -123,6 +123,34 @@ function buildBatchLoadLabel(difficulty: string) {
   return `Učitaj ${difficulty}`;
 }
 
+function buildBatchDifficultyLabel(difficulty: string) {
+  if (difficulty === "easy") {
+    return "easy";
+  }
+  if (difficulty === "medium") {
+    return "medium";
+  }
+  if (difficulty === "hard") {
+    return "hard";
+  }
+  return difficulty;
+}
+
+function countBatchSuccessChecks(preset: TuningLabBatchPreset) {
+  return preset.tasks.reduce((total, task) => total + task.successChecks.length, 0);
+}
+
+function buildBatchSuccessChecksLabel(task: TuningLabBatchTask) {
+  return `${task.successChecks.length} success check-a`;
+}
+
+function isBatchTaskLoaded(
+  draft: TuningDraft,
+  task: TuningLabBatchTask,
+) {
+  return draft.taskPrompt.trim() === task.taskPrompt.trim() && draft.goal === task.goal;
+}
+
 function patchSlotSettings(
   slots: TuningLabSlot[],
   slotId: string,
@@ -463,69 +491,130 @@ export function TuningLabPage() {
         </p>
         <p className="helper-text">`Game Batch 01` je prvi gotov batch za browser igre.</p>
         <div className="tuning-lab-batch-grid">
-          {batchPresets.map((preset) => (
-            <article className="status-card tuning-lab-slot-card" key={preset.id}>
-              <span className="status-label">{preset.label}</span>
-              <strong className="status-value">{preset.summary}</strong>
-              <div className="tuning-lab-batch-task-list">
-                {preset.tasks.map((task) => (
-                  <div className="tuning-lab-batch-task-row" key={task.id}>
-                    <div>
-                      <strong>
-                        {task.label} · {task.difficulty}
-                      </strong>
-                      <p className="helper-text">{task.summary}</p>
+          {batchPresets.map((preset) => {
+            const loadedTask = preset.tasks.find((task) => isBatchTaskLoaded(draft, task)) || null;
+            return (
+              <article className="status-card tuning-lab-slot-card" key={preset.id}>
+                <div className="tuning-lab-batch-overview">
+                  <div className="tuning-lab-batch-overview-copy">
+                    <span className="status-label">{preset.label}</span>
+                    <strong className="status-value">{preset.summary}</strong>
+                    <div className="summary-metrics">
+                      <span>{preset.tasks.length} zadatka</span>
+                      <span>{countBatchSuccessChecks(preset)} success check-a</span>
+                      <span>Jedan klik = {preset.tasks.length} run-a</span>
                     </div>
-                    <button
-                      type="button"
-                      className="secondary-button"
-                      onClick={() => {
-                        setDraft(buildDraftForBatchTask(draft, preset, task));
-                        setResult({
-                          status: "ok",
-                          action: "load-tuning-batch-task",
-                          summary: `${preset.label} · ${task.label} je učitan u editor.`,
-                          details: {
-                            returncode: 0,
-                            stdout: task.taskPrompt,
-                            stderr: "",
-                          },
-                        });
-                      }}
-                    >
-                      {buildBatchLoadLabel(task.difficulty)}
-                    </button>
                   </div>
-                ))}
-              </div>
-              <div className="inline-actions">
-                <button
-                  type="button"
-                  disabled={!draft.workingDirectory.trim() || isQueueing}
-                  onClick={() =>
-                    void (async () => {
-                      setIsQueueing(true);
-                      await runMutation(async () =>
-                        queueTuningLabBatch({
-                          presetId: preset.id,
-                          workingDirectory: draft.workingDirectory,
-                          slots: draft.slots.map((slot) => ({
-                            id: slot.id,
-                            label: slot.label,
-                            source: slot.source,
-                            settingsPatch: slot.settingsPatch,
-                          })),
-                        }),
-                      );
-                      setIsQueueing(false);
-                    })()
-                  }
-                >
-                  Pokreni ceo batch
-                </button>
-              </div>
-            </article>
-          ))}
+                  <div className="tuning-lab-batch-run-hint">
+                    <span className="status-label">Šta ovaj batch meri</span>
+                    <ul className="tuning-lab-batch-focus-list">
+                      {(preset.focusAreas || []).map((item) => (
+                        <li key={`${preset.id}-${item}`}>{item}</li>
+                      ))}
+                    </ul>
+                    <p className="helper-text">
+                      Pokretanje koristi trenutne slot postavke iz editora i isti radni direktorijum
+                      za sva tri uporediva run-a.
+                    </p>
+                    {loadedTask ? (
+                      <div className="warning-badge">
+                        Trenutno u editoru: {loadedTask.label}
+                      </div>
+                    ) : (
+                      <p className="helper-text">
+                        Učitaj jedan task ako želiš da ga pregledaš ili doradiš pre queue-a.
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <div className="tuning-lab-batch-task-list">
+                  {preset.tasks.map((task) => {
+                    const taskLoaded = isBatchTaskLoaded(draft, task);
+                    return (
+                      <div
+                        className={`tuning-lab-batch-task-row ${taskLoaded ? "tuning-lab-batch-task-row-active" : ""}`}
+                        key={task.id}
+                      >
+                        <div className="tuning-lab-batch-task-copy">
+                          <strong>{task.label}</strong>
+                          <div className="tuning-lab-batch-task-badges">
+                            <span
+                              className={`compat-badge tuning-lab-batch-difficulty tuning-lab-batch-difficulty-${task.difficulty}`}
+                            >
+                              {buildBatchDifficultyLabel(task.difficulty)}
+                            </span>
+                            {task.scopeLabel ? <span className="browser-chip">{task.scopeLabel}</span> : null}
+                            <span className="browser-chip">
+                              {buildBatchSuccessChecksLabel(task)}
+                            </span>
+                            {task.focusLabel ? <span className="browser-chip">{task.focusLabel}</span> : null}
+                            {task.expectedArtifact ? (
+                              <span className="browser-chip">{task.expectedArtifact}</span>
+                            ) : null}
+                            {taskLoaded ? <span className="warning-badge">Trenutno u editoru</span> : null}
+                          </div>
+                          <p className="helper-text">{task.summary}</p>
+                        </div>
+                        <button
+                          type="button"
+                          className="secondary-button"
+                          onClick={() => {
+                            setDraft(buildDraftForBatchTask(draft, preset, task));
+                            setResult({
+                              status: "ok",
+                              action: "load-tuning-batch-task",
+                              summary: `${preset.label} · ${task.label} je učitan u editor.`,
+                              details: {
+                                returncode: 0,
+                                stdout: task.taskPrompt,
+                                stderr: "",
+                              },
+                            });
+                          }}
+                        >
+                          {buildBatchLoadLabel(task.difficulty)}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="inline-actions">
+                  <button
+                    type="button"
+                    disabled={!draft.workingDirectory.trim() || isQueueing}
+                    onClick={() =>
+                      void (async () => {
+                        setIsQueueing(true);
+                        await runMutation(async () =>
+                          queueTuningLabBatch({
+                            presetId: preset.id,
+                            workingDirectory: draft.workingDirectory,
+                            slots: draft.slots.map((slot) => ({
+                              id: slot.id,
+                              label: slot.label,
+                              source: slot.source,
+                              settingsPatch: slot.settingsPatch,
+                            })),
+                          }),
+                        );
+                        setIsQueueing(false);
+                      })()
+                    }
+                  >
+                    Pokreni ceo batch
+                  </button>
+                </div>
+                <p className="helper-text">
+                  Koristi trenutne slot postavke iz `Baseline`, `Recommended` i `Custom` kolona.
+                </p>
+                {!draft.workingDirectory.trim() ? (
+                  <div className="warning-badge">
+                    Unesi radni direktorijum u editoru da bi batch mogao da se doda u queue.
+                  </div>
+                ) : null}
+              </article>
+            );
+          })}
         </div>
       </section>
 

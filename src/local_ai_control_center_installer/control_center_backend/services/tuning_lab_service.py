@@ -182,6 +182,11 @@ _BATCH_PRESETS: list[dict[str, Any]] = [
         "id": "game-batch-01",
         "label": "Game Batch 01",
         "summary": "Prvi game benchmark batch: easy, medium i hard browser igra za poređenje tuning setova.",
+        "focusAreas": [
+            "stabilan throughput na malom scope-u",
+            "koherencija kroz više gameplay sistema",
+            "višefajlna agentic izdržljivost",
+        ],
         "tasks": [
             {
                 "id": "jumping-ball-runner",
@@ -189,6 +194,9 @@ _BATCH_PRESETS: list[dict[str, Any]] = [
                 "difficulty": "easy",
                 "goal": "code",
                 "summary": "Jedan HTML fajl, endless runner sa score, high score i restart tokom.",
+                "scopeLabel": "jedan fajl",
+                "focusLabel": "stabilan throughput",
+                "expectedArtifact": "index.html",
                 "taskPrompt": (
                     "Napravite kompletnu browser igru `Jumping Ball Runner` kao jedan jedini "
                     "`index.html` fajl sa ugrađenim CSS i JavaScript kodom. Igra mora da radi "
@@ -218,6 +226,9 @@ _BATCH_PRESETS: list[dict[str, Any]] = [
                 "difficulty": "medium",
                 "goal": "code",
                 "summary": "Jedan HTML fajl, shooter sa combo sistemom, power-up-ovima i više nivoa težine.",
+                "scopeLabel": "jedan fajl",
+                "focusLabel": "koherencija sistema",
+                "expectedArtifact": "index.html",
                 "taskPrompt": (
                     "Napravite kompletnu browser igru `Balloon Blaster` kao jedan jedini "
                     "`index.html` fajl sa ugrađenim CSS i JavaScript kodom. Shooter je pri dnu "
@@ -248,6 +259,9 @@ _BATCH_PRESETS: list[dict[str, Any]] = [
                 "difficulty": "hard",
                 "goal": "code",
                 "summary": "Višefajlni vanilla JS canvas shooter sa README-jem, modulima i kompletnim game loop-om.",
+                "scopeLabel": "više fajlova",
+                "focusLabel": "agentic arhitektura",
+                "expectedArtifact": "index.html + js/* + README.md",
                 "taskPrompt": (
                     "Napravite browser igru `Octopus Invaders` kao višefajlni vanilla JavaScript "
                     "projekat bez framework-a i biblioteka. Obavezna struktura: `index.html`, "

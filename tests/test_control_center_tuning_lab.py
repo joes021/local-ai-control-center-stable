@@ -58,6 +58,9 @@ def test_tuning_lab_summary_defaults_to_three_slots_and_empty_history(tmp_path: 
     assert payload["successCheckTemplates"][0]["id"] == "auto-detect"
     assert payload["batchPresets"][0]["id"] == "game-batch-01"
     assert payload["batchPresets"][0]["tasks"][0]["id"] == "jumping-ball-runner"
+    assert payload["batchPresets"][0]["focusAreas"][0] == "stabilan throughput na malom scope-u"
+    assert payload["batchPresets"][0]["tasks"][0]["scopeLabel"] == "jedan fajl"
+    assert payload["batchPresets"][0]["tasks"][2]["expectedArtifact"] == "index.html + js/* + README.md"
 
 
 def test_tuning_lab_prepares_copy_workspace_for_plain_directory(tmp_path: Path, monkeypatch):

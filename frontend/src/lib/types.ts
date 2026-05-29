@@ -528,6 +528,9 @@ export type TuningLabBatchTask = {
   difficulty: string;
   goal: string;
   summary: string;
+  scopeLabel?: string;
+  focusLabel?: string;
+  expectedArtifact?: string;
   taskPrompt: string;
   successChecks: TuningLabSuccessCheckSpec[];
 };
@@ -536,6 +539,7 @@ export type TuningLabBatchPreset = {
   id: string;
   label: string;
   summary: string;
+  focusAreas?: string[];
   tasks: TuningLabBatchTask[];
 };
 

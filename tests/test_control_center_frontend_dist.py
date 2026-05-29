@@ -240,6 +240,10 @@ def test_tuning_lab_source_and_navigation_are_present():
     assert "Učitaj easy" in page_source
     assert "Učitaj medium" in page_source
     assert "Učitaj hard" in page_source
+    assert "Šta ovaj batch meri" in page_source
+    assert "Jedan klik =" in page_source
+    assert "Trenutno u editoru" in page_source
+    assert "Koristi trenutne slot postavke" in page_source
     assert "Dodaj u queue" in page_source
     assert "Primeni pobednički set" in page_source
     assert "Export / share" in page_source
@@ -264,6 +268,10 @@ def test_tuning_lab_source_and_navigation_are_present():
     assert ".tuning-lab-filter-grid" in styles_source
     assert ".tuning-lab-diff-browser" in styles_source
     assert ".tuning-lab-copy-row" in styles_source
+    assert ".tuning-lab-batch-overview" in styles_source
+    assert ".tuning-lab-batch-focus-list" in styles_source
+    assert ".tuning-lab-batch-task-badges" in styles_source
+    assert ".tuning-lab-batch-run-hint" in styles_source
 
 
 def test_server_and_opencode_source_include_equivalent_launch_command_panels():

@@ -2749,6 +2749,39 @@ select:-webkit-autofill {
   margin-top: 16px;
 }
 
+.tuning-lab-batch-overview {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(0, 1.15fr) minmax(260px, 0.85fr);
+  align-items: start;
+}
+
+.tuning-lab-batch-overview-copy {
+  display: grid;
+  gap: 12px;
+}
+
+.tuning-lab-batch-run-hint {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 16px;
+  border: 1px solid var(--app-card-soft-border);
+  background: var(--app-card-soft-bg);
+}
+
+.tuning-lab-batch-focus-list {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 8px;
+  color: var(--app-text-soft);
+}
+
+.tuning-lab-batch-focus-list li::marker {
+  color: var(--app-accent-strong);
+}
+
 .tuning-lab-batch-task-list {
   display: grid;
   gap: 12px;
@@ -2763,6 +2796,42 @@ select:-webkit-autofill {
   border-radius: 14px;
   border: 1px solid var(--app-card-soft-border);
   background: var(--app-card-soft-bg);
+}
+
+.tuning-lab-batch-task-row-active {
+  border-color: var(--app-accent-strong);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--app-accent-strong) 40%, transparent);
+}
+
+.tuning-lab-batch-task-copy {
+  display: grid;
+  gap: 8px;
+}
+
+.tuning-lab-batch-task-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tuning-lab-batch-difficulty {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.tuning-lab-batch-difficulty-easy {
+  border-color: color-mix(in srgb, var(--app-accent-strong) 45%, transparent);
+  color: var(--app-accent-strong);
+}
+
+.tuning-lab-batch-difficulty-medium {
+  border-color: color-mix(in srgb, #f3c969 55%, transparent);
+  color: #f3c969;
+}
+
+.tuning-lab-batch-difficulty-hard {
+  border-color: color-mix(in srgb, #ff8d7d 55%, transparent);
+  color: #ff8d7d;
 }
 
 .tuning-lab-compact-grid {
@@ -3018,6 +3087,7 @@ select:-webkit-autofill {
   .tuning-lab-progress-grid,
   .tuning-lab-filter-grid,
   .tuning-lab-diff-browser,
+  .tuning-lab-batch-overview,
   .tuning-lab-batch-task-row,
   .tuning-lab-layout,
   .tuning-lab-slot-grid,
