@@ -96,6 +96,10 @@ def _uninstall_launcher_name_for_platform(platform: str | None = None) -> str:
     return LINUX_UNINSTALL_LAUNCHER_NAME
 
 
+def _manual_launcher_command(command: tuple[str, ...]) -> tuple[str, ...]:
+    return (*command, "--open-browser")
+
+
 def deploy_control_center_runtime(
     install_root: str | Path,
     *,
@@ -149,11 +153,10 @@ def deploy_control_center_runtime(
             str(DEFAULT_PANEL_PORT),
             "--access-mode",
             "local-only",
-            "--open-browser",
         )
         _write_launcher_script(
             launcher_path,
-            command,
+            _manual_launcher_command(command),
             env_overrides=None,
             platform=platform,
         )
@@ -201,11 +204,10 @@ def deploy_control_center_runtime(
                 str(DEFAULT_PANEL_PORT),
                 "--access-mode",
                 "local-only",
-                "--open-browser",
             )
             _write_launcher_script(
                 launcher_path,
-                command,
+                _manual_launcher_command(command),
                 env_overrides=None,
                 platform=platform,
             )
@@ -247,11 +249,10 @@ def deploy_control_center_runtime(
             str(DEFAULT_PANEL_PORT),
             "--access-mode",
             "local-only",
-            "--open-browser",
         )
         _write_launcher_script(
             launcher_path,
-            command,
+            _manual_launcher_command(command),
             env_overrides=None,
             platform=platform,
         )
@@ -310,11 +311,10 @@ def deploy_control_center_runtime(
             str(DEFAULT_PANEL_PORT),
             "--access-mode",
             "local-only",
-            "--open-browser",
         )
         _write_launcher_script(
             launcher_path,
-            command,
+            _manual_launcher_command(command),
             env_overrides=None,
             platform=platform,
         )
@@ -358,11 +358,10 @@ def deploy_control_center_runtime(
         str(DEFAULT_PANEL_PORT),
         "--access-mode",
         "local-only",
-        "--open-browser",
     )
     _write_launcher_script(
         launcher_path,
-        command,
+        _manual_launcher_command(command),
         env_overrides=env_overrides,
         platform=platform,
     )

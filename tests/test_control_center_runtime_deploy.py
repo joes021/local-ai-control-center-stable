@@ -51,6 +51,7 @@ def test_deploy_control_center_runtime_copies_current_frozen_executable_for_pane
     assert copied_executable.read_bytes() == b"panel-runtime"
     assert deployment.command[0] == str(copied_executable)
     assert deployment.command[1] == "--panel"
+    assert "--open-browser" not in deployment.command
     assert deployment.launcher_path.is_file()
 
 
@@ -575,11 +576,36 @@ def test_deploy_control_center_runtime_creates_linux_python_host_and_launcher(
     assert deployment.start_menu_dir is None
     assert deployment.desktop_panel_shortcut_path is None
     assert deployment.uninstall_registry_key is None
+    assert "--open-browser" not in deployment.command
     assert host_text.startswith("#!/usr/bin/env bash\n")
     assert 'export LACC_INSTALL_ROOT="' in host_text
     assert 'exec "/usr/bin/python3" -m local_ai_control_center_installer.control_center_panel "$@"' in host_text
     assert launcher_text.startswith("#!/usr/bin/env bash\n")
     assert "nohup " in launcher_text
+    assert "--open-browser" in launcher_text
+
+
+def test_deploy_control_center_runtime_keeps_open_browser_only_in_launcher(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    install_root = tmp_path / "install-root"
+    current_executable = tmp_path / "LocalAIControlCenterSetup-v0.4.68.exe"
+    current_executable.write_bytes(b"panel-runtime")
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_runtime._ensure_windows_shell_assets",
+        lambda **kwargs: _empty_shell_assets(),
+    )
+
+    deployment = deploy_control_center_runtime(
+        install_root,
+        panel_executable_resource=None,
+        frozen=True,
+        frozen_executable=str(current_executable),
+    )
+
+    launcher_text = deployment.launcher_path.read_text(encoding="utf-8")
+    assert "--open-browser" not in deployment.command
     assert "--open-browser" in launcher_text
 
 
