@@ -56,6 +56,7 @@ def test_publish_github_release_script_uploads_latest_setup_alias():
 
     assert "LocalAIControlCenterSetup-latest.exe" in script
     assert "gh release" in script
+    assert 'cmd /c "gh release view $tag --repo $Repository 1>nul 2>nul"' in script
     assert "$releaseExists = $LASTEXITCODE -eq 0" in script
     assert "releases/latest/download/LocalAIControlCenterSetup-latest.exe" not in script
 

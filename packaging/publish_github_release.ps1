@@ -55,7 +55,7 @@ try {
         $checksumPath
     )
 
-    & gh release view $tag --repo $Repository 1>$null 2>$null
+    cmd /c "gh release view $tag --repo $Repository 1>nul 2>nul"
     $releaseExists = $LASTEXITCODE -eq 0
     if ($releaseExists) {
         & gh release upload $tag @assets --repo $Repository --clobber
