@@ -380,7 +380,12 @@ def prepare_tuning_workspace(
     config: ControlCenterConfig | None = None,
 ) -> dict[str, Any]:
     resolved_config = config or get_config()
-    source_dir = Path(str(working_directory or resolved_config.install_root)).expanduser().resolve()
+    source_dir = Path(str(working_directory or resolved_config.install_root)).expanduser()
+    if source_dir.exists() and not source_dir.is_dir():
+        raise RuntimeError(f"Radni direktorijum nije folder: {source_dir}")
+    if not source_dir.exists():
+        source_dir.mkdir(parents=True, exist_ok=True)
+    source_dir = source_dir.resolve()
     slot_root = _tuning_runs_root(resolved_config) / str(experiment_id or "run") / str(slot_id or "slot")
     slot_root.mkdir(parents=True, exist_ok=True)
 
@@ -589,6 +594,30 @@ def export_tuning_lab_run(
     }
 
 
+def resolve_tuning_playable_file(
+    run_id: str,
+    slot_id: str,
+    asset_path: str = "",
+    config: ControlCenterConfig | None = None,
+) -> Path | None:
+    resolved_config = config or get_config()
+    playable_root = (
+        _tuning_runs_root(resolved_config)
+        / str(run_id or "").strip()
+        / str(slot_id or "").strip()
+        / "playable"
+    )
+    if not playable_root.is_dir():
+        return None
+    normalized_asset = _normalize_relative_artifact_path(asset_path) or "index.html"
+    candidate = (playable_root / normalized_asset).resolve()
+    try:
+        candidate.relative_to(playable_root.resolve())
+    except ValueError:
+        return None
+    return candidate if candidate.is_file() else None
+
+
 def import_tuning_snippet(
     snippet: str,
     config: ControlCenterConfig | None = None,
@@ -752,18 +781,16 @@ def _run_tuning_slot(
     slot_id = str(slot.get("id", "") or "")
     slot_label = str(slot.get("label", slot_id) or slot_id)
     working_directory = str(experiment.get("workingDirectory", config.install_root) or config.install_root)
-    workspace_info = prepare_tuning_workspace(
-        working_directory=working_directory,
-        experiment_id=str(experiment.get("runId", "") or "run"),
-        slot_id=slot_id,
-        config=config,
-    )
-    workspace_path = Path(str(workspace_info["workspacePath"]))
-    cleanup_path = Path(str(workspace_info["cleanupPath"]))
     slot_artifact_root = _tuning_runs_root(config) / str(experiment.get("runId", "") or "run") / slot_id
     slot_artifact_root.mkdir(parents=True, exist_ok=True)
-    before_snapshot = _snapshot_directory(workspace_path)
     merged_settings = _merge_slot_settings(slot.get("settingsPatch"), config)
+    workspace_info: dict[str, Any] = {
+        "mode": "",
+        "workspacePath": str(slot_artifact_root / "workspace"),
+        "cleanupPath": "",
+    }
+    workspace_path = Path(str(workspace_info["workspacePath"]))
+    before_snapshot: dict[str, Any] = {}
     runtime_session: dict[str, Any] | None = None
     runtime_profile: dict[str, Any] | None = None
     opencode_result: dict[str, Any] | None = None
@@ -795,6 +822,14 @@ def _run_tuning_slot(
             "Priprema radnog prostora",
             f"{slot_label} priprema izolovani radni prostor za zadatak.",
         )
+        workspace_info = prepare_tuning_workspace(
+            working_directory=working_directory,
+            experiment_id=str(experiment.get("runId", "") or "run"),
+            slot_id=slot_id,
+            config=config,
+        )
+        workspace_path = Path(str(workspace_info["workspacePath"]))
+        before_snapshot = _snapshot_directory(workspace_path)
         runtime_session = _launch_slot_runtime(
             slot_settings=merged_settings,
             slot_artifact_root=slot_artifact_root,
@@ -875,6 +910,15 @@ def _run_tuning_slot(
     total_duration_ms = int((time.monotonic() - started_monotonic) * 1000)
     finished_at = _now_iso()
     status = "completed" if task_completed and success_checks_passed else "failed"
+    playable_artifacts = (
+        _preserve_playable_artifacts(
+            workspace_path=workspace_path,
+            slot_artifact_root=slot_artifact_root,
+            changed_files=diff_artifacts["changedFiles"],
+        )
+        if status == "completed"
+        else {}
+    )
     summary = (
         f"{slot_label} je završio zadatak i prošao success check."
         if status == "completed"
@@ -915,6 +959,8 @@ def _run_tuning_slot(
         "runtimeBaseUrl": str(runtime_session.get("baseUrl", "") if isinstance(runtime_session, dict) else ""),
         "opencodeCommand": str(opencode_result.get("commandPreview", "") if isinstance(opencode_result, dict) else ""),
         "stdoutPath": str(opencode_result.get("stdoutPath", "") if isinstance(opencode_result, dict) else ""),
+        "playableEntryPath": str(playable_artifacts.get("playableEntryPath", "") or ""),
+        "playableFilesPreserved": int(playable_artifacts.get("playableFilesPreserved", 0) or 0),
     }
     update_progress(
         "slot-finished",
@@ -1596,6 +1642,109 @@ def _build_diff_artifacts(
     }
 
 
+def _preserve_playable_artifacts(
+    *,
+    workspace_path: Path,
+    slot_artifact_root: Path,
+    changed_files: list[str],
+) -> dict[str, Any]:
+    playable_entry_path = _detect_playable_entry_path(workspace_path, changed_files)
+    if not playable_entry_path:
+        return {}
+    playable_root = slot_artifact_root / "playable"
+    shutil.rmtree(playable_root, ignore_errors=True)
+    playable_root.mkdir(parents=True, exist_ok=True)
+    files_to_copy: list[str] = []
+
+    def add_copy_target(relative_path: str) -> None:
+        normalized = _normalize_relative_artifact_path(relative_path)
+        if normalized and normalized not in files_to_copy:
+            files_to_copy.append(normalized)
+
+    add_copy_target(playable_entry_path)
+    for relative_path in changed_files:
+        add_copy_target(relative_path)
+    for relative_path in _extract_local_html_asset_paths(workspace_path, playable_entry_path):
+        add_copy_target(relative_path)
+
+    copied_files = 0
+    for relative_path in files_to_copy:
+        source_path = workspace_path / Path(relative_path)
+        if not source_path.is_file():
+            continue
+        target_path = playable_root / Path(relative_path)
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source_path, target_path)
+        copied_files += 1
+
+    if not (playable_root / Path(playable_entry_path)).is_file():
+        shutil.rmtree(playable_root, ignore_errors=True)
+        return {}
+    return {
+        "playableEntryPath": playable_entry_path,
+        "playableFilesPreserved": copied_files,
+    }
+
+
+def _detect_playable_entry_path(workspace_path: Path, changed_files: list[str]) -> str:
+    candidates: list[str] = []
+    if (workspace_path / "index.html").is_file():
+        candidates.append("index.html")
+    for relative_path in changed_files:
+        normalized = _normalize_relative_artifact_path(relative_path)
+        if normalized and normalized.lower().endswith(".html"):
+            candidates.append(normalized)
+    for candidate in candidates:
+        if (workspace_path / Path(candidate)).is_file():
+            return candidate
+    return ""
+
+
+def _extract_local_html_asset_paths(workspace_path: Path, entry_path: str) -> list[str]:
+    html_path = workspace_path / Path(entry_path)
+    if not html_path.is_file():
+        return []
+    try:
+        html_text = html_path.read_text(encoding="utf-8")
+    except OSError:
+        return []
+    root_path = workspace_path.resolve()
+    discovered: list[str] = []
+    for match in re.finditer(r"""(?:src|href)\s*=\s*["']([^"']+)["']""", html_text, flags=re.IGNORECASE):
+        raw_value = str(match.group(1) or "").strip()
+        if not raw_value:
+            continue
+        lowered = raw_value.lower()
+        if lowered.startswith(("http://", "https://", "//", "data:", "#", "mailto:", "javascript:")):
+            continue
+        cleaned = raw_value.split("#", 1)[0].split("?", 1)[0].strip()
+        normalized = _normalize_relative_artifact_path(cleaned)
+        if not normalized:
+            continue
+        candidate = (html_path.parent / Path(normalized)).resolve()
+        try:
+            relative = candidate.relative_to(root_path)
+        except ValueError:
+            continue
+        if candidate.is_file():
+            relative_path = relative.as_posix()
+            if relative_path not in discovered:
+                discovered.append(relative_path)
+    return discovered
+
+
+def _normalize_relative_artifact_path(relative_path: str) -> str:
+    raw_value = str(relative_path or "").replace("\\", "/").strip().lstrip("/")
+    if not raw_value:
+        return ""
+    path = Path(raw_value)
+    if path.is_absolute():
+        return ""
+    if any(part in ("", ".", "..") for part in path.parts):
+        return ""
+    return path.as_posix()
+
+
 def _snapshot_directory(root: Path) -> dict[str, Any]:
     if not root.exists():
         return {}
@@ -1742,6 +1891,8 @@ def _tuning_runs_root(config: ControlCenterConfig) -> Path:
 
 
 def _git_repo_root(path: Path) -> Path | None:
+    if not path.exists() or not path.is_dir():
+        return None
     completed = subprocess.run(
         ["git", "rev-parse", "--show-toplevel"],
         cwd=str(path),

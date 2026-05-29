@@ -110,6 +110,10 @@ function buildDraftForBatchTask(
   };
 }
 
+function buildBatchRunName(preset: TuningLabBatchPreset, task: TuningLabBatchTask) {
+  return `${preset.label} Â· ${task.label}`;
+}
+
 function buildBatchLoadLabel(difficulty: string) {
   if (difficulty === "easy") {
     return "Učitaj easy";
@@ -149,6 +153,32 @@ function isBatchTaskLoaded(
   task: TuningLabBatchTask,
 ) {
   return draft.taskPrompt.trim() === task.taskPrompt.trim() && draft.goal === task.goal;
+}
+
+function findPlayableSlot(run: TuningLabRun) {
+  const winner =
+    run.suggestedWinnerSlotId
+      ? run.slots.find((slot) => slot.id === run.suggestedWinnerSlotId)
+      : null;
+  if (winner?.playableEntryPath) {
+    return winner;
+  }
+  return run.slots.find((slot) => slot.status === "completed" && !!slot.playableEntryPath) || null;
+}
+
+function buildPlayableUrl(runId: string, slot: TuningLabSlot) {
+  if (!slot.playableEntryPath) {
+    return "";
+  }
+  const encodedPath = slot.playableEntryPath
+    .split("/")
+    .filter(Boolean)
+    .map((segment) => encodeURIComponent(segment))
+    .join("/");
+  if (!encodedPath) {
+    return "";
+  }
+  return `/api/tuning-lab/play/${encodeURIComponent(runId)}/${encodeURIComponent(slot.id)}/${encodedPath}`;
 }
 
 function patchSlotSettings(
@@ -457,6 +487,90 @@ export function TuningLabPage() {
     }
   }
 
+  async function queueDraftExperiment(nextDraft: TuningDraft) {
+    setIsQueueing(true);
+    try {
+      await runMutation(async () =>
+        queueTuningLabExperiment({
+          name: nextDraft.name,
+          goal: nextDraft.goal,
+          taskPrompt: nextDraft.taskPrompt,
+          workingDirectory: nextDraft.workingDirectory,
+          successChecks: nextDraft.successChecks,
+          slots: nextDraft.slots.map((slot) => ({
+            id: slot.id,
+            label: slot.label,
+            source: slot.source,
+            settingsPatch: slot.settingsPatch,
+          })),
+        }),
+      );
+    } finally {
+      setIsQueueing(false);
+    }
+  }
+
+  async function queueBatchPreset(presetId: string, currentDraft: TuningDraft) {
+    setIsQueueing(true);
+    try {
+      await runMutation(async () =>
+        queueTuningLabBatch({
+          presetId,
+          workingDirectory: currentDraft.workingDirectory,
+          slots: currentDraft.slots.map((slot) => ({
+            id: slot.id,
+            label: slot.label,
+            source: slot.source,
+            settingsPatch: slot.settingsPatch,
+          })),
+        }),
+      );
+    } finally {
+      setIsQueueing(false);
+    }
+  }
+
+  function openPlayableResult(playableUrl: string, label: string) {
+    if (!playableUrl) {
+      setResult({
+        status: "error",
+        action: "open-playable-output",
+        summary: "Playable rezultat još nije dostupan.",
+        details: {
+          returncode: 1,
+          stdout: "",
+          stderr: "Playable rezultat još nije dostupan.",
+        },
+      });
+      return;
+    }
+    const opened = window.open(playableUrl, "_blank", "noopener,noreferrer");
+    if (!opened) {
+      setResult({
+        status: "error",
+        action: "open-playable-output",
+        summary: "Browser nije dozvolio otvaranje playable rezultata.",
+        details: {
+          returncode: 1,
+          stdout: "",
+          stderr: "Browser nije dozvolio otvaranje playable rezultata.",
+        },
+      });
+      return;
+    }
+    opened.opener = null;
+    setResult({
+      status: "ok",
+      action: "open-playable-output",
+      summary: `Otvoren je playable rezultat za ${label}.`,
+      details: {
+        returncode: 0,
+        stdout: playableUrl,
+        stderr: "",
+      },
+    });
+  }
+
   if (error) {
     return <div className="error-panel">{error}</div>;
   }
@@ -530,6 +644,18 @@ export function TuningLabPage() {
                 <div className="tuning-lab-batch-task-list">
                   {preset.tasks.map((task) => {
                     const taskLoaded = isBatchTaskLoaded(draft, task);
+                    const latestPlayableRun =
+                      (summary.history || []).find((run) => {
+                        if (run.name !== buildBatchRunName(preset, task)) {
+                          return false;
+                        }
+                        return !!findPlayableSlot(run);
+                      }) || null;
+                    const latestPlayableSlot = latestPlayableRun ? findPlayableSlot(latestPlayableRun) : null;
+                    const playableUrl =
+                      latestPlayableRun && latestPlayableSlot
+                        ? buildPlayableUrl(latestPlayableRun.runId, latestPlayableSlot)
+                        : "";
                     return (
                       <div
                         className={`tuning-lab-batch-task-row ${taskLoaded ? "tuning-lab-batch-task-row-active" : ""}`}
@@ -554,6 +680,13 @@ export function TuningLabPage() {
                             {taskLoaded ? <span className="warning-badge">Trenutno u editoru</span> : null}
                           </div>
                           <p className="helper-text">{task.summary}</p>
+                          {latestPlayableRun && latestPlayableSlot ? (
+                            <p className="helper-text">
+                              Poslednji uspešan rezultat: {formatDateTime(latestPlayableRun.finishedAt || latestPlayableRun.startedAt)}
+                            </p>
+                          ) : (
+                            <p className="helper-text">Nema playable rezultata još.</p>
+                          )}
                         </div>
                         <button
                           type="button"
@@ -574,6 +707,34 @@ export function TuningLabPage() {
                         >
                           {buildBatchLoadLabel(task.difficulty)}
                         </button>
+                        <div className="tuning-lab-batch-task-actions">
+                          <button
+                            type="button"
+                            disabled={!draft.workingDirectory.trim() || isQueueing}
+                            onClick={() =>
+                              void (async () => {
+                                const nextDraft = buildDraftForBatchTask(draft, preset, task);
+                                setDraft(nextDraft);
+                                await queueDraftExperiment(nextDraft);
+                              })()
+                            }
+                          >
+                            Run
+                          </button>
+                          <button
+                            type="button"
+                            className="secondary-button"
+                            disabled={!playableUrl}
+                            onClick={() =>
+                              openPlayableResult(
+                                playableUrl,
+                                `${preset.label} Â· ${task.label}`,
+                              )
+                            }
+                          >
+                            Play
+                          </button>
+                        </div>
                       </div>
                     );
                   })}
@@ -582,24 +743,7 @@ export function TuningLabPage() {
                   <button
                     type="button"
                     disabled={!draft.workingDirectory.trim() || isQueueing}
-                    onClick={() =>
-                      void (async () => {
-                        setIsQueueing(true);
-                        await runMutation(async () =>
-                          queueTuningLabBatch({
-                            presetId: preset.id,
-                            workingDirectory: draft.workingDirectory,
-                            slots: draft.slots.map((slot) => ({
-                              id: slot.id,
-                              label: slot.label,
-                              source: slot.source,
-                              settingsPatch: slot.settingsPatch,
-                            })),
-                          }),
-                        );
-                        setIsQueueing(false);
-                      })()
-                    }
+                    onClick={() => void queueBatchPreset(preset.id, draft)}
                   >
                     Pokreni ceo batch
                   </button>
@@ -789,28 +933,7 @@ export function TuningLabPage() {
           <button
             type="button"
             disabled={!draft.taskPrompt.trim() || !draft.workingDirectory.trim() || isQueueing}
-            onClick={() =>
-              void (async () => {
-                setIsQueueing(true);
-                await runMutation(async () => {
-                  const payload = await queueTuningLabExperiment({
-                    name: draft.name,
-                    goal: draft.goal,
-                    taskPrompt: draft.taskPrompt,
-                    workingDirectory: draft.workingDirectory,
-                    successChecks: draft.successChecks,
-                    slots: draft.slots.map((slot) => ({
-                      id: slot.id,
-                      label: slot.label,
-                      source: slot.source,
-                      settingsPatch: slot.settingsPatch,
-                    })),
-                  });
-                  return payload;
-                });
-                setIsQueueing(false);
-              })()
-            }
+            onClick={() => void queueDraftExperiment(draft)}
           >
             Dodaj u queue
           </button>
@@ -1161,6 +1284,19 @@ export function TuningLabPage() {
                             {slot.label} detalji | {slot.summary || slot.status || "--"}
                           </summary>
                           <div className="tuning-lab-copy-row">
+                            <button
+                              type="button"
+                              className="secondary-button"
+                              disabled={!slot.playableEntryPath}
+                              onClick={() =>
+                                openPlayableResult(
+                                  buildPlayableUrl(run.runId, slot),
+                                  `${run.name} · ${slot.label}`,
+                                )
+                              }
+                            >
+                              Play
+                            </button>
                             <button
                               type="button"
                               className="secondary-button"

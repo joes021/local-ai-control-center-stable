@@ -83,6 +83,25 @@ def test_tuning_lab_prepares_copy_workspace_for_plain_directory(tmp_path: Path, 
     assert (Path(workspace["workspacePath"]) / "README.md").read_text(encoding="utf-8") == "hello"
 
 
+def test_tuning_lab_prepares_copy_workspace_for_missing_directory(tmp_path: Path, monkeypatch):
+    from local_ai_control_center_installer.control_center_backend.services import tuning_lab_service
+
+    install_root = tmp_path / "install-root"
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    missing_dir = tmp_path / "missing-project"
+
+    workspace = tuning_lab_service.prepare_tuning_workspace(
+        working_directory=str(missing_dir),
+        experiment_id="exp-missing",
+        slot_id="baseline",
+    )
+
+    assert missing_dir.is_dir()
+    assert workspace["mode"] == "copy"
+    assert Path(workspace["workspacePath"]).is_dir()
+    assert list(Path(workspace["workspacePath"]).iterdir()) == []
+
+
 def test_tuning_lab_prepares_git_worktree_for_clean_repo(tmp_path: Path, monkeypatch):
     from local_ai_control_center_installer.control_center_backend.services import tuning_lab_service
 
@@ -267,6 +286,157 @@ def test_tuning_lab_slot_treats_zero_returncode_without_tokens_as_completed(tmp_
     assert result["diffFiles"][0]["path"] == "tuning_lab_ready.txt"
     assert result["taskCompleted"] is True
     assert result["status"] == "completed"
+
+
+def test_tuning_lab_slot_retains_playable_artifacts_for_successful_html_output(
+    tmp_path: Path,
+    monkeypatch,
+):
+    from local_ai_control_center_installer.control_center_backend.services import tuning_lab_service
+
+    install_root = tmp_path / "install-root"
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    config = get_config()
+    workspace_path = tmp_path / "workspace"
+    workspace_path.mkdir(parents=True, exist_ok=True)
+    (workspace_path / "index.html").write_text(
+        "<!doctype html><html><body><script src='js/game.js'></script></body></html>",
+        encoding="utf-8",
+    )
+    (workspace_path / "js").mkdir(parents=True, exist_ok=True)
+    (workspace_path / "js" / "game.js").write_text("console.log('playable');\n", encoding="utf-8")
+    artifact_root = (
+        config.control_center_config_root
+        / "tuning-lab"
+        / "runs"
+        / "tuning-play"
+        / "baseline"
+    )
+    artifact_root.mkdir(parents=True, exist_ok=True)
+
+    monkeypatch.setattr(
+        tuning_lab_service,
+        "prepare_tuning_workspace",
+        lambda **kwargs: {
+            "mode": "copy",
+            "workspacePath": str(workspace_path),
+            "cleanupPath": str(workspace_path),
+        },
+    )
+    monkeypatch.setattr(
+        tuning_lab_service,
+        "_launch_slot_runtime",
+        lambda **kwargs: {
+            "process": None,
+            "baseUrl": "http://127.0.0.1:49000",
+            "commandPreview": "runtime-preview",
+        },
+    )
+    monkeypatch.setattr(
+        tuning_lab_service,
+        "create_tuning_runtime_profile",
+        lambda **kwargs: {"token": "slot-token"},
+    )
+    monkeypatch.setattr(
+        tuning_lab_service,
+        "_run_slot_opencode_task",
+        lambda **kwargs: {
+            "processReturncode": 0,
+            "assistantText": "Finished game",
+            "inputTokens": 10,
+            "outputTokens": 20,
+            "totalTokens": 30,
+            "costUsd": 0.0,
+            "stdoutPath": str(artifact_root / "opencode-output.jsonl"),
+            "stdoutText": "",
+            "stderrText": "",
+            "commandPreview": "opencode-preview",
+            "averageOutputTokensPerSecond": 12.0,
+            "averageTotalTokensPerSecond": 15.0,
+        },
+    )
+    monkeypatch.setattr(
+        tuning_lab_service,
+        "_resolve_success_check_specs",
+        lambda **kwargs: [],
+    )
+    monkeypatch.setattr(
+        tuning_lab_service,
+        "_run_success_checks",
+        lambda *args, **kwargs: [],
+    )
+    monkeypatch.setattr(tuning_lab_service, "_snapshot_directory", lambda path: {})
+    monkeypatch.setattr(
+        tuning_lab_service,
+        "_build_diff_artifacts",
+        lambda *args, **kwargs: {
+            "changedFiles": ["index.html", "js/game.js"],
+            "summary": "2 fajl(ova) je promenjeno.",
+            "diffFiles": [],
+            "diffText": "",
+        },
+    )
+    monkeypatch.setattr(tuning_lab_service, "_cleanup_workspace_path", lambda workspace_info: None)
+
+    result = tuning_lab_service._run_tuning_slot(
+        {
+            "runId": "tuning-play",
+            "workingDirectory": str(workspace_path),
+            "taskPrompt": "create playable game",
+        },
+        {
+            "id": "baseline",
+            "label": "Baseline",
+            "source": "current-system",
+            "settingsPatch": {"temperature": 0.2},
+        },
+        config,
+    )
+
+    assert result["status"] == "completed"
+    assert result["playableEntryPath"] == "index.html"
+    assert (artifact_root / "playable" / "index.html").is_file()
+    assert (artifact_root / "playable" / "js" / "game.js").is_file()
+
+
+def test_tuning_lab_slot_converts_workspace_prepare_failure_into_failed_slot(
+    tmp_path: Path,
+    monkeypatch,
+):
+    from local_ai_control_center_installer.control_center_backend.services import tuning_lab_service
+
+    install_root = tmp_path / "install-root"
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    config = get_config()
+    monkeypatch.setattr(
+        tuning_lab_service,
+        "prepare_tuning_workspace",
+        lambda **kwargs: (_ for _ in ()).throw(RuntimeError("workspace boom")),
+    )
+    monkeypatch.setattr(tuning_lab_service, "_write_active_run", lambda *args, **kwargs: None)
+    monkeypatch.setattr(tuning_lab_service, "_cleanup_workspace_path", lambda workspace_info: None)
+
+    result = tuning_lab_service._run_tuning_slot(
+        {
+            "runId": "tuning-workspace-fail",
+            "workingDirectory": str(tmp_path / "missing-project"),
+            "taskPrompt": "create index.html",
+            "startedAt": "2026-05-29T00:00:00+00:00",
+        },
+        {
+            "id": "baseline",
+            "label": "Baseline",
+            "source": "current-system",
+            "settingsPatch": {"temperature": 0.8},
+        },
+        config,
+    )
+
+    assert result["status"] == "failed"
+    assert result["taskCompleted"] is False
+    assert result["successChecksPassed"] is True
+    assert result["summary"] == "workspace boom"
+    assert result["playableEntryPath"] == ""
 
 
 def test_tuning_lab_build_diff_artifacts_returns_per_file_blocks(tmp_path: Path):

@@ -236,3 +236,29 @@ def test_tuning_lab_apply_export_and_import_routes_work(
     assert import_payload["status"] == "ok"
     assert import_payload["settingsPatch"]["temperature"] == 0.6
     assert import_payload["settingsPatch"]["topK"] == 12
+
+
+def test_tuning_lab_play_route_serves_retained_playable_file(
+    tmp_path: Path,
+    monkeypatch,
+):
+    install_root = tmp_path / "install-root"
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    playable_root = (
+        install_root
+        / "config"
+        / "control-center"
+        / "tuning-lab"
+        / "runs"
+        / "run-play"
+        / "baseline"
+        / "playable"
+    )
+    playable_root.mkdir(parents=True, exist_ok=True)
+    (playable_root / "index.html").write_text("<html><body>play me</body></html>", encoding="utf-8")
+
+    client = TestClient(app)
+    response = client.get("/api/tuning-lab/play/run-play/baseline/index.html")
+
+    assert response.status_code == 200
+    assert "play me" in response.text

@@ -509,6 +509,8 @@ export type TuningLabSlot = {
   runtimeBaseUrl?: string;
   opencodeCommand?: string;
   stdoutPath?: string;
+  playableEntryPath?: string;
+  playableFilesPreserved?: number;
 };
 
 export type TuningLabGoalOption = {

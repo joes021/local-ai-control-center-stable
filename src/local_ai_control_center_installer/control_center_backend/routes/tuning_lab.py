@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from local_ai_control_center_installer.control_center_backend.services.tuning_lab_service import (
@@ -12,6 +13,7 @@ from local_ai_control_center_installer.control_center_backend.services.tuning_la
     load_tuning_lab_history_page,
     load_tuning_lab_run_status,
     load_tuning_lab_summary,
+    resolve_tuning_playable_file,
 )
 
 
@@ -31,6 +33,14 @@ def tuning_lab_run_status() -> dict[str, object]:
 @router.get("/api/tuning-lab/history")
 def tuning_lab_history(page: int = Query(default=1, ge=1)) -> dict[str, object]:
     return load_tuning_lab_history_page(page=page)
+
+
+@router.get("/api/tuning-lab/play/{run_id}/{slot_id}/{asset_path:path}")
+def tuning_lab_play_asset(run_id: str, slot_id: str, asset_path: str) -> FileResponse:
+    target_path = resolve_tuning_playable_file(run_id, slot_id, asset_path)
+    if target_path is None:
+        raise HTTPException(status_code=404, detail="Playable artifact nije pronađen.")
+    return FileResponse(target_path)
 
 
 class QueueTuningExperimentRequest(BaseModel):
