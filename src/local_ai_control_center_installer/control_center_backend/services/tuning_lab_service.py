@@ -25,6 +25,7 @@ from local_ai_control_center_installer.control_center_backend.config import (
 from local_ai_control_center_installer.control_center_backend.services.opencode_service import (
     _resolve_opencode_executable_path,
 )
+from local_ai_control_center_installer.control_center_backend.services import benchmark_service
 from local_ai_control_center_installer.control_center_backend.services.server_service import (
     _resolve_spec_type_for_runtime,
 )
@@ -1002,6 +1003,7 @@ def _run_tuning_slot(
             slot_artifact_root=slot_artifact_root,
             config=config,
             progress_callback=update_progress,
+            upstream_base_url=str(runtime_session.get("baseUrl", "") or ""),
         )
         update_progress(
             "checks",
@@ -1194,6 +1196,7 @@ def _run_slot_opencode_task(
     slot_artifact_root: Path,
     config: ControlCenterConfig,
     progress_callback: Callable[..., None] | None = None,
+    upstream_base_url: str = "",
 ) -> dict[str, Any]:
     executable_path = _resolve_opencode_executable_path(config)
     if not executable_path.is_file():
@@ -1268,6 +1271,14 @@ def _run_slot_opencode_task(
             if time.monotonic() >= deadline:
                 _stop_process(process)
                 raise RuntimeError("OpenCode task je istekao pre završetka.")
+            if upstream_base_url:
+                benchmark_service.record_runtime_live_slot_metric(
+                    upstream_base_url,
+                    config=config,
+                    label="tuning-lab-live",
+                    source="tuning-lab",
+                    snapshot_key=f"tuning:{runtime_profile_token or slot_label}",
+                )
             if progress_callback is not None:
                 progress_callback(
                     "opencode",

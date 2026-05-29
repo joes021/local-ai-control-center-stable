@@ -246,7 +246,9 @@ def test_tuning_lab_source_and_navigation_are_present():
     assert "Šta ovaj batch meri" in page_source
     assert "Jedan klik =" in page_source
     assert "Trenutno u editoru" in page_source
-    assert "u editor niže na strani" in page_source
+    assert "Brzi tok za ovaj task" in page_source
+    assert "Koristi trenutni radni direktorijum" in page_source
+    assert "Otvori napredna podešavanja" in page_source
     assert "Koristi trenutne slot postavke" in page_source
     assert "Dodaj u queue" in page_source
     assert "Primeni pobednički set" in page_source
@@ -285,6 +287,7 @@ def test_tuning_lab_source_and_navigation_are_present():
     assert ".tuning-lab-batch-focus-list" in styles_source
     assert ".tuning-lab-batch-task-badges" in styles_source
     assert ".tuning-lab-batch-run-hint" in styles_source
+    assert ".tuning-lab-batch-quick-run" in styles_source
     assert ".tuning-lab-batch-task-actions" in styles_source
     assert ".tuning-lab-batch-task-state" in styles_source
     assert ".tuning-lab-batch-playable-meta" in styles_source

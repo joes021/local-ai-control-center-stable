@@ -480,6 +480,82 @@ def test_tuning_lab_slot_retains_playable_artifacts_for_successful_html_output(
     assert (artifact_root / "playable" / "js" / "game.js").is_file()
 
 
+def test_run_slot_opencode_task_records_runtime_live_signal(
+    tmp_path: Path,
+    monkeypatch,
+):
+    from local_ai_control_center_installer.control_center_backend.services import benchmark_service
+    from local_ai_control_center_installer.control_center_backend.services import tuning_lab_service
+
+    install_root = tmp_path / "install-root"
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    config = get_config()
+    config.control_center_config_root.mkdir(parents=True, exist_ok=True)
+    config.opencode_managed_config_path.parent.mkdir(parents=True, exist_ok=True)
+    config.opencode_managed_config_path.write_text("{}", encoding="utf-8")
+
+    executable_path = install_root / "tools" / "opencode" / "opencode.exe"
+    executable_path.parent.mkdir(parents=True, exist_ok=True)
+    executable_path.write_text("fake", encoding="utf-8")
+    model_path = install_root / "models" / "recommended-6gb" / "demo.gguf"
+    model_path.parent.mkdir(parents=True, exist_ok=True)
+    model_path.write_text("model", encoding="utf-8")
+    workspace_path = tmp_path / "workspace"
+    workspace_path.mkdir(parents=True, exist_ok=True)
+    slot_artifact_root = tmp_path / "artifacts"
+    slot_artifact_root.mkdir(parents=True, exist_ok=True)
+
+    class FakeProcess:
+        def __init__(self, *args, **kwargs):
+            self._polls = 0
+
+        def poll(self):
+            self._polls += 1
+            if self._polls < 3:
+                return None
+            return 0
+
+        def wait(self):
+            return 0
+
+    recorded_calls: list[dict[str, object]] = []
+
+    monkeypatch.setattr(tuning_lab_service, "_resolve_opencode_executable_path", lambda config=None: executable_path)
+    monkeypatch.setattr(
+        tuning_lab_service,
+        "load_runtime_state",
+        lambda config=None: {
+            "active_model_path": str(model_path),
+            "active_model": "demo.gguf",
+        },
+    )
+    monkeypatch.setattr(tuning_lab_service, "_build_slot_opencode_env", lambda **kwargs: {})
+    monkeypatch.setattr(tuning_lab_service, "_parse_opencode_json_output", lambda text: {})
+    monkeypatch.setattr(tuning_lab_service.subprocess, "Popen", FakeProcess)
+    monkeypatch.setattr(tuning_lab_service.time, "sleep", lambda seconds: None)
+    monkeypatch.setattr(
+        benchmark_service,
+        "record_runtime_live_slot_metric",
+        lambda base_url, **kwargs: recorded_calls.append({"base_url": base_url, **kwargs}) or None,
+    )
+
+    result = tuning_lab_service._run_slot_opencode_task(
+        experiment={"taskPrompt": "Create index.html", "currentSlotLabel": "Baseline"},
+        slot_settings={},
+        runtime_profile_token="slot-token",
+        workspace_path=workspace_path,
+        slot_artifact_root=slot_artifact_root,
+        config=config,
+        progress_callback=None,
+        upstream_base_url="http://127.0.0.1:49000",
+    )
+
+    assert result["processReturncode"] == 0
+    assert recorded_calls
+    assert all(call["base_url"] == "http://127.0.0.1:49000" for call in recorded_calls)
+    assert all(call["label"] == "tuning-lab-live" for call in recorded_calls)
+
+
 def test_tuning_lab_slot_converts_workspace_prepare_failure_into_failed_slot(
     tmp_path: Path,
     monkeypatch,

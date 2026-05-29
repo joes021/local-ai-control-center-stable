@@ -220,12 +220,13 @@ def test_load_benchmark_summary_merges_live_slots_signal_into_visible_history(
 
     live_sample = {
         "measuredAt": (now - timedelta(seconds=5)).isoformat(),
-        "label": "opencode-live",
+        "label": "runtime-live",
+        "source": "runtime",
         "promptTokensPerSecond": None,
         "completionTokensPerSecond": 12.0,
         "totalTokensPerSecond": 12.0,
         "totalMs": 5000.0,
-        "signature": "opencode-live:test-sample",
+        "signature": "runtime-live:test-sample",
     }
 
     monkeypatch.setattr(benchmark_service, "_load_live_slot_metric", lambda config=None: live_sample)
@@ -234,15 +235,15 @@ def test_load_benchmark_summary_merges_live_slots_signal_into_visible_history(
 
     assert payload["historyCount"] == 1
     assert payload["requestCount"] == 1
-    assert payload["current"]["label"] == "opencode-live"
-    assert payload["liveCurrent"]["label"] == "opencode-live"
-    assert payload["history"][-1]["label"] == "opencode-live"
-    assert payload["liveHistory"][-1]["label"] == "opencode-live"
-    assert payload["activity"]["sources"]["opencode"] == 1
+    assert payload["current"]["label"] == "runtime-live"
+    assert payload["liveCurrent"]["label"] == "runtime-live"
+    assert payload["history"][-1]["label"] == "runtime-live"
+    assert payload["liveHistory"][-1]["label"] == "runtime-live"
+    assert payload["activity"]["sources"]["other"] == 1
     assert payload["liveState"] == {
         "status": "active",
         "hasLiveSignal": True,
-        "reason": "Live throughput signal dolazi iz aktivnog runtime /slots uzorka.",
+        "reason": "Live throughput signal dolazi iz aktivnog llama.cpp-kompatibilnog /slots uzorka.",
     }
     assert payload["liveCurrent"]["environment"]["runtimeLabel"] == "llama.cpp"
     assert payload["liveCurrent"]["environment"]["profile"] == "balanced"
@@ -311,6 +312,7 @@ def test_load_benchmark_summary_builds_24h_telemetry_snapshot(
         lambda config=None: {
             "measuredAt": (now - timedelta(seconds=5)).isoformat(),
             "label": "benchmark",
+            "source": "runtime",
             "promptTokens": 0,
             "completionTokens": 109,
             "totalTokens": 109,
@@ -319,7 +321,7 @@ def test_load_benchmark_summary_builds_24h_telemetry_snapshot(
             "totalTokensPerSecond": 21.8,
             "totalMs": 5000.0,
             "activeRoutes": 1,
-            "signature": "opencode-live:token-pulse",
+            "signature": "runtime-live:token-pulse",
         },
     )
     monkeypatch.setattr(
@@ -460,12 +462,13 @@ def test_load_benchmark_summary_does_not_treat_stale_live_history_as_active_sign
             [
                 {
                     "measuredAt": (now - timedelta(minutes=5)).isoformat(),
-                    "label": "opencode-live",
+                    "label": "runtime-live",
+                    "source": "runtime",
                     "promptTokensPerSecond": None,
                     "completionTokensPerSecond": 22.4,
                     "totalTokensPerSecond": 22.4,
                     "totalMs": 5000.0,
-                    "signature": "opencode-live:stale-sample",
+                    "signature": "runtime-live:stale-sample",
                 }
             ],
             ensure_ascii=False,
@@ -486,6 +489,167 @@ def test_load_benchmark_summary_does_not_treat_stale_live_history_as_active_sign
     assert payload["telemetry"]["liveNowTokensPerSecond"] is None
     assert payload["telemetry"]["lastSignalTokensPerSecond"] is None
     assert payload["telemetry"]["flowState"] == "quiet"
+
+
+def test_record_runtime_live_slot_metric_keeps_independent_snapshots_per_runtime_source(
+    tmp_path: Path,
+    monkeypatch,
+):
+    from local_ai_control_center_installer.control_center_backend.services import benchmark_service
+
+    install_root = tmp_path / "install-root"
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    config = get_config()
+    config.control_center_config_root.mkdir(parents=True, exist_ok=True)
+
+    class FakeDateTime:
+        _values = [
+            datetime(2026, 5, 29, 10, 0, 0, tzinfo=timezone.utc),
+            datetime(2026, 5, 29, 10, 0, 0, tzinfo=timezone.utc),
+            datetime(2026, 5, 29, 10, 0, 1, tzinfo=timezone.utc),
+            datetime(2026, 5, 29, 10, 0, 1, tzinfo=timezone.utc),
+            datetime(2026, 5, 29, 10, 0, 2, tzinfo=timezone.utc),
+            datetime(2026, 5, 29, 10, 0, 2, tzinfo=timezone.utc),
+            datetime(2026, 5, 29, 10, 0, 3, tzinfo=timezone.utc),
+            datetime(2026, 5, 29, 10, 0, 3, tzinfo=timezone.utc),
+        ]
+
+        @classmethod
+        def now(cls, tz=None):
+            return cls._values.pop(0)
+
+        @staticmethod
+        def fromisoformat(value: str):
+            return datetime.fromisoformat(value)
+
+    class FakeResponse:
+        def __init__(self, payload: list[dict[str, object]]):
+            self._payload = payload
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def read(self):
+            return json.dumps(self._payload).encode("utf-8")
+
+    payloads = {
+        "http://127.0.0.1:49001/slots": [
+            {"id": 0, "id_task": 1, "is_processing": True, "next_token": [{"n_decoded": 10}]}
+        ],
+        "http://127.0.0.1:49002/slots": [
+            {"id": 0, "id_task": 1, "is_processing": True, "next_token": [{"n_decoded": 100}]}
+        ],
+        "http://127.0.0.1:49001/slots#2": [
+            {"id": 0, "id_task": 1, "is_processing": True, "next_token": [{"n_decoded": 12}]}
+        ],
+        "http://127.0.0.1:49002/slots#2": [
+            {"id": 0, "id_task": 1, "is_processing": True, "next_token": [{"n_decoded": 108}]}
+        ],
+    }
+    calls: list[str] = []
+
+    def fake_urlopen(url: str, timeout: float = 0.0):
+        call_index = calls.count(url) + 1
+        calls.append(url)
+        key = url if call_index == 1 else f"{url}#{call_index}"
+        return FakeResponse(payloads[key])
+
+    monkeypatch.setattr(benchmark_service, "datetime", FakeDateTime)
+    monkeypatch.setattr(benchmark_service, "urlopen", fake_urlopen)
+
+    assert (
+        benchmark_service.record_runtime_live_slot_metric(
+            "http://127.0.0.1:49001",
+            config=config,
+            label="tuning-lab-live",
+            source="tuning-lab",
+        )
+        is None
+    )
+    assert (
+        benchmark_service.record_runtime_live_slot_metric(
+            "http://127.0.0.1:49002",
+            config=config,
+            label="tuning-lab-live",
+            source="tuning-lab",
+        )
+        is None
+    )
+
+    first_sample = benchmark_service.record_runtime_live_slot_metric(
+        "http://127.0.0.1:49001",
+        config=config,
+        label="tuning-lab-live",
+        source="tuning-lab",
+    )
+    second_sample = benchmark_service.record_runtime_live_slot_metric(
+        "http://127.0.0.1:49002",
+        config=config,
+        label="tuning-lab-live",
+        source="tuning-lab",
+    )
+
+    assert first_sample is not None
+    assert second_sample is not None
+    assert first_sample["totalTokens"] == 2
+    assert second_sample["totalTokens"] == 8
+    live_history = json.loads(config.benchmark_live_history_path.read_text(encoding="utf-8"))
+    assert len(live_history) == 2
+    snapshot_store = json.loads(config.benchmark_live_slots_snapshot_path.read_text(encoding="utf-8"))
+    assert len(snapshot_store["entries"]) == 2
+
+
+def test_load_benchmark_summary_uses_recent_tuning_live_sample_as_live_current(
+    tmp_path: Path,
+    monkeypatch,
+):
+    from local_ai_control_center_installer.control_center_backend.services import benchmark_service
+
+    install_root = tmp_path / "install-root"
+    now = datetime.now(timezone.utc)
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    _write_runtime_endpoint_config(install_root)
+    _write_active_model_config(install_root)
+    _write_settings_config(install_root)
+
+    config = get_config()
+    config.control_center_config_root.mkdir(parents=True, exist_ok=True)
+    config.benchmark_history_path.write_text("[]", encoding="utf-8")
+    config.benchmark_live_history_path.write_text(
+        json.dumps(
+            [
+                {
+                    "measuredAt": (now - timedelta(milliseconds=500)).isoformat(),
+                    "label": "tuning-lab-live",
+                    "source": "tuning-lab",
+                    "activeRoutes": 1,
+                    "promptTokensPerSecond": None,
+                    "completionTokensPerSecond": 31.5,
+                    "totalTokensPerSecond": 31.5,
+                    "totalMs": 900.0,
+                    "signature": "tuning-lab-live:recent",
+                }
+            ],
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(benchmark_service, "_load_live_slot_metric", lambda config=None: None)
+
+    payload = benchmark_service.load_benchmark_summary()
+
+    assert payload["liveCurrent"] is not None
+    assert payload["liveCurrent"]["label"] == "tuning-lab-live"
+    assert payload["telemetry"]["liveNowTokensPerSecond"] == 31.5
+    assert payload["liveState"] == {
+        "status": "active",
+        "hasLiveSignal": True,
+        "reason": "Live throughput signal dolazi iz aktivnog llama.cpp-kompatibilnog /slots uzorka.",
+    }
 
 
 def test_benchmark_workers_persist_richer_run_metadata(

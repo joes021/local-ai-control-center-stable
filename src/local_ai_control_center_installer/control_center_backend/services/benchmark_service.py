@@ -39,10 +39,12 @@ BENCHMARK_SLOTS_TIMEOUT_SECONDS = 10.0
 BENCHMARK_REQUEST_TIMEOUT_SECONDS = 180.0
 BENCHMARK_LIVE_HISTORY_MAX_ITEMS = 200
 BENCHMARK_LIVE_HISTORY_RETENTION_SECONDS = 3600
+BENCHMARK_LIVE_SIGNAL_FRESHNESS_SECONDS = 2.5
 BENCHMARK_TELEMETRY_WINDOW_HOURS = 24
 BENCHMARK_PROXY_COST_PER_MILLION_TOKENS_USD = 0.10
 BENCHMARK_MAX_REPEAT_COUNT = 10
 _RUN_LOCK = threading.Lock()
+_LIVE_SIGNAL_LOCK = threading.Lock()
 
 
 DEFAULT_SCENARIOS = [
@@ -81,11 +83,11 @@ def load_benchmark_summary(
     settings_state = load_effective_settings_state(config)
     environment = _build_benchmark_environment(runtime_state, settings_state)
     history = _load_history(config)
-    live_sample = _load_live_slot_metric(config)
-    live_history = _record_live_history_sample(config, live_sample)
+    active_runtime_live_sample = _load_live_slot_metric(config)
+    live_history = _record_live_history_sample(config, active_runtime_live_sample)
     signal_history = history + live_history
     current = signal_history[-1] if signal_history else None
-    live_current = live_sample
+    live_current = active_runtime_live_sample or _select_recent_live_current(live_history)
     latest_history_metric = history[-1] if history else None
     recent_benchmark_fallback = _recent_benchmark_fallback(latest_history_metric)
     recent_activities, source_counts = _build_recent_activities(signal_history)
@@ -762,8 +764,8 @@ def _load_live_history(config: ControlCenterConfig) -> list[dict[str, Any]]:
     for item in payload:
         copy_item = dict(item)
         if (
-            str(copy_item.get("label", "")) == "opencode-live"
-            and copy_item.get("promptTokensPerSecond") == 0.0
+            copy_item.get("promptTokensPerSecond") == 0.0
+            and float(copy_item.get("completionTokensPerSecond", 0.0) or 0.0) > 0.0
         ):
             copy_item["promptTokensPerSecond"] = None
         normalized.append(copy_item)
@@ -774,31 +776,52 @@ def _record_live_history_sample(
     config: ControlCenterConfig,
     sample: dict[str, Any] | None,
 ) -> list[dict[str, Any]]:
-    history = _load_live_history(config)
-    if sample:
-        history.append(sample)
-    now = datetime.now(timezone.utc)
-    normalized: list[dict[str, Any]] = []
-    for item in history:
-        measured_at = _parse_iso_timestamp(item.get("measuredAt"))
-        if measured_at is None:
-            continue
-        if (now - measured_at).total_seconds() > BENCHMARK_LIVE_HISTORY_RETENTION_SECONDS:
-            continue
-        normalized.append(item)
-    normalized.sort(key=lambda item: str(item.get("measuredAt", "")))
-    deduped: list[dict[str, Any]] = []
-    seen_signatures: set[str] = set()
-    for item in normalized:
-        signature = str(item.get("signature", "") or "")
-        if signature and signature in seen_signatures:
-            continue
-        if signature:
-            seen_signatures.add(signature)
-        deduped.append(item)
-    deduped = deduped[-BENCHMARK_LIVE_HISTORY_MAX_ITEMS:]
-    atomic_write_json(config.benchmark_live_history_path, deduped)
-    return deduped
+    with _LIVE_SIGNAL_LOCK:
+        history = _load_live_history(config)
+        if sample:
+            history.append(sample)
+        now = datetime.now(timezone.utc)
+        normalized: list[dict[str, Any]] = []
+        for item in history:
+            measured_at = _parse_iso_timestamp(item.get("measuredAt"))
+            if measured_at is None:
+                continue
+            if (now - measured_at).total_seconds() > BENCHMARK_LIVE_HISTORY_RETENTION_SECONDS:
+                continue
+            normalized.append(item)
+        normalized.sort(key=lambda item: str(item.get("measuredAt", "")))
+        deduped: list[dict[str, Any]] = []
+        seen_signatures: set[str] = set()
+        for item in normalized:
+            signature = str(item.get("signature", "") or "")
+            if signature and signature in seen_signatures:
+                continue
+            if signature:
+                seen_signatures.add(signature)
+            deduped.append(item)
+        deduped = deduped[-BENCHMARK_LIVE_HISTORY_MAX_ITEMS:]
+        atomic_write_json(config.benchmark_live_history_path, deduped)
+        return deduped
+
+
+def record_runtime_live_slot_metric(
+    base_url: str,
+    *,
+    config: ControlCenterConfig | None = None,
+    label: str = "runtime-live",
+    source: str = "runtime",
+    snapshot_key: str = "",
+) -> dict[str, Any] | None:
+    config = config or get_config()
+    sample = _sample_live_slot_metric(
+        config,
+        base_url=base_url,
+        label=label,
+        source=source,
+        snapshot_key=snapshot_key or base_url,
+    )
+    _record_live_history_sample(config, sample)
+    return sample
 
 
 def _load_live_slot_metric(
@@ -809,9 +832,29 @@ def _load_live_slot_metric(
     base_url = str(runtime_state.get("base_url", "") or "").strip()
     if not base_url:
         return None
+    return _sample_live_slot_metric(
+        config,
+        base_url=base_url,
+        label="runtime-live",
+        source="runtime",
+        snapshot_key="active-runtime",
+    )
+
+
+def _sample_live_slot_metric(
+    config: ControlCenterConfig,
+    *,
+    base_url: str,
+    label: str,
+    source: str,
+    snapshot_key: str,
+) -> dict[str, Any] | None:
+    normalized_base_url = str(base_url or "").strip()
+    if not normalized_base_url:
+        return None
 
     try:
-        with urlopen(f"{base_url}/slots", timeout=BENCHMARK_SLOTS_TIMEOUT_SECONDS) as response:
+        with urlopen(f"{normalized_base_url}/slots", timeout=BENCHMARK_SLOTS_TIMEOUT_SECONDS) as response:
             payload = json.loads(response.read().decode("utf-8", errors="replace"))
     except (OSError, URLError, TimeoutError, json.JSONDecodeError):
         return None
@@ -839,8 +882,10 @@ def _load_live_slot_metric(
 
     measured_at = datetime.now(timezone.utc)
     snapshot = {"measuredAt": measured_at.isoformat(), "slots": current_slots}
-    previous_snapshot = read_json_object(config.benchmark_live_slots_snapshot_path)
-    atomic_write_json(config.benchmark_live_slots_snapshot_path, snapshot)
+    with _LIVE_SIGNAL_LOCK:
+        previous_snapshot = _load_live_slot_snapshot(config, snapshot_key)
+        _save_live_slot_snapshot(config, snapshot_key, snapshot)
+
     if not current_slots:
         return None
 
@@ -867,7 +912,8 @@ def _load_live_slot_metric(
     throughput = round(delta_tokens / elapsed_seconds, 2)
     return {
         "measuredAt": snapshot["measuredAt"],
-        "label": "opencode-live",
+        "label": label,
+        "source": source,
         "activeRoutes": len(current_slots),
         "promptTokens": 0,
         "completionTokens": delta_tokens,
@@ -878,8 +924,49 @@ def _load_live_slot_metric(
         "promptTokensPerSecond": None,
         "completionTokensPerSecond": throughput,
         "totalTokensPerSecond": throughput,
-        "signature": f"opencode-live:{snapshot['measuredAt']}:{delta_tokens}",
+        "signature": f"{label}:{snapshot_key}:{snapshot['measuredAt']}:{delta_tokens}",
     }
+
+
+def _load_live_slot_snapshot(config: ControlCenterConfig, snapshot_key: str) -> dict[str, Any]:
+    payload = read_json_object(config.benchmark_live_slots_snapshot_path)
+    entries = payload.get("entries")
+    if isinstance(entries, dict):
+        entry = entries.get(snapshot_key)
+        return dict(entry) if isinstance(entry, dict) else {}
+    if snapshot_key == "active-runtime" and isinstance(payload.get("slots"), dict):
+        return {
+            "measuredAt": str(payload.get("measuredAt", "") or ""),
+            "slots": dict(payload.get("slots", {})),
+        }
+    return {}
+
+
+def _save_live_slot_snapshot(
+    config: ControlCenterConfig,
+    snapshot_key: str,
+    snapshot: dict[str, Any],
+) -> None:
+    payload = read_json_object(config.benchmark_live_slots_snapshot_path)
+    entries = payload.get("entries")
+    normalized_entries = dict(entries) if isinstance(entries, dict) else {}
+    normalized_entries[snapshot_key] = dict(snapshot)
+    atomic_write_json(
+        config.benchmark_live_slots_snapshot_path,
+        {"entries": normalized_entries},
+    )
+
+
+def _select_recent_live_current(history: list[dict[str, Any]]) -> dict[str, Any] | None:
+    now = datetime.now(timezone.utc)
+    for item in reversed(history):
+        measured_at = _parse_iso_timestamp(item.get("measuredAt"))
+        if measured_at is None:
+            continue
+        if (now - measured_at).total_seconds() > BENCHMARK_LIVE_SIGNAL_FRESHNESS_SECONDS:
+            continue
+        return item
+    return None
 
 
 def _run_selected_worker(config: ControlCenterConfig, run_id: str, scenario: dict[str, Any]) -> None:
@@ -1386,7 +1473,7 @@ def _build_live_state(
         return {
             "status": "active",
             "hasLiveSignal": True,
-            "reason": "Live throughput signal dolazi iz aktivnog runtime /slots uzorka.",
+            "reason": "Live throughput signal dolazi iz aktivnog llama.cpp-kompatibilnog /slots uzorka.",
         }
     if str(active_run.get("status", "") or "") in {"queued", "running"}:
         return {

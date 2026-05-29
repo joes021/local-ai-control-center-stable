@@ -2844,6 +2844,36 @@ select:-webkit-autofill {
   gap: 8px;
 }
 
+.tuning-lab-batch-quick-run {
+  display: grid;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid color-mix(in srgb, var(--app-accent-strong) 28%, var(--app-card-soft-border));
+  background: color-mix(in srgb, var(--app-card-soft-bg) 84%, transparent);
+}
+
+.tuning-lab-batch-quick-steps {
+  display: grid;
+  gap: 10px;
+}
+
+.tuning-lab-batch-quick-step {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid var(--app-card-soft-border);
+  background: color-mix(in srgb, var(--app-card-bg) 70%, transparent);
+}
+
+.tuning-lab-batch-quick-step strong,
+.tuning-lab-batch-quick-step .helper-text {
+  display: block;
+}
+
 .tuning-lab-batch-difficulty {
   text-transform: uppercase;
   letter-spacing: 0.08em;

@@ -153,6 +153,42 @@ function buildPlayableActionLabel(playableUrl: string) {
   return playableUrl ? "Otvori rezultat" : "Čeka rezultat";
 }
 
+function buildTaskRunState(
+  runName: string,
+  activeRun: TuningLabRun | null,
+  queue: TuningLabRun[],
+  history: TuningLabRun[],
+) {
+  if (activeRun?.name === runName) {
+    return {
+      badge: "U toku",
+      summary: activeRun.currentStepSummary || activeRun.summary || "Task trenutno radi.",
+      detail: buildActiveRunSummary(activeRun),
+    };
+  }
+  const queuedRun = queue.find((item) => item.name === runName);
+  if (queuedRun) {
+    return {
+      badge: "U redu čekanja",
+      summary: "Task je dodat u queue i čeka svoj red.",
+      detail: formatDateTime(queuedRun.queuedAt),
+    };
+  }
+  const lastRun = history.find((item) => item.name === runName);
+  if (lastRun) {
+    return {
+      badge: lastRun.status === "completed" ? "Poslednji run" : "Poslednji pokušaj",
+      summary: lastRun.winnerSummary || lastRun.summary || "Postoji raniji rezultat za ovaj task.",
+      detail: formatDateTime(lastRun.finishedAt || lastRun.startedAt),
+    };
+  }
+  return {
+    badge: "Spremno",
+    summary: "Task je spreman za pokretanje čim klikneš `Pokreni task`.",
+    detail: "",
+  };
+}
+
 function formatPlayableFilesLabel(value: number | undefined) {
   if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
     return "Playable fajlovi nisu evidentirani";
@@ -546,7 +582,6 @@ export function TuningLabPage() {
           })),
         }),
       );
-      scrollSectionIntoView(progressRef.current);
     } finally {
       setIsQueueing(false);
     }
@@ -567,7 +602,6 @@ export function TuningLabPage() {
           })),
         }),
       );
-      scrollSectionIntoView(progressRef.current);
     } finally {
       setIsQueueing(false);
     }
@@ -709,17 +743,16 @@ export function TuningLabPage() {
                       za sva tri uporediva run-a.
                     </p>
                     <p className="helper-text">
-                      Kada klikneš `Učitaj`, task se otvara u editoru niže na strani, u sekciji
-                      `Eksperiment`.
+                      Osnovni tok sada ostaje u istoj kartici: `Učitaj` → `Pokreni task` → `Otvori rezultat`.
                     </p>
                     {loadedTask ? (
                       <div className="warning-badge">
-                        Trenutno u editoru: {loadedTask.label}. Editor je niže na strani, u sekciji
-                        `Eksperiment`.
+                        Trenutno u editoru: {loadedTask.label}. Napredna podešavanja i dalje postoje niže,
+                        u sekciji `Eksperiment`, ali za osnovni tok više ne moraš da skroluješ do njih.
                       </div>
                     ) : (
                       <p className="helper-text">
-                        Učitaj jedan task ako želiš da ga pregledaš ili doradiš pre queue-a.
+                        Učitaj jedan task ako želiš brzi vođeni tok, ili odmah pokreni ceo batch.
                       </p>
                     )}
                   </div>
@@ -727,9 +760,16 @@ export function TuningLabPage() {
                 <div className="tuning-lab-batch-task-list">
                   {preset.tasks.map((task) => {
                     const taskLoaded = isBatchTaskLoaded(draft, task);
+                    const runName = buildBatchRunName(preset, task);
+                    const taskRunState = buildTaskRunState(
+                      runName,
+                      activeRun,
+                      summary.queue || [],
+                      summary.history || [],
+                    );
                     const latestPlayableRun =
                       (summary.history || []).find((run) => {
-                        if (run.name !== buildBatchRunName(preset, task)) {
+                        if (run.name !== runName) {
                           return false;
                         }
                         return !!findPlayableSlot(run);
@@ -782,6 +822,72 @@ export function TuningLabPage() {
                               </div>
                             </div>
                           )}
+                          {taskLoaded ? (
+                            <div className="tuning-lab-batch-quick-run">
+                              <div className="section-header">
+                                <div>
+                                  <strong>Brzi tok za ovaj task</strong>
+                                  <div className="helper-text">
+                                    Osnovni put rešavaš redom ovde, bez obaveznog skrolovanja do
+                                    donjeg editora.
+                                  </div>
+                                </div>
+                                <span className="warning-badge">Trenutno u editoru</span>
+                              </div>
+                              <div className="tuning-lab-batch-quick-steps">
+                                <div className="tuning-lab-batch-quick-step">
+                                  <span className="compat-badge">Korak 1</span>
+                                  <div>
+                                    <strong>Task je učitan</strong>
+                                    <p className="helper-text">
+                                      Prompt, cilj i success check lanac su već prebačeni u aktivni
+                                      draft.
+                                    </p>
+                                  </div>
+                                </div>
+                                <div className="tuning-lab-batch-quick-step">
+                                  <span className="compat-badge">Korak 2</span>
+                                  <div>
+                                    <strong>Koristi trenutni radni direktorijum</strong>
+                                    <p className="helper-text">
+                                      {draft.workingDirectory.trim()
+                                        ? draft.workingDirectory
+                                        : "Radni direktorijum još nije unet. Postavi ga u sekciji Eksperiment ili učitaj bezbedni scratch folder."}
+                                    </p>
+                                  </div>
+                                </div>
+                                <div className="tuning-lab-batch-quick-step">
+                                  <span className="compat-badge">Korak 3</span>
+                                  <div>
+                                    <strong>Pokreni i prati status</strong>
+                                    <p className="helper-text">
+                                      {taskRunState.summary}
+                                      {taskRunState.detail ? ` (${taskRunState.detail})` : ""}
+                                    </p>
+                                  </div>
+                                </div>
+                                <div className="tuning-lab-batch-quick-step">
+                                  <span className="compat-badge">Korak 4</span>
+                                  <div>
+                                    <strong>Otvori rezultat kada run uspe</strong>
+                                    <p className="helper-text">
+                                      HTML igra će se otvoriti tek kada ovaj task sačuva playable
+                                      izlaz.
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="inline-actions">
+                                <button
+                                  type="button"
+                                  className="secondary-button"
+                                  onClick={() => scrollSectionIntoView(editorRef.current)}
+                                >
+                                  Otvori napredna podešavanja
+                                </button>
+                              </div>
+                            </div>
+                          ) : null}
                         </div>
                         <button
                           type="button"
@@ -791,14 +897,13 @@ export function TuningLabPage() {
                             setResult({
                               status: "ok",
                               action: "load-tuning-batch-task",
-                              summary: `${preset.label} · ${task.label} je učitan u editor niže na strani, u sekciji Eksperiment. Pregledaj radni direktorijum i klikni "Pokreni task" kada budeš spreman.`,
+                              summary: `${preset.label} · ${task.label} je učitan i spreman za brzi tok u istoj kartici. Ako želiš dublje izmene, napredna podešavanja su niže u sekciji Eksperiment.`,
                               details: {
                                 returncode: 0,
                                 stdout: task.taskPrompt,
                                 stderr: "",
                               },
                             });
-                            scrollSectionIntoView(editorRef.current);
                           }}
                         >
                           {buildBatchLoadLabel(task.difficulty)}
