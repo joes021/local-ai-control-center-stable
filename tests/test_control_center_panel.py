@@ -27,8 +27,8 @@ def test_panel_entry_starts_runtime_autostart_thread_when_launching_ui(
             captured["started"] = True
 
     monkeypatch.setattr(
-        "local_ai_control_center_installer.control_center_panel._health_ready",
-        lambda url: False,
+        "local_ai_control_center_installer.control_center_panel._health_ready_for_install_root",
+        lambda url, expected_install_root: False,
     )
     monkeypatch.setattr(
         "local_ai_control_center_installer.control_center_panel._port_in_use",
@@ -49,6 +49,63 @@ def test_panel_entry_starts_runtime_autostart_thread_when_launching_ui(
     assert captured["started"] is True
     assert captured["target"].__name__ == "_ensure_runtime_ready_after_panel_boot"
     assert captured["daemon"] is True
+
+
+def test_panel_entry_ignores_open_browser_flag_when_panel_is_already_healthy(
+    tmp_path: Path,
+    monkeypatch,
+):
+    install_root = tmp_path / "install-root"
+
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_panel._health_ready_for_install_root",
+        lambda url, expected_install_root: True,
+    )
+
+    result = run_control_center_panel_entry(
+        ["--install-root", str(install_root), "--open-browser"]
+    )
+
+    assert result == 0
+
+
+def test_panel_entry_does_not_start_browser_thread_even_with_open_browser_flag(
+    tmp_path: Path,
+    monkeypatch,
+):
+    install_root = tmp_path / "install-root"
+    thread_targets: list[str] = []
+
+    class FakeThread:
+        def __init__(self, target=None, args=(), kwargs=None, daemon=None):
+            self._target = target
+
+        def start(self):
+            thread_targets.append(self._target.__name__)
+
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_panel._health_ready_for_install_root",
+        lambda url, expected_install_root: False,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_panel._port_in_use",
+        lambda host, port: False,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_panel.threading.Thread",
+        FakeThread,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_panel.uvicorn.run",
+        lambda *args, **kwargs: None,
+    )
+
+    result = run_control_center_panel_entry(
+        ["--install-root", str(install_root), "--open-browser"]
+    )
+
+    assert result == 0
+    assert thread_targets == ["_ensure_runtime_ready_after_panel_boot"]
 
 
 def test_panel_entry_rejects_foreign_panel_on_same_port(

@@ -206,6 +206,32 @@ def test_launch_control_center_uses_detached_windows_flags_for_panel_process(
     assert popen_kwargs["creationflags"] == 98765
 
 
+def test_launch_control_center_does_not_open_browser_when_panel_is_already_healthy(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    install_root = tmp_path / "install-root"
+    deployment = ControlCenterRuntimeDeployment(
+        install_root=install_root,
+        panel_root=install_root / "control-center",
+        executable_path=install_root / "control-center" / PANEL_EXECUTABLE_NAME,
+        launcher_path=install_root / "control-center" / "Open-Control-Center.cmd",
+        command=("fake-panel.exe", "--panel"),
+        url="http://127.0.0.1:3210/",
+        port=3210,
+        access_mode="local-only",
+        strategy="packaged-exe",
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_runtime._panel_health_ready",
+        lambda *args, **kwargs: True,
+    )
+
+    result = launch_control_center(deployment, timeout_seconds=0.1)
+
+    assert result == deployment
+
+
 def test_panel_health_ready_rejects_foreign_service_payload(monkeypatch: pytest.MonkeyPatch):
     class FakeResponse:
         status = 200
@@ -582,10 +608,10 @@ def test_deploy_control_center_runtime_creates_linux_python_host_and_launcher(
     assert 'exec "/usr/bin/python3" -m local_ai_control_center_installer.control_center_panel "$@"' in host_text
     assert launcher_text.startswith("#!/usr/bin/env bash\n")
     assert "nohup " in launcher_text
-    assert "--open-browser" in launcher_text
+    assert "--open-browser" not in launcher_text
 
 
-def test_deploy_control_center_runtime_keeps_open_browser_only_in_launcher(
+def test_deploy_control_center_runtime_does_not_emit_open_browser_in_launcher(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ):
@@ -606,7 +632,7 @@ def test_deploy_control_center_runtime_keeps_open_browser_only_in_launcher(
 
     launcher_text = deployment.launcher_path.read_text(encoding="utf-8")
     assert "--open-browser" not in deployment.command
-    assert "--open-browser" in launcher_text
+    assert "--open-browser" not in launcher_text
 
 
 def test_deploy_control_center_runtime_copies_linux_frozen_host_binary(

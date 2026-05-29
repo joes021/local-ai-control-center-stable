@@ -32,7 +32,6 @@ from local_ai_control_center_installer.control_center_uninstall import (
     UNINSTALL_SHORTCUT_NAME,
 )
 from local_ai_control_center_installer.platform_paths import (
-    build_open_url_command,
     detached_subprocess_creationflags,
     hidden_subprocess_creationflags,
     is_windows_platform,
@@ -96,10 +95,6 @@ def _uninstall_launcher_name_for_platform(platform: str | None = None) -> str:
     return LINUX_UNINSTALL_LAUNCHER_NAME
 
 
-def _manual_launcher_command(command: tuple[str, ...]) -> tuple[str, ...]:
-    return (*command, "--open-browser")
-
-
 def deploy_control_center_runtime(
     install_root: str | Path,
     *,
@@ -156,7 +151,7 @@ def deploy_control_center_runtime(
         )
         _write_launcher_script(
             launcher_path,
-            _manual_launcher_command(command),
+            command,
             env_overrides=None,
             platform=platform,
         )
@@ -207,7 +202,7 @@ def deploy_control_center_runtime(
             )
             _write_launcher_script(
                 launcher_path,
-                _manual_launcher_command(command),
+                command,
                 env_overrides=None,
                 platform=platform,
             )
@@ -252,7 +247,7 @@ def deploy_control_center_runtime(
         )
         _write_launcher_script(
             launcher_path,
-            _manual_launcher_command(command),
+            command,
             env_overrides=None,
             platform=platform,
         )
@@ -314,7 +309,7 @@ def deploy_control_center_runtime(
         )
         _write_launcher_script(
             launcher_path,
-            _manual_launcher_command(command),
+            command,
             env_overrides=None,
             platform=platform,
         )
@@ -361,7 +356,7 @@ def deploy_control_center_runtime(
     )
     _write_launcher_script(
         launcher_path,
-        _manual_launcher_command(command),
+        command,
         env_overrides=env_overrides,
         platform=platform,
     )
@@ -459,7 +454,6 @@ def launch_control_center(
         deployment.url,
         expected_install_root=str(deployment.install_root),
     ):
-        _open_panel_url(deployment.url)
         return deployment
     if _port_in_use("127.0.0.1", deployment.port):
         if _panel_health_ready(deployment.url):
@@ -902,18 +896,6 @@ def _panel_health_ready(
         return False
     except (UnicodeDecodeError, ValueError, json.JSONDecodeError):
         return False
-
-
-def _open_panel_url(url: str) -> None:
-    subprocess.Popen(
-        list(build_open_url_command(url)),
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        stdin=subprocess.DEVNULL,
-        creationflags=hidden_subprocess_creationflags(),
-        close_fds=False,
-    )
-
 
 def _stop_existing_panel_for_update(
     *,
