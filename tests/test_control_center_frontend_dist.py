@@ -262,13 +262,21 @@ def test_tuning_lab_source_and_navigation_are_present():
     assert "runBlockers" in page_source
     assert "Instaliraj ili popravi OpenCode" in page_source
     assert "OpenCode nedostaje za Tuning Lab" in page_source
-    assert "Napredak run-a prati u panelu" in page_source
+    assert "Aktivni run cockpit" in page_source
     assert "tuning-lab-slot-grid" in page_source
     assert "tuning-lab-results-table" in page_source
     assert "tuning-lab-history-card" in page_source
     assert "Zašto je ovaj slot pobedio" in page_source
     assert "Aktivni korak" in page_source
     assert "Poslednji log signal" in page_source
+    assert "Aktivni run cockpit" in page_source
+    assert "OpenCode u Tuning Lab-u radi u pozadini" in page_source
+    assert "Queue radi sekvencijalno" in page_source
+    assert "OpenCode PID" in page_source
+    assert "Radni workspace" in page_source
+    assert "Živi output" in page_source
+    assert "Kopiraj workspace putanju" in page_source
+    assert "Kopiraj log putanju" in page_source
     assert "Token telemetry nije prijavljen" in page_source
     assert "Filtriraj istoriju" in page_source
     assert "Spremno za otvaranje" in page_source
@@ -296,6 +304,10 @@ def test_tuning_lab_source_and_navigation_are_present():
     assert ".tuning-lab-batch-task-actions" in styles_source
     assert ".tuning-lab-batch-task-state" in styles_source
     assert ".tuning-lab-batch-playable-meta" in styles_source
+    assert ".tuning-lab-cockpit" in styles_source
+    assert ".tuning-lab-cockpit-grid" in styles_source
+    assert ".tuning-lab-cockpit-strip" in styles_source
+    assert ".tuning-lab-path-card" in styles_source
 
 
 def test_benchmark_source_explanation_is_present():

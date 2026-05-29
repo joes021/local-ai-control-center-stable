@@ -1,3 +1,4 @@
+from copy import deepcopy
 from pathlib import Path
 import subprocess
 
@@ -478,6 +479,161 @@ def test_tuning_lab_slot_retains_playable_artifacts_for_successful_html_output(
     assert result["playableEntryPath"] == "index.html"
     assert (artifact_root / "playable" / "index.html").is_file()
     assert (artifact_root / "playable" / "js" / "game.js").is_file()
+
+
+def test_tuning_lab_slot_updates_active_run_with_visible_session_details(tmp_path: Path, monkeypatch):
+    from local_ai_control_center_installer.control_center_backend.services import tuning_lab_service
+
+    install_root = tmp_path / "install-root"
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    config = get_config()
+    workspace_path = tmp_path / "workspace"
+    workspace_path.mkdir(parents=True, exist_ok=True)
+    artifact_root = (
+        config.control_center_config_root
+        / "tuning-lab"
+        / "runs"
+        / "tuning-visible"
+        / "baseline"
+    )
+    artifact_root.mkdir(parents=True, exist_ok=True)
+    active_run_snapshots: list[dict[str, object]] = []
+
+    monkeypatch.setattr(
+        tuning_lab_service,
+        "prepare_tuning_workspace",
+        lambda **kwargs: {
+            "mode": "copy",
+            "workspacePath": str(workspace_path),
+            "cleanupPath": str(workspace_path),
+        },
+    )
+    monkeypatch.setattr(
+        tuning_lab_service,
+        "_launch_slot_runtime",
+        lambda **kwargs: {
+            "process": type("Process", (), {"pid": 31001})(),
+            "baseUrl": "http://127.0.0.1:49000",
+            "commandPreview": "runtime-preview",
+            "logPath": str(artifact_root / "runtime.log"),
+        },
+    )
+    monkeypatch.setattr(
+        tuning_lab_service,
+        "create_tuning_runtime_profile",
+        lambda **kwargs: {"token": "slot-token"},
+    )
+
+    def fake_run_slot_opencode_task(**kwargs):
+        kwargs["progress_callback"](
+            "opencode",
+            "OpenCode task radi",
+            "Baseline trenutno izvršava zadatak nad izolovanim projektom.",
+            log_excerpt="streaming output",
+            slot_patch={
+                "opencodePid": 41002,
+                "opencodeCommand": "opencode-preview",
+                "stdoutPath": str(artifact_root / "opencode-output.jsonl"),
+                "stderrPath": str(artifact_root / "opencode-error.log"),
+                "liveOutputTokensPerSecond": 18.5,
+                "liveTotalTokensPerSecond": 19.1,
+                "lastLiveMeasuredAt": "2026-05-29T18:45:14+00:00",
+            },
+        )
+        return {
+            "processReturncode": 0,
+            "assistantText": "Finished game",
+            "inputTokens": 20,
+            "outputTokens": 40,
+            "totalTokens": 60,
+            "costUsd": 0.0,
+            "stdoutPath": str(artifact_root / "opencode-output.jsonl"),
+            "stderrPath": str(artifact_root / "opencode-error.log"),
+            "stdoutText": "",
+            "stderrText": "",
+            "commandPreview": "opencode-preview",
+            "averageOutputTokensPerSecond": 18.5,
+            "averageTotalTokensPerSecond": 19.1,
+        }
+
+    monkeypatch.setattr(
+        tuning_lab_service,
+        "_run_slot_opencode_task",
+        fake_run_slot_opencode_task,
+    )
+    monkeypatch.setattr(
+        tuning_lab_service,
+        "_resolve_success_check_specs",
+        lambda **kwargs: [],
+    )
+    monkeypatch.setattr(
+        tuning_lab_service,
+        "_run_success_checks",
+        lambda *args, **kwargs: [],
+    )
+    monkeypatch.setattr(tuning_lab_service, "_snapshot_directory", lambda path: {})
+    monkeypatch.setattr(
+        tuning_lab_service,
+        "_build_diff_artifacts",
+        lambda *args, **kwargs: {
+            "changedFiles": ["index.html"],
+            "summary": "1 fajl(ova) je promenjeno.",
+            "diffFiles": [],
+            "diffText": "",
+        },
+    )
+    monkeypatch.setattr(tuning_lab_service, "_cleanup_workspace_path", lambda workspace_info: None)
+    monkeypatch.setattr(tuning_lab_service, "_stop_slot_runtime", lambda runtime_session: None)
+    monkeypatch.setattr(
+        tuning_lab_service,
+        "_write_active_run",
+        lambda config, active_run: active_run_snapshots.append(deepcopy(active_run)),
+    )
+
+    result = tuning_lab_service._run_tuning_slot(
+        {
+            "runId": "tuning-visible",
+            "workingDirectory": str(workspace_path),
+            "taskPrompt": "create playable game",
+            "currentSlotId": "baseline",
+            "currentSlotLabel": "Baseline",
+            "slots": [
+                {
+                    "id": "baseline",
+                    "label": "Baseline",
+                    "source": "current-system",
+                    "settingsPatch": {"temperature": 0.2},
+                }
+            ],
+        },
+        {
+            "id": "baseline",
+            "label": "Baseline",
+            "source": "current-system",
+            "settingsPatch": {"temperature": 0.2},
+        },
+        config,
+    )
+
+    opencode_snapshot = next(
+        item for item in active_run_snapshots if item.get("currentPhase") == "opencode"
+    )
+    running_slot = opencode_snapshot["slots"][0]
+
+    assert running_slot["workspacePath"] == str(workspace_path)
+    assert running_slot["runtimeBaseUrl"] == "http://127.0.0.1:49000"
+    assert running_slot["runtimeCommand"] == "runtime-preview"
+    assert running_slot["runtimePid"] == 31001
+    assert running_slot["runtimeLogPath"] == str(artifact_root / "runtime.log")
+    assert running_slot["opencodePid"] == 41002
+    assert running_slot["opencodeCommand"] == "opencode-preview"
+    assert running_slot["stdoutPath"] == str(artifact_root / "opencode-output.jsonl")
+    assert running_slot["stderrPath"] == str(artifact_root / "opencode-error.log")
+    assert running_slot["liveOutputTokensPerSecond"] == 18.5
+    assert running_slot["liveTotalTokensPerSecond"] == 19.1
+    assert running_slot["lastLiveMeasuredAt"] == "2026-05-29T18:45:14+00:00"
+    assert result["runtimePid"] == 31001
+    assert result["opencodePid"] == 41002
 
 
 def test_run_slot_opencode_task_records_runtime_live_signal(

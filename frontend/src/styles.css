@@ -2755,6 +2755,27 @@ select:-webkit-autofill {
   gap: 14px;
 }
 
+.tuning-lab-cockpit {
+  display: grid;
+  gap: 16px;
+}
+
+.tuning-lab-cockpit-strip {
+  align-items: flex-start;
+}
+
+.tuning-lab-cockpit-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 1fr) minmax(280px, 0.9fr);
+  align-items: start;
+}
+
+.tuning-lab-path-card {
+  display: grid;
+  gap: 12px;
+}
+
 .tuning-lab-batch-grid {
   display: grid;
   gap: 16px;
@@ -3178,6 +3199,7 @@ select:-webkit-autofill {
   }
 
   .tuning-lab-progress-grid,
+  .tuning-lab-cockpit-grid,
   .tuning-lab-filter-grid,
   .tuning-lab-diff-browser,
   .tuning-lab-batch-overview,

@@ -283,6 +283,17 @@ function buildActiveRunSummary(run: TuningLabRun) {
   return `${slotLabel} | ${phaseLabel}`;
 }
 
+function findCurrentActiveSlot(run: TuningLabRun | null | undefined) {
+  if (!run?.currentSlotId) {
+    return null;
+  }
+  return run.slots.find((slot) => slot.id === run.currentSlotId) || null;
+}
+
+function buildRuntimeLogPath(slot: TuningLabSlot | null) {
+  return slot?.stdoutPath || slot?.runtimeLogPath || slot?.stderrPath || "";
+}
+
 function hasMissingTokenTelemetry(slot: TuningLabSlot) {
   return slot.status === "completed" && (slot.totalTokens ?? 0) <= 0;
 }
@@ -447,6 +458,7 @@ export function TuningLabPage() {
   const [selectedDiffs, setSelectedDiffs] = useState<Record<string, string>>({});
   const editorRef = useRef<HTMLElement | null>(null);
   const progressRef = useRef<HTMLElement | null>(null);
+  const cockpitRef = useRef<HTMLElement | null>(null);
 
   async function load(targetPage = historyPage) {
     try {
@@ -482,6 +494,7 @@ export function TuningLabPage() {
   const successTemplates = summary?.successCheckTemplates ?? [];
   const batchPresets = summary?.batchPresets ?? [];
   const activeRun = runStatus ?? summary?.activeRun ?? null;
+  const activeRunSlot = findCurrentActiveSlot(activeRun);
   const runBlockers = summary?.context.runBlockers ?? [];
   const canQueueRuns = summary?.context.canQueue ?? false;
   const hasRuntimeBinary = summary?.context.runtimeBinaryReady ?? false;
@@ -582,6 +595,7 @@ export function TuningLabPage() {
           })),
         }),
       );
+      scrollSectionIntoView(cockpitRef.current);
     } finally {
       setIsQueueing(false);
     }
@@ -602,6 +616,7 @@ export function TuningLabPage() {
           })),
         }),
       );
+      scrollSectionIntoView(cockpitRef.current);
     } finally {
       setIsQueueing(false);
     }
@@ -677,7 +692,7 @@ export function TuningLabPage() {
             sigurniji scratch workspace: {summary.context.workingDirectory}
           </p>
         ) : null}
-{runBlockers.length ? (
+        {runBlockers.length ? (
           <div className="error-panel">
             <strong>Tuning Lab trenutno nije spreman za pokretanje.</strong>
             {runBlockers.map((message) => (
@@ -701,12 +716,134 @@ export function TuningLabPage() {
           </div>
         ) : (
           <p className="helper-text">
-            Napredak run-a prati u panelu `Queue i aktivni run` niže na strani.
+            Napredak run-a sada vidiš odmah u gornjem `Aktivni run cockpit` bloku, a detaljniji trag
+            ostaje i u panelu `Queue i aktivni run` niže na strani.
           </p>
         )}
       </section>
 
       <ActionResultPanel result={result} />
+
+      <section className="status-card wide-card tuning-lab-cockpit" ref={cockpitRef}>
+        <span className="status-label">Aktivni run cockpit</span>
+        <strong className="status-value">
+          {activeRun ? activeRun.name : "Tuning Lab trenutno miruje"}
+        </strong>
+        <p className="helper-text">
+          OpenCode u Tuning Lab-u radi u pozadini kao stvarni `opencode.exe --pure run` proces nad
+          izolovanim projektom. Ne otvara poseban GUI prozor, pa se pravi signal rada prikazuje
+          ovde.
+        </p>
+        <div className="summary-metrics tuning-lab-cockpit-strip">
+          <span>Queue radi sekvencijalno: jedan run po jedan, jedan slot po jedan.</span>
+          <span>Aktivni run: {activeRun ? "da" : "ne"}</span>
+          <span>Na čekanju: {summary.queue.length}</span>
+          <span>Aktivni model: {summary.context.activeModel || "--"}</span>
+          <span>Runtime: {summary.context.activeRuntime || "--"}</span>
+        </div>
+        {activeRun ? (
+          <div className="tuning-lab-cockpit-grid">
+            <article className="status-card">
+              <span className="status-label">Živa sesija</span>
+              <strong className="status-value">{buildActiveRunSummary(activeRun)}</strong>
+              <div className="summary-metrics">
+                <span>Aktivni slot: {activeRun.currentSlotLabel || "--"}</span>
+                <span>Aktivni korak: {activeRun.currentPhaseLabel || "--"}</span>
+                <span>OpenCode PID: {activeRunSlot?.opencodePid || "--"}</span>
+                <span>Runtime PID: {activeRunSlot?.runtimePid || "--"}</span>
+                <span>Živi output: {formatTok(activeRunSlot?.liveOutputTokensPerSecond)}</span>
+                <span>Živi ukupno: {formatTok(activeRunSlot?.liveTotalTokensPerSecond)}</span>
+                <span>Poslednje merenje: {formatDateTime(activeRunSlot?.lastLiveMeasuredAt)}</span>
+              </div>
+              <p className="helper-text">
+                {activeRun.currentStepSummary || activeRun.summary || "Run trenutno radi bez dodatnog opisa."}
+              </p>
+              <p className="helper-text">
+                Ako vidiš `OpenCode PID` i živi `tok/s`, to znači da stvarni agent task zaista radi,
+                samo bez zasebnog vidljivog prozora.
+              </p>
+            </article>
+            <article className="status-card tuning-lab-path-card">
+              <span className="status-label">Putanje i komande</span>
+              <strong>Radni workspace</strong>
+              <div className="details-block">
+                <pre>{activeRunSlot?.workspacePath || activeRun.workingDirectory || "--"}</pre>
+              </div>
+              <div className="summary-metrics">
+                <span>Runtime base URL: {activeRunSlot?.runtimeBaseUrl || "--"}</span>
+                <span>OpenCode izlaz: {activeRunSlot?.stdoutPath || "--"}</span>
+                <span>Runtime log: {activeRunSlot?.runtimeLogPath || "--"}</span>
+              </div>
+              <div className="inline-actions">
+                <button
+                  type="button"
+                  className="secondary-button"
+                  disabled={!(activeRunSlot?.workspacePath || activeRun.workingDirectory)}
+                  onClick={() =>
+                    void copyText(
+                      activeRunSlot?.workspacePath || activeRun.workingDirectory || "",
+                      setResult,
+                      "Workspace putanja je kopirana.",
+                    )
+                  }
+                >
+                  Kopiraj workspace putanju
+                </button>
+                <button
+                  type="button"
+                  className="secondary-button"
+                  disabled={!buildRuntimeLogPath(activeRunSlot)}
+                  onClick={() =>
+                    void copyText(
+                      buildRuntimeLogPath(activeRunSlot),
+                      setResult,
+                      "Log putanja je kopirana.",
+                    )
+                  }
+                >
+                  Kopiraj log putanju
+                </button>
+                <button
+                  type="button"
+                  className="secondary-button"
+                  disabled={!activeRunSlot?.opencodeCommand}
+                  onClick={() =>
+                    void copyText(
+                      activeRunSlot?.opencodeCommand || "",
+                      setResult,
+                      "OpenCode komanda je kopirana.",
+                    )
+                  }
+                >
+                  Kopiraj OpenCode komandu
+                </button>
+              </div>
+              <details className="tuning-lab-history-detail">
+                <summary>Prikaži runtime i OpenCode komande</summary>
+                <p className="helper-text">OpenCode komanda</p>
+                <div className="details-block">
+                  <pre>{activeRunSlot?.opencodeCommand || "--"}</pre>
+                </div>
+                <p className="helper-text">Runtime komanda</p>
+                <div className="details-block">
+                  <pre>{activeRunSlot?.runtimeCommand || "--"}</pre>
+                </div>
+              </details>
+            </article>
+            <article className="status-card">
+              <span className="status-label">Poslednji log signal</span>
+              <div className="tuning-lab-log-panel">
+                <pre>{activeRun.currentLogExcerpt || "Još nema log signala za aktivni korak."}</pre>
+              </div>
+            </article>
+          </div>
+        ) : (
+          <p className="helper-text">
+            Kada pokreneš task, ovde ćeš odmah videti aktivni slot, PID, workspace, komandu i živi
+            tok bez dodatnog skrolovanja kroz stranu.
+          </p>
+        )}
+      </section>
 
       <section className="status-card wide-card">
         <span className="status-label">Gotovi batch testovi</span>
@@ -744,6 +881,10 @@ export function TuningLabPage() {
                     </p>
                     <p className="helper-text">
                       Osnovni tok sada ostaje u istoj kartici: `Učitaj` → `Pokreni task` → `Otvori rezultat`.
+                    </p>
+                    <p className="helper-text">
+                      Queue radi sekvencijalno: prvo jedan task, a unutar njega `Baseline` →
+                      `Recommended` → `Custom`.
                     </p>
                     {loadedTask ? (
                       <div className="warning-badge">
@@ -1326,6 +1467,13 @@ export function TuningLabPage() {
                 </div>
                 <p className="helper-text">{buildActiveRunSummary(activeRun)}</p>
                 <p className="helper-text">{activeRun.currentStepSummary || activeRun.summary || "--"}</p>
+                {activeRunSlot ? (
+                  <div className="summary-metrics">
+                    <span>OpenCode PID: {activeRunSlot.opencodePid || "--"}</span>
+                    <span>Workspace: {activeRunSlot.workspacePath || "--"}</span>
+                    <span>Živi output: {formatTok(activeRunSlot.liveOutputTokensPerSecond)}</span>
+                  </div>
+                ) : null}
                 <div className="tuning-lab-log-panel">
                   <span className="status-label">Poslednji log signal</span>
                   <pre>{activeRun.currentLogExcerpt || "Još nema log signala za aktivni korak."}</pre>

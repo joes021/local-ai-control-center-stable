@@ -507,8 +507,15 @@ export type TuningLabSlot = {
   averageTotalTokensPerSecond?: number;
   runtimeCommand?: string;
   runtimeBaseUrl?: string;
+  runtimePid?: number;
+  runtimeLogPath?: string;
   opencodeCommand?: string;
+  opencodePid?: number;
   stdoutPath?: string;
+  stderrPath?: string;
+  liveOutputTokensPerSecond?: number;
+  liveTotalTokensPerSecond?: number;
+  lastLiveMeasuredAt?: string;
   playableEntryPath?: string;
   playableFilesPreserved?: number;
 };

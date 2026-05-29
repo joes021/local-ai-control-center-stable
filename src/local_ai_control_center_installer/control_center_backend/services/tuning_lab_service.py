@@ -953,6 +953,7 @@ def _run_tuning_slot(
         *,
         log_excerpt: str = "",
         check_label: str = "",
+        slot_patch: dict[str, Any] | None = None,
     ) -> None:
         experiment["currentPhase"] = phase
         experiment["currentPhaseLabel"] = phase_label
@@ -961,6 +962,14 @@ def _run_tuning_slot(
         experiment["currentLogExcerpt"] = log_excerpt[-4000:] if log_excerpt else ""
         experiment["lastUpdatedAt"] = _now_iso()
         experiment["elapsedMs"] = _elapsed_ms_from_started_at(experiment.get("startedAt"))
+        _update_active_run_slot(
+            experiment,
+            {
+                "status": "running",
+                "summary": summary,
+                **(slot_patch or {}),
+            },
+        )
         _write_active_run(config, experiment)
 
     try:
@@ -976,6 +985,13 @@ def _run_tuning_slot(
             config=config,
         )
         workspace_path = Path(str(workspace_info["workspacePath"]))
+        _update_active_run_slot(
+            experiment,
+            {
+                "workspaceMode": str(workspace_info.get("mode", "") or ""),
+                "workspacePath": str(workspace_path),
+            },
+        )
         before_snapshot = _snapshot_directory(workspace_path)
         runtime_session = _launch_slot_runtime(
             slot_settings=merged_settings,
@@ -987,6 +1003,18 @@ def _run_tuning_slot(
             "Pokretanje runtime servera",
             f"{slot_label} je podigao runtime i čeka OpenCode task.",
             log_excerpt=_read_text_tail(Path(str(runtime_session.get("logPath", "") or ""))),
+            slot_patch={
+                "workspaceMode": str(workspace_info.get("mode", "") or ""),
+                "workspacePath": str(workspace_path),
+                "runtimeCommand": str(runtime_session.get("commandPreview", "") or ""),
+                "runtimeBaseUrl": str(runtime_session.get("baseUrl", "") or ""),
+                "runtimePid": int(
+                    runtime_session.get("runtimePid", 0)
+                    or getattr(runtime_session.get("process"), "pid", 0)
+                    or 0
+                ),
+                "runtimeLogPath": str(runtime_session.get("logPath", "") or ""),
+            },
         )
         runtime_profile = create_tuning_runtime_profile(
             experiment_id=str(experiment.get("runId", "") or ""),
@@ -1048,6 +1076,14 @@ def _run_tuning_slot(
 
     after_snapshot = _snapshot_directory(workspace_path) if workspace_path.exists() else {}
     diff_artifacts = _build_diff_artifacts(before_snapshot, after_snapshot, workspace_path)
+    active_slot_snapshot = next(
+        (
+            candidate
+            for candidate in experiment.get("slots", [])
+            if isinstance(candidate, dict) and str(candidate.get("id", "") or "") == slot_id
+        ),
+        {},
+    )
     process_returncode = (
         int(opencode_result.get("processReturncode", 1))
         if isinstance(opencode_result, dict)
@@ -1105,8 +1141,71 @@ def _run_tuning_slot(
         "averageTotalTokensPerSecond": float(opencode_result.get("averageTotalTokensPerSecond", 0.0) if isinstance(opencode_result, dict) else 0.0),
         "runtimeCommand": str(runtime_session.get("commandPreview", "") if isinstance(runtime_session, dict) else ""),
         "runtimeBaseUrl": str(runtime_session.get("baseUrl", "") if isinstance(runtime_session, dict) else ""),
+        "runtimePid": int(
+            (
+                runtime_session.get("runtimePid", 0)
+                or getattr(runtime_session.get("process"), "pid", 0)
+                or 0
+            )
+            if isinstance(runtime_session, dict)
+            else 0
+        ),
+        "runtimeLogPath": str(runtime_session.get("logPath", "") if isinstance(runtime_session, dict) else ""),
         "opencodeCommand": str(opencode_result.get("commandPreview", "") if isinstance(opencode_result, dict) else ""),
-        "stdoutPath": str(opencode_result.get("stdoutPath", "") if isinstance(opencode_result, dict) else ""),
+        "opencodePid": int(
+            (
+                opencode_result.get("opencodePid", 0)
+                or active_slot_snapshot.get("opencodePid", 0)
+                or 0
+            )
+            if isinstance(opencode_result, dict)
+            else int(active_slot_snapshot.get("opencodePid", 0) or 0)
+        ),
+        "stdoutPath": str(
+            (
+                opencode_result.get("stdoutPath", "")
+                or active_slot_snapshot.get("stdoutPath", "")
+                or ""
+            )
+            if isinstance(opencode_result, dict)
+            else str(active_slot_snapshot.get("stdoutPath", "") or "")
+        ),
+        "stderrPath": str(
+            (
+                opencode_result.get("stderrPath", "")
+                or active_slot_snapshot.get("stderrPath", "")
+                or ""
+            )
+            if isinstance(opencode_result, dict)
+            else str(active_slot_snapshot.get("stderrPath", "") or "")
+        ),
+        "liveOutputTokensPerSecond": float(
+            (
+                opencode_result.get("liveOutputTokensPerSecond", 0.0)
+                or active_slot_snapshot.get("liveOutputTokensPerSecond", 0.0)
+                or 0.0
+            )
+            if isinstance(opencode_result, dict)
+            else float(active_slot_snapshot.get("liveOutputTokensPerSecond", 0.0) or 0.0)
+        ),
+        "liveTotalTokensPerSecond": float(
+            (
+                opencode_result.get("liveTotalTokensPerSecond", 0.0)
+                or active_slot_snapshot.get("liveTotalTokensPerSecond", 0.0)
+                or 0.0
+            )
+            if isinstance(opencode_result, dict)
+            else float(active_slot_snapshot.get("liveTotalTokensPerSecond", 0.0) or 0.0)
+        ),
+        "lastLiveMeasuredAt": str(
+            (
+                opencode_result.get("lastLiveMeasuredAt", "")
+                or active_slot_snapshot.get("lastLiveMeasuredAt", "")
+                or ""
+            )
+            if isinstance(opencode_result, dict)
+            else str(active_slot_snapshot.get("lastLiveMeasuredAt", "") or "")
+        ),
         "playableEntryPath": str(playable_artifacts.get("playableEntryPath", "") or ""),
         "playableFilesPreserved": int(playable_artifacts.get("playableFilesPreserved", 0) or 0),
     }
@@ -1184,6 +1283,7 @@ def _launch_slot_runtime(
         "baseUrl": base_url,
         "commandPreview": subprocess.list2cmdline(command),
         "logPath": str(log_path),
+        "runtimePid": int(getattr(process, "pid", 0) or 0),
     }
 
 
@@ -1252,6 +1352,7 @@ def _run_slot_opencode_task(
     stdout_path = slot_artifact_root / "opencode-output.jsonl"
     stderr_path = slot_artifact_root / "opencode-error.log"
     slot_label = str(experiment.get("currentSlotLabel", "Aktivni slot") or "Aktivni slot")
+    latest_live_metric: dict[str, Any] | None = None
     with stdout_path.open("w", encoding="utf-8") as stdout_handle, stderr_path.open(
         "w", encoding="utf-8"
     ) as stderr_handle:
@@ -1272,7 +1373,7 @@ def _run_slot_opencode_task(
                 _stop_process(process)
                 raise RuntimeError("OpenCode task je istekao pre završetka.")
             if upstream_base_url:
-                benchmark_service.record_runtime_live_slot_metric(
+                latest_live_metric = benchmark_service.record_runtime_live_slot_metric(
                     upstream_base_url,
                     config=config,
                     label="tuning-lab-live",
@@ -1285,6 +1386,28 @@ def _run_slot_opencode_task(
                     "OpenCode task radi",
                     f"{slot_label} trenutno izvršava zadatak nad izolovanim projektom.",
                     log_excerpt=_read_text_tail(stdout_path) or _read_text_tail(stderr_path),
+                    slot_patch={
+                        "workspacePath": str(workspace_path),
+                        "opencodePid": int(getattr(process, "pid", 0) or 0),
+                        "opencodeCommand": subprocess.list2cmdline(command),
+                        "stdoutPath": str(stdout_path),
+                        "stderrPath": str(stderr_path),
+                        "liveOutputTokensPerSecond": float(
+                            latest_live_metric.get("completionTokensPerSecond", 0.0)
+                            if isinstance(latest_live_metric, dict)
+                            else 0.0
+                        ),
+                        "liveTotalTokensPerSecond": float(
+                            latest_live_metric.get("totalTokensPerSecond", 0.0)
+                            if isinstance(latest_live_metric, dict)
+                            else 0.0
+                        ),
+                        "lastLiveMeasuredAt": str(
+                            latest_live_metric.get("measuredAt", "")
+                            if isinstance(latest_live_metric, dict)
+                            else ""
+                        ),
+                    },
                 )
             time.sleep(0.75)
         completed_returncode = int(process.wait())
@@ -1306,8 +1429,24 @@ def _run_slot_opencode_task(
         "stdoutText": stdout_text,
         "stderrText": stderr_text,
         "commandPreview": subprocess.list2cmdline(command),
+        "opencodePid": int(getattr(process, "pid", 0) or 0),
         "averageOutputTokensPerSecond": (output_tokens / total_duration_seconds) if output_tokens > 0 else 0.0,
         "averageTotalTokensPerSecond": (total_tokens / total_duration_seconds) if total_tokens > 0 else 0.0,
+        "liveOutputTokensPerSecond": float(
+            latest_live_metric.get("completionTokensPerSecond", 0.0)
+            if isinstance(latest_live_metric, dict)
+            else 0.0
+        ),
+        "liveTotalTokensPerSecond": float(
+            latest_live_metric.get("totalTokensPerSecond", 0.0)
+            if isinstance(latest_live_metric, dict)
+            else 0.0
+        ),
+        "lastLiveMeasuredAt": str(
+            latest_live_metric.get("measuredAt", "")
+            if isinstance(latest_live_metric, dict)
+            else ""
+        ),
     }
 
 
@@ -1993,6 +2132,22 @@ def _write_active_run(config: ControlCenterConfig, active_run: dict[str, Any]) -
     with _RUN_LOCK:
         current = _load_run_state(config)
         _save_run_state(config, active_run=active_run, queue=current["queue"])
+
+
+def _update_active_run_slot(active_run: dict[str, Any], patch: dict[str, Any]) -> None:
+    current_slot_id = str(active_run.get("currentSlotId", "") or "").strip()
+    if not current_slot_id:
+        return
+    slots = active_run.get("slots")
+    if not isinstance(slots, list):
+        return
+    for candidate in slots:
+        if not isinstance(candidate, dict):
+            continue
+        if str(candidate.get("id", "") or "").strip() != current_slot_id:
+            continue
+        candidate.update({key: value for key, value in patch.items() if value not in (None, "")})
+        break
 
 
 def _read_text_tail(path: Path, limit: int = 2000) -> str:
