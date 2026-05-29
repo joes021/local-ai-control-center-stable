@@ -469,6 +469,14 @@ export type TuningLabSuccessCheckResult = TuningLabSuccessCheckSpec & {
   stderrPreview?: string;
 };
 
+export type TuningLabDiffFile = {
+  path: string;
+  summary?: string;
+  diffText?: string;
+  isBinary?: boolean;
+  isTruncated?: boolean;
+};
+
 export type TuningLabSlot = {
   id: string;
   label: string;
@@ -487,6 +495,7 @@ export type TuningLabSlot = {
   changedFiles?: string[];
   diffSummary?: string;
   diffText?: string;
+  diffFiles?: TuningLabDiffFile[];
   assistantText?: string;
   processReturncode?: number;
   inputTokens?: number;
@@ -537,6 +546,13 @@ export type TuningLabRun = {
   currentIndex?: number;
   currentSlotId?: string;
   currentSlotLabel?: string;
+  currentPhase?: string;
+  currentPhaseLabel?: string;
+  currentStepSummary?: string;
+  currentCheckLabel?: string;
+  currentLogExcerpt?: string;
+  lastUpdatedAt?: string;
+  elapsedMs?: number;
 };
 
 export type TuningLabSummaryPayload = {

@@ -227,6 +227,15 @@ def test_tuning_lab_slot_treats_zero_returncode_without_tokens_as_completed(tmp_
         lambda *args, **kwargs: {
             "changedFiles": ["tuning_lab_ready.txt"],
             "summary": "1 fajl(ova) je promenjeno.",
+            "diffFiles": [
+                {
+                    "path": "tuning_lab_ready.txt",
+                    "summary": "tuning_lab_ready.txt",
+                    "diffText": "--- a/tuning_lab_ready.txt\n+++ b/tuning_lab_ready.txt\n+READY",
+                    "isBinary": False,
+                    "isTruncated": False,
+                }
+            ],
             "diffText": "--- a/tuning_lab_ready.txt\n+++ b/tuning_lab_ready.txt\n+READY",
         },
     )
@@ -250,8 +259,29 @@ def test_tuning_lab_slot_treats_zero_returncode_without_tokens_as_completed(tmp_
     assert result["processReturncode"] == 0
     assert result["successChecksPassed"] is True
     assert result["changedFiles"] == ["tuning_lab_ready.txt"]
+    assert result["diffFiles"][0]["path"] == "tuning_lab_ready.txt"
     assert result["taskCompleted"] is True
     assert result["status"] == "completed"
+
+
+def test_tuning_lab_build_diff_artifacts_returns_per_file_blocks(tmp_path: Path):
+    from local_ai_control_center_installer.control_center_backend.services import tuning_lab_service
+
+    workspace_path = tmp_path / "workspace"
+    workspace_path.mkdir(parents=True, exist_ok=True)
+    target_file = workspace_path / "src" / "demo.txt"
+    target_file.parent.mkdir(parents=True, exist_ok=True)
+    target_file.write_text("nova vrednost\n", encoding="utf-8")
+
+    artifacts = tuning_lab_service._build_diff_artifacts(
+        {"src/demo.txt": {"digest": "before-hash", "text": "stara vrednost\n", "size": 14}},
+        {"src/demo.txt": {"digest": "after-hash", "text": "nova vrednost\n", "size": 13}},
+        workspace_path,
+    )
+
+    assert artifacts["changedFiles"] == ["src/demo.txt"]
+    assert artifacts["diffFiles"][0]["path"] == "src/demo.txt"
+    assert "+++ b/src/demo.txt" in artifacts["diffFiles"][0]["diffText"]
 
 
 def test_tuning_lab_queue_apply_export_and_failed_history_flow(tmp_path: Path, monkeypatch):

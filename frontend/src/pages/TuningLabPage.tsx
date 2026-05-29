@@ -11,6 +11,7 @@ import {
 } from "../lib/api";
 import type {
   ActionResult,
+  TuningLabDiffFile,
   TuningLabRun,
   TuningLabSettingsPatch,
   TuningLabSlot,
@@ -32,6 +33,13 @@ type TuningDraft = {
   workingDirectory: string;
   successChecks: SuccessCheckDraft[];
   slots: TuningLabSlot[];
+};
+
+type HistoryFilters = {
+  query: string;
+  goal: string;
+  runtime: string;
+  status: string;
 };
 
 function formatDateTime(value: string | undefined) {
@@ -58,6 +66,13 @@ function formatMs(value: number | undefined) {
   }
   const seconds = value / 1000;
   return `${seconds.toFixed(seconds >= 10 ? 0 : 1)} s`;
+}
+
+function formatCount(value: number | undefined) {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+    return "--";
+  }
+  return new Intl.NumberFormat("sr-RS").format(value);
 }
 
 function buildDraftFromSummary(payload: TuningLabSummaryPayload): TuningDraft {
@@ -111,6 +126,158 @@ function renderWinnerLabel(run: TuningLabRun) {
   return slot?.label || run.suggestedWinnerSlotId;
 }
 
+function buildActiveRunSummary(run: TuningLabRun) {
+  const slotLabel = run.currentSlotLabel || "--";
+  const phaseLabel = run.currentPhaseLabel || "Čeka signal";
+  return `${slotLabel} | ${phaseLabel}`;
+}
+
+function hasMissingTokenTelemetry(slot: TuningLabSlot) {
+  return slot.status === "completed" && (slot.totalTokens ?? 0) <= 0;
+}
+
+function parseDiffFilesFromText(diffText: string | undefined): TuningLabDiffFile[] {
+  if (!diffText?.trim()) {
+    return [];
+  }
+  const normalized = diffText.trim();
+  const matches = normalized.matchAll(/(^|\n)--- a\/([^\n]+)\n\+\+\+ b\/[^\n]+\n/g);
+  const sections: Array<{ path: string; start: number }> = [];
+  for (const match of matches) {
+    const index = typeof match.index === "number" ? match.index + (match[1]?.length ?? 0) : 0;
+    sections.push({ path: match[2], start: index });
+  }
+  if (!sections.length) {
+    return [{ path: "diff", summary: "Konsolidovani diff", diffText: normalized }];
+  }
+  return sections.map((section, index) => {
+    const next = sections[index + 1];
+    const end = next ? next.start : normalized.length;
+    return {
+      path: section.path,
+      summary: section.path,
+      diffText: normalized.slice(section.start, end).trim(),
+      isBinary: false,
+      isTruncated: false,
+    };
+  });
+}
+
+function getSlotDiffFiles(slot: TuningLabSlot): TuningLabDiffFile[] {
+  if (Array.isArray(slot.diffFiles) && slot.diffFiles.length) {
+    return slot.diffFiles;
+  }
+  return parseDiffFilesFromText(slot.diffText);
+}
+
+function buildSettingsDiff(referenceSlot: TuningLabSlot | undefined, slot: TuningLabSlot) {
+  if (!referenceSlot) {
+    return [];
+  }
+  const pairs: Array<{ key: keyof TuningLabSettingsPatch; label: string }> = [
+    { key: "profile", label: "Profil" },
+    { key: "thinkingMode", label: "Thinking" },
+    { key: "context", label: "Context" },
+    { key: "outputTokens", label: "Output" },
+    { key: "temperature", label: "Temperature" },
+    { key: "topK", label: "Top-k" },
+    { key: "topP", label: "Top-p" },
+    { key: "minP", label: "Min-p" },
+    { key: "repeatPenalty", label: "Repeat" },
+    { key: "repeatLastN", label: "Last N" },
+    { key: "presencePenalty", label: "Presence" },
+    { key: "frequencyPenalty", label: "Frequency" },
+    { key: "seed", label: "Seed" },
+  ];
+  return pairs
+    .map(({ key, label }) => ({
+      key,
+      label,
+      before: referenceSlot.settingsPatch[key],
+      after: slot.settingsPatch[key],
+    }))
+    .filter((item) => item.before !== item.after);
+}
+
+function buildWinnerReason(run: TuningLabRun) {
+  const winner = run.slots.find((slot) => slot.id === run.suggestedWinnerSlotId);
+  if (!winner) {
+    return "Nijedan slot nije završio zadatak i success check uspešno.";
+  }
+  const completedCount = run.slots.filter((slot) => slot.taskCompleted && slot.successChecksPassed).length;
+  return [
+    `${winner.label} je predložen kao pobednik jer je uspešno završio task i prošao success check.`,
+    completedCount > 1
+      ? `Od uspešnih slotova, imao je najzdraviji odnos trajanja ${formatMs(winner.totalDurationMs)} i throughput-a ${formatTok(winner.averageOutputTokensPerSecond)}.`
+      : "Bio je jedini slot koji je ostao tehnički upotrebljiv do kraja eksperimenta.",
+  ].join(" ");
+}
+
+async function copyText(
+  text: string,
+  onResult: (result: ActionResult) => void,
+  summary: string,
+) {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+    } else {
+      const textarea = document.createElement("textarea");
+      textarea.value = text;
+      textarea.style.position = "fixed";
+      textarea.style.opacity = "0";
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+      document.execCommand("copy");
+      textarea.remove();
+    }
+    onResult({
+      status: "ok",
+      action: "copy-to-clipboard",
+      summary,
+      details: { returncode: 0, stdout: text, stderr: "" },
+    });
+  } catch (error) {
+    onResult({
+      status: "error",
+      action: "copy-to-clipboard",
+      summary: "Kopiranje u clipboard nije uspelo.",
+      details: {
+        returncode: 1,
+        stdout: "",
+        stderr: error instanceof Error ? error.message : "clipboard error",
+      },
+    });
+  }
+}
+
+function buildSlotParamCopy(slot: TuningLabSlot) {
+  return JSON.stringify(
+    {
+      label: slot.label,
+      source: slot.source,
+      settingsPatch: slot.settingsPatch,
+    },
+    null,
+    2,
+  );
+}
+
+function buildSlotExportName(runId: string, slot: TuningLabSlot) {
+  return `${runId}-${slot.id}.json`;
+}
+
+function downloadJson(filename: string, value: unknown) {
+  const blob = new Blob([JSON.stringify(value, null, 2)], { type: "application/json" });
+  const objectUrl = window.URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = objectUrl;
+  anchor.download = filename;
+  anchor.click();
+  window.URL.revokeObjectURL(objectUrl);
+}
+
 export function TuningLabPage() {
   const [summary, setSummary] = useState<TuningLabSummaryPayload | null>(null);
   const [runStatus, setRunStatus] = useState<TuningLabRun | null>(null);
@@ -120,6 +287,13 @@ export function TuningLabPage() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ActionResult | null>(null);
   const [isQueueing, setIsQueueing] = useState(false);
+  const [historyFilters, setHistoryFilters] = useState<HistoryFilters>({
+    query: "",
+    goal: "all",
+    runtime: "all",
+    status: "all",
+  });
+  const [selectedDiffs, setSelectedDiffs] = useState<Record<string, string>>({});
 
   async function load(targetPage = historyPage) {
     try {
@@ -159,6 +333,48 @@ export function TuningLabPage() {
     return summary?.context.recommendedOrigin || "interna pravila";
   }, [summary?.context.recommendedOrigin]);
 
+  const historyRuntimeOptions = useMemo(() => {
+    const values = new Set<string>();
+    for (const item of summary?.history ?? []) {
+      if (item.activeRuntime) {
+        values.add(item.activeRuntime);
+      }
+    }
+    return Array.from(values);
+  }, [summary?.history]);
+
+  const filteredHistory = useMemo(() => {
+    const query = historyFilters.query.trim().toLowerCase();
+    return (summary?.history ?? []).filter((run) => {
+      if (historyFilters.goal !== "all" && run.goal !== historyFilters.goal) {
+        return false;
+      }
+      if (historyFilters.runtime !== "all" && (run.activeRuntime || "--") !== historyFilters.runtime) {
+        return false;
+      }
+      if (historyFilters.status !== "all" && run.status !== historyFilters.status) {
+        return false;
+      }
+      if (!query) {
+        return true;
+      }
+      const haystack = [
+        run.name,
+        run.goalLabel,
+        run.goal,
+        run.modelLabel,
+        run.modelId,
+        run.activeRuntime,
+        run.summary,
+        run.winnerSummary,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(query);
+    });
+  }, [historyFilters, summary?.history]);
+
   async function runMutation(callback: () => Promise<ActionResult | { status: string; summary: string }>) {
     try {
       const payload = await callback();
@@ -190,7 +406,7 @@ export function TuningLabPage() {
     <>
       <section className="status-card wide-card">
         <span className="status-label">Tuning Lab</span>
-        <strong className="status-value">Poređenje i primena tuning setova</strong>
+        <strong className="status-value">Poređenje, objašnjenje i primena tuning setova</strong>
         <p className="helper-text">
           Ovaj lab pokreće stvarni OpenCode task nad izolovanim radnim prostorom i poredi tri seta
           podešavanja: `Baseline`, `Recommended` i `Custom`.
@@ -249,8 +465,8 @@ export function TuningLabPage() {
           <article className="status-card">
             <span className="status-label">Success check lanac</span>
             <p className="helper-text">
-              Ako ga ostaviš praznim, Tuning Lab će probati auto-detect. Možeš i ručno da dodaš do
-              3 koraka.
+              Ako ga ostaviš praznim, Tuning Lab će probati auto-detect. Možeš i ručno da dodaš do 3
+              koraka.
             </p>
             <div className="inline-actions">
               {successTemplates.map((template) => (
@@ -313,7 +529,9 @@ export function TuningLabPage() {
                       onClick={() =>
                         setDraft({
                           ...draft,
-                          successChecks: draft.successChecks.filter((_, currentIndex) => currentIndex !== index),
+                          successChecks: draft.successChecks.filter(
+                            (_, currentIndex) => currentIndex !== index,
+                          ),
                         })
                       }
                     >
@@ -322,7 +540,9 @@ export function TuningLabPage() {
                   </div>
                 ))
               ) : (
-                <p className="helper-text">Auto-detect će odlučiti da li treba `pytest`, `npm test` ili `cargo test`.</p>
+                <p className="helper-text">
+                  Auto-detect će odlučiti da li treba `pytest`, `npm test` ili `cargo test`.
+                </p>
               )}
             </div>
           </article>
@@ -414,7 +634,9 @@ export function TuningLabPage() {
                     onChange={(event) =>
                       setDraft({
                         ...draft,
-                        slots: patchSlotSettings(draft.slots, slot.id, { profile: event.target.value }),
+                        slots: patchSlotSettings(draft.slots, slot.id, {
+                          profile: event.target.value,
+                        }),
                       })
                     }
                   >
@@ -430,7 +652,9 @@ export function TuningLabPage() {
                     onChange={(event) =>
                       setDraft({
                         ...draft,
-                        slots: patchSlotSettings(draft.slots, slot.id, { thinkingMode: event.target.value }),
+                        slots: patchSlotSettings(draft.slots, slot.id, {
+                          thinkingMode: event.target.value,
+                        }),
                       })
                     }
                   >
@@ -449,7 +673,9 @@ export function TuningLabPage() {
                     onChange={(event) =>
                       setDraft({
                         ...draft,
-                        slots: patchSlotSettings(draft.slots, slot.id, { context: Number(event.target.value || 0) }),
+                        slots: patchSlotSettings(draft.slots, slot.id, {
+                          context: Number(event.target.value || 0),
+                        }),
                       })
                     }
                   />
@@ -507,20 +733,27 @@ export function TuningLabPage() {
 
       <section className="status-card wide-card">
         <span className="status-label">Queue i aktivni run</span>
-        <div className="tuning-lab-layout">
+        <div className="tuning-lab-progress-grid">
           <article className="status-card">
             <strong className="status-value">Aktivni run</strong>
             {activeRun ? (
               <>
-                <p className="helper-text">
-                  {activeRun.name} | {activeRun.status} | slot {activeRun.currentIndex ?? 0} /{" "}
-                  {activeRun.slots.length}
-                </p>
-                <p className="helper-text">
-                  Trenutni slot: {activeRun.currentSlotLabel || "--"} | Početak:{" "}
-                  {formatDateTime(activeRun.startedAt)}
-                </p>
-                <p className="helper-text">{activeRun.winnerSummary || activeRun.summary || "--"}</p>
+                <div className="tuning-lab-progress-metrics">
+                  <span>Naziv: {activeRun.name}</span>
+                  <span>Status: {activeRun.status}</span>
+                  <span>Slot: {activeRun.currentIndex ?? 0} / {activeRun.slots.length}</span>
+                  <span>Trenutni slot: {activeRun.currentSlotLabel || "--"}</span>
+                  <span>Aktivni korak: {activeRun.currentPhaseLabel || "--"}</span>
+                  <span>Trajanje do sada: {formatMs(activeRun.elapsedMs)}</span>
+                  <span>Početak: {formatDateTime(activeRun.startedAt)}</span>
+                  <span>Poslednje osveženje: {formatDateTime(activeRun.lastUpdatedAt)}</span>
+                </div>
+                <p className="helper-text">{buildActiveRunSummary(activeRun)}</p>
+                <p className="helper-text">{activeRun.currentStepSummary || activeRun.summary || "--"}</p>
+                <div className="tuning-lab-log-panel">
+                  <span className="status-label">Poslednji log signal</span>
+                  <pre>{activeRun.currentLogExcerpt || "Još nema log signala za aktivni korak."}</pre>
+                </div>
               </>
             ) : (
               <p className="helper-text">Trenutno nema aktivnog Tuning Lab run-a.</p>
@@ -548,98 +781,294 @@ export function TuningLabPage() {
 
       <section className="status-card wide-card">
         <span className="status-label">Istorija</span>
-        {summary.history.length ? (
+        <strong className="status-value">Filtriraj istoriju</strong>
+        <div className="tuning-lab-filter-grid">
+          <label className="settings-compact-field">
+            <span>Pretraga</span>
+            <input
+              type="text"
+              value={historyFilters.query}
+              placeholder="Naziv, model, runtime..."
+              onChange={(event) =>
+                setHistoryFilters((current) => ({ ...current, query: event.target.value }))
+              }
+            />
+          </label>
+          <label className="settings-compact-field">
+            <span>Cilj</span>
+            <select
+              value={historyFilters.goal}
+              onChange={(event) =>
+                setHistoryFilters((current) => ({ ...current, goal: event.target.value }))
+              }
+            >
+              <option value="all">Svi ciljevi</option>
+              {goalOptions.map((option) => (
+                <option key={option.id} value={option.id}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="settings-compact-field">
+            <span>Runtime</span>
+            <select
+              value={historyFilters.runtime}
+              onChange={(event) =>
+                setHistoryFilters((current) => ({ ...current, runtime: event.target.value }))
+              }
+            >
+              <option value="all">Svi runtime-i</option>
+              {historyRuntimeOptions.map((runtime) => (
+                <option key={runtime} value={runtime}>
+                  {runtime}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="settings-compact-field">
+            <span>Status</span>
+            <select
+              value={historyFilters.status}
+              onChange={(event) =>
+                setHistoryFilters((current) => ({ ...current, status: event.target.value }))
+              }
+            >
+              <option value="all">Svi statusi</option>
+              <option value="completed">Uspešni</option>
+              <option value="failed">Neuspešni</option>
+              <option value="running">Running</option>
+              <option value="queued">Queued</option>
+            </select>
+          </label>
+        </div>
+        {filteredHistory.length ? (
           <>
             <div className="tuning-lab-history-list">
-              {summary.history.map((run) => (
-                <article className="status-card tuning-lab-history-card" key={run.runId}>
-                  <div className="section-header">
-                    <div>
-                      <strong>{run.name}</strong>
-                      <div className="muted-line">
-                        {run.goalLabel || run.goal} | {run.modelLabel || run.modelId || "--"} |{" "}
-                        {run.activeRuntime || "--"}
+              {filteredHistory.map((run) => {
+                const baselineSlot = run.slots.find((slot) => slot.id === "baseline");
+                const winnerSlot = run.slots.find((slot) => slot.id === run.suggestedWinnerSlotId);
+                return (
+                  <article className="status-card tuning-lab-history-card" key={run.runId}>
+                    <div className="section-header">
+                      <div>
+                        <strong>{run.name}</strong>
+                        <div className="muted-line">
+                          {run.goalLabel || run.goal} | {run.modelLabel || run.modelId || "--"} |{" "}
+                          {run.activeRuntime || "--"}
+                        </div>
                       </div>
+                      <span className="warning-badge">{renderWinnerLabel(run)}</span>
                     </div>
-                    <span className="warning-badge">{renderWinnerLabel(run)}</span>
-                  </div>
-                  <p className="helper-text">
-                    Start: {formatDateTime(run.startedAt)} | Kraj: {formatDateTime(run.finishedAt)} | Status:{" "}
-                    {run.status}
-                  </p>
-                  <p className="helper-text">{run.winnerSummary || run.summary || "--"}</p>
-                  <div className="inline-actions">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        void runMutation(() => applyTuningLabWinner(run.runId, run.suggestedWinnerSlotId || undefined))
-                      }
-                    >
-                      Primeni pobednički set
-                    </button>
-                    <button
-                      type="button"
-                      className="secondary-button"
-                      onClick={() =>
-                        void runMutation(async () => {
-                          const payload = await exportTuningLabRun(run.runId);
-                          const blob = new Blob([JSON.stringify(payload.experiment, null, 2)], {
-                            type: "application/json",
-                          });
-                          const objectUrl = window.URL.createObjectURL(blob);
-                          const anchor = document.createElement("a");
-                          anchor.href = objectUrl;
-                          anchor.download = `${run.runId}.json`;
-                          anchor.click();
-                          window.URL.revokeObjectURL(objectUrl);
-                          return { status: payload.status, summary: payload.summary };
-                        })
-                      }
-                    >
-                      Export / share
-                    </button>
-                  </div>
-                  <div className="details-block">
-                    <table className="tuning-lab-results-table">
-                      <thead>
-                        <tr>
-                          <th>Slot</th>
-                          <th>Status</th>
-                          <th>Trajanje</th>
-                          <th>Output</th>
-                          <th>Ukupno</th>
-                          <th>Diff</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {run.slots.map((slot) => (
-                          <tr key={`${run.runId}-${slot.id}`}>
-                            <td>{slot.label}</td>
-                            <td>{slot.status || "--"}</td>
-                            <td>{formatMs(slot.totalDurationMs)}</td>
-                            <td>{formatTok(slot.averageOutputTokensPerSecond)}</td>
-                            <td>{formatTok(slot.averageTotalTokensPerSecond)}</td>
-                            <td>{slot.diffSummary || "--"}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                  {run.slots.map((slot) => (
-                    <details className="tuning-lab-history-detail" key={`${run.runId}-detail-${slot.id}`}>
-                      <summary>
-                        {slot.label} detalji | {slot.summary || slot.status || "--"}
-                      </summary>
-                      <p className="helper-text">Fajlovi: {(slot.changedFiles || []).join(", ") || "bez izmena"}</p>
-                      <p className="helper-text">Komanda: {slot.opencodeCommand || "--"}</p>
-                      <p className="helper-text">Runtime: {slot.runtimeCommand || "--"}</p>
-                      <div className="details-block">
-                        <pre>{slot.diffText || slot.assistantText || "Nema dodatnih detalja."}</pre>
+                    <p className="helper-text">
+                      Start: {formatDateTime(run.startedAt)} | Kraj: {formatDateTime(run.finishedAt)} |
+                      Status: {run.status}
+                    </p>
+                    <p className="helper-text">{run.winnerSummary || run.summary || "--"}</p>
+                    <div className="inline-actions">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void runMutation(() =>
+                            applyTuningLabWinner(run.runId, run.suggestedWinnerSlotId || undefined),
+                          )
+                        }
+                      >
+                        Primeni pobednički set
+                      </button>
+                      <button
+                        type="button"
+                        className="secondary-button"
+                        onClick={() =>
+                          void runMutation(async () => {
+                            const payload = await exportTuningLabRun(run.runId);
+                            downloadJson(`${run.runId}.json`, payload.experiment);
+                            return { status: payload.status, summary: payload.summary };
+                          })
+                        }
+                      >
+                        Export / share
+                      </button>
+                    </div>
+
+                    {winnerSlot ? (
+                      <div className="tuning-lab-winner-panel">
+                        <div className="section-header">
+                          <strong>Zašto je ovaj slot pobedio</strong>
+                          <span className="compat-badge">{winnerSlot.label}</span>
+                        </div>
+                        <p className="helper-text">{buildWinnerReason(run)}</p>
+                        <div className="summary-metrics">
+                          <span>Trajanje: {formatMs(winnerSlot.totalDurationMs)}</span>
+                          <span>Output: {formatTok(winnerSlot.averageOutputTokensPerSecond)}</span>
+                          <span>Ukupno: {formatTok(winnerSlot.averageTotalTokensPerSecond)}</span>
+                          <span>Diff: {winnerSlot.diffSummary || "--"}</span>
+                        </div>
+                        <div className="tuning-lab-delta-list">
+                          {buildSettingsDiff(baselineSlot, winnerSlot).length ? (
+                            buildSettingsDiff(baselineSlot, winnerSlot).map((item) => (
+                              <span className="browser-chip" key={`${run.runId}-${winnerSlot.id}-${item.key}`}>
+                                {item.label}: {String(item.before)} → {String(item.after)}
+                              </span>
+                            ))
+                          ) : (
+                            <span className="browser-chip">Nema razlike u odnosu na Baseline.</span>
+                          )}
+                        </div>
                       </div>
-                    </details>
-                  ))}
-                </article>
-              ))}
+                    ) : null}
+
+                    <div className="details-block">
+                      <table className="tuning-lab-results-table">
+                        <thead>
+                          <tr>
+                            <th>Slot</th>
+                            <th>Status</th>
+                            <th>Trajanje</th>
+                            <th>Output</th>
+                            <th>Ukupno</th>
+                            <th>Diff</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {run.slots.map((slot) => (
+                            <tr key={`${run.runId}-${slot.id}`}>
+                              <td>{slot.label}</td>
+                              <td>{slot.status || "--"}</td>
+                              <td>{formatMs(slot.totalDurationMs)}</td>
+                              <td>
+                                {formatTok(slot.averageOutputTokensPerSecond)}
+                                {hasMissingTokenTelemetry(slot) ? (
+                                  <div className="helper-text">Token telemetry nije prijavljen</div>
+                                ) : null}
+                              </td>
+                              <td>{formatTok(slot.averageTotalTokensPerSecond)}</td>
+                              <td>{slot.diffSummary || "--"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {run.slots.map((slot) => {
+                      const diffFiles = getSlotDiffFiles(slot);
+                      const diffKey = `${run.runId}:${slot.id}`;
+                      const selectedPath = selectedDiffs[diffKey] || diffFiles[0]?.path || "";
+                      const selectedFile =
+                        diffFiles.find((item) => item.path === selectedPath) || diffFiles[0] || null;
+                      return (
+                        <details className="tuning-lab-history-detail" key={`${run.runId}-detail-${slot.id}`}>
+                          <summary>
+                            {slot.label} detalji | {slot.summary || slot.status || "--"}
+                          </summary>
+                          <div className="tuning-lab-copy-row">
+                            <button
+                              type="button"
+                              className="secondary-button"
+                              onClick={() =>
+                                void copyText(
+                                  buildSlotParamCopy(slot),
+                                  setResult,
+                                  `${slot.label} parametri su kopirani u clipboard.`,
+                                )
+                              }
+                            >
+                              Kopiraj parametre
+                            </button>
+                            <button
+                              type="button"
+                              className="secondary-button"
+                              disabled={!slot.runtimeCommand}
+                              onClick={() =>
+                                void copyText(
+                                  slot.runtimeCommand || "",
+                                  setResult,
+                                  `${slot.label} runtime komanda je kopirana.`,
+                                )
+                              }
+                            >
+                              Kopiraj runtime komandu
+                            </button>
+                            <button
+                              type="button"
+                              className="secondary-button"
+                              disabled={!slot.opencodeCommand}
+                              onClick={() =>
+                                void copyText(
+                                  slot.opencodeCommand || "",
+                                  setResult,
+                                  `${slot.label} OpenCode komanda je kopirana.`,
+                                )
+                              }
+                            >
+                              Kopiraj OpenCode komandu
+                            </button>
+                            <button
+                              type="button"
+                              className="secondary-button"
+                              onClick={() =>
+                                downloadJson(buildSlotExportName(run.runId, slot), {
+                                  runId: run.runId,
+                                  slot,
+                                })
+                              }
+                            >
+                              Export samo ovaj slot
+                            </button>
+                          </div>
+                          <div className="summary-metrics">
+                            <span>Fajlovi: {(slot.changedFiles || []).length || 0}</span>
+                            <span>Input tokeni: {formatCount(slot.inputTokens)}</span>
+                            <span>Output tokeni: {formatCount(slot.outputTokens)}</span>
+                            <span>Ukupno tokeni: {formatCount(slot.totalTokens)}</span>
+                          </div>
+                          {hasMissingTokenTelemetry(slot) ? (
+                            <p className="helper-text">
+                              Task je uspešan, ali token telemetry nije prijavljen za ovaj run.
+                            </p>
+                          ) : null}
+                          <div className="tuning-lab-diff-browser">
+                            <div className="tuning-lab-diff-sidebar">
+                              <span className="status-label">Izmenjeni fajlovi</span>
+                              {diffFiles.length ? (
+                                diffFiles.map((file) => (
+                                  <button
+                                    key={`${diffKey}-${file.path}`}
+                                    type="button"
+                                    className={`secondary-button ${selectedPath === file.path ? "selected-row" : ""}`}
+                                    onClick={() =>
+                                      setSelectedDiffs((current) => ({
+                                        ...current,
+                                        [diffKey]: file.path,
+                                      }))
+                                    }
+                                  >
+                                    Otvori diff · {file.path}
+                                  </button>
+                                ))
+                              ) : (
+                                <p className="helper-text">Nema diff fajlova za prikaz.</p>
+                              )}
+                            </div>
+                            <div className="tuning-lab-diff-content">
+                              <p className="helper-text">Komanda: {slot.opencodeCommand || "--"}</p>
+                              <p className="helper-text">Runtime: {slot.runtimeCommand || "--"}</p>
+                              <div className="details-block">
+                                <pre>
+                                  {selectedFile?.diffText ||
+                                    slot.diffText ||
+                                    slot.assistantText ||
+                                    "Nema dodatnih detalja."}
+                                </pre>
+                              </div>
+                            </div>
+                          </div>
+                        </details>
+                      );
+                    })}
+                  </article>
+                );
+              })}
             </div>
             <div className="inline-actions">
               <button

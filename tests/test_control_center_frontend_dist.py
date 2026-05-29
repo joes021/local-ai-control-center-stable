@@ -241,9 +241,23 @@ def test_tuning_lab_source_and_navigation_are_present():
     assert "tuning-lab-slot-grid" in page_source
     assert "tuning-lab-results-table" in page_source
     assert "tuning-lab-history-card" in page_source
+    assert "Zašto je ovaj slot pobedio" in page_source
+    assert "Aktivni korak" in page_source
+    assert "Poslednji log signal" in page_source
+    assert "Token telemetry nije prijavljen" in page_source
+    assert "Filtriraj istoriju" in page_source
+    assert "Kopiraj parametre" in page_source
+    assert "Kopiraj runtime komandu" in page_source
+    assert "Kopiraj OpenCode komandu" in page_source
+    assert "Izmenjeni fajlovi" in page_source
+    assert "Otvori diff" in page_source
     assert ".tuning-lab-slot-grid" in styles_source
     assert ".tuning-lab-results-table" in styles_source
     assert ".tuning-lab-history-card" in styles_source
+    assert ".tuning-lab-progress-grid" in styles_source
+    assert ".tuning-lab-filter-grid" in styles_source
+    assert ".tuning-lab-diff-browser" in styles_source
+    assert ".tuning-lab-copy-row" in styles_source
 
 
 def test_server_and_opencode_source_include_equivalent_launch_command_panels():

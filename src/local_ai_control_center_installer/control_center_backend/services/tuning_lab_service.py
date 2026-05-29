@@ -13,7 +13,7 @@ import socket
 import subprocess
 import threading
 import time
-from typing import Any
+from typing import Any, Callable
 from urllib.error import HTTPError, URLError
 from urllib.request import urlopen
 from uuid import uuid4
@@ -520,6 +520,13 @@ def _execute_tuning_experiment(
     active_run["currentIndex"] = 0
     active_run["currentSlotId"] = ""
     active_run["currentSlotLabel"] = ""
+    active_run["currentPhase"] = "queue"
+    active_run["currentPhaseLabel"] = "Čeka prvi slot"
+    active_run["currentStepSummary"] = "Tuning Lab priprema poređenje slotova."
+    active_run["currentCheckLabel"] = ""
+    active_run["currentLogExcerpt"] = ""
+    active_run["lastUpdatedAt"] = active_run["startedAt"]
+    active_run["elapsedMs"] = 0
     slots = [dict(slot) for slot in active_run.get("slots", []) if isinstance(slot, dict)]
     active_run["slots"] = slots
     _write_active_run(config, active_run)
@@ -563,6 +570,15 @@ def _execute_tuning_experiment(
     active_run["summary"] = active_run["winnerSummary"] or "Nijedan slot nije završio uspešno."
     active_run["currentSlotId"] = ""
     active_run["currentSlotLabel"] = ""
+    active_run["currentPhase"] = "completed" if active_run["suggestedWinnerSlotId"] else "failed"
+    active_run["currentPhaseLabel"] = (
+        "Pobednik je predložen" if active_run["suggestedWinnerSlotId"] else "Nema uspešnog pobednika"
+    )
+    active_run["currentStepSummary"] = active_run["summary"]
+    active_run["currentCheckLabel"] = ""
+    active_run["currentLogExcerpt"] = ""
+    active_run["lastUpdatedAt"] = active_run["finishedAt"]
+    active_run["elapsedMs"] = _elapsed_ms_from_started_at(active_run.get("startedAt"))
     _write_active_run(config, active_run)
     return active_run
 
@@ -594,11 +610,40 @@ def _run_tuning_slot(
     started_at = _now_iso()
     started_monotonic = time.monotonic()
     error_summary = ""
+
+    def update_progress(
+        phase: str,
+        phase_label: str,
+        summary: str,
+        *,
+        log_excerpt: str = "",
+        check_label: str = "",
+    ) -> None:
+        experiment["currentPhase"] = phase
+        experiment["currentPhaseLabel"] = phase_label
+        experiment["currentStepSummary"] = summary
+        experiment["currentCheckLabel"] = check_label
+        experiment["currentLogExcerpt"] = log_excerpt[-4000:] if log_excerpt else ""
+        experiment["lastUpdatedAt"] = _now_iso()
+        experiment["elapsedMs"] = _elapsed_ms_from_started_at(experiment.get("startedAt"))
+        _write_active_run(config, experiment)
+
     try:
+        update_progress(
+            "workspace",
+            "Priprema radnog prostora",
+            f"{slot_label} priprema izolovani radni prostor za zadatak.",
+        )
         runtime_session = _launch_slot_runtime(
             slot_settings=merged_settings,
             slot_artifact_root=slot_artifact_root,
             config=config,
+        )
+        update_progress(
+            "runtime",
+            "Pokretanje runtime servera",
+            f"{slot_label} je podigao runtime i čeka OpenCode task.",
+            log_excerpt=_read_text_tail(Path(str(runtime_session.get("logPath", "") or ""))),
         )
         runtime_profile = create_tuning_runtime_profile(
             experiment_id=str(experiment.get("runId", "") or ""),
@@ -614,14 +659,32 @@ def _run_tuning_slot(
             workspace_path=workspace_path,
             slot_artifact_root=slot_artifact_root,
             config=config,
+            progress_callback=update_progress,
+        )
+        update_progress(
+            "checks",
+            "Pokretanje success check lanca",
+            f"{slot_label} je završio OpenCode task i ulazi u proveru uspeha.",
+            log_excerpt=str(opencode_result.get("assistantText", "") if isinstance(opencode_result, dict) else "")[-4000:],
         )
         success_check_specs = _resolve_success_check_specs(
             experiment=experiment,
             workspace_path=workspace_path,
         )
-        success_checks = _run_success_checks(success_check_specs, workspace_path, slot_artifact_root)
+        success_checks = _run_success_checks(
+            success_check_specs,
+            workspace_path,
+            slot_artifact_root,
+            progress_callback=update_progress,
+        )
     except Exception as exc:  # noqa: BLE001
         error_summary = str(exc)
+        update_progress(
+            "failed",
+            "Run je pao",
+            error_summary or f"{slot_label} nije završio eksperiment.",
+            log_excerpt=error_summary,
+        )
         opencode_result = {
             "processReturncode": 1,
             "assistantText": "",
@@ -676,6 +739,7 @@ def _run_tuning_slot(
         "successChecks": success_checks,
         "changedFiles": diff_artifacts["changedFiles"],
         "diffSummary": diff_artifacts["summary"],
+        "diffFiles": diff_artifacts.get("diffFiles", []),
         "diffText": diff_artifacts["diffText"],
         "assistantText": str(opencode_result.get("assistantText", "") if isinstance(opencode_result, dict) else ""),
         "processReturncode": process_returncode,
@@ -691,6 +755,15 @@ def _run_tuning_slot(
         "opencodeCommand": str(opencode_result.get("commandPreview", "") if isinstance(opencode_result, dict) else ""),
         "stdoutPath": str(opencode_result.get("stdoutPath", "") if isinstance(opencode_result, dict) else ""),
     }
+    update_progress(
+        "slot-finished",
+        "Slot je završen",
+        summary,
+        log_excerpt=(
+            str(opencode_result.get("assistantText", "") if isinstance(opencode_result, dict) else "")
+            or error_summary
+        ),
+    )
     _cleanup_workspace_path(workspace_info)
     return result
 
@@ -767,6 +840,7 @@ def _run_slot_opencode_task(
     workspace_path: Path,
     slot_artifact_root: Path,
     config: ControlCenterConfig,
+    progress_callback: Callable[..., None] | None = None,
 ) -> dict[str, Any]:
     executable_path = _resolve_opencode_executable_path(config)
     if not executable_path.is_file():
@@ -819,34 +893,52 @@ def _run_slot_opencode_task(
         prompt,
     ]
     started = time.monotonic()
-    completed = subprocess.run(
-        command,
-        cwd=str(workspace_path),
-        env=env,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        timeout=TUNING_LAB_DEFAULT_TIMEOUT_SECONDS,
-        check=False,
-        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-    )
-    total_duration_seconds = max(time.monotonic() - started, 0.001)
-    stdout_text = str(completed.stdout or "")
-    stderr_text = str(completed.stderr or "")
     stdout_path = slot_artifact_root / "opencode-output.jsonl"
-    stdout_path.write_text(stdout_text, encoding="utf-8")
+    stderr_path = slot_artifact_root / "opencode-error.log"
+    slot_label = str(experiment.get("currentSlotLabel", "Aktivni slot") or "Aktivni slot")
+    with stdout_path.open("w", encoding="utf-8") as stdout_handle, stderr_path.open(
+        "w", encoding="utf-8"
+    ) as stderr_handle:
+        process = subprocess.Popen(
+            command,
+            cwd=str(workspace_path),
+            env=env,
+            stdout=stdout_handle,
+            stderr=stderr_handle,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+        deadline = started + TUNING_LAB_DEFAULT_TIMEOUT_SECONDS
+        while process.poll() is None:
+            if time.monotonic() >= deadline:
+                _stop_process(process)
+                raise RuntimeError("OpenCode task je istekao pre završetka.")
+            if progress_callback is not None:
+                progress_callback(
+                    "opencode",
+                    "OpenCode task radi",
+                    f"{slot_label} trenutno izvršava zadatak nad izolovanim projektom.",
+                    log_excerpt=_read_text_tail(stdout_path) or _read_text_tail(stderr_path),
+                )
+            time.sleep(0.75)
+        completed_returncode = int(process.wait())
+    total_duration_seconds = max(time.monotonic() - started, 0.001)
+    stdout_text = stdout_path.read_text(encoding="utf-8", errors="replace") if stdout_path.exists() else ""
+    stderr_text = stderr_path.read_text(encoding="utf-8", errors="replace") if stderr_path.exists() else ""
     parsed = _parse_opencode_json_output(stdout_text)
     output_tokens = int(parsed.get("outputTokens", 0))
     total_tokens = int(parsed.get("totalTokens", 0))
     return {
-        "processReturncode": int(completed.returncode),
+        "processReturncode": completed_returncode,
         "assistantText": str(parsed.get("assistantText", "") or ""),
         "inputTokens": int(parsed.get("inputTokens", 0)),
         "outputTokens": output_tokens,
         "totalTokens": total_tokens,
         "costUsd": float(parsed.get("costUsd", 0.0)),
         "stdoutPath": str(stdout_path),
+        "stderrPath": str(stderr_path),
         "stdoutText": stdout_text,
         "stderrText": stderr_text,
         "commandPreview": subprocess.list2cmdline(command),
@@ -885,12 +977,22 @@ def _run_success_checks(
     checks: list[dict[str, str]],
     workspace_path: Path,
     slot_artifact_root: Path,
+    progress_callback: Callable[..., None] | None = None,
 ) -> list[dict[str, Any]]:
     results: list[dict[str, Any]] = []
     for index, check_spec in enumerate(checks, start=1):
         command = str(check_spec.get("command", "") or "").strip()
         if not command:
             continue
+        check_label = str(check_spec.get("label", command) or command)
+        if progress_callback is not None:
+            progress_callback(
+                "success-check",
+                "Success check radi",
+                f"Pokrenut je korak {index}: {check_label}",
+                check_label=check_label,
+                log_excerpt=command,
+            )
         completed = subprocess.run(
             [
                 "powershell",
@@ -914,7 +1016,7 @@ def _run_success_checks(
             encoding="utf-8",
         )
         result = {
-            "label": str(check_spec.get("label", command) or command),
+            "label": check_label,
             "command": command,
             "kind": str(check_spec.get("kind", "custom") or "custom"),
             "returncode": int(completed.returncode),
@@ -923,6 +1025,18 @@ def _run_success_checks(
             "stdoutPreview": str(completed.stdout or "")[-1200:],
             "stderrPreview": str(completed.stderr or "")[-1200:],
         }
+        if progress_callback is not None:
+            progress_callback(
+                "success-check-finished",
+                "Success check završen",
+                (
+                    f"Korak {index} je prošao."
+                    if result["passed"]
+                    else f"Korak {index} je pao i run se zaustavlja."
+                ),
+                check_label=check_label,
+                log_excerpt=result["stdoutPreview"] or result["stderrPreview"] or command,
+            )
         results.append(result)
         if not result["passed"]:
             break
@@ -1263,8 +1377,8 @@ def _auto_detect_success_checks(workspace_path: Path) -> list[dict[str, str]]:
 
 
 def _build_diff_artifacts(
-    before_snapshot: dict[str, str],
-    after_snapshot: dict[str, str],
+    before_snapshot: dict[str, Any],
+    after_snapshot: dict[str, Any],
     workspace_path: Path,
 ) -> dict[str, Any]:
     changed_files = sorted(
@@ -1274,12 +1388,22 @@ def _build_diff_artifacts(
     )
     summary = "Bez izmena" if not changed_files else f"{len(changed_files)} fajl(ova) je promenjeno."
     diff_blocks: list[str] = []
+    diff_files: list[dict[str, Any]] = []
     for relative_path in changed_files[:TUNING_LAB_DIFF_FILE_LIMIT]:
-        absolute_path = workspace_path / relative_path
         before_lines = _read_snapshot_text(before_snapshot, workspace_path, relative_path)
         after_lines = _read_snapshot_text(after_snapshot, workspace_path, relative_path)
         if before_lines is None or after_lines is None:
-            diff_blocks.append(f"*** {relative_path}\n(binarni ili prevelik fajl)\n")
+            diff_text = f"*** {relative_path}\n(binarni ili prevelik fajl)\n"
+            diff_blocks.append(diff_text)
+            diff_files.append(
+                {
+                    "path": relative_path,
+                    "summary": f"{relative_path} (binarni ili prevelik fajl)",
+                    "diffText": diff_text,
+                    "isBinary": True,
+                    "isTruncated": False,
+                }
+            )
             continue
         diff_lines = list(
             difflib.unified_diff(
@@ -1291,18 +1415,30 @@ def _build_diff_artifacts(
             )
         )
         if diff_lines:
-            diff_blocks.append("\n".join(diff_lines[:TUNING_LAB_DIFF_LINES_LIMIT]))
+            is_truncated = len(diff_lines) > TUNING_LAB_DIFF_LINES_LIMIT
+            diff_text = "\n".join(diff_lines[:TUNING_LAB_DIFF_LINES_LIMIT])
+            diff_blocks.append(diff_text)
+            diff_files.append(
+                {
+                    "path": relative_path,
+                    "summary": relative_path,
+                    "diffText": diff_text,
+                    "isBinary": False,
+                    "isTruncated": is_truncated,
+                }
+            )
     return {
         "changedFiles": changed_files,
         "summary": summary,
+        "diffFiles": diff_files,
         "diffText": "\n\n".join(diff_blocks).strip(),
     }
 
 
-def _snapshot_directory(root: Path) -> dict[str, str]:
+def _snapshot_directory(root: Path) -> dict[str, Any]:
     if not root.exists():
         return {}
-    snapshot: dict[str, str] = {}
+    snapshot: dict[str, Any] = {}
     for path in root.rglob("*"):
         if not path.is_file():
             continue
@@ -1310,20 +1446,37 @@ def _snapshot_directory(root: Path) -> dict[str, str]:
             continue
         try:
             relative = path.relative_to(root).as_posix()
-            digest = hashlib.sha1(path.read_bytes()).hexdigest()  # noqa: S324 - non-security diff fingerprint
+            raw_bytes = path.read_bytes()
+            digest = hashlib.sha1(raw_bytes).hexdigest()  # noqa: S324 - non-security diff fingerprint
         except OSError:
             continue
-        snapshot[relative] = digest
+        text_value: str | None = None
+        if len(raw_bytes) <= TUNING_LAB_DIFF_FILE_BYTES_LIMIT:
+            try:
+                text_value = raw_bytes.decode("utf-8")
+            except UnicodeDecodeError:
+                text_value = None
+        snapshot[relative] = {
+            "digest": digest,
+            "text": text_value,
+            "size": len(raw_bytes),
+        }
     return snapshot
 
 
 def _read_snapshot_text(
-    snapshot: dict[str, str],
+    snapshot: dict[str, Any],
     workspace_path: Path,
     relative_path: str,
 ) -> list[str] | None:
-    if relative_path not in snapshot:
+    entry = snapshot.get(relative_path)
+    if entry is None:
         return []
+    if isinstance(entry, dict):
+        text_value = entry.get("text")
+        if text_value is None:
+            return None
+        return str(text_value).splitlines()
     absolute_path = workspace_path / relative_path
     try:
         size = absolute_path.stat().st_size
@@ -1366,6 +1519,23 @@ def _write_active_run(config: ControlCenterConfig, active_run: dict[str, Any]) -
     with _RUN_LOCK:
         current = _load_run_state(config)
         _save_run_state(config, active_run=active_run, queue=current["queue"])
+
+
+def _read_text_tail(path: Path, limit: int = 2000) -> str:
+    try:
+        return path.read_text(encoding="utf-8", errors="replace")[-limit:]
+    except OSError:
+        return ""
+
+
+def _elapsed_ms_from_started_at(started_at: object) -> int:
+    if not isinstance(started_at, str) or not started_at.strip():
+        return 0
+    try:
+        started = datetime.fromisoformat(started_at)
+    except ValueError:
+        return 0
+    return max(int((datetime.now(UTC) - started).total_seconds() * 1000), 0)
 
 
 def _load_history(config: ControlCenterConfig) -> list[dict[str, Any]]:

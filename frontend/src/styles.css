@@ -2768,6 +2768,54 @@ select:-webkit-autofill {
   align-items: center;
 }
 
+.tuning-lab-progress-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(0, 1.3fr) minmax(280px, 0.7fr);
+}
+
+.tuning-lab-progress-metrics,
+.tuning-lab-delta-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin-top: 12px;
+}
+
+.tuning-lab-progress-metrics span,
+.tuning-lab-delta-list span {
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--app-card-soft-border);
+  background: var(--app-card-soft-bg);
+  color: var(--app-text-soft);
+}
+
+.tuning-lab-log-panel {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+  padding: 14px;
+  border-radius: 16px;
+  border: 1px solid var(--app-card-soft-border);
+  background: var(--app-card-soft-bg);
+}
+
+.tuning-lab-log-panel pre {
+  margin: 0;
+  max-height: 220px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.tuning-lab-filter-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-top: 14px;
+}
+
 .tuning-lab-queue-list,
 .tuning-lab-history-list {
   display: grid;
@@ -2792,6 +2840,15 @@ select:-webkit-autofill {
 .tuning-lab-history-card {
   display: grid;
   gap: 14px;
+}
+
+.tuning-lab-winner-panel {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(242, 184, 75, 0.18);
+  background: linear-gradient(180deg, rgba(79, 58, 31, 0.28), rgba(47, 36, 28, 0.16));
 }
 
 .tuning-lab-results-table {
@@ -2835,6 +2892,42 @@ select:-webkit-autofill {
 
 .tuning-lab-history-detail[open] summary {
   margin-bottom: 10px;
+}
+
+.tuning-lab-copy-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 14px 0;
+}
+
+.tuning-lab-diff-browser {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(220px, 0.65fr) minmax(0, 1.35fr);
+  margin-top: 14px;
+}
+
+.tuning-lab-diff-sidebar {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+}
+
+.tuning-lab-diff-sidebar .secondary-button {
+  justify-content: flex-start;
+  text-align: left;
+}
+
+.tuning-lab-diff-sidebar .secondary-button.selected-row {
+  border-color: var(--app-accent-border);
+  background: var(--app-accent-soft-bg);
+  color: var(--app-accent-strong);
+}
+
+.tuning-lab-diff-content {
+  display: grid;
+  gap: 10px;
 }
 
 @media (max-width: 860px) {
@@ -2899,6 +2992,9 @@ select:-webkit-autofill {
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   }
 
+  .tuning-lab-progress-grid,
+  .tuning-lab-filter-grid,
+  .tuning-lab-diff-browser,
   .tuning-lab-layout,
   .tuning-lab-slot-grid,
   .tuning-lab-compact-grid,
