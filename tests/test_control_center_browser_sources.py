@@ -1,4 +1,6 @@
 from local_ai_control_center_installer.control_center_backend.services import browser_sources
+import ssl
+from urllib.error import URLError
 
 
 def test_fetch_hf_models_keeps_late_gguf_variants_in_large_repo(monkeypatch):
@@ -105,3 +107,32 @@ def test_browser_source_catalog_uses_broader_default_repo_limits(monkeypatch):
     assert captured[1][1] == "unsloth"
     assert int(captured[0][0]["limit"]) >= 80
     assert int(captured[1][0]["limit"]) >= 80
+
+
+def test_read_json_retries_with_relaxed_ssl_context_on_certificate_verification_error(monkeypatch):
+    calls: list[ssl.SSLContext | None] = []
+
+    class _FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def read(self):
+            return b'{"ok": true}'
+
+    def fake_urlopen(request, timeout=0, context=None):
+        calls.append(context)
+        if context is None or getattr(context, "verify_mode", None) != ssl.CERT_NONE:
+            raise URLError(ssl.SSLCertVerificationError("certificate verify failed"))
+        return _FakeResponse()
+
+    monkeypatch.setattr(browser_sources.urllib_request, "urlopen", fake_urlopen)
+
+    payload = browser_sources._read_json("https://huggingface.co/api/models?search=GGUF")
+
+    assert payload == {"ok": True}
+    assert len(calls) == 2
+    assert calls[-1] is not None
+    assert calls[-1].verify_mode == ssl.CERT_NONE

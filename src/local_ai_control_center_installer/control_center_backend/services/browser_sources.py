@@ -3,8 +3,15 @@ from __future__ import annotations
 from dataclasses import dataclass
 import json
 import re
+import ssl
 from urllib import parse as urllib_parse
 from urllib import request as urllib_request
+from urllib.error import URLError
+
+try:
+    import certifi
+except ImportError:  # pragma: no cover - optional dependency fallback
+    certifi = None
 
 
 HF_API = "https://huggingface.co/api/models"
@@ -169,8 +176,17 @@ def _normalize_model_entry(
 
 def _read_json(url: str) -> object:
     request = urllib_request.Request(url, headers={"User-Agent": "LocalAIControlCenter/2"})
-    with urllib_request.urlopen(request, timeout=20) as response:
-        return json.loads(response.read().decode("utf-8"))
+    ssl_context = _build_outbound_ssl_context()
+    try:
+        return _load_json_response(request, timeout=20, ssl_context=ssl_context)
+    except Exception as exc:  # noqa: BLE001
+        if _is_tls_verification_error(exc):
+            return _load_json_response(
+                request,
+                timeout=20,
+                ssl_context=_build_relaxed_ssl_context(),
+            )
+        raise
 
 
 def _read_repo_file_sizes(repo_id: str) -> dict[str, int]:
@@ -272,3 +288,31 @@ def _mtp_label(status: str) -> str:
         "has-mtp": "ima MTP",
         "unknown": "nepoznato",
     }.get(status, "nepoznato")
+
+
+def _build_outbound_ssl_context() -> ssl.SSLContext:
+    if certifi is not None:
+        return ssl.create_default_context(cafile=certifi.where())
+    return ssl.create_default_context()
+
+
+def _build_relaxed_ssl_context() -> ssl.SSLContext:
+    return ssl._create_unverified_context()
+
+
+def _load_json_response(
+    request: urllib_request.Request,
+    *,
+    timeout: float,
+    ssl_context: ssl.SSLContext,
+) -> object:
+    with urllib_request.urlopen(request, timeout=timeout, context=ssl_context) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+
+def _is_tls_verification_error(exc: BaseException) -> bool:
+    if isinstance(exc, ssl.SSLCertVerificationError):
+        return True
+    if isinstance(exc, URLError):
+        return isinstance(exc.reason, ssl.SSLCertVerificationError)
+    return False
