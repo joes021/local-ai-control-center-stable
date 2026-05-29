@@ -1977,6 +1977,19 @@ select:-webkit-autofill {
   margin-top: 6px;
 }
 
+.benchmark-source-summary {
+  display: grid;
+  gap: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--app-card-soft-border);
+}
+
+.benchmark-source-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .benchmark-export-row {
   align-items: center;
   justify-content: space-between;
@@ -2790,7 +2803,7 @@ select:-webkit-autofill {
 .tuning-lab-batch-task-row {
   display: grid;
   gap: 10px;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
   align-items: start;
   padding: 12px 14px;
   border-radius: 14px;
@@ -2833,15 +2846,35 @@ select:-webkit-autofill {
 
 .tuning-lab-batch-task-actions {
   display: grid;
-  gap: 8px;
-  align-content: start;
-  grid-column: 2;
+  gap: 10px;
 }
 
 .tuning-lab-batch-task-badges {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.tuning-lab-batch-action-rail {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 6px;
+}
+
+.tuning-lab-batch-action-card {
+  display: grid;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--app-card-soft-border);
+  background: color-mix(in srgb, var(--app-card-bg) 72%, transparent);
+}
+
+.tuning-lab-batch-action-card .helper-text {
+  margin: 0;
+}
+
+.tuning-lab-batch-action-card button {
+  justify-self: start;
 }
 
 .tuning-lab-batch-quick-run {
@@ -3159,6 +3192,10 @@ select:-webkit-autofill {
 
   .tuning-lab-batch-task-actions {
     grid-column: auto;
+  }
+
+  .tuning-lab-batch-action-rail {
+    grid-template-columns: 1fr;
   }
 
   .benchmark-run-main {

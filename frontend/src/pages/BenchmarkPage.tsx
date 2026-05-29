@@ -80,6 +80,12 @@ type MetricPoint = {
   y: number;
 };
 
+type BenchmarkSourceSummaryItem = {
+  key: string;
+  label: string;
+  count: number;
+};
+
 function parseMetricValue(value: number | null | undefined) {
   const numeric = Number(value);
   return Number.isFinite(numeric) ? numeric : null;
@@ -338,6 +344,49 @@ function findRangeByKey(rangeKey: RangeKey) {
   return RANGE_OPTIONS.find((option) => option.key === rangeKey) ?? RANGE_OPTIONS[0];
 }
 
+function normalizeBenchmarkSource(source: string | undefined) {
+  if (source === "runtime") {
+    return "runtime";
+  }
+  if (source === "tuning-lab") {
+    return "tuning-lab";
+  }
+  return "other";
+}
+
+function buildBenchmarkSourceLabel(source: string) {
+  if (source === "runtime") {
+    return "Aktivni runtime";
+  }
+  if (source === "tuning-lab") {
+    return "Tuning Lab";
+  }
+  return "Drugi llama.cpp tok";
+}
+
+function buildBenchmarkSourceSummary(samples: HistoryPoint[], liveCurrent: BenchmarkHistoryItem | null) {
+  const counts = new Map<string, number>();
+  samples.forEach((sample) => {
+    const normalizedSource = normalizeBenchmarkSource(sample.source);
+    counts.set(normalizedSource, (counts.get(normalizedSource) ?? 0) + 1);
+  });
+
+  if (liveCurrent) {
+    const normalizedSource = normalizeBenchmarkSource(liveCurrent.source);
+    if (!counts.has(normalizedSource)) {
+      counts.set(normalizedSource, 1);
+    }
+  }
+
+  return (["runtime", "tuning-lab", "other"] as const)
+    .filter((source) => counts.has(source))
+    .map((source) => ({
+      key: source,
+      label: buildBenchmarkSourceLabel(source),
+      count: counts.get(source) ?? 0,
+    })) satisfies BenchmarkSourceSummaryItem[];
+}
+
 export function BenchmarkPage({ onOpenLogs }: { onOpenLogs: () => void }) {
   const [benchmark, setBenchmark] = useState<BenchmarkPayload | null>(null);
   const [comparePayload, setComparePayload] = useState<BenchmarkComparePayload | null>(null);
@@ -569,6 +618,11 @@ export function BenchmarkPage({ onOpenLogs }: { onOpenLogs: () => void }) {
     selectedMetricOption.shortLabel,
     selectedRangeKey,
   ]);
+
+  const chartSourceSummary = useMemo(
+    () => buildBenchmarkSourceSummary(chartModel.visibleSamples, benchmark?.liveCurrent ?? null),
+    [benchmark?.liveCurrent, chartModel.visibleSamples],
+  );
 
   if (error) {
     return <div className="error-panel">{error}</div>;
@@ -975,6 +1029,32 @@ export function BenchmarkPage({ onOpenLogs }: { onOpenLogs: () => void }) {
             <p className="helper-text benchmark-chart-metric-note">
               Skala Y ose se sada prilagođava samo izabranoj metrici, tako da graf ne razvlače druge serije.
             </p>
+            <div className="benchmark-source-summary">
+              <span className="status-label">Izvori llama.cpp signala</span>
+              <p className="helper-text">
+                Graf sada prati sav llama.cpp-kompatibilni /slots throughput, pa se ovde vide i
+                tuning run-ovi i drugi lokalni tokovi, ne samo ručno pokrenut benchmark.
+              </p>
+              <div className="benchmark-source-chip-row">
+                {chartSourceSummary.length ? (
+                  chartSourceSummary.map((item) => (
+                    <span className="browser-chip" key={item.key}>
+                      {item.label} · {item.count}
+                    </span>
+                  ))
+                ) : (
+                  <>
+                    <span className="browser-chip">Aktivni runtime</span>
+                    <span className="browser-chip">Tuning Lab</span>
+                    <span className="browser-chip">Drugi llama.cpp tok</span>
+                  </>
+                )}
+              </div>
+              <p className="helper-text benchmark-chart-metric-note">
+                U izabranom opsegu prikazujemo samo izvore koji su stvarno poslali signal. Ako sada
+                nema uzoraka, oznake gore ostaju kao orijentir šta će graf uhvatiti čim tokeni krenu.
+              </p>
+            </div>
           </div>
         </div>
       </section>

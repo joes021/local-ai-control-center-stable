@@ -247,7 +247,11 @@ def test_tuning_lab_source_and_navigation_are_present():
     assert "Jedan klik =" in page_source
     assert "Trenutno u editoru" in page_source
     assert "Brzi tok za ovaj task" in page_source
+    assert "1. Učitaj task" in page_source
+    assert "2. Pokreni task" in page_source
+    assert "3. Otvori rezultat" in page_source
     assert "Koristi trenutni radni direktorijum" in page_source
+    assert "Sve osnovne akcije za ovaj task ostaju u istoj kartici." in page_source
     assert "Otvori napredna podešavanja" in page_source
     assert "Koristi trenutne slot postavke" in page_source
     assert "Dodaj u queue" in page_source
@@ -288,9 +292,23 @@ def test_tuning_lab_source_and_navigation_are_present():
     assert ".tuning-lab-batch-task-badges" in styles_source
     assert ".tuning-lab-batch-run-hint" in styles_source
     assert ".tuning-lab-batch-quick-run" in styles_source
+    assert ".tuning-lab-batch-action-rail" in styles_source
     assert ".tuning-lab-batch-task-actions" in styles_source
     assert ".tuning-lab-batch-task-state" in styles_source
     assert ".tuning-lab-batch-playable-meta" in styles_source
+
+
+def test_benchmark_source_explanation_is_present():
+    page_source = Path("frontend/src/pages/BenchmarkPage.tsx").read_text(encoding="utf-8")
+    styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
+
+    assert "Izvori llama.cpp signala" in page_source
+    assert "Graf sada prati sav llama.cpp-kompatibilni /slots throughput" in page_source
+    assert "Aktivni runtime" in page_source
+    assert "Tuning Lab" in page_source
+    assert "Drugi llama.cpp tok" in page_source
+    assert ".benchmark-source-summary" in styles_source
+    assert ".benchmark-source-chip-row" in styles_source
 
 
 def test_server_and_opencode_source_include_equivalent_launch_command_panels():

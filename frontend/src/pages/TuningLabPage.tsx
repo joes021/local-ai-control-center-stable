@@ -760,6 +760,7 @@ export function TuningLabPage() {
                 <div className="tuning-lab-batch-task-list">
                   {preset.tasks.map((task) => {
                     const taskLoaded = isBatchTaskLoaded(draft, task);
+                    const loadLabel = buildBatchLoadLabel(task.difficulty);
                     const runName = buildBatchRunName(preset, task);
                     const taskRunState = buildTaskRunState(
                       runName,
@@ -828,8 +829,8 @@ export function TuningLabPage() {
                                 <div>
                                   <strong>Brzi tok za ovaj task</strong>
                                   <div className="helper-text">
-                                    Osnovni put rešavaš redom ovde, bez obaveznog skrolovanja do
-                                    donjeg editora.
+                                    Sve osnovne akcije za ovaj task ostaju u istoj kartici. Donji
+                                    editor služi samo za naprednija podešavanja.
                                   </div>
                                 </div>
                                 <span className="warning-badge">Trenutno u editoru</span>
@@ -888,53 +889,72 @@ export function TuningLabPage() {
                               </div>
                             </div>
                           ) : null}
-                        </div>
-                        <button
-                          type="button"
-                          className="secondary-button"
-                          onClick={() => {
-                            setDraft(buildDraftForBatchTask(draft, preset, task));
-                            setResult({
-                              status: "ok",
-                              action: "load-tuning-batch-task",
-                              summary: `${preset.label} · ${task.label} je učitan i spreman za brzi tok u istoj kartici. Ako želiš dublje izmene, napredna podešavanja su niže u sekciji Eksperiment.`,
-                              details: {
-                                returncode: 0,
-                                stdout: task.taskPrompt,
-                                stderr: "",
-                              },
-                            });
-                          }}
-                        >
-                          {buildBatchLoadLabel(task.difficulty)}
-                        </button>
-                        <div className="tuning-lab-batch-task-actions">
-                          <button
-                            type="button"
-                            disabled={!canQueueRuns || !draft.workingDirectory.trim() || isQueueing}
-                            onClick={() =>
-                              void (async () => {
-                                const nextDraft = buildDraftForBatchTask(draft, preset, task);
-                                setDraft(nextDraft);
-                                await queueDraftExperiment(nextDraft);
-                              })()
-                            }
-                          >
-                            Pokreni task
-                          </button>
-                          <button
-                            type="button"
-                            className="secondary-button"
-                            disabled={!playableUrl}
-                            onClick={() =>
-                              openPlayableResult(
-                                playableUrl,
-                                `${preset.label} · ${task.label}`,
-                              )
-                            }
-                          >
-                            {buildPlayableActionLabel(playableUrl)}
-                          </button>
+                          <div className="tuning-lab-batch-task-actions tuning-lab-batch-action-rail">
+                            <article className="tuning-lab-batch-action-card">
+                              <span className="compat-badge">1. Učitaj task</span>
+                              <p className="helper-text">
+                                Ubaci ovaj prompt i success check lanac u aktivni draft.
+                              </p>
+                              <button
+                                type="button"
+                                className={taskLoaded ? "secondary-button" : undefined}
+                                onClick={() => {
+                                  setDraft(buildDraftForBatchTask(draft, preset, task));
+                                  setResult({
+                                    status: "ok",
+                                    action: "load-tuning-batch-task",
+                                    summary: `${preset.label} · ${task.label} je učitan i spreman za brzi tok u istoj kartici. Ako želiš dublje izmene, napredna podešavanja su niže u sekciji Eksperiment.`,
+                                    details: {
+                                      returncode: 0,
+                                      stdout: task.taskPrompt,
+                                      stderr: "",
+                                    },
+                                  });
+                                }}
+                              >
+                                {taskLoaded ? "Ponovo učitaj task" : loadLabel}
+                              </button>
+                            </article>
+                            <article className="tuning-lab-batch-action-card">
+                              <span className="compat-badge">2. Pokreni task</span>
+                              <p className="helper-text">
+                                {taskRunState.summary}
+                                {taskRunState.detail ? ` (${taskRunState.detail})` : ""}
+                              </p>
+                              <button
+                                type="button"
+                                disabled={!canQueueRuns || !draft.workingDirectory.trim() || isQueueing}
+                                onClick={() =>
+                                  void (async () => {
+                                    const nextDraft = buildDraftForBatchTask(draft, preset, task);
+                                    setDraft(nextDraft);
+                                    await queueDraftExperiment(nextDraft);
+                                  })()
+                                }
+                              >
+                                Pokreni task
+                              </button>
+                            </article>
+                            <article className="tuning-lab-batch-action-card">
+                              <span className="compat-badge">3. Otvori rezultat</span>
+                              <p className="helper-text">
+                                Otvara HTML igru tek kada ovaj task sačuva playable izlaz.
+                              </p>
+                              <button
+                                type="button"
+                                className="secondary-button"
+                                disabled={!playableUrl}
+                                onClick={() =>
+                                  openPlayableResult(
+                                    playableUrl,
+                                    `${preset.label} · ${task.label}`,
+                                  )
+                                }
+                              >
+                                {buildPlayableActionLabel(playableUrl)}
+                              </button>
+                            </article>
+                          </div>
                         </div>
                       </div>
                     );
