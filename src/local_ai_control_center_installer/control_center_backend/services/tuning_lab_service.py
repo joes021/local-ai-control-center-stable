@@ -177,6 +177,115 @@ _GOAL_DEFAULTS: dict[str, dict[str, object]] = {
     },
 }
 
+
+def _path_is_relative_to(path: Path, root: Path) -> bool:
+    try:
+        path.relative_to(root)
+    except ValueError:
+        return False
+    return True
+
+
+def _sanitize_workspace_slug(value: object, fallback: str = "scratch") -> str:
+    text = re.sub(r"[^a-z0-9._-]+", "-", str(value or "").strip().lower()).strip("-.")
+    return text or fallback
+
+
+def _default_tuning_workspace_root(config: ControlCenterConfig) -> Path:
+    return config.install_root / "workspaces" / "tuning-lab"
+
+
+def _suggest_tuning_working_directory(
+    working_directory: object,
+    config: ControlCenterConfig,
+    *,
+    fallback_slug: str = "scratch",
+) -> str:
+    raw_value = str(working_directory or "").strip()
+    candidate = Path(raw_value).expanduser() if raw_value else config.install_root
+    resolved_candidate = candidate.resolve()
+    if (
+        resolved_candidate == config.install_root
+        or _path_is_relative_to(resolved_candidate, config.control_center_config_root)
+    ):
+        return str((_default_tuning_workspace_root(config) / _sanitize_workspace_slug(fallback_slug)).resolve())
+    return str(resolved_candidate)
+
+
+def _load_tuning_lab_prerequisites(
+    config: ControlCenterConfig,
+    working_directory: str = "",
+) -> dict[str, Any]:
+    configured_working_directory = str(working_directory or config.install_root)
+    safe_working_directory = _suggest_tuning_working_directory(
+        configured_working_directory,
+        config,
+        fallback_slug="scratch",
+    )
+    runtime_state = load_runtime_state(config)
+    blockers: list[str] = []
+    active_binary_path = Path(str(runtime_state.get("active_binary", "") or ""))
+    active_model_id = str(runtime_state.get("active_model_id", "") or "").strip().lower()
+    active_model_label = str(runtime_state.get("active_model", "") or "").strip().lower()
+    active_model_path = Path(str(runtime_state.get("active_model_path", "") or ""))
+    opencode_executable_path = _resolve_opencode_executable_path(config)
+    opencode_config_path = config.opencode_managed_config_path
+
+    if not active_binary_path.is_file():
+        blockers.append("Aktivni runtime binar nije spreman za Tuning Lab.")
+    if (
+        not active_model_path.is_file()
+        or not active_model_id
+        or active_model_id == "unknown"
+        or active_model_label in {"", "unknown", "nema aktivnog modela"}
+    ):
+        blockers.append("Aktivan model nije podešen. Aktiviraj model pre pokretanja Tuning Lab-a.")
+    if not opencode_executable_path.is_file():
+        blockers.append(
+            "OpenCode nije instaliran na ovoj mašini. Pokreni installer ponovo sa uključenim OpenCode-om."
+        )
+    elif not opencode_config_path.is_file():
+        blockers.append("OpenCode managed config nedostaje. Pokreni repair ili reinstall OpenCode komponente.")
+
+    return {
+        "canQueue": not blockers,
+        "runBlockers": blockers,
+        "configuredWorkingDirectory": configured_working_directory,
+        "workingDirectory": safe_working_directory,
+        "workingDirectoryWasAdjusted": safe_working_directory != configured_working_directory,
+        "runtimeBinaryReady": active_binary_path.is_file(),
+        "activeModelReady": (
+            active_model_path.is_file()
+            and bool(active_model_id)
+            and active_model_id != "unknown"
+            and active_model_label not in {"", "unknown", "nema aktivnog modela"}
+        ),
+        "opencodeReady": opencode_executable_path.is_file() and opencode_config_path.is_file(),
+    }
+
+
+def _build_tuning_workspace_copy_ignore(
+    *,
+    source_dir: Path,
+    config: ControlCenterConfig,
+) -> Callable[[str, list[str]], set[str]]:
+    ignored_names = {".git", ".pytest_cache", "__pycache__"}
+    internal_roots: list[Path] = []
+    tuning_internal_root = (config.control_center_config_root / "tuning-lab").resolve()
+    if _path_is_relative_to(tuning_internal_root, source_dir):
+        internal_roots.append(tuning_internal_root)
+
+    def _ignore(current_dir: str, names: list[str]) -> set[str]:
+        ignored = {name for name in names if name in ignored_names}
+        current_path = Path(current_dir).resolve()
+        for name in names:
+            candidate = (current_path / name).resolve()
+            if any(candidate == root for root in internal_roots):
+                ignored.add(name)
+        return ignored
+
+    return _ignore
+
 _BATCH_PRESETS: list[dict[str, Any]] = [
     {
         "id": "game-batch-01",
@@ -307,6 +416,13 @@ def load_tuning_lab_summary(
     run_state = _load_run_state(resolved_config)
     effective_settings = load_effective_settings_state(resolved_config)
     runtime_state = load_runtime_state(resolved_config)
+    configured_working_directory = str(
+        effective_settings.get("workingDirectory", resolved_config.install_root)
+    )
+    prerequisites = _load_tuning_lab_prerequisites(
+        resolved_config,
+        configured_working_directory,
+    )
     goal = str(run_state.get("activeRun", {}).get("goal", "code") if isinstance(run_state.get("activeRun"), dict) else "code")
     recommended_slot, recommended_origin = _build_recommended_slot(
         goal=goal,
@@ -345,7 +461,14 @@ def load_tuning_lab_summary(
             "activeModel": str(runtime_state.get("active_model", "") or ""),
             "activeModelId": str(runtime_state.get("active_model_id", "") or ""),
             "activeRuntime": str(runtime_state.get("active_runtime", "") or ""),
-            "workingDirectory": str(effective_settings.get("workingDirectory", resolved_config.install_root)),
+            "workingDirectory": str(prerequisites["workingDirectory"]),
+            "configuredWorkingDirectory": str(prerequisites["configuredWorkingDirectory"]),
+            "workingDirectoryWasAdjusted": bool(prerequisites["workingDirectoryWasAdjusted"]),
+            "canQueue": bool(prerequisites["canQueue"]),
+            "runBlockers": list(prerequisites["runBlockers"]),
+            "runtimeBinaryReady": bool(prerequisites["runtimeBinaryReady"]),
+            "activeModelReady": bool(prerequisites["activeModelReady"]),
+            "opencodeReady": bool(prerequisites["opencodeReady"]),
             "modelFamily": _detect_model_family(
                 str(runtime_state.get("active_model_id", "") or ""),
                 str(runtime_state.get("active_model", "") or ""),
@@ -418,7 +541,7 @@ def prepare_tuning_workspace(
         source_dir,
         copy_root,
         dirs_exist_ok=False,
-        ignore=shutil.ignore_patterns(".git", ".pytest_cache", "__pycache__"),
+        ignore=_build_tuning_workspace_copy_ignore(source_dir=source_dir, config=resolved_config),
     )
     return {
         "mode": "copy",
@@ -455,6 +578,19 @@ def enqueue_tuning_experiment(
     start_worker: bool = True,
 ) -> dict[str, Any]:
     resolved_config = config or get_config()
+    prerequisites = _load_tuning_lab_prerequisites(
+        resolved_config,
+        str(payload.get("workingDirectory", "") or ""),
+    )
+    if not prerequisites["canQueue"]:
+        blockers = " ".join(
+            str(item).strip() for item in prerequisites["runBlockers"] if str(item).strip()
+        )
+        return action_result(
+            "error",
+            "queue-tuning-experiment",
+            f"Tuning Lab trenutno nije spreman za pokretanje. {blockers}".strip(),
+        )
     experiment = _normalize_experiment_payload(payload, resolved_config)
     with _RUN_LOCK:
         run_state = _load_run_state(resolved_config)
@@ -483,6 +619,16 @@ def enqueue_tuning_batch(
         return action_result("error", "queue-tuning-batch", "Traženi batch preset nije pronađen.")
 
     working_directory = str(payload.get("workingDirectory", "") or "").strip()
+    prerequisites = _load_tuning_lab_prerequisites(resolved_config, working_directory)
+    if not prerequisites["canQueue"]:
+        blockers = " ".join(
+            str(item).strip() for item in prerequisites["runBlockers"] if str(item).strip()
+        )
+        return action_result(
+            "error",
+            "queue-tuning-batch",
+            f"Tuning Lab trenutno nije spreman za pokretanje. {blockers}".strip(),
+        )
     provided_slots = payload.get("slots") if isinstance(payload.get("slots"), list) else []
     run_ids: list[str] = []
 
@@ -1405,7 +1551,14 @@ def _normalize_experiment_payload(
             slot_map[slot_id] = existing
 
     name = str(payload.get("name", "") or "").strip() or f"Tuning Lab {goal}"
-    working_directory = str(payload.get("workingDirectory", effective_settings.get("workingDirectory", config.install_root)) or config.install_root).strip()
+    configured_working_directory = str(
+        payload.get("workingDirectory", effective_settings.get("workingDirectory", config.install_root))
+        or config.install_root
+    ).strip()
+    working_directory = _load_tuning_lab_prerequisites(
+        config,
+        configured_working_directory,
+    )["workingDirectory"]
     experiment = {
         "runId": f"tuning-{uuid4().hex[:10]}",
         "name": name,

@@ -83,6 +83,34 @@ def test_tuning_lab_prepares_copy_workspace_for_plain_directory(tmp_path: Path, 
     assert (Path(workspace["workspacePath"]) / "README.md").read_text(encoding="utf-8") == "hello"
 
 
+def test_tuning_lab_prepares_copy_workspace_without_recursing_into_internal_tuning_runs(
+    tmp_path: Path,
+    monkeypatch,
+):
+    from local_ai_control_center_installer.control_center_backend.services import tuning_lab_service
+
+    install_root = tmp_path / "install-root"
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    source_dir = install_root
+    source_dir.mkdir(parents=True, exist_ok=True)
+    (source_dir / "README.md").write_text("hello", encoding="utf-8")
+    internal_tuning_root = source_dir / "config" / "control-center" / "tuning-lab"
+    internal_tuning_root.mkdir(parents=True, exist_ok=True)
+    (internal_tuning_root / "stale.txt").write_text("old run", encoding="utf-8")
+
+    workspace = tuning_lab_service.prepare_tuning_workspace(
+        working_directory=str(source_dir),
+        experiment_id="exp-self-copy",
+        slot_id="baseline",
+    )
+
+    workspace_path = Path(workspace["workspacePath"])
+    assert workspace["mode"] == "copy"
+    assert workspace_path.is_dir()
+    assert (workspace_path / "README.md").read_text(encoding="utf-8") == "hello"
+    assert not (workspace_path / "config" / "control-center" / "tuning-lab").exists()
+
+
 def test_tuning_lab_prepares_copy_workspace_for_missing_directory(tmp_path: Path, monkeypatch):
     from local_ai_control_center_installer.control_center_backend.services import tuning_lab_service
 
@@ -163,6 +191,59 @@ def test_tuning_lab_winner_prefers_successful_and_faster_slot():
     )
 
     assert winner == "recommended"
+
+
+def test_tuning_lab_summary_reports_safe_workspace_and_prerequisite_blockers(
+    tmp_path: Path,
+    monkeypatch,
+):
+    from local_ai_control_center_installer.control_center_backend.services import tuning_lab_service
+
+    install_root = tmp_path / "install-root"
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+
+    payload = tuning_lab_service.load_tuning_lab_summary()
+
+    assert payload["context"]["configuredWorkingDirectory"] == str(install_root)
+    assert payload["context"]["workingDirectory"] == str(
+        install_root / "workspaces" / "tuning-lab" / "scratch"
+    )
+    assert payload["context"]["workingDirectoryWasAdjusted"] is True
+    assert payload["context"]["canQueue"] is False
+    assert payload["context"]["runtimeBinaryReady"] is False
+    assert payload["context"]["activeModelReady"] is False
+    assert payload["context"]["opencodeReady"] is False
+    assert any(
+        "OpenCode nije instaliran" in message
+        for message in payload["context"]["runBlockers"]
+    )
+    assert any(
+        "Aktivan model nije podešen" in message
+        for message in payload["context"]["runBlockers"]
+    )
+
+
+def test_tuning_lab_queue_returns_error_when_prerequisites_are_missing(
+    tmp_path: Path,
+    monkeypatch,
+):
+    from local_ai_control_center_installer.control_center_backend.services import tuning_lab_service
+
+    install_root = tmp_path / "install-root"
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    monkeypatch.setattr(tuning_lab_service, "_ensure_tuning_worker", lambda config=None: None)
+
+    result = tuning_lab_service.enqueue_tuning_experiment(
+        {
+            "name": "Demo",
+            "goal": "code",
+            "taskPrompt": "Implement something small",
+            "workingDirectory": str(install_root),
+        }
+    )
+
+    assert result["status"] == "error"
+    assert "OpenCode nije instaliran" in result["summary"]
 
 
 def test_tuning_lab_slot_treats_zero_returncode_without_tokens_as_completed(tmp_path: Path, monkeypatch):
@@ -578,6 +659,20 @@ def test_tuning_lab_queue_apply_export_and_failed_history_flow(tmp_path: Path, m
         "_ensure_tuning_worker",
         lambda config=None: None,
     )
+    monkeypatch.setattr(
+        tuning_lab_service,
+        "_load_tuning_lab_prerequisites",
+        lambda config, working_directory="": {
+            "canQueue": True,
+            "runBlockers": [],
+            "configuredWorkingDirectory": working_directory or str(tmp_path / "project"),
+            "workingDirectory": working_directory or str(tmp_path / "project"),
+            "workingDirectoryWasAdjusted": False,
+            "runtimeBinaryReady": True,
+            "activeModelReady": True,
+            "opencodeReady": True,
+        },
+    )
 
     queued = tuning_lab_service.enqueue_tuning_experiment(
         {
@@ -624,6 +719,20 @@ def test_tuning_lab_enqueue_batch_expands_three_runs(tmp_path: Path, monkeypatch
         tuning_lab_service,
         "_ensure_tuning_worker",
         lambda config=None: None,
+    )
+    monkeypatch.setattr(
+        tuning_lab_service,
+        "_load_tuning_lab_prerequisites",
+        lambda config, working_directory="": {
+            "canQueue": True,
+            "runBlockers": [],
+            "configuredWorkingDirectory": working_directory or str(tmp_path / "project"),
+            "workingDirectory": working_directory or str(tmp_path / "project"),
+            "workingDirectoryWasAdjusted": False,
+            "runtimeBinaryReady": True,
+            "activeModelReady": True,
+            "opencodeReady": True,
+        },
     )
 
     result = tuning_lab_service.enqueue_tuning_batch(

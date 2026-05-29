@@ -234,22 +234,29 @@ def test_tuning_lab_source_and_navigation_are_present():
     assert "applyTuningLabWinner" in api_source
     assert "exportTuningLabRun" in api_source
     assert "importTuningSnippet" in api_source
+    assert "bootstrapOpenCode" in api_source
     assert "Tuning Lab" in page_source
     assert "Game Batch 01" in page_source
     assert "Pokreni ceo batch" in page_source
     assert "Učitaj easy" in page_source
     assert "Učitaj medium" in page_source
     assert "Učitaj hard" in page_source
-    assert "Run" in page_source
-    assert "Play" in page_source
+    assert "Pokreni task" in page_source
+    assert "Otvori rezultat" in page_source
     assert "Šta ovaj batch meri" in page_source
     assert "Jedan klik =" in page_source
     assert "Trenutno u editoru" in page_source
+    assert "u editor niže na strani" in page_source
     assert "Koristi trenutne slot postavke" in page_source
     assert "Dodaj u queue" in page_source
     assert "Primeni pobednički set" in page_source
     assert "Export / share" in page_source
     assert "Uvezi forum / Reddit snippet" in page_source
+    assert "Tuning Lab trenutno nije spreman za pokretanje" in page_source
+    assert "runBlockers" in page_source
+    assert "Instaliraj ili popravi OpenCode" in page_source
+    assert "OpenCode nedostaje za Tuning Lab" in page_source
+    assert "Napredak run-a prati u panelu" in page_source
     assert "tuning-lab-slot-grid" in page_source
     assert "tuning-lab-results-table" in page_source
     assert "tuning-lab-history-card" in page_source
@@ -258,10 +265,13 @@ def test_tuning_lab_source_and_navigation_are_present():
     assert "Poslednji log signal" in page_source
     assert "Token telemetry nije prijavljen" in page_source
     assert "Filtriraj istoriju" in page_source
+    assert "Spremno za otvaranje" in page_source
+    assert "Poslednji playable" in page_source
+    assert "Playable rezultat još nije dostupan" in page_source
+    assert "Sačuvan playable izlaz" in page_source
     assert "Kopiraj parametre" in page_source
     assert "Kopiraj runtime komandu" in page_source
     assert "Kopiraj OpenCode komandu" in page_source
-    assert "Nema playable rezultata još" in page_source
     assert "Izmenjeni fajlovi" in page_source
     assert "Otvori diff" in page_source
     assert ".tuning-lab-slot-grid" in styles_source
@@ -276,6 +286,8 @@ def test_tuning_lab_source_and_navigation_are_present():
     assert ".tuning-lab-batch-task-badges" in styles_source
     assert ".tuning-lab-batch-run-hint" in styles_source
     assert ".tuning-lab-batch-task-actions" in styles_source
+    assert ".tuning-lab-batch-task-state" in styles_source
+    assert ".tuning-lab-batch-playable-meta" in styles_source
 
 
 def test_server_and_opencode_source_include_equivalent_launch_command_panels():
@@ -872,6 +884,8 @@ def test_home_and_opencode_source_use_backend_open_action_contract():
     assert "opencode?.canOpen === false" in home_source
     assert "opencode.openActionLabel" in opencode_source
     assert "opencode.canOpen === false" in opencode_source
+    assert "bootstrapActionLabel" in opencode_source
+    assert "Instaliraj ili popravi OpenCode" in opencode_source
 
 
 def test_settings_and_workflows_source_include_generation_sampling_controls():

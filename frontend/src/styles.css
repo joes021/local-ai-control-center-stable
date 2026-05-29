@@ -2808,6 +2808,29 @@ select:-webkit-autofill {
   gap: 8px;
 }
 
+.tuning-lab-batch-task-state {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid var(--app-card-soft-border);
+  background: color-mix(in srgb, var(--app-card-soft-bg) 78%, transparent);
+}
+
+.tuning-lab-batch-task-state .compat-badge,
+.tuning-lab-batch-task-state .helper-text {
+  margin: 0;
+}
+
+.tuning-lab-batch-playable-meta {
+  display: grid;
+  gap: 4px;
+  color: var(--app-text-soft);
+  font-size: 0.92rem;
+  line-height: 1.5;
+  word-break: break-word;
+}
+
 .tuning-lab-batch-task-actions {
   display: grid;
   gap: 8px;

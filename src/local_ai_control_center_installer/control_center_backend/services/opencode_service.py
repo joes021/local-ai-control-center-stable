@@ -7,6 +7,7 @@ import shutil
 import stat
 import subprocess
 import shlex
+import tempfile
 
 from local_ai_control_center_installer.control_center_backend.config import (
     ControlCenterConfig,
@@ -25,11 +26,22 @@ from local_ai_control_center_installer.control_center_backend.services.settings_
 from local_ai_control_center_installer.control_center_backend.services.status_service import (
     load_runtime_state,
 )
-from local_ai_control_center_installer.opencode_bootstrap import load_opencode_manifest
+from local_ai_control_center_installer.download_plan import (
+    OPENCODE_ARTIFACT_DOWNLOAD_KEY,
+    DownloadPlan,
+    DownloadPlanItem,
+)
+from local_ai_control_center_installer.downloads import download_file
+from local_ai_control_center_installer.opencode_bootstrap import (
+    apply_opencode_bootstrap,
+    load_opencode_manifest,
+)
 from local_ai_control_center_installer.platform_paths import (
     is_windows_platform,
     new_console_subprocess_creationflags,
 )
+from local_ai_control_center_installer.runtime_bootstrap import load_runtime_endpoint_config
+from local_ai_control_center_installer.session import InstallerSession
 
 
 def load_opencode_status_payload(
@@ -53,6 +65,12 @@ def load_opencode_status_payload(
         config_exists=config_path.is_file(),
         session_state=session_state,
     )
+    can_bootstrap, bootstrap_action_label, bootstrap_blocked_reason = _build_bootstrap_action_contract(
+        config=config,
+        available=executable_path.is_file(),
+        config_exists=config_path.is_file(),
+        runtime_state=runtime_state,
+    )
 
     return {
         "available": executable_path.is_file(),
@@ -67,6 +85,9 @@ def load_opencode_status_payload(
         "canOpen": can_open,
         "openActionLabel": open_action_label,
         "openBlockedReason": open_blocked_reason,
+        "canBootstrap": can_bootstrap,
+        "bootstrapActionLabel": bootstrap_action_label,
+        "bootstrapBlockedReason": bootstrap_blocked_reason,
         "configExists": config_path.is_file(),
         "configPath": str(config_path),
         "configDir": str(config_path.parent),
@@ -98,6 +119,70 @@ def load_opencode_status_payload(
             else "OpenCode nije instaliran."
         ),
     }
+
+
+def bootstrap_opencode_payload(
+    config: ControlCenterConfig | None = None,
+) -> dict[str, object]:
+    config = config or get_config()
+    runtime_state = load_runtime_state(config)
+    can_bootstrap, action_label, blocked_reason = _build_bootstrap_action_contract(
+        config=config,
+        available=_resolve_opencode_executable_path(config).is_file(),
+        config_exists=config.opencode_managed_config_path.is_file(),
+        runtime_state=runtime_state,
+    )
+    if not can_bootstrap:
+        return _result(
+            "error",
+            "bootstrap-opencode",
+            blocked_reason or f"{action_label} trenutno nije dostupan.",
+        )
+
+    session = InstallerSession(
+        install_opencode=True,
+        server_verification_status="ready",
+        install_root=str(config.install_root),
+        verified_server_url=config.ui_url,
+        runtime_endpoint_config_path=str(config.runtime_endpoint_config_path),
+        active_model_config_path=str(config.active_model_config_path),
+    )
+    session.download_plan = _build_opencode_bootstrap_download_plan()
+    temp_root = Path(tempfile.gettempdir())
+    updated = apply_opencode_bootstrap(
+        session,
+        temp_root=temp_root,
+        download_archive=lambda url, destination, *, plan_item=None: download_file(
+            url,
+            destination,
+            plan_item=plan_item,
+        ),
+    )
+    if updated.opencode_artifact_status != "ready" or updated.last_successful_step != "opencode-config":
+        summary = str(
+            updated.error_message
+            or "OpenCode bootstrap nije uspeo."
+        ).strip() or "OpenCode bootstrap nije uspeo."
+        if updated.failing_step:
+            summary = f"{summary} Korak: {updated.failing_step}."
+        return _result("error", "bootstrap-opencode", summary)
+
+    try:
+        prepare_opencode_launcher(config=config)
+    except (FileNotFoundError, OSError):
+        return _result(
+            "error",
+            "bootstrap-opencode",
+            "OpenCode artifact je preuzet, ali launcher nije mogao da se pripremi.",
+        )
+
+    if _resolve_opencode_executable_path(config).is_file():
+        return _result(
+            "ok",
+            "bootstrap-opencode",
+            "OpenCode je instaliran ili popravljen i spreman za Tuning Lab i OpenCode tab.",
+        )
+    return _result("error", "bootstrap-opencode", "OpenCode executable i dalje nije pronađen posle bootstrap-a.")
 
 
 def open_opencode(
@@ -545,6 +630,30 @@ def _result(status: str, action: str, summary: str) -> dict[str, object]:
     }
 
 
+def _build_opencode_bootstrap_download_plan() -> DownloadPlan:
+    try:
+        manifest = load_opencode_manifest()
+    except (OSError, ValueError):
+        return DownloadPlan(items=())
+
+    artifact = manifest["opencode_artifact"]
+    size_bytes = artifact.get("size_bytes")
+    normalized_size = size_bytes if isinstance(size_bytes, int) else None
+    return DownloadPlan(
+        items=(
+            DownloadPlanItem(
+                key=OPENCODE_ARTIFACT_DOWNLOAD_KEY,
+                label="OpenCode",
+                url=str(artifact["url"]),
+                destination_hint=str(artifact["install_subdir"]),
+                size_bytes=normalized_size,
+                queue_index=1,
+                queue_total=1,
+            ),
+        )
+    )
+
+
 def _security_mode_label(value: str) -> str:
     return {
         "strict": "Strogo ograničen agent",
@@ -617,3 +726,36 @@ def _build_open_action_contract(
     if session_state == "connected":
         return "OpenCode je već otvoren", ""
     return "Otvori OpenCode", ""
+
+
+def _build_bootstrap_action_contract(
+    *,
+    config: ControlCenterConfig,
+    available: bool,
+    config_exists: bool,
+    runtime_state: dict[str, object],
+) -> tuple[bool, str, str]:
+    label = "Reinstall / popravi OpenCode" if available and config_exists else "Instaliraj OpenCode"
+    active_model_id = str(runtime_state.get("active_model_id", "") or "").strip().lower()
+    active_model_label = str(runtime_state.get("active_model", "") or "").strip().lower()
+    active_model_path = Path(str(runtime_state.get("active_model_path", "") or ""))
+    if (
+        not active_model_path.is_file()
+        or not active_model_id
+        or active_model_id == "unknown"
+        or active_model_label in {"", "unknown", "nema aktivnog modela"}
+    ):
+        return (
+            False,
+            label,
+            "Aktivan model nije podešen. Aktiviraj lokalni model pre instalacije OpenCode-a.",
+        )
+    try:
+        load_runtime_endpoint_config(config.runtime_endpoint_config_path)
+    except (OSError, UnicodeDecodeError, ValueError, json.JSONDecodeError):
+        return (
+            False,
+            label,
+            "Runtime endpoint konfiguracija nedostaje ili je neispravna. Pokreni ili aktiviraj runtime pre instalacije OpenCode-a.",
+        )
+    return True, label, ""

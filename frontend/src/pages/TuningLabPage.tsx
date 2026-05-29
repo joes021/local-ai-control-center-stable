@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { ActionResultPanel } from "../components/ActionResultPanel";
 import {
   applyTuningLabWinner,
+  bootstrapOpenCode,
   exportTuningLabRun,
   fetchTuningLabRunStatus,
   fetchTuningLabSummary,
@@ -111,7 +112,7 @@ function buildDraftForBatchTask(
 }
 
 function buildBatchRunName(preset: TuningLabBatchPreset, task: TuningLabBatchTask) {
-  return `${preset.label} Â· ${task.label}`;
+  return `${preset.label} · ${task.label}`;
 }
 
 function buildBatchLoadLabel(difficulty: string) {
@@ -146,6 +147,28 @@ function countBatchSuccessChecks(preset: TuningLabBatchPreset) {
 
 function buildBatchSuccessChecksLabel(task: TuningLabBatchTask) {
   return `${task.successChecks.length} success check-a`;
+}
+
+function buildPlayableActionLabel(playableUrl: string) {
+  return playableUrl ? "Otvori rezultat" : "Čeka rezultat";
+}
+
+function formatPlayableFilesLabel(value: number | undefined) {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+    return "Playable fajlovi nisu evidentirani";
+  }
+  const normalized = Math.trunc(value);
+  if (normalized % 10 === 1 && normalized % 100 !== 11) {
+    return `${normalized} sačuvan playable fajl`;
+  }
+  if (
+    normalized % 10 >= 2 &&
+    normalized % 10 <= 4 &&
+    (normalized % 100 < 12 || normalized % 100 > 14)
+  ) {
+    return `${normalized} sačuvana playable fajla`;
+  }
+  return `${normalized} sačuvanih playable fajlova`;
 }
 
 function isBatchTaskLoaded(
@@ -386,6 +409,8 @@ export function TuningLabPage() {
     status: "all",
   });
   const [selectedDiffs, setSelectedDiffs] = useState<Record<string, string>>({});
+  const editorRef = useRef<HTMLElement | null>(null);
+  const progressRef = useRef<HTMLElement | null>(null);
 
   async function load(targetPage = historyPage) {
     try {
@@ -421,6 +446,13 @@ export function TuningLabPage() {
   const successTemplates = summary?.successCheckTemplates ?? [];
   const batchPresets = summary?.batchPresets ?? [];
   const activeRun = runStatus ?? summary?.activeRun ?? null;
+  const runBlockers = summary?.context.runBlockers ?? [];
+  const canQueueRuns = summary?.context.canQueue ?? false;
+  const hasRuntimeBinary = summary?.context.runtimeBinaryReady ?? false;
+  const hasActiveModel = summary?.context.activeModelReady ?? false;
+  const hasOpenCode = summary?.context.opencodeReady ?? false;
+  const canQueueCurrentDraft =
+    canQueueRuns && !!draft?.taskPrompt.trim() && !!draft?.workingDirectory.trim() && !isQueueing;
 
   const recommendedSourceLabel = useMemo(() => {
     return summary?.context.recommendedOrigin || "interna pravila";
@@ -487,6 +519,15 @@ export function TuningLabPage() {
     }
   }
 
+  function scrollSectionIntoView(target: HTMLElement | null) {
+    if (!target) {
+      return;
+    }
+    window.requestAnimationFrame(() => {
+      target.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
+
   async function queueDraftExperiment(nextDraft: TuningDraft) {
     setIsQueueing(true);
     try {
@@ -505,6 +546,7 @@ export function TuningLabPage() {
           })),
         }),
       );
+      scrollSectionIntoView(progressRef.current);
     } finally {
       setIsQueueing(false);
     }
@@ -525,6 +567,7 @@ export function TuningLabPage() {
           })),
         }),
       );
+      scrollSectionIntoView(progressRef.current);
     } finally {
       setIsQueueing(false);
     }
@@ -562,7 +605,7 @@ export function TuningLabPage() {
     setResult({
       status: "ok",
       action: "open-playable-output",
-      summary: `Otvoren je playable rezultat za ${label}.`,
+      summary: `Otvoren je rezultat za ${label}.`,
       details: {
         returncode: 0,
         stdout: playableUrl,
@@ -594,7 +637,42 @@ export function TuningLabPage() {
           <span>Radni direktorijum: {summary.context.workingDirectory || "--"}</span>
           <span>Recommended izvor: {recommendedSourceLabel}</span>
         </div>
+        {summary.context.workingDirectoryWasAdjusted ? (
+          <p className="helper-text">
+            Tuning Lab ne koristi install root kao radni direktorijum. Umesto toga je predložen
+            sigurniji scratch workspace: {summary.context.workingDirectory}
+          </p>
+        ) : null}
+{runBlockers.length ? (
+          <div className="error-panel">
+            <strong>Tuning Lab trenutno nije spreman za pokretanje.</strong>
+            {runBlockers.map((message) => (
+              <div key={message}>{message}</div>
+            ))}
+            {!hasOpenCode ? (
+              <div className="inline-actions">
+                <button
+                  type="button"
+                  onClick={() =>
+                    void runMutation(async () => {
+                      const payload = await bootstrapOpenCode();
+                      return { status: payload.status, summary: payload.summary };
+                    })
+                  }
+                >
+                  Instaliraj ili popravi OpenCode
+                </button>
+              </div>
+            ) : null}
+          </div>
+        ) : (
+          <p className="helper-text">
+            Napredak run-a prati u panelu `Queue i aktivni run` niže na strani.
+          </p>
+        )}
       </section>
+
+      <ActionResultPanel result={result} />
 
       <section className="status-card wide-card">
         <span className="status-label">Gotovi batch testovi</span>
@@ -630,9 +708,14 @@ export function TuningLabPage() {
                       Pokretanje koristi trenutne slot postavke iz editora i isti radni direktorijum
                       za sva tri uporediva run-a.
                     </p>
+                    <p className="helper-text">
+                      Kada klikneš `Učitaj`, task se otvara u editoru niže na strani, u sekciji
+                      `Eksperiment`.
+                    </p>
                     {loadedTask ? (
                       <div className="warning-badge">
-                        Trenutno u editoru: {loadedTask.label}
+                        Trenutno u editoru: {loadedTask.label}. Editor je niže na strani, u sekciji
+                        `Eksperiment`.
                       </div>
                     ) : (
                       <p className="helper-text">
@@ -681,11 +764,23 @@ export function TuningLabPage() {
                           </div>
                           <p className="helper-text">{task.summary}</p>
                           {latestPlayableRun && latestPlayableSlot ? (
-                            <p className="helper-text">
-                              Poslednji uspešan rezultat: {formatDateTime(latestPlayableRun.finishedAt || latestPlayableRun.startedAt)}
-                            </p>
+                            <div className="tuning-lab-batch-task-state">
+                              <span className="compat-badge">Spremno za otvaranje</span>
+                              <div className="tuning-lab-batch-playable-meta">
+                                <span>
+                                  Poslednji playable: {latestPlayableSlot.label} ·{" "}
+                                  {formatDateTime(latestPlayableRun.finishedAt || latestPlayableRun.startedAt)}
+                                </span>
+                                <span>{formatPlayableFilesLabel(latestPlayableSlot.playableFilesPreserved)}</span>
+                              </div>
+                            </div>
                           ) : (
-                            <p className="helper-text">Nema playable rezultata još.</p>
+                            <div className="tuning-lab-batch-task-state">
+                              <span className="helper-text">Playable rezultat još nije dostupan</span>
+                              <div className="tuning-lab-batch-playable-meta">
+                                <span>Pokreni task da bi se ovde pojavio rezultat za otvaranje.</span>
+                              </div>
+                            </div>
                           )}
                         </div>
                         <button
@@ -696,13 +791,14 @@ export function TuningLabPage() {
                             setResult({
                               status: "ok",
                               action: "load-tuning-batch-task",
-                              summary: `${preset.label} · ${task.label} je učitan u editor.`,
+                              summary: `${preset.label} · ${task.label} je učitan u editor niže na strani, u sekciji Eksperiment. Pregledaj radni direktorijum i klikni "Pokreni task" kada budeš spreman.`,
                               details: {
                                 returncode: 0,
                                 stdout: task.taskPrompt,
                                 stderr: "",
                               },
                             });
+                            scrollSectionIntoView(editorRef.current);
                           }}
                         >
                           {buildBatchLoadLabel(task.difficulty)}
@@ -710,7 +806,7 @@ export function TuningLabPage() {
                         <div className="tuning-lab-batch-task-actions">
                           <button
                             type="button"
-                            disabled={!draft.workingDirectory.trim() || isQueueing}
+                            disabled={!canQueueRuns || !draft.workingDirectory.trim() || isQueueing}
                             onClick={() =>
                               void (async () => {
                                 const nextDraft = buildDraftForBatchTask(draft, preset, task);
@@ -719,7 +815,7 @@ export function TuningLabPage() {
                               })()
                             }
                           >
-                            Run
+                            Pokreni task
                           </button>
                           <button
                             type="button"
@@ -728,11 +824,11 @@ export function TuningLabPage() {
                             onClick={() =>
                               openPlayableResult(
                                 playableUrl,
-                                `${preset.label} Â· ${task.label}`,
+                                `${preset.label} · ${task.label}`,
                               )
                             }
                           >
-                            Play
+                            {buildPlayableActionLabel(playableUrl)}
                           </button>
                         </div>
                       </div>
@@ -742,7 +838,7 @@ export function TuningLabPage() {
                 <div className="inline-actions">
                   <button
                     type="button"
-                    disabled={!draft.workingDirectory.trim() || isQueueing}
+                    disabled={!canQueueRuns || !draft.workingDirectory.trim() || isQueueing}
                     onClick={() => void queueBatchPreset(preset.id, draft)}
                   >
                     Pokreni ceo batch
@@ -755,6 +851,16 @@ export function TuningLabPage() {
                   <div className="warning-badge">
                     Unesi radni direktorijum u editoru da bi batch mogao da se doda u queue.
                   </div>
+                ) : !canQueueRuns ? (
+                  <div className="warning-badge">
+                    Tuning Lab trenutno nije spreman za pokretanje. Reši blocker-e iznad pa onda
+                    pokreni batch.
+                  </div>
+                ) : !hasOpenCode ? (
+                  <div className="warning-badge">
+                    OpenCode nedostaje za Tuning Lab. Instaliraj ili popravi OpenCode pa onda
+                    pokreni batch.
+                  </div>
                 ) : null}
               </article>
             );
@@ -762,9 +868,16 @@ export function TuningLabPage() {
         </div>
       </section>
 
-      <section className="status-card wide-card">
+      <section className="status-card wide-card" ref={editorRef}>
         <span className="status-label">Eksperiment</span>
         <strong className="status-value">Priprema run-a</strong>
+        {summary.context.workingDirectoryWasAdjusted ? (
+          <p className="helper-text">
+            Konfigurisani radni direktorijum je bio preširok za Tuning Lab, pa je ovde već
+            predložen sigurniji scratch workspace. Ako želiš pravi projekat, slobodno unesi njegov
+            folder ručno.
+          </p>
+        ) : null}
         <div className="tuning-lab-layout">
           <label className="settings-compact-field">
             <span>Naziv eksperimenta</span>
@@ -932,12 +1045,28 @@ export function TuningLabPage() {
         <div className="inline-actions">
           <button
             type="button"
-            disabled={!draft.taskPrompt.trim() || !draft.workingDirectory.trim() || isQueueing}
+            disabled={!canQueueCurrentDraft}
             onClick={() => void queueDraftExperiment(draft)}
           >
             Dodaj u queue
           </button>
         </div>
+        {!hasRuntimeBinary ? (
+          <div className="warning-badge">
+            Runtime binar nije spreman. Prvo osposobi aktivni runtime pre Tuning Lab pokretanja.
+          </div>
+        ) : null}
+        {!hasActiveModel ? (
+          <div className="warning-badge">
+            Aktivan model još nije spreman. Aktiviraj lokalni model pa tek onda pokreni Tuning Lab.
+          </div>
+        ) : null}
+        {!hasOpenCode ? (
+          <div className="warning-badge">
+            OpenCode nedostaje za Tuning Lab. Otvori karticu OpenCode ili klikni iznad na
+            `Instaliraj ili popravi OpenCode`.
+          </div>
+        ) : null}
       </section>
 
       <section className="status-card wide-card">
@@ -1053,7 +1182,7 @@ export function TuningLabPage() {
         </div>
       </section>
 
-      <section className="status-card wide-card">
+      <section className="status-card wide-card" ref={progressRef}>
         <span className="status-label">Queue i aktivni run</span>
         <div className="tuning-lab-progress-grid">
           <article className="status-card">
@@ -1283,6 +1412,15 @@ export function TuningLabPage() {
                           <summary>
                             {slot.label} detalji | {slot.summary || slot.status || "--"}
                           </summary>
+                          {slot.playableEntryPath ? (
+                            <div className="tuning-lab-batch-task-state">
+                              <span className="compat-badge">Sačuvan playable izlaz</span>
+                              <div className="tuning-lab-batch-playable-meta">
+                                <span>Ulazna stranica: {slot.playableEntryPath}</span>
+                                <span>{formatPlayableFilesLabel(slot.playableFilesPreserved)}</span>
+                              </div>
+                            </div>
+                          ) : null}
                           <div className="tuning-lab-copy-row">
                             <button
                               type="button"
@@ -1295,7 +1433,7 @@ export function TuningLabPage() {
                                 )
                               }
                             >
-                              Play
+                              Otvori rezultat
                             </button>
                             <button
                               type="button"
@@ -1432,7 +1570,6 @@ export function TuningLabPage() {
         )}
       </section>
 
-      <ActionResultPanel result={result} />
     </>
   );
 }

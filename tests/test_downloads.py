@@ -1,4 +1,6 @@
 from pathlib import Path
+import ssl
+from urllib.error import URLError
 import zipfile
 
 import pytest
@@ -246,7 +248,9 @@ def test_download_file_emits_streaming_progress_with_queue_position_and_eta(
 
     monkeypatch.setattr(
         "local_ai_control_center_installer.downloads.urlopen",
-        lambda url, timeout: captured.update({"url": url, "timeout": timeout})
+        lambda url, timeout, context=None: captured.update(
+            {"url": url, "timeout": timeout, "context": context}
+        )
         or FakeResponse(),
     )
     monkeypatch.setattr(
@@ -289,3 +293,90 @@ def test_download_file_emits_streaming_progress_with_queue_position_and_eta(
     )
     assert captured["url"] == "https://example.invalid/runtime.zip"
     assert captured["timeout"] == 120.0
+    assert captured["context"] is not None
+
+
+def test_download_file_uses_certifi_backed_ssl_context_when_available(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    captured: dict[str, object] = {}
+
+    class FakeResponse:
+        def __init__(self):
+            self.headers = {}
+            self._chunks = [b"abc"]
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def read(self, amount: int) -> bytes:
+            if self._chunks:
+                return self._chunks.pop(0)
+            return b""
+
+    ssl_context = object()
+
+    class FakeCertifi:
+        @staticmethod
+        def where() -> str:
+            return "C:/certifi/cacert.pem"
+
+    monkeypatch.setattr("local_ai_control_center_installer.downloads.certifi", FakeCertifi)
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.downloads.ssl.create_default_context",
+        lambda cafile=None: captured.update({"cafile": cafile}) or ssl_context,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.downloads.urlopen",
+        lambda url, timeout, context=None: captured.update(
+            {"url": url, "timeout": timeout, "context": context}
+        )
+        or FakeResponse(),
+    )
+
+    destination = download_file(
+        "https://example.invalid/runtime.zip",
+        tmp_path / "runtime.zip",
+    )
+
+    assert destination.read_bytes() == b"abc"
+    assert captured["cafile"] == "C:/certifi/cacert.pem"
+    assert captured["context"] is ssl_context
+
+
+def test_download_file_falls_back_to_windows_web_request_on_certificate_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    captured: dict[str, object] = {}
+
+    def fake_urlopen(url, timeout, context=None):
+        raise URLError(ssl.SSLCertVerificationError("boom"))
+
+    def fake_windows_download(url: str, destination: Path) -> Path:
+        captured["url"] = url
+        captured["destination"] = destination
+        destination.write_bytes(b"fallback-download")
+        return destination
+
+    monkeypatch.setattr("local_ai_control_center_installer.downloads.urlopen", fake_urlopen)
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.downloads._download_file_via_windows_web_request",
+        fake_windows_download,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.downloads._can_fallback_to_windows_web_request",
+        lambda exc: True,
+    )
+
+    destination = download_file(
+        "https://example.invalid/opencode.zip",
+        tmp_path / "opencode.zip",
+    )
+
+    assert destination.read_bytes() == b"fallback-download"
+    assert captured["url"] == "https://example.invalid/opencode.zip"

@@ -626,6 +626,10 @@ export async function openOpenCode(profile: string): Promise<ActionResult> {
   return postJson("/api/opencode/open", { profile });
 }
 
+export async function bootstrapOpenCode(): Promise<ActionResult> {
+  return postJson("/api/opencode/bootstrap", {});
+}
+
 export async function saveOpenCodeStepPreset(payload: {
   name: string;
   steps: OpenCodeStepValues;

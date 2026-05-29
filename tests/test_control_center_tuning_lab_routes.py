@@ -90,6 +90,15 @@ def test_tuning_lab_queue_route_accepts_experiment_payload(
     install_root = tmp_path / "install-root"
     monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
     monkeypatch.setattr(tuning_lab_service, "_ensure_tuning_worker", lambda config=None: None)
+    monkeypatch.setattr(
+        tuning_lab_service,
+        "_load_tuning_lab_prerequisites",
+        lambda config, working_directory="": {
+            "canQueue": True,
+            "runBlockers": [],
+            "workingDirectory": working_directory or str(tmp_path),
+        },
+    )
 
     client = TestClient(app)
     response = client.post(
@@ -117,6 +126,15 @@ def test_tuning_lab_queue_batch_route_accepts_preset_payload(
     install_root = tmp_path / "install-root"
     monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
     monkeypatch.setattr(tuning_lab_service, "_ensure_tuning_worker", lambda config=None: None)
+    monkeypatch.setattr(
+        tuning_lab_service,
+        "_load_tuning_lab_prerequisites",
+        lambda config, working_directory="": {
+            "canQueue": True,
+            "runBlockers": [],
+            "workingDirectory": working_directory or str(tmp_path),
+        },
+    )
 
     client = TestClient(app)
     response = client.post(
@@ -131,6 +149,41 @@ def test_tuning_lab_queue_batch_route_accepts_preset_payload(
     payload = response.json()
     assert payload["status"] == "accepted"
     assert len(payload["runIds"]) == 3
+
+
+def test_tuning_lab_queue_route_returns_error_when_prerequisites_are_blocked(
+    tmp_path: Path,
+    monkeypatch,
+):
+    from local_ai_control_center_installer.control_center_backend.services import tuning_lab_service
+
+    install_root = tmp_path / "install-root"
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    monkeypatch.setattr(
+        tuning_lab_service,
+        "_load_tuning_lab_prerequisites",
+        lambda config, working_directory="": {
+            "canQueue": False,
+            "runBlockers": ["OpenCode nije instaliran na ovoj mašini."],
+            "workingDirectory": str(tmp_path),
+        },
+    )
+
+    client = TestClient(app)
+    response = client.post(
+        "/api/tuning-lab/queue",
+        json={
+            "name": "Demo",
+            "goal": "code",
+            "taskPrompt": "Implement something small",
+            "workingDirectory": str(tmp_path),
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "error"
+    assert "OpenCode nije instaliran" in payload["summary"]
 
 
 def test_tuning_lab_apply_export_and_import_routes_work(

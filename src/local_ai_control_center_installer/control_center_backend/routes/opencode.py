@@ -1,7 +1,9 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
 
+from local_ai_control_center_installer.control_center_backend.config import get_config
 from local_ai_control_center_installer.control_center_backend.services.opencode_service import (
+    bootstrap_opencode_payload,
     delete_opencode_step_preset_payload,
     load_opencode_step_schema_payload,
     load_opencode_status_payload,
@@ -22,6 +24,11 @@ def opencode_status() -> dict[str, object]:
 @router.get("/api/opencode/steps")
 def opencode_steps() -> dict[str, object]:
     return load_opencode_step_schema_payload()
+
+
+@router.post("/api/opencode/bootstrap")
+def opencode_bootstrap() -> dict[str, object]:
+    return bootstrap_opencode_payload(get_config())
 
 
 class OpenOpenCodeRequest(BaseModel):

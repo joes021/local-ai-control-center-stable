@@ -27,12 +27,37 @@ def _write_opencode_fixture(install_root: Path) -> None:
     )
 
 
+def _write_runtime_and_model_prerequisites(install_root: Path) -> None:
+    runtime_endpoint_path = install_root / "config" / "runtime-endpoint.json"
+    runtime_endpoint_path.parent.mkdir(parents=True, exist_ok=True)
+    runtime_endpoint_path.write_text(
+        json.dumps(
+            {
+                "port": 39281,
+                "base_url": "http://127.0.0.1:39281",
+                "installer_managed": True,
+            }
+        ),
+        encoding="utf-8",
+    )
+    model_path = install_root / "models" / "local" / "demo.gguf"
+    model_path.parent.mkdir(parents=True, exist_ok=True)
+    model_path.write_text("model", encoding="utf-8")
+    active_model_path = install_root / "config" / "active-model.json"
+    active_model_path.parent.mkdir(parents=True, exist_ok=True)
+    active_model_path.write_text(
+        json.dumps({"model_id": "local-demo", "model_path": str(model_path)}),
+        encoding="utf-8",
+    )
+
+
 def test_opencode_status_route_reports_packaged_installation(
     tmp_path: Path,
     monkeypatch,
 ):
     install_root = tmp_path / "install-root"
     _write_opencode_fixture(install_root)
+    _write_runtime_and_model_prerequisites(install_root)
     monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
     monkeypatch.setattr(
         "local_ai_control_center_installer.control_center_backend.services.opencode_service.detect_opencode_instances",
@@ -54,6 +79,9 @@ def test_opencode_status_route_reports_packaged_installation(
     assert payload["canOpen"] is True
     assert payload["openActionLabel"] == "Otvori OpenCode"
     assert payload["openBlockedReason"] == ""
+    assert payload["canBootstrap"] is True
+    assert payload["bootstrapActionLabel"] == "Reinstall / popravi OpenCode"
+    assert payload["bootstrapBlockedReason"] == ""
     assert payload["launchPreview"]["shellLabel"] == "PowerShell"
     assert payload["launchPreview"]["launcherPath"].endswith("Open-OpenCode.cmd")
     assert "cmd.exe /d /k" in payload["launchPreview"]["launcherCommand"]
@@ -113,6 +141,7 @@ def test_opencode_status_route_reports_blocked_open_when_executable_is_missing(
     config_root = install_root / "config" / "opencode"
     config_root.mkdir(parents=True, exist_ok=True)
     (config_root / "managed-config.json").write_text("{}", encoding="utf-8")
+    _write_runtime_and_model_prerequisites(install_root)
     monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
 
     client = TestClient(app)
@@ -124,6 +153,80 @@ def test_opencode_status_route_reports_blocked_open_when_executable_is_missing(
     assert payload["canOpen"] is False
     assert payload["openActionLabel"] == "OpenCode nije instaliran"
     assert "nije pronađen" in payload["openBlockedReason"].lower()
+    assert payload["canBootstrap"] is True
+    assert payload["bootstrapActionLabel"] == "Instaliraj OpenCode"
+
+
+def test_opencode_bootstrap_route_delegates_to_bootstrap_service(
+    tmp_path: Path,
+    monkeypatch,
+):
+    install_root = tmp_path / "install-root"
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+
+    captured: dict[str, object] = {}
+
+    def fake_bootstrap(config):
+        captured["install_root"] = str(config.install_root)
+        return {
+            "status": "ok",
+            "action": "bootstrap-opencode",
+            "summary": "OpenCode je spreman.",
+            "details": {
+                "returncode": 0,
+                "stdout": "ready",
+                "stderr": "",
+            },
+        }
+
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.routes.opencode.bootstrap_opencode_payload",
+        fake_bootstrap,
+    )
+
+    client = TestClient(app)
+    response = client.post("/api/opencode/bootstrap")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "ok"
+    assert payload["action"] == "bootstrap-opencode"
+    assert captured["install_root"] == str(install_root)
+
+
+def test_bootstrap_opencode_payload_does_not_require_starter_model_for_repair_flow(
+    tmp_path: Path,
+    monkeypatch,
+):
+    from local_ai_control_center_installer.control_center_backend.services import opencode_service
+
+    install_root = tmp_path / "install-root"
+    _write_runtime_and_model_prerequisites(install_root)
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+
+    captured: dict[str, object] = {}
+
+    def fake_apply(session, **kwargs):
+        captured["download_keys"] = [item.key for item in session.download_plan.items]
+        opencode_root = install_root / "tools" / "opencode"
+        opencode_root.mkdir(parents=True, exist_ok=True)
+        (opencode_root / "opencode.exe").write_text("opencode", encoding="utf-8")
+        session.opencode_artifact_status = "ready"
+        session.last_successful_step = "opencode-config"
+        return session
+
+    monkeypatch.setattr(opencode_service, "apply_opencode_bootstrap", fake_apply)
+    monkeypatch.setattr(
+        opencode_service,
+        "prepare_opencode_launcher",
+        lambda config=None, profile="": install_root / "control-center" / "Open-OpenCode.cmd",
+    )
+
+    payload = opencode_service.bootstrap_opencode_payload(opencode_service.get_config())
+
+    assert payload["status"] == "ok"
+    assert payload["action"] == "bootstrap-opencode"
+    assert captured["download_keys"] == ["opencode-artifact"]
 
 
 def test_opencode_status_route_ignores_instances_from_other_install_roots(

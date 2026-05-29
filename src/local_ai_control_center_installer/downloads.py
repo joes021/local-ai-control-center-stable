@@ -2,10 +2,18 @@ from dataclasses import dataclass
 import hashlib
 import json
 from json import JSONDecodeError
+import os
 from pathlib import Path
+import ssl
+import subprocess
 import time
 from urllib.request import urlopen
 import zipfile
+
+try:
+    import certifi
+except ImportError:  # pragma: no cover - optional dependency fallback
+    certifi = None
 
 DOWNLOAD_REQUEST_TIMEOUT_SECONDS = 120.0
 
@@ -203,25 +211,46 @@ def download_file(
         start_time=start_time,
     )
 
-    with urlopen(url, timeout=DOWNLOAD_REQUEST_TIMEOUT_SECONDS) as response:
-        header_length = response.headers.get("Content-Length")
-        if total_bytes is None and isinstance(header_length, str) and header_length.isdigit():
-            total_bytes = int(header_length)
+    ssl_context = _build_download_ssl_context()
+    try:
+        with urlopen(
+            url,
+            timeout=DOWNLOAD_REQUEST_TIMEOUT_SECONDS,
+            context=ssl_context,
+        ) as response:
+            header_length = response.headers.get("Content-Length")
+            if total_bytes is None and isinstance(header_length, str) and header_length.isdigit():
+                total_bytes = int(header_length)
 
-        with destination.open("wb") as handle:
-            while True:
-                chunk = response.read(chunk_size)
-                if not chunk:
-                    break
-                handle.write(chunk)
-                bytes_downloaded += len(chunk)
-                _emit_download_progress(
-                    progress_callback,
-                    plan_item,
-                    bytes_downloaded=bytes_downloaded,
-                    total_bytes=total_bytes,
-                    start_time=start_time,
-                )
+            with destination.open("wb") as handle:
+                while True:
+                    chunk = response.read(chunk_size)
+                    if not chunk:
+                        break
+                    handle.write(chunk)
+                    bytes_downloaded += len(chunk)
+                    _emit_download_progress(
+                        progress_callback,
+                        plan_item,
+                        bytes_downloaded=bytes_downloaded,
+                        total_bytes=total_bytes,
+                        start_time=start_time,
+                    )
+    except Exception as exc:
+        if not _can_fallback_to_windows_web_request(exc):
+            raise
+        _download_file_via_windows_web_request(url, destination)
+        bytes_downloaded = destination.stat().st_size if destination.exists() else 0
+        if total_bytes is None and bytes_downloaded > 0:
+            total_bytes = bytes_downloaded
+        _emit_download_progress(
+            progress_callback,
+            plan_item,
+            bytes_downloaded=bytes_downloaded,
+            total_bytes=total_bytes,
+            start_time=start_time,
+        )
+        return destination
 
     if bytes_downloaded == 0:
         _emit_download_progress(
@@ -309,3 +338,61 @@ def _resolve_optional_int(plan_item, key: str) -> int | None:
     if isinstance(value, bool) or not isinstance(value, int):
         return None
     return value
+
+
+def _build_download_ssl_context() -> ssl.SSLContext:
+    if certifi is not None:
+        return ssl.create_default_context(cafile=certifi.where())
+    return ssl.create_default_context()
+
+
+def _can_fallback_to_windows_web_request(exc: Exception) -> bool:
+    if os.name != "nt":
+        return False
+
+    reason = getattr(exc, "reason", None)
+    if isinstance(exc, ssl.SSLCertVerificationError) or isinstance(
+        reason, ssl.SSLCertVerificationError
+    ):
+        return True
+
+    message_parts = [str(exc)]
+    if reason is not None:
+        message_parts.append(str(reason))
+    message = " ".join(part for part in message_parts if part).lower()
+    return (
+        "certificate_verify_failed" in message
+        or "unable to get local issuer certificate" in message
+    )
+
+
+def _download_file_via_windows_web_request(url: str, destination: Path) -> Path:
+    environment = os.environ.copy()
+    environment["LACC_DOWNLOAD_URL"] = url
+    environment["LACC_DOWNLOAD_DEST"] = str(destination)
+    command = [
+        "powershell.exe",
+        "-NoProfile",
+        "-Command",
+        (
+            "$ProgressPreference='SilentlyContinue'; "
+            "Invoke-WebRequest -Uri $env:LACC_DOWNLOAD_URL -OutFile $env:LACC_DOWNLOAD_DEST -UseBasicParsing"
+        ),
+    ]
+    completed = subprocess.run(
+        command,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+        env=environment,
+    )
+    if completed.returncode != 0:
+        error_text = (
+            completed.stderr.strip()
+            or completed.stdout.strip()
+            or "Windows web download fallback nije uspeo."
+        )
+        raise OSError(error_text)
+    return destination

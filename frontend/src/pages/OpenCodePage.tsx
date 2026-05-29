@@ -4,6 +4,7 @@ import { ActionResultPanel } from "../components/ActionResultPanel";
 import { CustomSelect } from "../components/CustomSelect";
 import {
   applyOpenCodeSettings,
+  bootstrapOpenCode,
   deleteOpenCodeStepPreset,
   fetchOpenCodeStatus,
   fetchOpenCodeStepSchema,
@@ -146,6 +147,23 @@ export function OpenCodePage() {
         <div className="inline-actions">
           <button
             type="button"
+            className="secondary-button"
+            disabled={opencode.canBootstrap === false}
+            title={opencode.bootstrapBlockedReason || undefined}
+            onClick={async () => {
+              try {
+                const actionResult = await bootstrapOpenCode();
+                setResult(actionResult);
+                await loadStatus();
+              } catch (reason: unknown) {
+                setError(reason instanceof Error ? reason.message : "Nepoznata greška");
+              }
+            }}
+          >
+            {opencode.bootstrapActionLabel || "Instaliraj ili popravi OpenCode"}
+          </button>
+          <button
+            type="button"
             disabled={opencode.canOpen === false}
             title={opencode.openBlockedReason || undefined}
             onClick={async () => {
@@ -165,6 +183,9 @@ export function OpenCodePage() {
           {opencode.sessionSummary ||
             "Promena modela važi za novi OpenCode session. Već otvoren OpenCode prozor ne menja model usred sesije."}
         </p>
+        {opencode.bootstrapBlockedReason ? (
+          <p className="helper-text">{opencode.bootstrapBlockedReason}</p>
+        ) : null}
         <p className="helper-text">
           {opencode.localProviderSearchSummary ||
             "local-lacc provider koristi isti shared search sloj kao i Search tab kada je to uključeno."}

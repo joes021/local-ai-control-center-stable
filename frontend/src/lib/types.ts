@@ -596,6 +596,13 @@ export type TuningLabSummaryPayload = {
     activeModelId: string;
     activeRuntime: string;
     workingDirectory: string;
+    configuredWorkingDirectory: string;
+    workingDirectoryWasAdjusted: boolean;
+    canQueue: boolean;
+    runBlockers: string[];
+    runtimeBinaryReady: boolean;
+    activeModelReady: boolean;
+    opencodeReady: boolean;
     modelFamily: string;
     recommendedOrigin: string;
   };
@@ -1058,6 +1065,9 @@ export type OpenCodeStatusPayload = {
   canOpen?: boolean;
   openActionLabel?: string;
   openBlockedReason?: string;
+  canBootstrap?: boolean;
+  bootstrapActionLabel?: string;
+  bootstrapBlockedReason?: string;
   instances: Array<{
     pid?: number | null;
     name?: string;
