@@ -2725,6 +2725,118 @@ select:-webkit-autofill {
   border-color: rgba(190, 70, 70, 0.45);
 }
 
+.tuning-lab-layout {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.tuning-lab-slot-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.tuning-lab-slot-card {
+  display: grid;
+  gap: 14px;
+}
+
+.tuning-lab-compact-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.tuning-lab-check-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 16px;
+}
+
+.tuning-lab-check-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.tuning-lab-check-row {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(120px, 0.7fr) minmax(0, 1.6fr) auto;
+  align-items: center;
+}
+
+.tuning-lab-queue-list,
+.tuning-lab-history-list {
+  display: grid;
+  gap: 12px;
+}
+
+.tuning-lab-queue-list {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+}
+
+.tuning-lab-queue-list li {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--app-card-soft-border);
+  background: var(--app-card-soft-bg);
+}
+
+.tuning-lab-history-card {
+  display: grid;
+  gap: 14px;
+}
+
+.tuning-lab-results-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.tuning-lab-results-table th,
+.tuning-lab-results-table td {
+  padding: 12px 10px;
+  text-align: left;
+  border-bottom: 1px solid var(--app-card-soft-border);
+  vertical-align: top;
+}
+
+.tuning-lab-results-table th {
+  color: var(--app-table-header-text);
+  background: var(--app-table-header-bg);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.74rem;
+}
+
+.tuning-lab-results-table tbody tr:hover {
+  background: var(--app-table-row-hover-bg);
+}
+
+.tuning-lab-history-detail {
+  border-radius: 16px;
+  border: 1px solid var(--app-card-soft-border);
+  background: var(--app-card-soft-bg);
+  padding: 14px 16px;
+}
+
+.tuning-lab-history-detail summary {
+  cursor: pointer;
+  color: var(--app-text);
+  font-weight: 600;
+}
+
+.tuning-lab-history-detail[open] summary {
+  margin-bottom: 10px;
+}
+
 @media (max-width: 860px) {
   .settings-explainer-grid,
   .settings-cluster-grid-core,
@@ -2785,6 +2897,14 @@ select:-webkit-autofill {
 
   .browser-toolbar {
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  }
+
+  .tuning-lab-layout,
+  .tuning-lab-slot-grid,
+  .tuning-lab-compact-grid,
+  .tuning-lab-check-grid,
+  .tuning-lab-check-row {
+    grid-template-columns: 1fr;
   }
 
   .benchmark-run-main {
@@ -2872,6 +2992,11 @@ select:-webkit-autofill {
   }
 
   .telemetry-footer-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .tuning-lab-slot-grid,
+  .tuning-lab-check-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

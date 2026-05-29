@@ -141,6 +141,18 @@ class ControlCenterConfig:
         return self.control_center_config_root / "observability-snapshots.json"
 
     @property
+    def tuning_lab_history_path(self) -> Path:
+        return self.control_center_config_root / "tuning-lab-history.json"
+
+    @property
+    def tuning_lab_run_state_path(self) -> Path:
+        return self.control_center_config_root / "tuning-lab-run-state.json"
+
+    @property
+    def tuning_lab_runtime_profiles_path(self) -> Path:
+        return self.control_center_config_root / "tuning-lab-runtime-profiles.json"
+
+    @property
     def updates_download_root(self) -> Path:
         return self.install_root / "updates"
 

@@ -435,6 +435,132 @@ export type JobsSummaryPayload = {
   availableKinds: JobKindOption[];
 };
 
+export type TuningLabSettingsPatch = {
+  profile: string;
+  context: number;
+  outputTokens: number;
+  thinkingMode: string;
+  temperature: number;
+  topK: number;
+  topP: number;
+  minP: number;
+  repeatPenalty: number;
+  repeatLastN: number;
+  presencePenalty: number;
+  frequencyPenalty: number;
+  seed: number;
+  buildSteps?: number;
+  planSteps?: number;
+  generalSteps?: number;
+  exploreSteps?: number;
+};
+
+export type TuningLabSuccessCheckSpec = {
+  label: string;
+  command: string;
+  kind: string;
+};
+
+export type TuningLabSuccessCheckResult = TuningLabSuccessCheckSpec & {
+  returncode?: number;
+  passed?: boolean;
+  stdoutPath?: string;
+  stdoutPreview?: string;
+  stderrPreview?: string;
+};
+
+export type TuningLabSlot = {
+  id: string;
+  label: string;
+  source: string;
+  status?: string;
+  summary?: string;
+  settingsPatch: TuningLabSettingsPatch;
+  workspaceMode?: string;
+  workspacePath?: string;
+  workspaceRetained?: boolean;
+  startedAt?: string;
+  finishedAt?: string;
+  taskCompleted?: boolean;
+  successChecksPassed?: boolean;
+  successChecks?: TuningLabSuccessCheckResult[];
+  changedFiles?: string[];
+  diffSummary?: string;
+  diffText?: string;
+  assistantText?: string;
+  processReturncode?: number;
+  inputTokens?: number;
+  outputTokens?: number;
+  totalTokens?: number;
+  costUsd?: number;
+  totalDurationMs?: number;
+  averageOutputTokensPerSecond?: number;
+  averageTotalTokensPerSecond?: number;
+  runtimeCommand?: string;
+  runtimeBaseUrl?: string;
+  opencodeCommand?: string;
+  stdoutPath?: string;
+};
+
+export type TuningLabGoalOption = {
+  id: string;
+  label: string;
+};
+
+export type TuningLabSuccessCheckTemplate = {
+  id: string;
+  label: string;
+  command: string;
+};
+
+export type TuningLabRun = {
+  runId: string;
+  name: string;
+  goal: string;
+  goalLabel?: string;
+  taskPrompt: string;
+  workingDirectory: string;
+  queuedAt?: string;
+  startedAt?: string;
+  finishedAt?: string;
+  status: string;
+  summary?: string;
+  recommendedOrigin?: string;
+  successChecks?: TuningLabSuccessCheckSpec[];
+  slots: TuningLabSlot[];
+  suggestedWinnerSlotId?: string | null;
+  winnerSummary?: string;
+  activeRuntime?: string;
+  modelId?: string;
+  modelLabel?: string;
+  modelFamily?: string;
+  currentIndex?: number;
+  currentSlotId?: string;
+  currentSlotLabel?: string;
+};
+
+export type TuningLabSummaryPayload = {
+  status: string;
+  activeRun: TuningLabRun | null;
+  queue: TuningLabRun[];
+  history: TuningLabRun[];
+  historyPage: number;
+  historyPageSize: number;
+  historyTotalItems: number;
+  historyTotalPages: number;
+  goalOptions: TuningLabGoalOption[];
+  successCheckTemplates: TuningLabSuccessCheckTemplate[];
+  slots: TuningLabSlot[];
+  context: {
+    activeModel: string;
+    activeModelId: string;
+    activeRuntime: string;
+    workingDirectory: string;
+    modelFamily: string;
+    recommendedOrigin: string;
+  };
+};
+
 export type ModelEntry = {
   id: string;
   label: string;

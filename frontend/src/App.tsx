@@ -20,6 +20,7 @@ import { RepairPage } from "./pages/RepairPage";
 import { SearchPage } from "./pages/SearchPage";
 import { ServerPage } from "./pages/ServerPage";
 import { SettingsPage } from "./pages/SettingsPage";
+import { TuningLabPage } from "./pages/TuningLabPage";
 import { UpdatesPage } from "./pages/UpdatesPage";
 import { WorkflowsPage } from "./pages/WorkflowsPage";
 
@@ -37,6 +38,7 @@ const PAGE_LABELS = {
   compatibility: "Kompatibilnost",
   observability: "Telemetrija",
   benchmark: "Benchmark",
+  tuningLab: "Tuning Lab",
   settings: "Podešavanja",
   logs: "Logovi",
   repair: "Popravka",
@@ -50,7 +52,7 @@ const PRIMARY_PAGES: PageKey[] = ["home", "server", "models", "opencode", "searc
 const MORE_PAGE_SECTIONS: Array<{ label: string; pages: PageKey[] }> = [
   {
     label: "Analiza i alati",
-    pages: ["browser", "knowledge", "compatibility", "benchmark", "observability"],
+    pages: ["browser", "knowledge", "compatibility", "benchmark", "observability", "tuningLab"],
   },
   {
     label: "Tokovi i automatizacija",
@@ -257,6 +259,7 @@ export default function App() {
       ) : null}
       {page === "observability" ? <ObservabilityPage /> : null}
       {page === "benchmark" ? <BenchmarkPage onOpenLogs={() => setPage("logs")} /> : null}
+      {page === "tuningLab" ? <TuningLabPage /> : null}
       {page === "settings" ? <SettingsPage /> : null}
       {page === "logs" ? <LogsPage /> : null}
       {page === "repair" ? <RepairPage /> : null}

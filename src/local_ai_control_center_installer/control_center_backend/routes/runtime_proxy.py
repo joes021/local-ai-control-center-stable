@@ -19,6 +19,9 @@ from local_ai_control_center_installer.control_center_backend.services.settings_
 from local_ai_control_center_installer.control_center_backend.services.status_service import (
     load_runtime_state,
 )
+from local_ai_control_center_installer.control_center_backend.services.tuning_lab_service import (
+    resolve_tuning_runtime_profile,
+)
 
 
 router = APIRouter()
@@ -29,6 +32,48 @@ router = APIRouter()
     methods=["GET", "POST"],
 )
 async def runtime_proxy(upstream_path: str, request: Request):
+    return await _proxy_runtime_request(
+        upstream_path=upstream_path,
+        request=request,
+        generation_override=None,
+    )
+
+
+@router.api_route(
+    "/api/runtime-proxy/tuning/{profile_token}/v1/{upstream_path:path}",
+    methods=["GET", "POST"],
+)
+async def tuning_runtime_proxy(profile_token: str, upstream_path: str, request: Request):
+    runtime_profile = resolve_tuning_runtime_profile(profile_token)
+    if runtime_profile is None:
+        return Response(
+            content=json.dumps(
+                {
+                    "error": {
+                        "message": "Traženi tuning runtime profil nije pronađen.",
+                        "type": "tuning_runtime_profile_missing",
+                    }
+                }
+            ).encode("utf-8"),
+            status_code=404,
+            headers={"Content-Type": "application/json"},
+        )
+    generation_override = runtime_profile.get("settingsPatch")
+    return await _proxy_runtime_request(
+        upstream_path=upstream_path,
+        request=request,
+        generation_override=dict(generation_override) if isinstance(generation_override, dict) else None,
+        upstream_base_url=str(runtime_profile.get("upstreamBaseUrl", "") or "").strip() or None,
+    )
+
+
+async def _proxy_runtime_request(
+    *,
+    upstream_path: str,
+    request: Request,
+    generation_override: dict[str, object] | None,
+    upstream_base_url: str | None = None,
+):
     raw_body = await request.body()
     body: dict[str, object] | bytes | None = None
     content_type = request.headers.get("content-type", "")
@@ -51,9 +96,9 @@ async def runtime_proxy(upstream_path: str, request: Request):
             body,
             search_func=perform_search_query,
         )
-        body = _apply_generation_defaults(body)
+        body = _apply_generation_defaults(body, override_settings=generation_override)
     elif request.method.upper() == "POST" and path == "/v1/completions" and isinstance(body, dict):
-        body = _apply_generation_defaults(body)
+        body = _apply_generation_defaults(body, override_settings=generation_override)
 
     stream_requested = isinstance(body, dict) and bool(body.get("stream"))
     proxied = _invoke_forward_runtime_request(
@@ -62,6 +107,7 @@ async def runtime_proxy(upstream_path: str, request: Request):
         body=body,
         headers=headers,
         stream=stream_requested,
+        upstream_base_url=upstream_base_url,
     )
     if proxied.get("streaming"):
         return StreamingResponse(
@@ -83,10 +129,14 @@ def forward_runtime_request(
     body: dict[str, object] | bytes | None,
     headers: dict[str, str],
     stream: bool = False,
+    upstream_base_url: str | None = None,
 ) -> dict[str, object]:
-    runtime_state = load_runtime_state()
-    upstream_base_url = str(runtime_state.get("base_url", "") or "").rstrip("/")
-    upstream_url = f"{upstream_base_url}{path}"
+    if upstream_base_url:
+        resolved_upstream_base_url = str(upstream_base_url or "").rstrip("/")
+    else:
+        runtime_state = load_runtime_state()
+        resolved_upstream_base_url = str(runtime_state.get("base_url", "") or "").rstrip("/")
+    upstream_url = f"{resolved_upstream_base_url}{path}"
     data: bytes | None
     next_headers = dict(headers)
     if isinstance(body, dict):
@@ -180,9 +230,30 @@ def _invoke_forward_runtime_request(
     body: dict[str, object] | bytes | None,
     headers: dict[str, str],
     stream: bool,
+    upstream_base_url: str | None = None,
 ) -> dict[str, object]:
-    parameters = inspect.signature(forward_runtime_request).parameters.values()
-    if any(parameter.kind is inspect.Parameter.VAR_KEYWORD for parameter in parameters):
+    signature = inspect.signature(forward_runtime_request)
+    parameters = signature.parameters
+    parameter_values = parameters.values()
+    if any(parameter.kind is inspect.Parameter.VAR_KEYWORD for parameter in parameter_values):
+        return forward_runtime_request(
+            method=method,
+            path=path,
+            body=body,
+            headers=headers,
+            stream=stream,
+            upstream_base_url=upstream_base_url,
+        )
+    if "stream" in parameters and "upstream_base_url" in parameters:
+        return forward_runtime_request(
+            method=method,
+            path=path,
+            body=body,
+            headers=headers,
+            stream=stream,
+            upstream_base_url=upstream_base_url,
+        )
+    if "stream" in parameters:
         return forward_runtime_request(
             method=method,
             path=path,
@@ -190,13 +261,13 @@ def _invoke_forward_runtime_request(
             headers=headers,
             stream=stream,
         )
-    if "stream" in inspect.signature(forward_runtime_request).parameters:
+    if "upstream_base_url" in parameters:
         return forward_runtime_request(
             method=method,
             path=path,
             body=body,
             headers=headers,
-            stream=stream,
+            upstream_base_url=upstream_base_url,
         )
     return forward_runtime_request(
         method=method,
@@ -206,20 +277,27 @@ def _invoke_forward_runtime_request(
     )
 
 
-def _apply_generation_defaults(payload: dict[str, object]) -> dict[str, object]:
+def _apply_generation_defaults(
+    payload: dict[str, object],
+    *,
+    override_settings: dict[str, object] | None = None,
+) -> dict[str, object]:
     settings = load_effective_settings_state()
+    merged_settings = dict(settings)
+    if override_settings:
+        merged_settings.update(override_settings)
     next_payload = dict(payload)
     defaults = {
-        "temperature": float(settings.get("temperature", 0.8)),
-        "top_p": float(settings.get("topP", 0.95)),
-        "top_k": int(settings.get("topK", 40)),
-        "min_p": float(settings.get("minP", 0.05)),
-        "repeat_penalty": float(settings.get("repeatPenalty", 1.0)),
-        "repeat_last_n": int(settings.get("repeatLastN", 64)),
-        "presence_penalty": float(settings.get("presencePenalty", 0.0)),
-        "frequency_penalty": float(settings.get("frequencyPenalty", 0.0)),
-        "seed": int(settings.get("seed", -1)),
-        "max_tokens": int(settings.get("outputTokens", 8192)),
+        "temperature": float(merged_settings.get("temperature", 0.8)),
+        "top_p": float(merged_settings.get("topP", 0.95)),
+        "top_k": int(merged_settings.get("topK", 40)),
+        "min_p": float(merged_settings.get("minP", 0.05)),
+        "repeat_penalty": float(merged_settings.get("repeatPenalty", 1.0)),
+        "repeat_last_n": int(merged_settings.get("repeatLastN", 64)),
+        "presence_penalty": float(merged_settings.get("presencePenalty", 0.0)),
+        "frequency_penalty": float(merged_settings.get("frequencyPenalty", 0.0)),
+        "seed": int(merged_settings.get("seed", -1)),
+        "max_tokens": int(merged_settings.get("outputTokens", 8192)),
     }
     for key, value in defaults.items():
         if key not in next_payload or next_payload.get(key) is None:

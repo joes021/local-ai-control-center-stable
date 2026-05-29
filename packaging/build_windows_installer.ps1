@@ -17,7 +17,11 @@ $specPath = $null
 
 Push-Location $repoRoot
 try {
-    $npmCommand = if (Get-Command "npm.cmd" -ErrorAction SilentlyContinue) { "npm.cmd" } else { "npm" }
+    $npmCommandSource = Get-Command "npm.cmd" -ErrorAction SilentlyContinue
+    if (-not $npmCommandSource) {
+        $npmCommandSource = Get-Command "npm" -ErrorAction SilentlyContinue
+    }
+    $npmCommand = if ($npmCommandSource) { $npmCommandSource.Source } else { $null }
     $nodeCommand = (Get-Command "node" -ErrorAction SilentlyContinue).Source
     if (-not (Test-Path (Join-Path $frontendRoot "package.json"))) {
         throw "Frontend package.json is missing."
@@ -28,9 +32,13 @@ try {
 
     Push-Location $frontendRoot
     try {
-        & $npmCommand install
-        if ($LASTEXITCODE -ne 0) {
-            throw "Failed to install frontend dependencies."
+        if ($npmCommand) {
+            & $npmCommand install
+            if ($LASTEXITCODE -ne 0) {
+                throw "Failed to install frontend dependencies."
+            }
+        } elseif (-not (Test-Path $frontendTsc) -or -not (Test-Path $frontendVite)) {
+            throw "npm is required to install missing frontend dependencies."
         }
 
         if (-not (Test-Path $frontendTsc)) {

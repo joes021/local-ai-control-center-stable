@@ -222,6 +222,30 @@ def test_workflows_source_supports_user_editable_presets_with_editor_state_and_c
     assert "deleteWorkflowPreset" in api_source
 
 
+def test_tuning_lab_source_and_navigation_are_present():
+    app_source = Path("frontend/src/App.tsx").read_text(encoding="utf-8")
+    api_source = Path("frontend/src/lib/api.ts").read_text(encoding="utf-8")
+    page_source = Path("frontend/src/pages/TuningLabPage.tsx").read_text(encoding="utf-8")
+    styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
+
+    assert "Tuning Lab" in app_source
+    assert "queueTuningLabExperiment" in api_source
+    assert "applyTuningLabWinner" in api_source
+    assert "exportTuningLabRun" in api_source
+    assert "importTuningSnippet" in api_source
+    assert "Tuning Lab" in page_source
+    assert "Dodaj u queue" in page_source
+    assert "Primeni pobednički set" in page_source
+    assert "Export / share" in page_source
+    assert "Uvezi forum / Reddit snippet" in page_source
+    assert "tuning-lab-slot-grid" in page_source
+    assert "tuning-lab-results-table" in page_source
+    assert "tuning-lab-history-card" in page_source
+    assert ".tuning-lab-slot-grid" in styles_source
+    assert ".tuning-lab-results-table" in styles_source
+    assert ".tuning-lab-history-card" in styles_source
+
+
 def test_server_and_opencode_source_include_equivalent_launch_command_panels():
     server_source = Path("frontend/src/pages/ServerPage.tsx").read_text(encoding="utf-8")
     opencode_source = Path("frontend/src/pages/OpenCodePage.tsx").read_text(encoding="utf-8")

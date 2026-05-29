@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "local-ai-control-center-installer"
-version = "0.4.59"
+version = "0.4.60"
 requires-python = ">=3.11"
 dependencies = ["fastapi>=0.115", "uvicorn>=0.35", "pypdf>=5.0", "certifi>=2024.8.30"]
 

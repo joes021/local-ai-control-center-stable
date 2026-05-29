@@ -62,6 +62,9 @@ from local_ai_control_center_installer.control_center_backend.routes.fleet impor
 from local_ai_control_center_installer.control_center_backend.routes.jobs import (
     router as jobs_router,
 )
+from local_ai_control_center_installer.control_center_backend.routes.tuning_lab import (
+    router as tuning_lab_router,
+)
 from local_ai_control_center_installer.control_center_backend.config import get_config
 from local_ai_control_center_installer.control_center_backend.services.jobs_service import (
     start_jobs_scheduler,
@@ -135,6 +138,7 @@ app.include_router(knowledge_router)
 app.include_router(observability_router)
 app.include_router(fleet_router)
 app.include_router(jobs_router)
+app.include_router(tuning_lab_router)
 
 _packaged_assets = _package_root() / "frontend_dist" / "assets"
 if _packaged_assets.is_dir():

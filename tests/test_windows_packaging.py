@@ -43,6 +43,14 @@ def test_build_windows_installer_script_creates_latest_setup_alias():
     assert "Copy-Item $versionedSetupPath $latestSetupPath -Force" in script
 
 
+def test_build_windows_installer_script_can_skip_npm_when_node_modules_are_already_present():
+    script = Path("packaging/build_windows_installer.ps1").read_text(encoding="utf-8")
+
+    assert '$npmCommandSource = Get-Command "npm.cmd" -ErrorAction SilentlyContinue' in script
+    assert 'elseif (-not (Test-Path $frontendTsc) -or -not (Test-Path $frontendVite))' in script
+    assert 'throw "npm is required to install missing frontend dependencies."' in script
+
+
 def test_publish_github_release_script_uploads_latest_setup_alias():
     script = Path("packaging/publish_github_release.ps1").read_text(encoding="utf-8")
 

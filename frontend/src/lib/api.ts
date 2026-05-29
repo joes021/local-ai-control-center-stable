@@ -35,6 +35,8 @@ import type {
   SearchQueryPayload,
   SearchSummaryPayload,
   StatusPayload,
+  TuningLabRun,
+  TuningLabSummaryPayload,
   TurboQuantConfig,
   TurboQuantSchemaPayload,
   UpdateProgressPayload,
@@ -401,6 +403,57 @@ export async function fetchJobsSummary(): Promise<JobsSummaryPayload> {
     throw new Error(`Jobs summary request failed: ${response.status}`);
   }
   return response.json() as Promise<JobsSummaryPayload>;
+}
+
+export async function fetchTuningLabSummary(page = 1): Promise<TuningLabSummaryPayload> {
+  const response = await fetch(`/api/tuning-lab?page=${page}`, { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(`Tuning Lab summary request failed: ${response.status}`);
+  }
+  return response.json() as Promise<TuningLabSummaryPayload>;
+}
+
+export async function fetchTuningLabRunStatus(): Promise<TuningLabRun | Record<string, never>> {
+  const response = await fetch("/api/tuning-lab/run-status", { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(`Tuning Lab run status request failed: ${response.status}`);
+  }
+  return response.json() as Promise<TuningLabRun | Record<string, never>>;
+}
+
+export async function queueTuningLabExperiment(payload: {
+  name: string;
+  goal: string;
+  taskPrompt: string;
+  workingDirectory: string;
+  successChecks: Array<{ label: string; command: string; kind: string }>;
+  slots: Array<{
+    id: string;
+    label: string;
+    source: string;
+    settingsPatch: Record<string, unknown>;
+  }>;
+}): Promise<{ status: string; summary: string; runId: string }> {
+  return postJson("/api/tuning-lab/queue", payload);
+}
+
+export async function applyTuningLabWinner(
+  runId: string,
+  slotId?: string,
+): Promise<ActionResult> {
+  return postJson("/api/tuning-lab/apply-winner", { runId, slotId });
+}
+
+export async function exportTuningLabRun(
+  runId: string,
+): Promise<{ status: string; summary: string; experiment: TuningLabRun }> {
+  return postJson("/api/tuning-lab/export", { runId });
+}
+
+export async function importTuningSnippet(
+  snippet: string,
+): Promise<{ status: string; summary: string; settingsPatch: Record<string, unknown> }> {
+  return postJson("/api/tuning-lab/import-snippet", { snippet });
 }
 
 export async function saveJob(payload: {
