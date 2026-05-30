@@ -146,6 +146,8 @@ def test_server_start_route_spawns_runtime_process(
     tmp_path: Path,
     monkeypatch,
 ):
+    from local_ai_control_center_installer.control_center_backend.services import server_service
+
     install_root = tmp_path / "install-root"
     runtime_root = install_root / "runtime" / "llama.cpp"
     runtime_root.mkdir(parents=True)
@@ -183,6 +185,8 @@ def test_server_start_route_spawns_runtime_process(
         "local_ai_control_center_installer.control_center_backend.services.server_service.subprocess.Popen",
         fake_popen,
     )
+    monkeypatch.setattr(server_service, "_runtime_binary_supports_flag", lambda *args, **kwargs: True)
+    monkeypatch.setattr(server_service, "_detect_nvidia_total_memory_mib", lambda: 12 * 1024)
 
     client = TestClient(app)
     response = client.post("/api/server/start")
@@ -202,7 +206,56 @@ def test_server_start_route_spawns_runtime_process(
     assert "--top-p" in command
     assert "--repeat-last-n" in command
     assert "--seed" in command
+    assert "--n-gpu-layers" in command
+    assert command[command.index("--n-gpu-layers") + 1] == "40"
+    assert "--flash-attn" in command
+    assert command[command.index("--flash-attn") + 1] == "auto"
     assert any(str(item).endswith("gemma-4-E4B-it-Q4_K_M.gguf") for item in command)
+
+
+def test_server_status_route_preview_shows_gpu_offload_flags_for_llama_runtime(
+    tmp_path: Path,
+    monkeypatch,
+):
+    from local_ai_control_center_installer.control_center_backend.services import server_service
+
+    install_root = tmp_path / "install-root"
+    runtime_root = install_root / "runtime" / "llama.cpp"
+    runtime_root.mkdir(parents=True)
+    (runtime_root / "llama-server.exe").write_text("llama", encoding="utf-8")
+    _write_active_model_config(
+        install_root,
+        filename="Qwen3.6-35B-A3B-UD-IQ2_XXS.gguf",
+    )
+    _write_runtime_endpoint_config(
+        install_root / "config" / "runtime-endpoint.json",
+        port=39281,
+    )
+
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    monkeypatch.setattr(server_service, "_runtime_binary_supports_flag", lambda *args, **kwargs: True)
+    monkeypatch.setattr(server_service, "_detect_nvidia_total_memory_mib", lambda: 12 * 1024)
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.server_service.probe_server_health",
+        lambda *args, **kwargs: "ready",
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.server_service.find_runtime_pid",
+        lambda *args, **kwargs: 5150,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.server_service.detect_tailscale_ip",
+        lambda: "",
+    )
+
+    client = TestClient(app)
+    response = client.get("/api/server/status")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert "--n-gpu-layers 40" in payload["commandPreview"]["activeCommand"]
+    assert "--flash-attn auto" in payload["commandPreview"]["activeCommand"]
+    assert any("GPU offload" in note for note in payload["commandPreview"]["notes"])
 
 
 def test_server_stop_route_reports_ok_when_runtime_is_already_stopped(

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from functools import lru_cache
 from pathlib import Path
 import re
 import subprocess
@@ -182,7 +183,12 @@ def start_server(
         port,
         ctx_size=_resolve_runtime_context_size(config, runtime_state),
         spec_type=_resolve_spec_type(runtime_state, binary_path),
-        **_load_generation_argument_values(config),
+        **_load_runtime_launch_argument_values(
+            config,
+            runtime_state,
+            runtime_name=str(runtime_state.get("active_runtime", "") or ""),
+            binary_path=binary_path,
+        ),
     )
     log_path = config.install_root / "logs" / "runtime-server.log"
     log_path.parent.mkdir(parents=True, exist_ok=True)
@@ -554,6 +560,7 @@ def _build_server_command_preview(
             "Isti runtime koristi isti port i isti --ctx-size koji vidiš ovde.",
             "PowerShell prikaz počinje sa & jer tako PowerShell pokreće citiranu .exe putanju.",
             "cmd.exe varijanta je odvojena i ne koristi & operator.",
+            "llama.cpp sada pokušava i GPU offload kada je NVIDIA GPU dostupan, pa kroz komandu možeš da vidiš i --n-gpu-layers / --flash-attn.",
         ],
         "variants": variants,
     }
@@ -574,7 +581,12 @@ def _build_server_command_variant(
     model_path = Path(str(runtime_state.get("active_model_path", "") or ""))
     context_size = _resolve_runtime_context_size_for_runtime(config, runtime_state, runtime_name)
     spec_type = _resolve_spec_type_for_runtime(runtime_state, binary_path, runtime_name)
-    generation_arguments = _load_generation_argument_values(config)
+    generation_arguments = _load_runtime_launch_argument_values(
+        config,
+        runtime_state,
+        runtime_name=runtime_name,
+        binary_path=binary_path,
+    )
     command: list[str] = []
     summary = ""
     supported = False
@@ -617,6 +629,7 @@ def _build_server_command_variant(
         "context": context_size,
         "specType": spec_type or "",
         "samplingSummary": _build_generation_summary(generation_arguments),
+        "launchSummary": _build_launch_summary(generation_arguments),
         "command": _format_powershell_command(command) if command else "",
         "cmdCommand": _format_cmd_command(command) if command else "",
     }
@@ -669,6 +682,66 @@ def _load_generation_argument_values(
     }
 
 
+def _load_runtime_launch_argument_values(
+    config: ControlCenterConfig,
+    runtime_state: dict[str, object],
+    *,
+    runtime_name: str,
+    binary_path: Path,
+) -> dict[str, object]:
+    arguments = _load_generation_argument_values(config)
+    arguments.update(
+        _load_runtime_acceleration_argument_values(
+            config,
+            runtime_state,
+            runtime_name=runtime_name,
+            binary_path=binary_path,
+        )
+    )
+    return arguments
+
+
+def _load_runtime_acceleration_argument_values(
+    config: ControlCenterConfig,
+    runtime_state: dict[str, object],
+    *,
+    runtime_name: str,
+    binary_path: Path,
+) -> dict[str, object]:
+    del config
+    del runtime_state
+    normalized_runtime = str(runtime_name or "").strip().lower()
+    if normalized_runtime != "llama.cpp":
+        return {}
+    if not _runtime_binary_supports_flag(binary_path, "--n-gpu-layers"):
+        return {}
+    gpu_total_mib = _detect_nvidia_total_memory_mib()
+    gpu_layers = _recommend_gpu_layers(gpu_total_mib)
+    if gpu_layers <= 0:
+        return {}
+    acceleration: dict[str, object] = {"gpu_layers": gpu_layers}
+    if _runtime_binary_supports_flag(binary_path, "--flash-attn"):
+        acceleration["flash_attn"] = "auto"
+    return acceleration
+
+
+def _build_launch_summary(arguments: dict[str, object]) -> str:
+    details: list[str] = []
+    gpu_layers = arguments.get("gpu_layers")
+    if isinstance(gpu_layers, int) and gpu_layers > 0:
+        details.append(f"GPU offload {gpu_layers} slojeva")
+    flash_attn = str(arguments.get("flash_attn", "") or "").strip()
+    if flash_attn:
+        details.append(f"flash-attn {flash_attn}")
+    batch_size = arguments.get("batch_size")
+    if isinstance(batch_size, int) and batch_size > 0:
+        details.append(f"batch {batch_size}")
+    ubatch_size = arguments.get("ubatch_size")
+    if isinstance(ubatch_size, int) and ubatch_size > 0:
+        details.append(f"ubatch {ubatch_size}")
+    return " | ".join(details)
+
+
 def _build_generation_summary(arguments: dict[str, object]) -> str:
     return (
         f"temp {arguments['temperature']} | top-k {arguments['top_k']} | "
@@ -677,3 +750,65 @@ def _build_generation_summary(arguments: dict[str, object]) -> str:
         f"presence {arguments['presence_penalty']} | frequency {arguments['frequency_penalty']} | "
         f"seed {arguments['seed']}"
     )
+
+
+@lru_cache(maxsize=16)
+def _runtime_binary_supports_flag(binary_path: Path, flag: str) -> bool:
+    resolved = Path(str(binary_path or ""))
+    if not resolved.is_file() or not flag.strip():
+        return False
+    try:
+        completed = subprocess.run(
+            [str(resolved), "--help"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+    except (OSError, TypeError, ValueError):
+        return False
+    if completed.returncode != 0:
+        return False
+    output = f"{completed.stdout}\n{completed.stderr}"
+    return flag in output
+
+
+def _detect_nvidia_total_memory_mib() -> int | None:
+    completed = subprocess.run(
+        ["nvidia-smi", "--query-gpu=memory.total", "--format=csv,noheader,nounits"],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+    )
+    if completed.returncode != 0:
+        return None
+    for raw_line in completed.stdout.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        try:
+            return int(float(line))
+        except ValueError:
+            continue
+    return None
+
+
+def _recommend_gpu_layers(total_memory_mib: int | None) -> int:
+    if total_memory_mib is None or total_memory_mib <= 0:
+        return 0
+    if total_memory_mib >= 24 * 1024:
+        return 99
+    if total_memory_mib >= 16 * 1024:
+        return 60
+    if total_memory_mib >= 12 * 1024:
+        return 40
+    if total_memory_mib >= 8 * 1024:
+        return 28
+    if total_memory_mib >= 6 * 1024:
+        return 20
+    return 0

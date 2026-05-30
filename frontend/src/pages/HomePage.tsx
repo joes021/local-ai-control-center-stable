@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { ActionResultPanel } from "../components/ActionResultPanel";
+import { PageFlowCard } from "../components/PageFlowCard";
 import { TelemetryPanel } from "../components/TelemetryPanel";
 import {
   fetchBenchmark,
@@ -67,7 +68,17 @@ function describeRuntimeBinaryPath(binaryPath: string | null | undefined) {
   };
 }
 
-export function HomePage() {
+export function HomePage({
+  onOpenModels,
+  onOpenOpenCode,
+  onOpenServer,
+  onOpenTuningLab,
+}: {
+  onOpenModels?: () => void;
+  onOpenOpenCode?: () => void;
+  onOpenServer?: () => void;
+  onOpenTuningLab?: () => void;
+}) {
   const [status, setStatus] = useState<StatusPayload | null>(null);
   const [serverStatus, setServerStatus] = useState<ServerStatusPayload | null>(null);
   const [opencode, setOpencode] = useState<OpenCodeStatusPayload | null>(null);
@@ -148,6 +159,40 @@ export function HomePage() {
   return (
     <>
       {error ? <div className="error-panel wide-card">{error}</div> : null}
+      <PageFlowCard
+        title="Najbrži sledeći korak"
+        summary="Početna treba da ti odmah kaže gde da nastaviš bez kopanja po tabovima. Kreni od stanja runtime-a, pa pređi na model, OpenCode ili Tuning Lab."
+        steps={[
+          {
+            title: "Proveri runtime i model",
+            detail: "Pogledaj da li su runtime server i aktivni model u zdravom stanju pre nego što kreneš dalje.",
+          },
+          {
+            title: "Ako treba, idi na Server ili Modele",
+            detail: "Server koristiš za start/stop i ručnu CLI proveru, a Modeli za download, aktivaciju i kompatibilnost.",
+          },
+          {
+            title: "Otvori OpenCode ili Tuning Lab",
+            detail: "Kad je runtime zdrav, pređi na pravi rad u OpenCode-u ili na poređenje podešavanja u Tuning Lab-u.",
+          },
+        ]}
+        actions={
+          <>
+            <button type="button" className="secondary-button" onClick={onOpenServer}>
+              Otvori Server
+            </button>
+            <button type="button" className="secondary-button" onClick={onOpenModels}>
+              Otvori Modele
+            </button>
+            <button type="button" className="secondary-button" onClick={onOpenOpenCode}>
+              Otvori OpenCode
+            </button>
+            <button type="button" onClick={onOpenTuningLab}>
+              Otvori Tuning Lab
+            </button>
+          </>
+        }
+      />
       <div className="home-layout wide-card">
         <TelemetryPanel benchmark={benchmark} variant="home" />
         <section className="status-card system-overview-card wide-card">

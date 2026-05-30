@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 
 import { ActionResultPanel } from "../components/ActionResultPanel";
+import { PageDataStateCard } from "../components/PageDataStateCard";
+import { PageFlowCard } from "../components/PageFlowCard";
 import { checkUpdates, fetchUpdateProgress, installUpdate } from "../lib/api";
 import type { ActionResult, UpdateProgressPayload } from "../lib/types";
 
@@ -111,10 +113,27 @@ function UpdateProgressCard({ progress }: { progress: UpdateProgressPayload | nu
 export function UpdatesPage() {
   const [result, setResult] = useState<ActionResult | null>(null);
   const [progress, setProgress] = useState<UpdateProgressPayload | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [hasLoaded, setHasLoaded] = useState(false);
+
+  async function loadUpdates() {
+    try {
+      const [updateResult, progressPayload] = await Promise.all([
+        checkUpdates(),
+        fetchUpdateProgress(),
+      ]);
+      setResult(updateResult);
+      setProgress(progressPayload);
+      setError(null);
+    } catch (reason: unknown) {
+      setError(reason instanceof Error ? reason.message : "Provera ažuriranja nije uspela.");
+    } finally {
+      setHasLoaded(true);
+    }
+  }
 
   useEffect(() => {
-    checkUpdates().then(setResult).catch(() => {});
-    fetchUpdateProgress().then(setProgress).catch(() => {});
+    void loadUpdates();
   }, []);
 
   useEffect(() => {
@@ -126,9 +145,10 @@ export function UpdatesPage() {
         if (!cancelled) {
           setProgress(payload);
         }
-      } catch {
+      } catch (reason: unknown) {
         if (!cancelled) {
           setProgress(null);
+          setError(reason instanceof Error ? reason.message : "Update progress nije mogao da se učita.");
         }
       }
     }
@@ -144,25 +164,92 @@ export function UpdatesPage() {
     };
   }, []);
 
+  if (!hasLoaded) {
+    return (
+      <PageDataStateCard
+        error={error}
+        loadingText="Učitavam ažuriranja..."
+        onRetry={() => {
+          setError(null);
+          setHasLoaded(false);
+          void loadUpdates();
+        }}
+      />
+    );
+  }
+
   return (
     <>
+      {error ? <div className="error-panel wide-card">{error}</div> : null}
+      <PageFlowCard
+        title="Updates tok"
+        summary="Najprirodnije je da prvo proveriš novu verziju, zatim pokreneš instalaciju i onda ovde pratiš ceo download i installer tok."
+        steps={[
+          {
+            title: "Proveri ažuriranja",
+            detail: "Prvi korak je proverna akcija da vidiš da li nova verzija postoji i šta portal zna o njoj.",
+          },
+          {
+            title: "Pokreni instalaciju",
+            detail: "Kada prihvatiš update, backend preuzima installer i pokreće ga bez dodatnog ručnog traženja fajla.",
+          },
+          {
+            title: "Prati progress karticu",
+            detail: "Status, procenat, brzina i sledeći korak ovde treba da budu dovoljni da ne nagađaš šta se događa.",
+          },
+        ]}
+        actions={
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={() => {
+              setError(null);
+              setHasLoaded(false);
+              void loadUpdates();
+            }}
+          >
+            Osveži status
+          </button>
+        }
+      />
       <section className="status-card wide-card">
         <span className="status-label">Ažuriranja</span>
         <p className="helper-text">
-          Instalacija ažuriranja sada ide kao pozadinski tok: vidi se napredak preuzimanja, brzina, ETA i
-          jasno je kada kreće pokretanje installera.
+          Instalacija ažuriranja sada ide kao pozadinski tok: vidi se napredak preuzimanja, brzina,
+          ETA i jasno je kada kreće pokretanje installera.
         </p>
         <div className="inline-actions">
-          <button type="button" onClick={() => checkUpdates().then(setResult)}>
+          <button
+            type="button"
+            onClick={() => {
+              setError(null);
+              void checkUpdates()
+                .then((payload) => {
+                  setResult(payload);
+                })
+                .catch((reason: unknown) => {
+                  setError(reason instanceof Error ? reason.message : "Provera ažuriranja nije uspela.");
+                });
+            }}
+          >
             Proveri ažuriranja
           </button>
           <button
             type="button"
-            onClick={async () => {
-              const actionResult = await installUpdate();
-              setResult(actionResult);
-              const payload = await fetchUpdateProgress();
-              setProgress(payload);
+            onClick={() => {
+              setError(null);
+              void (async () => {
+                try {
+                  const actionResult = await installUpdate();
+                  setResult(actionResult);
+                  const payload = await fetchUpdateProgress();
+                  setProgress(payload);
+                } catch (reason: unknown) {
+                  setError(
+                    reason instanceof Error ? reason.message : "Instalacija ažuriranja nije uspela.",
+                  );
+                }
+              })();
             }}
           >
             Instaliraj ažuriranje

@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 
 import { CompatibilityCalculatorPanel } from "../components/CompatibilityCalculatorPanel";
 import { CustomSelect } from "../components/CustomSelect";
+import { PageDataStateCard } from "../components/PageDataStateCard";
+import { PageFlowCard } from "../components/PageFlowCard";
 import { fetchBrowserCatalog, fetchModels } from "../lib/api";
 import {
   buildCompatibilityRequestFromModelEntry,
@@ -451,8 +453,16 @@ export function CompatibilityPage({
     [filteredRemoteCandidates],
   );
 
-  if (error) {
-    return <div className="error-panel">{error}</div>;
+  const inlineError = error;
+
+  if (!models || !catalog) {
+    return (
+      <PageDataStateCard
+        error={inlineError}
+        loadingText="U\u010ditavam radni prostor kompatibilnosti..."
+        onRetry={() => window.location.reload()}
+      />
+    );
   }
 
   if (!models || !catalog) {
@@ -461,6 +471,35 @@ export function CompatibilityPage({
 
   return (
     <div className="compatibility-page">
+      {inlineError ? <div className="error-panel wide-card">{inlineError}</div> : null}
+      <PageFlowCard
+        title="Compatibility tok"
+        summary="Ovde prvo bira\u0161 \u0161ta proverava\u0161, zatim gleda\u0161 fit i runtime preporuku, pa se tek onda vra\u0107a\u0161 u Modele ili Browser."
+        steps={[
+          {
+            title: "Izaberi aktivni, lokalni ili udaljeni model",
+            detail: "Scope odre\u0111uje da li proverava\u0161 ono \u0161to ve\u0107 koristi\u0161, lokalni katalog ili Browser kandidat.",
+          },
+          {
+            title: "Pogledaj fit i runtime preporuku",
+            detail: "Kalkulator sam ponavlja proveru kad promeni\u0161 model, pa je fokus na tuma\u010denju rezultata umesto na ru\u010dnom startovanju.",
+          },
+          {
+            title: "Vrati se u Modele ili Browser",
+            detail: "Kada vidi\u0161 \u0161ta radi na ma\u0161ini, odmah se vrati na pravo mesto i potvrdi model ili izvor.",
+          },
+        ]}
+        actions={
+          <>
+            <button type="button" className="secondary-button" onClick={onOpenModels}>
+              Otvori Modele
+            </button>
+            <button type="button" className="secondary-button" onClick={onOpenBrowser}>
+              Otvori Browser
+            </button>
+          </>
+        }
+      />
       <section className="status-card wide-card compatibility-workspace">
         <div className="section-header">
           <div>

@@ -4,6 +4,8 @@ import { ActionResultPanel } from "../components/ActionResultPanel";
 import { CompatibilityCalculatorModal } from "../components/CompatibilityCalculatorModal";
 import { CustomSelect } from "../components/CustomSelect";
 import { ModelDownloadProgressCard } from "../components/ModelDownloadProgressCard";
+import { PageDataStateCard } from "../components/PageDataStateCard";
+import { PageFlowCard } from "../components/PageFlowCard";
 import type { CompatibilityLaunchTarget } from "../lib/compatibility";
 import {
   addBrowserModelToLocal,
@@ -737,12 +739,17 @@ export function BrowserPage({
     setCompatibilityRequest({ catalogModelId: item.id });
   }
 
-  if (error) {
-    return <div className="error-panel">{error}</div>;
-  }
-
   if (!catalog) {
-    return <div className="status-card wide-card">Loading Browser catalog...</div>;
+    return (
+      <PageDataStateCard
+        error={error}
+        loadingText="Učitavam Browser katalog..."
+        onRetry={() => {
+          setError(null);
+          void Promise.all([loadCatalogIndex(), loadCatalog()]);
+        }}
+      />
+    );
   }
 
   const sourceOptions = [
@@ -795,6 +802,38 @@ export function BrowserPage({
 
   return (
     <>
+      {error ? <div className="error-panel wide-card">{error}</div> : null}
+      <PageFlowCard
+        title="Browser tok"
+        summary="Najzdraviji redosled je da prvo osvežiš katalog, zatim filtriraš modele, pa tek onda dodaješ lokalno ili proveravaš fit za svoju mašinu."
+        steps={[
+          {
+            title: "Refresh katalog",
+            detail: "Ako sumnjaš da su brojači zastareli, prvo povuci sveže modele sa interneta.",
+          },
+          {
+            title: "Filtriraj model",
+            detail: "Suzi izbor po source, family, quant, veličini i datumu pre nego što otvoriš detalje.",
+          },
+          {
+            title: "Dodaj lokalno ili proveri fit",
+            detail: "Kada nađeš kandidata, dodaj ga u lokalni katalog ili idi na Compatibility tab za potvrdu.",
+          },
+        ]}
+        actions={
+          <>
+            <button type="button" className="secondary-button" onClick={() => void handleRefresh()}>
+              Refresh katalog
+            </button>
+            <button type="button" className="secondary-button" onClick={() => void handleRefresh("huggingface")}>
+              Refresh HF
+            </button>
+            <button type="button" className="secondary-button" onClick={() => void handleRefresh("unsloth")}>
+              Refresh Unsloth
+            </button>
+          </>
+        }
+      />
       <section className="status-card wide-card">
         <div className="section-header">
           <div>

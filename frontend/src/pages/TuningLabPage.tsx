@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { ActionResultPanel } from "../components/ActionResultPanel";
+import { PageDataStateCard } from "../components/PageDataStateCard";
+import { PageFlowCard } from "../components/PageFlowCard";
 import {
   applyTuningLabWinner,
   bootstrapOpenCode,
@@ -22,7 +24,8 @@ import type {
   TuningLabSummaryPayload,
 } from "../lib/types";
 
-const REFRESH_MS = 4000;
+const SUMMARY_REFRESH_MS = 12000;
+const RUN_STATUS_REFRESH_MS = 1200;
 
 type SuccessCheckDraft = {
   label: string;
@@ -44,6 +47,13 @@ type HistoryFilters = {
   goal: string;
   runtime: string;
   status: string;
+};
+
+type CockpitResource = {
+  label: string;
+  value: string;
+  compactValue: string;
+  helper?: string;
 };
 
 function formatDateTime(value: string | undefined) {
@@ -77,6 +87,39 @@ function formatCount(value: number | undefined) {
     return "--";
   }
   return new Intl.NumberFormat("sr-RS").format(value);
+}
+
+function compactPathLike(value: string | undefined, trailingSegments = 3) {
+  const normalized = String(value || "").trim();
+  if (!normalized) {
+    return "--";
+  }
+  if (/^https?:\/\//i.test(normalized)) {
+    return normalized;
+  }
+  const cleaned = normalized.replace(/\//g, "\\");
+  const driveMatch = cleaned.match(/^[A-Za-z]:\\/);
+  const drivePrefix = driveMatch ? driveMatch[0].slice(0, 2) : "";
+  const withoutDrive = drivePrefix ? cleaned.slice(3) : cleaned;
+  const parts = withoutDrive.split("\\").filter(Boolean);
+  if (parts.length <= trailingSegments + 1) {
+    return cleaned;
+  }
+  const tail = parts.slice(-trailingSegments).join("\\");
+  return drivePrefix ? `${drivePrefix}\\…\\${tail}` : `…\\${tail}`;
+}
+
+function buildCockpitResource(label: string, value: string | undefined, helper = ""): CockpitResource | null {
+  const normalized = String(value || "").trim();
+  if (!normalized) {
+    return null;
+  }
+  return {
+    label,
+    value: normalized,
+    compactValue: compactPathLike(normalized),
+    helper,
+  };
 }
 
 function buildDraftFromSummary(payload: TuningLabSummaryPayload): TuningDraft {
@@ -294,6 +337,77 @@ function buildRuntimeLogPath(slot: TuningLabSlot | null) {
   return slot?.stdoutPath || slot?.runtimeLogPath || slot?.stderrPath || "";
 }
 
+function describeCockpitJsonLine(line: string) {
+  try {
+    const payload = JSON.parse(line) as {
+      type?: string;
+      part?: {
+        type?: string;
+        tool?: string;
+        title?: string;
+        reason?: string;
+        tokens?: { input?: number; output?: number; total?: number };
+        state?: {
+          status?: string;
+          input?: { description?: string; command?: string };
+          metadata?: { exit?: number };
+        };
+      };
+    };
+    const eventType = String(payload.type || "").trim().toLowerCase();
+    const part = payload.part || {};
+    if (eventType === "tool_use" || part.type === "tool") {
+      const tool = String(part.tool || "alat").trim();
+      const title = String(part.title || part.state?.input?.description || "").trim();
+      const status = String(part.state?.status || "").trim();
+      const exit = part.state?.metadata?.exit;
+      const pieces = [`Alat ${tool}`];
+      if (title) {
+        pieces.push(title);
+      }
+      if (status) {
+        pieces.push(`status ${status}`);
+      }
+      if (typeof exit === "number") {
+        pieces.push(`exit ${exit}`);
+      }
+      return pieces.join(" · ");
+    }
+    if (eventType === "step_start") {
+      return "Nova OpenCode poruka je krenula u obradu.";
+    }
+    if (eventType === "step_finish") {
+      const reason = String(part.reason || "korak završen").trim();
+      const tokens = part.tokens || {};
+      const tokenSummary =
+        typeof tokens.output === "number" && typeof tokens.total === "number"
+          ? `izlaz ${tokens.output} / ukupno ${tokens.total} tokena`
+          : "";
+      return [reason ? `Korak završen: ${reason}` : "Korak završen", tokenSummary]
+        .filter(Boolean)
+        .join(" · ");
+    }
+    if (eventType === "todo_write") {
+      const title = String(part.title || "OpenCode je osvežio plan rada.").trim();
+      return title;
+    }
+  } catch {
+    return "";
+  }
+  return "";
+}
+
+function buildCockpitLogLines(value: string | undefined) {
+  const rawLines = String(value || "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const normalized = rawLines
+    .map((line) => describeCockpitJsonLine(line) || line)
+    .filter(Boolean);
+  return normalized.slice(-8);
+}
+
 function hasMissingTokenTelemetry(slot: TuningLabSlot) {
   return slot.status === "completed" && (slot.totalTokens ?? 0) <= 0;
 }
@@ -459,42 +573,169 @@ export function TuningLabPage() {
   const editorRef = useRef<HTMLElement | null>(null);
   const progressRef = useRef<HTMLElement | null>(null);
   const cockpitRef = useRef<HTMLElement | null>(null);
+  const historyPageRef = useRef(historyPage);
+  const lastActiveRunIdRef = useRef<string | null>(null);
 
-  async function load(targetPage = historyPage) {
+  useEffect(() => {
+    historyPageRef.current = historyPage;
+  }, [historyPage]);
+
+  async function loadSummary(targetPage = historyPageRef.current) {
     try {
-      const [summaryPayload, runPayload] = await Promise.all([
-        fetchTuningLabSummary(targetPage),
-        fetchTuningLabRunStatus(),
-      ]);
+      const summaryPayload = await fetchTuningLabSummary(targetPage);
       setSummary(summaryPayload);
-      setRunStatus(Object.keys(runPayload).length ? (runPayload as TuningLabRun) : null);
       setError(null);
       setHistoryPage(targetPage);
       setDraft((current) => current ?? buildDraftFromSummary(summaryPayload));
+      return summaryPayload;
     } catch (reason: unknown) {
-      setError(reason instanceof Error ? reason.message : "Tuning Lab nije mogao da se učita.");
+      const message =
+        reason instanceof Error ? reason.message : "Tuning Lab nije mogao da se učita.";
+      setError(message);
+      throw reason;
     }
+  }
+
+  async function loadRunStatus() {
+    try {
+      const runPayload = await fetchTuningLabRunStatus();
+      const nextRunStatus = Object.keys(runPayload).length ? (runPayload as TuningLabRun) : null;
+      const previousRunId = lastActiveRunIdRef.current;
+      const nextRunId = nextRunStatus?.runId || null;
+      lastActiveRunIdRef.current = nextRunId;
+      setRunStatus(nextRunStatus);
+      setError(null);
+      if (previousRunId && !nextRunId) {
+        void loadSummary(historyPageRef.current);
+      }
+      return nextRunStatus;
+    } catch (reason: unknown) {
+      const message =
+        reason instanceof Error ? reason.message : "Status aktivnog Tuning Lab run-a nije mogao da se učita.";
+      setError(message);
+      throw reason;
+    }
+  }
+
+  async function loadAll(targetPage = historyPageRef.current) {
+    await Promise.all([loadSummary(targetPage), loadRunStatus()]);
   }
 
   useEffect(() => {
     let cancelled = false;
-    void load(1);
-    const timer = window.setInterval(() => {
+    void loadAll(1);
+    const summaryTimer = window.setInterval(() => {
       if (!cancelled) {
-        void load(historyPage);
+        void loadSummary(historyPageRef.current).catch(() => undefined);
       }
-    }, REFRESH_MS);
+    }, SUMMARY_REFRESH_MS);
+    const runTimer = window.setInterval(() => {
+      if (!cancelled) {
+        void loadRunStatus().catch(() => undefined);
+      }
+    }, RUN_STATUS_REFRESH_MS);
     return () => {
       cancelled = true;
-      window.clearInterval(timer);
+      window.clearInterval(summaryTimer);
+      window.clearInterval(runTimer);
     };
-  }, [historyPage]);
+  }, []);
 
   const goalOptions = summary?.goalOptions ?? [];
   const successTemplates = summary?.successCheckTemplates ?? [];
   const batchPresets = summary?.batchPresets ?? [];
   const activeRun = runStatus ?? summary?.activeRun ?? null;
   const activeRunSlot = findCurrentActiveSlot(activeRun);
+  const activeRunLogLines = useMemo(
+    () => buildCockpitLogLines(activeRun?.currentLogExcerpt || activeRun?.currentRawLogExcerpt),
+    [activeRun?.currentLogExcerpt, activeRun?.currentRawLogExcerpt],
+  );
+  const activeRunResources = useMemo(
+    () =>
+      [
+        buildCockpitResource(
+          "Radni workspace",
+          activeRunSlot?.workspacePath || activeRun?.workingDirectory || "",
+          "Ovo je izolovani folder u kom agent stvarno čita, menja i izvršava fajlove.",
+        ),
+        buildCockpitResource(
+          "Runtime base URL",
+          activeRunSlot?.runtimeBaseUrl || "",
+          "Privremeni slot runtime koji Tuning Lab koristi samo za ovaj eksperiment.",
+        ),
+        buildCockpitResource(
+          "OpenCode izlaz",
+          activeRunSlot?.stdoutPath || "",
+          "JSONL trag živog OpenCode toka za aktivni slot.",
+        ),
+        buildCockpitResource(
+          "Runtime log",
+          activeRunSlot?.runtimeLogPath || "",
+          "Ovde se vidi prompt ingest, generacija i timing iz llama.cpp runtime-a.",
+        ),
+        buildCockpitResource(
+          "OpenCode stderr",
+          activeRunSlot?.stderrPath || "",
+          "Pozadinski procesni signal iz OpenCode sesije.",
+        ),
+      ].filter(Boolean) as CockpitResource[],
+    [
+      activeRun?.workingDirectory,
+      activeRunSlot?.runtimeBaseUrl,
+      activeRunSlot?.runtimeLogPath,
+      activeRunSlot?.stderrPath,
+      activeRunSlot?.stdoutPath,
+      activeRunSlot?.workspacePath,
+    ],
+  );
+  const activeRunMetricCards = useMemo(
+    () => [
+      {
+        label: "OpenCode PID",
+        value: activeRunSlot?.opencodePid ? String(activeRunSlot.opencodePid) : "--",
+        helper: "Pozadinski agent proces",
+      },
+      {
+        label: "Runtime PID",
+        value: activeRunSlot?.runtimePid ? String(activeRunSlot.runtimePid) : "--",
+        helper: "Privremeni slot runtime",
+      },
+      {
+        label: "Živa generacija",
+        value: formatTok(activeRunSlot?.liveOutputTokensPerSecond),
+        helper: "Trenutni /slots signal dok agent stvarno dobija nove tokene",
+      },
+      {
+        label: "Živi ukupno",
+        value: formatTok(activeRunSlot?.liveTotalTokensPerSecond),
+        helper: "Ukupan trenutni live protok iz slot runtime-a",
+      },
+      {
+        label: "Prompt ingest",
+        value: formatTok(activeRunSlot?.runtimePromptTokensPerSecond),
+        helper: "Brzina kojom llama.cpp guta prompt i kontekst pre same generacije",
+      },
+      {
+        label: "Runtime generacija",
+        value: formatTok(activeRunSlot?.runtimeGenerationTokensPerSecond),
+        helper: "Skorašnji `n_decoded` signal iz runtime loga; često je niži od prompt ingest-a",
+      },
+      {
+        label: "Poslednje merenje",
+        value: formatDateTime(activeRunSlot?.lastLiveMeasuredAt),
+        helper: "Vreme poslednjeg živog signala",
+      },
+    ],
+    [
+      activeRunSlot?.lastLiveMeasuredAt,
+      activeRunSlot?.liveOutputTokensPerSecond,
+      activeRunSlot?.liveTotalTokensPerSecond,
+      activeRunSlot?.opencodePid,
+      activeRunSlot?.runtimeGenerationTokensPerSecond,
+      activeRunSlot?.runtimePid,
+      activeRunSlot?.runtimePromptTokensPerSecond,
+    ],
+  );
   const runBlockers = summary?.context.runBlockers ?? [];
   const canQueueRuns = summary?.context.canQueue ?? false;
   const hasRuntimeBinary = summary?.context.runtimeBinaryReady ?? false;
@@ -562,7 +803,7 @@ export function TuningLabPage() {
           stderr: payload.status === "ok" || payload.status === "accepted" ? "" : payload.summary,
         },
       });
-      await load(historyPage);
+      await loadAll(historyPageRef.current);
     } catch (reason: unknown) {
       setError(reason instanceof Error ? reason.message : "Tuning Lab akcija nije uspela.");
     }
@@ -663,16 +904,40 @@ export function TuningLabPage() {
     });
   }
 
-  if (error) {
-    return <div className="error-panel">{error}</div>;
-  }
-
   if (!summary || !draft) {
-    return <section className="status-card wide-card">Učitavam Tuning Lab...</section>;
+    return (
+      <PageDataStateCard
+        error={error}
+        loadingText="Učitavam Tuning Lab..."
+        onRetry={() => {
+          setError(null);
+          void loadAll(historyPageRef.current);
+        }}
+      />
+    );
   }
 
   return (
     <>
+      {error ? <div className="error-panel wide-card">{error}</div> : null}
+      <PageFlowCard
+        title="Tuning Lab tok"
+        summary="Ovde je prirodan redosled da prvo učitaš task ili batch, zatim potvrdiš radni direktorijum i slotove, pa tek onda pokreneš run i pratiš cockpit."
+        steps={[
+          {
+            title: "Učitaj task ili batch",
+            detail: "Kreni od jednog taska ako proveravaš tok, ili od batch-a kada želiš ozbiljnije poređenje više zadataka.",
+          },
+          {
+            title: "Proveri working directory i slotove",
+            detail: "Pre starta potvrdi gde run radi i da li su Baseline, Recommended i Custom slotovi onakvi kakve želiš.",
+          },
+          {
+            title: "Pokreni task i prati cockpit",
+            detail: "Posle starta ostani u gornjem cockpit bloku: tamo se vidi šta radi, koji je PID, šta je workspace i kakav je live signal.",
+          },
+        ]}
+      />
       <section className="status-card wide-card">
         <span className="status-label">Tuning Lab</span>
         <strong className="status-value">Poređenje, objašnjenje i primena tuning setova</strong>
@@ -743,36 +1008,86 @@ export function TuningLabPage() {
         </div>
         {activeRun ? (
           <div className="tuning-lab-cockpit-grid">
-            <article className="status-card">
-              <span className="status-label">Živa sesija</span>
+            <article className="status-card tuning-lab-cockpit-main">
+              <span className="status-label">Živa sesija i signal</span>
               <strong className="status-value">{buildActiveRunSummary(activeRun)}</strong>
               <div className="summary-metrics">
                 <span>Aktivni slot: {activeRun.currentSlotLabel || "--"}</span>
                 <span>Aktivni korak: {activeRun.currentPhaseLabel || "--"}</span>
-                <span>OpenCode PID: {activeRunSlot?.opencodePid || "--"}</span>
-                <span>Runtime PID: {activeRunSlot?.runtimePid || "--"}</span>
-                <span>Živi output: {formatTok(activeRunSlot?.liveOutputTokensPerSecond)}</span>
-                <span>Živi ukupno: {formatTok(activeRunSlot?.liveTotalTokensPerSecond)}</span>
-                <span>Poslednje merenje: {formatDateTime(activeRunSlot?.lastLiveMeasuredAt)}</span>
+              </div>
+              <div className="tuning-lab-cockpit-metric-grid">
+                {activeRunMetricCards.map((item) => (
+                  <div className="tuning-lab-cockpit-metric" key={item.label}>
+                    <span className="status-label">{item.label}</span>
+                    <strong>{item.value}</strong>
+                    <span>{item.helper}</span>
+                  </div>
+                ))}
               </div>
               <p className="helper-text">
                 {activeRun.currentStepSummary || activeRun.summary || "Run trenutno radi bez dodatnog opisa."}
               </p>
+              <div className="tuning-lab-cockpit-helper-grid">
+                <div className="tuning-lab-cockpit-helper-card">
+                  <strong>Šta znači niži `Živi output`</strong>
+                  <p className="helper-text">
+                    `Živa generacija` nije isto što i benchmark prompt brzina. Kod OpenCode taska je
+                    normalno da `Prompt ingest` bude znatno veći, a da stvarna generacija tokom
+                    agent rada bude niža.
+                  </p>
+                </div>
+                <div className="tuning-lab-cockpit-helper-card">
+                  <strong>Zašto ne vidiš poseban OpenCode prozor</strong>
+                  <p className="helper-text">
+                    OpenCode ne otvara zaseban GUI prozor. Ovaj cockpit prikazuje stvarni `opencode.exe`
+                    rad kroz PID, log signal, workspace i runtime throughput.
+                  </p>
+                </div>
+              </div>
+              {activeRunSlot?.runtimePromptSummary || activeRunSlot?.runtimeGenerationSummary ? (
+                <div className="summary-metrics tuning-lab-runtime-summaries">
+                  {activeRunSlot.runtimePromptSummary ? (
+                    <span>Runtime log: {activeRunSlot.runtimePromptSummary}</span>
+                  ) : null}
+                  {activeRunSlot.runtimeGenerationSummary ? (
+                    <span>Generacija: {activeRunSlot.runtimeGenerationSummary}</span>
+                  ) : null}
+                </div>
+              ) : null}
               <p className="helper-text">
-                Ako vidiš `OpenCode PID` i živi `tok/s`, to znači da stvarni agent task zaista radi,
-                samo bez zasebnog vidljivog prozora.
+                Ako vidiš `OpenCode PID`, `Runtime PID` i runtime prompt brzinu, to znači da stvarni
+                agent task zaista radi, samo bez zasebnog vidljivog prozora.
+              </p>
+              <p className="helper-text">
+                Dve `llama-server` sesije su normalne dok `Tuning Lab` radi: jedna je glavni runtime
+                portala, a druga je privremeni slot runtime za izolovani eksperiment.
               </p>
             </article>
             <article className="status-card tuning-lab-path-card">
-              <span className="status-label">Putanje i komande</span>
-              <strong>Radni workspace</strong>
-              <div className="details-block">
-                <pre>{activeRunSlot?.workspacePath || activeRun.workingDirectory || "--"}</pre>
-              </div>
-              <div className="summary-metrics">
-                <span>Runtime base URL: {activeRunSlot?.runtimeBaseUrl || "--"}</span>
-                <span>OpenCode izlaz: {activeRunSlot?.stdoutPath || "--"}</span>
-                <span>Runtime log: {activeRunSlot?.runtimeLogPath || "--"}</span>
+              <span className="status-label">Workspace, logovi i komande</span>
+              <strong>Putanje koje potvrđuju da task stvarno radi</strong>
+              <div className="tuning-lab-resource-list">
+                {activeRunResources.length ? (
+                  activeRunResources.map((item) => (
+                    <div className="tuning-lab-resource-row" key={item.label}>
+                      <span className="tuning-lab-resource-label">{item.label}</span>
+                      <div className="tuning-lab-resource-value" title={item.value}>
+                        <strong className="tuning-lab-resource-main">{item.compactValue}</strong>
+                        {item.helper ? (
+                          <span className="tuning-lab-resource-helper">{item.helper}</span>
+                        ) : null}
+                        {item.compactValue !== item.value ? (
+                          <details className="tuning-lab-resource-detail">
+                            <summary>Puna vrednost</summary>
+                            <span className="tuning-lab-resource-full">{item.value}</span>
+                          </details>
+                        ) : null}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <p className="helper-text">Putanje će se pojaviti čim slot stvarno krene da radi.</p>
+                )}
               </div>
               <div className="inline-actions">
                 <button
@@ -806,6 +1121,20 @@ export function TuningLabPage() {
                 <button
                   type="button"
                   className="secondary-button"
+                  disabled={!activeRunSlot?.stdoutPath}
+                  onClick={() =>
+                    void copyText(
+                      activeRunSlot?.stdoutPath || "",
+                      setResult,
+                      "Output putanja je kopirana.",
+                    )
+                  }
+                >
+                  Kopiraj output putanju
+                </button>
+                <button
+                  type="button"
+                  className="secondary-button"
                   disabled={!activeRunSlot?.opencodeCommand}
                   onClick={() =>
                     void copyText(
@@ -830,11 +1159,53 @@ export function TuningLabPage() {
                 </div>
               </details>
             </article>
-            <article className="status-card">
-              <span className="status-label">Poslednji log signal</span>
-              <div className="tuning-lab-log-panel">
-                <pre>{activeRun.currentLogExcerpt || "Još nema log signala za aktivni korak."}</pre>
+            <article className="status-card tuning-lab-log-card">
+              <span className="status-label">OpenCode signal uživo</span>
+              <strong>Šta OpenCode upravo radi</strong>
+              <p className="helper-text">
+                Ovo je čitljiv trag iz stvarne agent sesije: nova poruka, upis fajla, završetak koraka
+                ili skorašnji runtime signal.
+              </p>
+              <div className="tuning-lab-log-lines">
+                {activeRunLogLines.length ? (
+                  activeRunLogLines.map((line, index) => (
+                    <div className="tuning-lab-log-line" key={`${line}-${index}`}>
+                      {line}
+                    </div>
+                  ))
+                ) : (
+                  <div className="tuning-lab-log-line tuning-lab-log-line-empty">
+                    Još nema log signala za aktivni korak.
+                  </div>
+                )}
               </div>
+              <details className="tuning-lab-history-detail tuning-lab-log-raw">
+                <summary>Napredni debug trag</summary>
+                <p className="helper-text">
+                  Ovde je filtriran debug trag iz `opencode-output.jsonl` i `stderr` loga, bez ogromnog
+                  šuma koji nije koristan za čitanje u portalu.
+                </p>
+                <div className="tuning-lab-log-panel">
+                  <pre>
+                    {activeRun.currentRawLogExcerpt ||
+                      activeRun.currentLogExcerpt ||
+                      "Još nema log signala za aktivni korak."}
+                  </pre>
+                </div>
+              </details>
+            </article>
+            <article className="status-card tuning-lab-cockpit-footnote">
+              <span className="status-label">Kako da čitaš ovaj cockpit</span>
+              <div className="summary-metrics">
+                <span>Aktivna OpenCode poruka = trenutna agent poruka u radu.</span>
+                <span>Alat = konkretan bash/file korak koji agent izvršava.</span>
+                <span>OpenCode tok/s nije isto što i runtime prompt brzina iz `llama.cpp` loga.</span>
+              </div>
+              <p className="helper-text">
+                OpenCode radi kao stvarni pozadinski agent nad izolovanim workspace-om, pa je normalno
+                da `OpenCode živi output` bude niži nego u kratkom benchmark promptu. Zato cockpit sada
+                odvojeno prikazuje i `Runtime prompt` brzinu iz stvarnog `llama.cpp` loga.
+              </p>
             </article>
           </div>
         ) : (
@@ -1486,16 +1857,22 @@ export function TuningLabPage() {
           <article className="status-card">
             <strong className="status-value">Queue</strong>
             {summary.queue.length ? (
-              <ul className="tuning-lab-queue-list">
-                {summary.queue.map((item) => (
-                  <li key={item.runId}>
-                    <strong>{item.name}</strong>
-                    <span>
-                      {item.goal} | {formatDateTime(item.queuedAt)}
-                    </span>
-                  </li>
-                ))}
-              </ul>
+              <>
+                <ul className="tuning-lab-queue-list">
+                  {summary.queue.map((item) => (
+                    <li key={item.runId}>
+                      <strong>{item.name}</strong>
+                      <span>
+                        {item.goal} | {formatDateTime(item.queuedAt)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                <p className="helper-text">
+                  Ovi taskovi ne rade istovremeno. Queue znači da čekaju red, a Tuning Lab izvršava
+                  jedan run po jedan i jedan slot po jedan.
+                </p>
+              </>
             ) : (
               <p className="helper-text">Red čekanja je trenutno prazan.</p>
             )}
@@ -1821,7 +2198,7 @@ export function TuningLabPage() {
                 type="button"
                 className="secondary-button"
                 disabled={summary.historyPage <= 1}
-                onClick={() => void load(Math.max(1, summary.historyPage - 1))}
+                onClick={() => void loadSummary(Math.max(1, summary.historyPage - 1))}
               >
                 Prethodna strana
               </button>
@@ -1829,7 +2206,7 @@ export function TuningLabPage() {
                 type="button"
                 className="secondary-button"
                 disabled={summary.historyPage >= summary.historyTotalPages}
-                onClick={() => void load(summary.historyPage + 1)}
+                onClick={() => void loadSummary(summary.historyPage + 1)}
               >
                 Sledeća strana
               </button>

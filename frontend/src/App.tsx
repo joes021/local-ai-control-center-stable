@@ -220,7 +220,14 @@ export default function App() {
       themeId={themeId}
       title={`Local AI Control Center${status?.version ? ` ${status.version}` : ""}`}
     >
-      {page === "home" ? <HomePage /> : null}
+      {page === "home" ? (
+        <HomePage
+          onOpenModels={() => setPage("models")}
+          onOpenOpenCode={() => setPage("opencode")}
+          onOpenServer={() => setPage("server")}
+          onOpenTuningLab={() => setPage("tuningLab")}
+        />
+      ) : null}
       {page === "server" ? <ServerPage /> : null}
       {page === "fleet" ? <FleetPage /> : null}
       {page === "jobs" ? <JobsPage /> : null}
@@ -258,7 +265,12 @@ export default function App() {
         />
       ) : null}
       {page === "observability" ? <ObservabilityPage /> : null}
-      {page === "benchmark" ? <BenchmarkPage onOpenLogs={() => setPage("logs")} /> : null}
+      {page === "benchmark" ? (
+        <BenchmarkPage
+          onOpenLogs={() => setPage("logs")}
+          onOpenTuningLab={() => setPage("tuningLab")}
+        />
+      ) : null}
       {page === "tuningLab" ? <TuningLabPage /> : null}
       {page === "settings" ? <SettingsPage /> : null}
       {page === "logs" ? <LogsPage /> : null}

@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 
 import { ActionResultPanel } from "../components/ActionResultPanel";
 import { CustomSelect } from "../components/CustomSelect";
+import { PageDataStateCard } from "../components/PageDataStateCard";
+import { PageFlowCard } from "../components/PageFlowCard";
 import {
   applyOpenCodeSettings,
   bootstrapOpenCode,
@@ -124,16 +126,41 @@ export function OpenCodePage() {
     }
   }
 
-  if (error) {
-    return <div className="error-panel">{error}</div>;
-  }
-
   if (!opencode || !settings || !stepSchema || !stepEditor) {
-    return <section className="status-card wide-card">Učitavam OpenCode status...</section>;
+    return (
+      <PageDataStateCard
+        error={error}
+        loadingText="Učitavam OpenCode status..."
+        onRetry={() => {
+          setError(null);
+          void loadStatus();
+        }}
+      />
+    );
   }
 
   return (
     <>
+      {error ? <div className="error-panel wide-card">{error}</div> : null}
+      <PageFlowCard
+        title="OpenCode tok"
+        summary="Najprirodniji redosled je da prvo proveriš runtime vezu, zatim po potrebi popraviš OpenCode, pa tek onda otvoriš novu sesiju i porediš komandni prikaz."
+        steps={[
+          {
+            title: "Proveri runtime vezu",
+            detail: "OpenCode ima smisla tek kada vidiš da je backend spreman i da runtime nije u problemu.",
+          },
+          {
+            title: "Po potrebi popravi instalaciju",
+            detail: "Ako nedostaje izvršni fajl ili config, koristi repair/bootstrap dugme pre otvaranja sesije.",
+          },
+          {
+            title: "Otvori novu sesiju",
+            detail: "Kada je stanje zdravo, otvori novu sesiju i po potrebi uporedi launcher, env i managed-config prikaz.",
+          },
+        ]}
+      />
+      <ActionResultPanel result={result} />
       <section className="status-card wide-card">
         <span className="status-label">OpenCode stanje</span>
         <strong className="status-value">{renderOpenCodeState(opencode)}</strong>
@@ -581,7 +608,6 @@ export function OpenCodePage() {
         )}
       </section>
 
-      <ActionResultPanel result={result} />
     </>
   );
 }

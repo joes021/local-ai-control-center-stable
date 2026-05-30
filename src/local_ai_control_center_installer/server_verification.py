@@ -579,6 +579,10 @@ def _build_server_command(
     presence_penalty: float | None = None,
     frequency_penalty: float | None = None,
     seed: int | None = None,
+    flash_attn: str | None = None,
+    gpu_layers: int | None = None,
+    batch_size: int | None = None,
+    ubatch_size: int | None = None,
 ) -> list[str]:
     command = [
         str(target.server_executable),
@@ -591,8 +595,16 @@ def _build_server_command(
     ]
     if isinstance(ctx_size, int) and ctx_size > 0:
         command.extend(["--ctx-size", str(ctx_size)])
+    if isinstance(batch_size, int) and batch_size > 0:
+        command.extend(["--batch-size", str(batch_size)])
+    if isinstance(ubatch_size, int) and ubatch_size > 0:
+        command.extend(["--ubatch-size", str(ubatch_size)])
     if isinstance(spec_type, str) and spec_type.strip():
         command.extend(["--spec-type", spec_type.strip()])
+    if isinstance(flash_attn, str) and flash_attn.strip():
+        command.extend(["--flash-attn", flash_attn.strip()])
+    if isinstance(gpu_layers, int) and gpu_layers > 0:
+        command.extend(["--n-gpu-layers", str(gpu_layers)])
     if isinstance(temperature, (int, float)):
         command.extend(["--temp", str(float(temperature))])
     if isinstance(top_k, int) and top_k >= 0:

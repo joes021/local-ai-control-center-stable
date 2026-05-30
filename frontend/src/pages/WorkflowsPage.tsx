@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 
 import { ActionResultPanel } from "../components/ActionResultPanel";
 import { CustomSelect } from "../components/CustomSelect";
+import { PageDataStateCard } from "../components/PageDataStateCard";
+import { PageFlowCard } from "../components/PageFlowCard";
 import {
   applySettings,
   deleteWorkflowPreset,
@@ -366,8 +368,19 @@ export function WorkflowsPage({
     [settingsPayload],
   );
 
-  if (error) {
-    return <div className="error-panel">{error}</div>;
+  const inlineError = error;
+
+  if (!settingsPayload || !editorDraft) {
+    return (
+      <PageDataStateCard
+        error={inlineError}
+        loadingText="U\u010ditavam radni prostor za radne tokove..."
+        onRetry={() => {
+          setError(null);
+          void load();
+        }}
+      />
+    );
   }
 
   if (!settingsPayload || !editorDraft) {
@@ -385,6 +398,38 @@ export function WorkflowsPage({
 
   return (
     <>
+      {inlineError ? <div className="error-panel wide-card">{inlineError}</div> : null}
+      <PageFlowCard
+        title="Workflows tok"
+        summary="Ova strana je najjasnija kada je koristi\u0161 redom: prvo izaberi preset, zatim ga u\u010ditaj u editor, pa ga aktiviraj ili sa\u010duvaj kao svoju varijantu."
+        steps={[
+          {
+            title: "Izaberi preset",
+            detail: "Katalog slu\u017ei da odmah vidi\u0161 \u0161ta ve\u0107 postoji i koji preset je trenutno aktivan.",
+          },
+          {
+            title: "U\u010ditaj u editor",
+            detail: "Editor je mesto za kloniranje, doterivanje i razumevanje preseta bez lutanja kroz vi\u0161e strana.",
+          },
+          {
+            title: "Aktiviraj ili sa\u010duvaj",
+            detail: "Aktiviraj kada ho\u0107e\u0161 da preset vodi portal odmah, ili ga sa\u010duvaj kao novu korisni\u010dku varijantu.",
+          },
+        ]}
+        actions={
+          <>
+            <button type="button" className="secondary-button" onClick={onOpenSearch}>
+              Otvori Search
+            </button>
+            <button type="button" className="secondary-button" onClick={onOpenKnowledge}>
+              Otvori Knowledge
+            </button>
+            <button type="button" className="secondary-button" onClick={onOpenBenchmark}>
+              Otvori Benchmark
+            </button>
+          </>
+        }
+      />
       <section className="status-card wide-card">
         <span className="status-label">Radni tokovi</span>
         <strong className="status-value">Radni prostor za radne tokove</strong>

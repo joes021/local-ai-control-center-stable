@@ -3,6 +3,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ActionResultPanel } from "../components/ActionResultPanel";
 import { CompatibilityCalculatorModal } from "../components/CompatibilityCalculatorModal";
 import { ModelDownloadProgressCard } from "../components/ModelDownloadProgressCard";
+import { PageDataStateCard } from "../components/PageDataStateCard";
+import { PageFlowCard } from "../components/PageFlowCard";
 import {
   activateModel,
   addHfModel,
@@ -845,16 +847,40 @@ export function ModelsPage({
     }
   }
 
-  if (error) {
-    return <div className="error-panel">{error}</div>;
-  }
-
   if (!models || !filteredModels) {
-    return <div className="status-card wide-card">Učitavam modele...</div>;
+    return (
+      <PageDataStateCard
+        error={error}
+        loadingText="Učitavam modele..."
+        onRetry={() => {
+          setError(null);
+          void reloadModels();
+        }}
+      />
+    );
   }
 
   return (
     <>
+      {error ? <div className="error-panel wide-card">{error}</div> : null}
+      <PageFlowCard
+        title="Model tok"
+        summary="Najprirodniji tok je da prvo dodaš ili preuzmeš model, zatim ga aktiviraš, pa po potrebi proveriš kompatibilnost pre starta runtime-a."
+        steps={[
+          {
+            title: "Dodaj ili preuzmi model",
+            detail: "Kreni od curated, local ili remote izvora i prvo obezbedi da model stvarno postoji lokalno.",
+          },
+          {
+            title: "Aktiviraj model",
+            detail: "Tek kada je model spreman lokalno, aktiviraj ga i obrati pažnju na lifecycle i MTP napomene.",
+          },
+          {
+            title: "Proveri kompatibilnost ili pokreni runtime",
+            detail: "Ako imaš sumnju oko memorije i fit-a, idi na Compatibility tok pre nego što kreneš u rad.",
+          },
+        ]}
+      />
       <section className="status-card wide-card">
         <div className="section-header">
           <span className="status-label">Model browser</span>

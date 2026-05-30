@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 
+import { PageDataStateCard } from "../components/PageDataStateCard";
+import { PageFlowCard } from "../components/PageFlowCard";
 import {
   addKnowledgeSource,
   answerWithKnowledge,
@@ -93,8 +95,21 @@ export function KnowledgePage({ onOpenSearch }: { onOpenSearch: () => void }) {
     await loadSummary();
   }
 
-  if (error) {
-    return <div className="error-panel">{error}</div>;
+  const inlineError = error;
+
+  if (!summary) {
+    return (
+      <PageDataStateCard
+        error={inlineError}
+        loadingText="U\u010ditavam radni prostor znanja..."
+        onRetry={() => {
+          setError(null);
+          void loadSummary().catch((reason: unknown) => {
+            setError(reason instanceof Error ? reason.message : "Radni prostor znanja nije mogao da se u\u010dita.");
+          });
+        }}
+      />
+    );
   }
 
   if (!summary) {
@@ -103,6 +118,30 @@ export function KnowledgePage({ onOpenSearch }: { onOpenSearch: () => void }) {
 
   return (
     <>
+      {inlineError ? <div className="error-panel wide-card">{inlineError}</div> : null}
+      <PageFlowCard
+        title="Knowledge tok"
+        summary="Najprirodniji redosled je da prvo proveri\u0161 izvore, zatim izabere\u0161 dokument ili web re\u017eim i tek onda postavi\u0161 pitanje."
+        steps={[
+          {
+            title: "Dodaj ili proveri izvore",
+            detail: "Prvo potvrdi da su folderi i fajlovi stvarno u\u0161li u knowledge prostor i da indeks ima \u0161ta da koristi.",
+          },
+          {
+            title: "Izaberi documents ili web re\u017eim",
+            detail: "Documents-only je naj\u010distiji, documents+web je najprakti\u010dniji, a web-only slu\u017ei kada \u017eeli\u0161 samo veb sloj.",
+          },
+          {
+            title: "Pokreni query ili answer",
+            detail: "Query vra\u0107a reference i dokumente, a Answer koristi iste izvore da napravi kona\u010dan lokalni odgovor.",
+          },
+        ]}
+        actions={
+          <button type="button" className="secondary-button" onClick={onOpenSearch}>
+            Otvori Pretragu
+          </button>
+        }
+      />
       <section className="status-card wide-card">
         <span className="status-label">Radni prostor znanja</span>
         <strong className="status-value">Lokalni dokumenti + opcioni veb kontekst</strong>

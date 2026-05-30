@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { CustomSelect } from "../components/CustomSelect";
+import { PageDataStateCard } from "../components/PageDataStateCard";
+import { PageFlowCard } from "../components/PageFlowCard";
 import { TelemetryPanel } from "../components/TelemetryPanel";
 import {
   clearBenchmarkHistory,
@@ -387,7 +389,13 @@ function buildBenchmarkSourceSummary(samples: HistoryPoint[], liveCurrent: Bench
     })) satisfies BenchmarkSourceSummaryItem[];
 }
 
-export function BenchmarkPage({ onOpenLogs }: { onOpenLogs: () => void }) {
+export function BenchmarkPage({
+  onOpenLogs,
+  onOpenTuningLab,
+}: {
+  onOpenLogs: () => void;
+  onOpenTuningLab?: () => void;
+}) {
   const [benchmark, setBenchmark] = useState<BenchmarkPayload | null>(null);
   const [comparePayload, setComparePayload] = useState<BenchmarkComparePayload | null>(null);
   const [compareError, setCompareError] = useState<string | null>(null);
@@ -624,12 +632,17 @@ export function BenchmarkPage({ onOpenLogs }: { onOpenLogs: () => void }) {
     [benchmark?.liveCurrent, chartModel.visibleSamples],
   );
 
-  if (error) {
-    return <div className="error-panel">{error}</div>;
-  }
-
   if (!benchmark) {
-    return <section className="status-card wide-card">Učitavam benchmark...</section>;
+    return (
+      <PageDataStateCard
+        error={error}
+        loadingText="Učitavam benchmark..."
+        onRetry={() => {
+          setError(null);
+          void load();
+        }}
+      />
+    );
   }
 
   const scenarioOptions = selectedBattery.scenarios.map((scenario) => ({
@@ -714,6 +727,32 @@ export function BenchmarkPage({ onOpenLogs }: { onOpenLogs: () => void }) {
 
   return (
     <>
+      {error ? <div className="error-panel wide-card">{error}</div> : null}
+      <PageFlowCard
+        title="Benchmark tok"
+        summary="Najprirodniji redosled je da izabereš scenario ili bateriju, pokreneš run, pa pratiš telemetriju i istoriju pre nego što pređeš na dublje tuning poređenje."
+        steps={[
+          {
+            title: "Izaberi test ili bateriju",
+            detail: "Kreni od jednog scenarija za brzu proveru ili od cele baterije kada želiš širu sliku.",
+          },
+          {
+            title: "Pokreni run",
+            detail: "Pokreni pojedinačni test ili bateriju, pa ostavi graf i telemetry da uhvate stabilan signal.",
+          },
+          {
+            title: "Gledaj telemetriju i istoriju",
+            detail: "Kad vidiš rezultat, uporedi ga sa istorijom ili pređi u Tuning Lab ako želiš poređenje setova.",
+          },
+        ]}
+        actions={
+          onOpenTuningLab ? (
+            <button type="button" className="secondary-button" onClick={onOpenTuningLab}>
+              Otvori Tuning Lab
+            </button>
+          ) : null
+        }
+      />
       <section className="status-card wide-card">
         <span className="status-label">Kontrole benchmarka</span>
         {currentWorkflowPreset ? (

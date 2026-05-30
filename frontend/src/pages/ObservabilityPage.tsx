@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 
+import { PageDataStateCard } from "../components/PageDataStateCard";
+import { PageFlowCard } from "../components/PageFlowCard";
 import { TelemetryPanel } from "../components/TelemetryPanel";
 import { fetchBenchmark, fetchObservability } from "../lib/api";
 import type { BenchmarkPayload, ObservabilityPayload } from "../lib/types";
@@ -77,8 +79,16 @@ export function ObservabilityPage() {
     };
   }, []);
 
-  if (error) {
-    return <div className="error-panel">{error}</div>;
+  const inlineError = error;
+
+  if (!observability || !benchmark) {
+    return (
+      <PageDataStateCard
+        error={inlineError}
+        loadingText="U\u010ditavam observability..."
+        onRetry={() => window.location.reload()}
+      />
+    );
   }
 
   if (!observability || !benchmark) {
@@ -87,6 +97,25 @@ export function ObservabilityPage() {
 
   return (
     <>
+      {inlineError ? <div className="error-panel wide-card">{inlineError}</div> : null}
+      <PageFlowCard
+        title="Observability tok"
+        summary="Najlak\u0161e je da prvo pogleda\u0161 \u017eivu telemetriju, zatim runtime signal i tek onda dublje sistemske metrike i logove."
+        steps={[
+          {
+            title: "Pogledaj token signal",
+            detail: "Telemetry blok najbr\u017ee pokazuje da li sistem zaista radi i koliki je \u017eivi protok.",
+          },
+          {
+            title: "Proveri runtime i sistem",
+            detail: "CPU, RAM, GPU i runtime status potvr\u0111uju da signal dolazi iz stvarnog rada ma\u0161ine, a ne iz starog traga.",
+          },
+          {
+            title: "Spusti se na logove",
+            detail: "Ako brojke izgledaju \u010dudno, log signali su slede\u0107e najkorisnije mesto za dijagnostiku.",
+          },
+        ]}
+      />
       <TelemetryPanel benchmark={benchmark} variant="benchmark" />
 
       <section className="status-card wide-card">

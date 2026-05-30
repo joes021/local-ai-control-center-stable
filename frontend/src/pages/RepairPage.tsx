@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import { ActionResultPanel } from "../components/ActionResultPanel";
+import { PageFlowCard } from "../components/PageFlowCard";
 import { runRepair } from "../lib/api";
 import type { ActionResult } from "../lib/types";
 
@@ -14,13 +15,43 @@ type RepairResult = ActionResult & {
 
 export function RepairPage() {
   const [result, setResult] = useState<RepairResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busyKind, setBusyKind] = useState<string>("");
 
   function triggerRepair(kind: string) {
-    runRepair(kind).then((payload) => setResult(payload as RepairResult));
+    setBusyKind(kind);
+    setError(null);
+    void runRepair(kind)
+      .then((payload) => setResult(payload as RepairResult))
+      .catch((reason: unknown) => {
+        setError(reason instanceof Error ? reason.message : "Popravka nije uspela.");
+      })
+      .finally(() => {
+        setBusyKind("");
+      });
   }
 
   return (
     <>
+      {error ? <div className="error-panel wide-card">{error}</div> : null}
+      <PageFlowCard
+        title="Repair tok"
+        summary="Ovde prvo izabereš vrstu popravke, zatim sačekaš jasan rezultat, pa pratiš sledeći korak koji portal predloži."
+        steps={[
+          {
+            title: "Izaberi jednu vrstu problema",
+            detail: "Ne pokreći više popravki odjednom; najčistije je da prvo zaključaš da li je problem u instalaciji, modelu, runtime-u ili podešavanjima.",
+          },
+          {
+            title: "Sačekaj završetak i poruku",
+            detail: "Repair je zamišljen za netehnički tok: jedna akcija, jedan rezultat, jedan naredni korak.",
+          },
+          {
+            title: "Tek onda proveri detalje",
+            detail: "Ako kratko objašnjenje nije dovoljno, ActionResultPanel ostaje tu za dublji uvid u izlaz popravke.",
+          },
+        ]}
+      />
       <section className="status-card wide-card">
         <span className="status-label">Bezbedan tok popravke</span>
         <strong className="status-value">
@@ -31,17 +62,33 @@ export function RepairPage() {
           sačekajte rezultat, pa pratite sledeći korak koji vam aplikacija prikaže.
         </p>
         <div className="inline-actions">
-          <button type="button" onClick={() => triggerRepair("install")}>
-            Popravka instalacije
+          <button
+            type="button"
+            disabled={Boolean(busyKind)}
+            onClick={() => triggerRepair("install")}
+          >
+            {busyKind === "install" ? "Pokrećem..." : "Popravka instalacije"}
           </button>
-          <button type="button" onClick={() => triggerRepair("model")}>
-            Popravka modela
+          <button
+            type="button"
+            disabled={Boolean(busyKind)}
+            onClick={() => triggerRepair("model")}
+          >
+            {busyKind === "model" ? "Pokrećem..." : "Popravka modela"}
           </button>
-          <button type="button" onClick={() => triggerRepair("runtime")}>
-            Popravka runtime-a
+          <button
+            type="button"
+            disabled={Boolean(busyKind)}
+            onClick={() => triggerRepair("runtime")}
+          >
+            {busyKind === "runtime" ? "Pokrećem..." : "Popravka runtime-a"}
           </button>
-          <button type="button" onClick={() => triggerRepair("config")}>
-            Popravka podešavanja
+          <button
+            type="button"
+            disabled={Boolean(busyKind)}
+            onClick={() => triggerRepair("config")}
+          >
+            {busyKind === "config" ? "Pokrećem..." : "Popravka podešavanja"}
           </button>
         </div>
       </section>
@@ -50,7 +97,8 @@ export function RepairPage() {
           <span className="status-label">{result.title ?? "Rezultat popravke"}</span>
           <strong className="status-value">{result.userMessage ?? result.summary}</strong>
           <p className="status-text">
-            <strong>Sledeći korak:</strong> {result.nextStep ?? "Otvorite Detalji ako želite više informacija."}
+            <strong>Sledeći korak:</strong>{" "}
+            {result.nextStep ?? "Otvorite Detalji ako želite više informacija."}
           </p>
         </section>
       ) : null}

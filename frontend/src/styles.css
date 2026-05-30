@@ -557,6 +557,60 @@ code {
   grid-column: 1 / -1;
 }
 
+.page-flow-card {
+  border-color: var(--app-panel-elevated-border);
+  background: var(--app-panel-elevated-bg);
+}
+
+.page-flow-header {
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.page-flow-actions {
+  justify-content: flex-end;
+}
+
+.page-flow-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 14px;
+  margin-top: 18px;
+}
+
+.page-flow-step {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid var(--app-card-soft-border);
+  background: var(--app-card-soft-bg);
+}
+
+.page-flow-step-index {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  border: 1px solid var(--app-button-hover-border);
+  background: var(--app-theme-name-bg);
+  color: var(--app-accent-strong);
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
+.page-flow-step-copy {
+  display: grid;
+  gap: 4px;
+}
+
+.page-data-state-card {
+  text-align: left;
+}
+
 @media (max-width: 860px) {
   .top-nav {
     flex-direction: column;
@@ -595,6 +649,19 @@ code {
   }
 
   .system-overview-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .page-flow-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .page-flow-actions {
+    justify-content: flex-start;
+  }
+
+  .page-flow-grid {
     grid-template-columns: 1fr;
   }
 }
@@ -2371,6 +2438,26 @@ select:-webkit-autofill {
   transition: width 180ms ease-out;
 }
 
+.download-progress-fill-indeterminate {
+  animation: download-progress-pulse 1.15s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+@keyframes download-progress-pulse {
+  0% {
+    transform: translateX(-24%);
+    opacity: 0.72;
+  }
+  50% {
+    transform: translateX(24%);
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(-24%);
+    opacity: 0.72;
+  }
+}
+
 .browser-table-wrap {
   overflow: auto;
 }
@@ -2767,13 +2854,190 @@ select:-webkit-autofill {
 .tuning-lab-cockpit-grid {
   display: grid;
   gap: 16px;
-  grid-template-columns: minmax(0, 1fr) minmax(320px, 1fr) minmax(280px, 0.9fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   align-items: start;
+}
+
+.tuning-lab-cockpit-main,
+.tuning-lab-path-card,
+.tuning-lab-log-card,
+.tuning-lab-cockpit-footnote {
+  min-width: 0;
+}
+
+.tuning-lab-cockpit-main,
+.tuning-lab-log-card,
+.tuning-lab-cockpit-footnote {
+  grid-column: 1 / -1;
+}
+
+.tuning-lab-cockpit-metric-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  margin-top: 14px;
+}
+
+.tuning-lab-cockpit-metric {
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid var(--app-card-soft-border);
+  background: color-mix(in srgb, var(--app-card-soft-bg) 82%, transparent);
+}
+
+.tuning-lab-cockpit-metric strong {
+  font-size: 1.05rem;
+  color: var(--app-text);
+}
+
+.tuning-lab-cockpit-metric span:last-child {
+  color: var(--app-text-soft);
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+.tuning-lab-cockpit-helper-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  margin-top: 8px;
+}
+
+.tuning-lab-cockpit-helper-card {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid var(--app-card-soft-border);
+  background: color-mix(in srgb, var(--app-card-soft-bg) 78%, transparent);
+}
+
+.tuning-lab-cockpit-helper-card .helper-text {
+  margin: 0;
+}
+
+.tuning-lab-runtime-summaries {
+  margin-top: 8px;
 }
 
 .tuning-lab-path-card {
   display: grid;
   gap: 12px;
+  align-content: start;
+}
+
+.tuning-lab-resource-list {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.tuning-lab-resource-row {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid var(--app-card-soft-border);
+  background: color-mix(in srgb, var(--app-card-soft-bg) 82%, transparent);
+  overflow: hidden;
+}
+
+.tuning-lab-resource-label {
+  color: var(--app-text-soft);
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.tuning-lab-resource-value {
+  display: grid;
+  gap: 6px;
+  max-width: 100%;
+  font-family: "Cascadia Code", "Consolas", monospace;
+  font-size: 0.84rem;
+  line-height: 1.7;
+  color: var(--app-text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.tuning-lab-resource-main {
+  display: block;
+  font-size: 0.94rem;
+  color: var(--app-text);
+}
+
+.tuning-lab-resource-helper {
+  font-family: inherit;
+  color: var(--app-text-soft);
+  font-size: 0.82rem;
+  line-height: 1.55;
+}
+
+.tuning-lab-resource-detail {
+  font-family: inherit;
+}
+
+.tuning-lab-resource-detail summary {
+  cursor: pointer;
+  color: var(--app-accent-text);
+  font-size: 0.82rem;
+}
+
+.tuning-lab-resource-full {
+  display: block;
+  margin-top: 6px;
+  font-family: "Cascadia Code", "Consolas", monospace;
+  color: var(--app-text-soft);
+  font-size: 0.82rem;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.tuning-lab-path-card .inline-actions {
+  flex-wrap: wrap;
+  align-items: stretch;
+}
+
+.tuning-lab-path-card .inline-actions .secondary-button {
+  max-width: 100%;
+}
+
+.tuning-lab-log-lines {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.tuning-lab-log-line {
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--app-card-soft-border);
+  background: color-mix(in srgb, var(--app-card-soft-bg) 78%, transparent);
+  color: var(--app-text);
+  font-size: 1.03rem;
+  line-height: 1.8;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.tuning-lab-log-card strong {
+  line-height: 1.5;
+}
+
+.tuning-lab-log-line-empty {
+  color: var(--app-text-soft);
+}
+
+.tuning-lab-log-raw {
+  margin-top: 6px;
 }
 
 .tuning-lab-batch-grid {
@@ -3012,7 +3276,10 @@ select:-webkit-autofill {
   max-height: 220px;
   overflow: auto;
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
   word-break: break-word;
+  font-size: 0.96rem;
+  line-height: 1.75;
 }
 
 .tuning-lab-filter-grid {

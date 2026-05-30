@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { ActionResultPanel } from "../components/ActionResultPanel";
+import { PageDataStateCard } from "../components/PageDataStateCard";
+import { PageFlowCard } from "../components/PageFlowCard";
 import { deleteJob, fetchJobsSummary, fetchSettings, runJobNow, saveJob } from "../lib/api";
 import type { ActionResult, JobsSummaryPayload, SettingsPayload } from "../lib/types";
 
@@ -81,9 +83,40 @@ export function JobsPage() {
     }
   }
 
+  if (!summary || !settingsPayload) {
+    return (
+      <PageDataStateCard
+        error={error}
+        loadingText="U\u010ditavam poslove..."
+        onRetry={() => {
+          setError(null);
+          void load();
+        }}
+      />
+    );
+  }
+
   return (
     <>
-      {error ? <div className="error-panel">{error}</div> : null}
+      {error ? <div className="error-panel wide-card">{error}</div> : null}
+      <PageFlowCard
+        title="Jobs tok"
+        summary="Ovde prvo izabere\u0161 vrstu posla, zatim interval i preset, a tek onda prati\u0161 listu sa\u010duvanih i ru\u010dno ih pokre\u0107e\u0161 po potrebi."
+        steps={[
+          {
+            title: "Izaberi vrstu posla",
+            detail: "Health, benchmark i update poslovi imaju razli\u010dit ritam, pa prvo zaklju\u010daj \u0161ta automatizuje\u0161.",
+          },
+          {
+            title: "Podesi interval i preset",
+            detail: "Preset radnog toka je opcioni sloj koji posao \u010dini bli\u017eim stvarnom radu ma\u0161ine.",
+          },
+          {
+            title: "Sa\u010duvaj i proveri listu",
+            detail: "Lista poslova je glavno mesto za ru\u010dno pokretanje, proveru ritma i brisanje.",
+          },
+        ]}
+      />
 
       <section className="status-card wide-card">
         <span className="status-label">Poslovi</span>

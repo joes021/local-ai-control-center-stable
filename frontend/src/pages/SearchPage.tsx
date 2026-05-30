@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { CustomSelect } from "../components/CustomSelect";
+import { PageDataStateCard } from "../components/PageDataStateCard";
+import { PageFlowCard } from "../components/PageFlowCard";
 import {
   answerWithLocalModel,
   bootstrapManagedSearchProvider,
@@ -206,12 +208,19 @@ export function SearchPage({ onOpenSettings }: SearchPageProps) {
     [settingsPayload],
   );
 
-  if (error) {
-    return <div className="error-panel">{error}</div>;
-  }
-
   if (!summary || !providerStatus) {
-    return <section className="status-card wide-card">Učitavam Search workspace...</section>;
+    return (
+      <PageDataStateCard
+        error={error}
+        loadingText="Učitavam Search workspace..."
+        onRetry={() => {
+          setError(null);
+          void loadSummary().catch((reason: unknown) => {
+            setError(reason instanceof Error ? reason.message : "Search summary nije mogao da se učita.");
+          });
+        }}
+      />
+    );
   }
 
   const currentProviderOption =
@@ -220,6 +229,32 @@ export function SearchPage({ onOpenSettings }: SearchPageProps) {
 
   return (
     <>
+      {error ? <div className="error-panel wide-card">{error}</div> : null}
+      <PageFlowCard
+        title="Search tok"
+        summary="Ova strana vodi kroz jednostavan redosled: proveri provider, unesi upit, pa odluči da li želiš izvore, lokalni odgovor ili poređenje."
+        steps={[
+          {
+            title: "Izaberi provider",
+            detail: "Prvo proveri koji provider koristiš i da li je njegov status zdrav i jasan.",
+          },
+          {
+            title: "Pokreni search, answer ili compare",
+            detail: "Search vraća izvore, Answer pravi lokalni sažetak, a Compare služi da uporediš više provider-a.",
+          },
+          {
+            title: "Ako provider škripi, idi u Podešavanja",
+            detail: "Kad status nije dobar ili želiš drugi podrazumevani provider, otvori Podešavanja iz istog toka.",
+          },
+        ]}
+        actions={
+          onOpenSettings ? (
+            <button type="button" className="secondary-button" onClick={onOpenSettings}>
+              Otvori Podešavanja
+            </button>
+          ) : null
+        }
+      />
       <section className="status-card wide-card">
         <span className="status-label">Radni prostor za pretragu</span>
         <strong className="status-value">Zajednička veb pretraga + lokalni model + OpenCode local-lacc</strong>

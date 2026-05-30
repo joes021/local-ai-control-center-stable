@@ -43,12 +43,23 @@ export function ModelDownloadProgressCard({ progress }: { progress: DownloadProg
   }
 
   const percent = valueOrNull(progress.percent);
+  const usesIndeterminateProgress =
+    percent === null && (progress.status === "starting" || progress.status === "downloading");
+  const percentLabel = usesIndeterminateProgress
+    ? "Ukupna veličina još nije prijavljena"
+    : progress.percent === null
+      ? "nepoznato"
+      : `${progress.percent.toFixed(1)}%`;
+  const downloadedLabel =
+    progress.totalGiB === null
+      ? `${formatGiB(progress.downloadedGiB)} / Ukupna veličina još nije prijavljena`
+      : `${formatGiB(progress.downloadedGiB)} / ${formatGiB(progress.totalGiB)}`;
   const nextStepNote =
     progress.status === "error"
       ? "Posle greške možeš odmah ponovo kliknuti Download. Resume nije podržan; pravi se nov pokušaj od početka."
       : progress.status === "completed" || progress.status === "already-installed"
         ? "Ako želiš novi pokušaj, klik na Download pokreće novi provereni tok za izabrani model."
-        : "Add HF i Add Unsloth samo dodaju model u spisak. Pravo skidanje krece tek na Download.";
+        : "Add HF i Add Unsloth samo dodaju model u spisak. Pravo skidanje kreće tek na Download.";
 
   return (
     <section className="status-card wide-card">
@@ -58,19 +69,18 @@ export function ModelDownloadProgressCard({ progress }: { progress: DownloadProg
       </div>
       <div className="download-progress-track" aria-hidden="true">
         <div
-          className="download-progress-fill"
-          style={{ width: `${Math.max(0, Math.min(percent ?? 0, 100))}%` }}
+          className={`download-progress-fill${usesIndeterminateProgress ? " download-progress-fill-indeterminate" : ""}`}
+          style={{ width: `${Math.max(0, Math.min(percent ?? 42, 100))}%` }}
         />
       </div>
       <div className="helper-text">
         <strong>Model:</strong> {progress.modelId || progress.fileName || "nema aktivnog modela"}
       </div>
       <div className="helper-text">
-        <strong>Procenat:</strong>{" "}
-        {progress.percent === null ? "nepoznato" : `${progress.percent.toFixed(1)}%`}
+        <strong>Procenat:</strong> {percentLabel}
       </div>
       <div className="helper-text">
-        <strong>Preuzeto:</strong> {formatGiB(progress.downloadedGiB)} / {formatGiB(progress.totalGiB)}
+        <strong>Preuzeto:</strong> {downloadedLabel}
       </div>
       <div className="helper-text">
         <strong>Brzina:</strong> {formatSpeed(progress.speedMBps)}
@@ -84,6 +94,12 @@ export function ModelDownloadProgressCard({ progress }: { progress: DownloadProg
       {progress.source ? (
         <div className="helper-text">
           <strong>Izvor:</strong> {progress.source}
+        </div>
+      ) : null}
+      {usesIndeterminateProgress ? (
+        <div className="helper-text">
+          <strong>Napredak:</strong> Izvor trenutno ne prijavljuje ukupnu veličinu, pa kartica prati
+          živi tok preuzetih podataka dok ne stigne završni snapshot.
         </div>
       ) : null}
       <div className="helper-text">

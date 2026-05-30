@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 
 import { ActionResultPanel } from "../components/ActionResultPanel";
 import { CustomSelect } from "../components/CustomSelect";
+import { PageDataStateCard } from "../components/PageDataStateCard";
+import { PageFlowCard } from "../components/PageFlowCard";
 import {
   applySettings,
   bootstrapManagedSearchProvider,
@@ -479,12 +481,17 @@ export function SettingsPage() {
     [settings],
   );
 
-  if (error) {
-    return <div className="error-panel">{error}</div>;
-  }
-
   if (!settings || !schema || !turboConfig) {
-    return <div className="status-card wide-card">Učitavam settings...</div>;
+    return (
+      <PageDataStateCard
+        error={error}
+        loadingText="Učitavam settings..."
+        onRetry={() => {
+          setError(null);
+          void reload();
+        }}
+      />
+    );
   }
 
   const allTurboPresets = [...schema.builtInPresets, ...schema.userPresets];
@@ -557,6 +564,25 @@ export function SettingsPage() {
 
   return (
     <div className="settings-page">
+      {error ? <div className="error-panel wide-card">{error}</div> : null}
+      <PageFlowCard
+        title="Settings tok"
+        summary="Ova strana je najlakša kada je koristiš redom: prvo izaberi scope i preset, zatim sredi opšta podešavanja i search, pa tek onda sačuvaj opšti ili TurboQuant deo."
+        steps={[
+          {
+            title: "Izaberi scope i preset",
+            detail: "Prvo odluči da li menjaš globalna pravila ili override aktivnog modela, pa onda učitaj profil ili workflow preset.",
+          },
+          {
+            title: "Podesi generaciju, search i temu",
+            detail: "Kada je scope jasan, menjaj inference, provider pretrage, temu i ostala opšta podešavanja.",
+          },
+          {
+            title: "Sačuvaj opšta podešavanja",
+            detail: "Opšti deo i TurboQuant se čuvaju odvojeno, pa pazi da klikneš pravo dugme za deo koji si menjao.",
+          },
+        ]}
+      />
       <section className="status-card wide-card settings-cluster-card">
         <div className="section-header settings-cluster-header">
           <div>

@@ -326,6 +326,70 @@ export async function awaitModelActionResult(
     }
   }
 
+  if (initial.action === "download-model") {
+    try {
+      const progressPayload = await fetchDownloadProgress();
+      if (progressPayload.actionId === initial.actionId) {
+        if (
+          progressPayload.status === "completed" ||
+          progressPayload.status === "already-installed"
+        ) {
+          const completedResult = {
+            status: "ok",
+            action: "download-model",
+            actionId: initial.actionId,
+            summary:
+              progressPayload.message ||
+              "Download je završen. Proveri listu modela za osveženo stanje.",
+            details: {
+              returncode: 0,
+              stdout: progressPayload.modelId || progressPayload.fileName || "",
+              stderr: "",
+            },
+          } satisfies ActionResult;
+          onUpdate?.(completedResult);
+          return completedResult;
+        }
+
+        if (
+          progressPayload.status === "starting" || progressPayload.status === "downloading"
+        ) {
+          const pendingResult = {
+            status: "pending",
+            action: "download-model",
+            actionId: initial.actionId,
+            summary: "Download je i dalje u toku. Prati Download status karticu dok se ne završi.",
+            details: {
+              returncode: 0,
+              stdout: progressPayload.message || "",
+              stderr: "",
+            },
+          } satisfies ActionResult;
+          onUpdate?.(pendingResult);
+          return pendingResult;
+        }
+
+        if (progressPayload.status === "error") {
+          const errorResult = {
+            status: "error",
+            action: "download-model",
+            actionId: initial.actionId,
+            summary: progressPayload.message || "Download je prijavio grešku.",
+            details: {
+              returncode: 1,
+              stdout: "",
+              stderr: progressPayload.message || "Download je prijavio grešku.",
+            },
+          } satisfies ActionResult;
+          onUpdate?.(errorResult);
+          return errorResult;
+        }
+      }
+    } catch {
+      // Ako progress snapshot nije dostupan, padamo nazad na generičku timeout poruku ispod.
+    }
+  }
+
   return {
     status: "error",
     action: "models-action-timeout",

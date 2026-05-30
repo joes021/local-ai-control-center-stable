@@ -258,6 +258,10 @@ def test_tuning_lab_source_and_navigation_are_present():
     assert "Primeni pobednički set" in page_source
     assert "Export / share" in page_source
     assert "Uvezi forum / Reddit snippet" in page_source
+    assert "Živa generacija" in page_source
+    assert "Prompt ingest" in page_source
+    assert "Šta OpenCode upravo radi" in page_source
+    assert "OpenCode ne otvara zaseban GUI prozor" in page_source
     assert "Tuning Lab trenutno nije spreman za pokretanje" in page_source
     assert "runBlockers" in page_source
     assert "Instaliraj ili popravi OpenCode" in page_source
@@ -273,10 +277,17 @@ def test_tuning_lab_source_and_navigation_are_present():
     assert "OpenCode u Tuning Lab-u radi u pozadini" in page_source
     assert "Queue radi sekvencijalno" in page_source
     assert "OpenCode PID" in page_source
-    assert "Radni workspace" in page_source
+    assert "Živa sesija i signal" in page_source
+    assert "Workspace, logovi i komande" in page_source
+    assert "OpenCode signal uživo" in page_source
+    assert "Napredni debug trag" in page_source
+    assert "Aktivna OpenCode poruka" in page_source
+    assert "Alat " in page_source
     assert "Živi output" in page_source
+    assert "tuning-lab-cockpit-metric-grid" in page_source
     assert "Kopiraj workspace putanju" in page_source
     assert "Kopiraj log putanju" in page_source
+    assert "Kopiraj output putanju" in page_source
     assert "Token telemetry nije prijavljen" in page_source
     assert "Filtriraj istoriju" in page_source
     assert "Spremno za otvaranje" in page_source
@@ -308,6 +319,14 @@ def test_tuning_lab_source_and_navigation_are_present():
     assert ".tuning-lab-cockpit-grid" in styles_source
     assert ".tuning-lab-cockpit-strip" in styles_source
     assert ".tuning-lab-path-card" in styles_source
+    assert ".tuning-lab-cockpit-main" in styles_source
+    assert ".tuning-lab-cockpit-metric-grid" in styles_source
+    assert ".tuning-lab-cockpit-metric" in styles_source
+    assert ".tuning-lab-resource-list" in styles_source
+    assert ".tuning-lab-resource-value" in styles_source
+    assert ".tuning-lab-log-lines" in styles_source
+    assert ".tuning-lab-log-line" in styles_source
+    assert ".tuning-lab-log-raw" in styles_source
 
 
 def test_benchmark_source_explanation_is_present():
@@ -522,6 +541,15 @@ def test_api_source_disables_cache_for_download_progress_polling():
     assert 'fetch("/api/models/download-progress", { cache: "no-store" })' in source
 
 
+def test_api_source_keeps_long_model_downloads_pending_instead_of_false_timeout_error():
+    source = Path("frontend/src/lib/api.ts").read_text(encoding="utf-8")
+
+    assert 'initial.action === "download-model"' in source
+    assert "const progressPayload = await fetchDownloadProgress();" in source
+    assert 'progressPayload.status === "starting" || progressPayload.status === "downloading"' in source
+    assert "Download je i dalje u toku. Prati Download status karticu dok se ne završi." in source
+
+
 def test_api_source_supports_browser_catalog_query_params():
     source = Path("frontend/src/lib/api.ts").read_text(encoding="utf-8")
 
@@ -536,6 +564,16 @@ def test_download_progress_card_source_explains_retry_without_resume():
 
     assert "Resume nije podržan" in source
     assert "ponovo kliknuti Download" in source
+
+
+def test_download_progress_card_source_supports_indeterminate_progress_when_percent_is_unknown():
+    source = Path("frontend/src/components/ModelDownloadProgressCard.tsx").read_text(encoding="utf-8")
+    styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
+
+    assert "download-progress-fill-indeterminate" in source
+    assert "Ukupna veličina još nije prijavljena" in source
+    assert ".download-progress-fill-indeterminate" in styles_source
+    assert "@keyframes download-progress-pulse" in styles_source
 
 
 def test_app_source_and_packaged_frontend_include_updates_navigation():
@@ -1022,3 +1060,102 @@ def test_settings_source_explains_inference_parameters_and_uses_compact_summary_
     assert "inference-spotlight-shell" in bundled_css
     assert "inference-parameter-note" in bundled_css
     assert "inference-summary-chip-note" in bundled_css
+
+
+def test_shared_ux_components_and_guided_flow_copy_are_present_in_core_pages():
+    flow_component = Path("frontend/src/components/PageFlowCard.tsx").read_text(encoding="utf-8")
+    state_component = Path("frontend/src/components/PageDataStateCard.tsx").read_text(encoding="utf-8")
+    home_source = Path("frontend/src/pages/HomePage.tsx").read_text(encoding="utf-8")
+    server_source = Path("frontend/src/pages/ServerPage.tsx").read_text(encoding="utf-8")
+    models_source = Path("frontend/src/pages/ModelsPage.tsx").read_text(encoding="utf-8")
+    browser_source = Path("frontend/src/pages/BrowserPage.tsx").read_text(encoding="utf-8")
+    search_source = Path("frontend/src/pages/SearchPage.tsx").read_text(encoding="utf-8")
+    opencode_source = Path("frontend/src/pages/OpenCodePage.tsx").read_text(encoding="utf-8")
+    benchmark_source = Path("frontend/src/pages/BenchmarkPage.tsx").read_text(encoding="utf-8")
+    settings_source = Path("frontend/src/pages/SettingsPage.tsx").read_text(encoding="utf-8")
+    tuning_lab_source = Path("frontend/src/pages/TuningLabPage.tsx").read_text(encoding="utf-8")
+    logs_source = Path("frontend/src/pages/LogsPage.tsx").read_text(encoding="utf-8")
+    repair_source = Path("frontend/src/pages/RepairPage.tsx").read_text(encoding="utf-8")
+    updates_source = Path("frontend/src/pages/UpdatesPage.tsx").read_text(encoding="utf-8")
+    styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
+
+    assert "Prirodan tok rada" in flow_component
+    assert "page-flow-card" in flow_component
+    assert "page-flow-step" in flow_component
+    assert "Pokušaj ponovo" in state_component
+    assert "page-data-state-card" in state_component
+
+    assert "Najbrži sledeći korak" in home_source
+    assert "Proveri runtime i model" in home_source
+    assert "Otvori OpenCode ili Tuning Lab" in home_source
+    assert "PageFlowCard" in home_source
+    assert "Otvori Tuning Lab" in home_source
+
+    assert "Server tok" in server_source
+    assert "Start ili stop runtime server" in server_source
+    assert "Ručna CLI komanda" in server_source
+    assert "PageFlowCard" in server_source
+
+    assert "Model tok" in models_source
+    assert "Dodaj ili preuzmi model" in models_source
+    assert "Aktiviraj model" in models_source
+    assert "PageFlowCard" in models_source
+    assert "PageDataStateCard" in models_source
+
+    assert "Browser tok" in browser_source
+    assert "Refresh katalog" in browser_source
+    assert "Dodaj lokalno ili proveri fit" in browser_source
+    assert "PageFlowCard" in browser_source
+    assert "PageDataStateCard" in browser_source
+
+    assert "Search tok" in search_source
+    assert "Izaberi provider" in search_source
+    assert "Pokreni search, answer ili compare" in search_source
+    assert "PageFlowCard" in search_source
+    assert "PageDataStateCard" in search_source
+
+    assert "OpenCode tok" in opencode_source
+    assert "Proveri runtime vezu" in opencode_source
+    assert "Otvori novu sesiju" in opencode_source
+    assert "PageFlowCard" in opencode_source
+    assert "PageDataStateCard" in opencode_source
+
+    assert "Benchmark tok" in benchmark_source
+    assert "Izaberi test ili bateriju" in benchmark_source
+    assert "Gledaj telemetriju i istoriju" in benchmark_source
+    assert "PageFlowCard" in benchmark_source
+    assert "PageDataStateCard" in benchmark_source
+
+    assert "Settings tok" in settings_source
+    assert "Izaberi scope i preset" in settings_source
+    assert "Sačuvaj opšta podešavanja" in settings_source
+    assert "PageFlowCard" in settings_source
+    assert "PageDataStateCard" in settings_source
+
+    assert "Tuning Lab tok" in tuning_lab_source
+    assert "Učitaj task ili batch" in tuning_lab_source
+    assert "Pokreni task i prati cockpit" in tuning_lab_source
+    assert "OpenCode živi output" in tuning_lab_source
+    assert "Runtime prompt" in tuning_lab_source
+    assert "Runtime generacija" in tuning_lab_source
+    assert "PageFlowCard" in tuning_lab_source
+    assert "PageDataStateCard" in tuning_lab_source
+
+    assert "Log tok" in logs_source
+    assert "Osveži logove" in logs_source
+    assert "PageFlowCard" in logs_source
+    assert "PageDataStateCard" in logs_source
+
+    assert "Repair tok" in repair_source
+    assert "Popravka runtime-a" in repair_source
+    assert "PageFlowCard" in repair_source
+
+    assert "Updates tok" in updates_source
+    assert "Osveži status" in updates_source
+    assert "PageFlowCard" in updates_source
+    assert "PageDataStateCard" in updates_source
+
+    assert ".page-flow-card" in styles_source
+    assert ".page-flow-grid" in styles_source
+    assert ".page-flow-step" in styles_source
+    assert ".page-data-state-card" in styles_source

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { ActionResultPanel } from "../components/ActionResultPanel";
+import { PageFlowCard } from "../components/PageFlowCard";
 import { StatusCard } from "../components/StatusCard";
 import { fetchServerStatus, startServer, stopServer } from "../lib/api";
 import type { ActionResult, ServerStatusPayload } from "../lib/types";
@@ -106,6 +107,25 @@ export function ServerPage() {
   return (
     <>
       {error ? <div className="error-panel">{error}</div> : null}
+      <PageFlowCard
+        title="Server tok"
+        summary="Na ovoj strani je prirodan redosled: prvo proveri da li je runtime pravi, zatim ga startuj ili zaustavi, pa tek onda koristi ručnu CLI komandu ili web pregled."
+        steps={[
+          {
+            title: "Proveri da li je runtime izabran",
+            detail: "Pogledaj status, health i izabrani runtime pre bilo kakvog start/stop poteza.",
+          },
+          {
+            title: "Start ili stop runtime server",
+            detail: "Primarni tok je da ovde kontrolišeš runtime server, bez odlaska na druge tabove.",
+          },
+          {
+            title: "Ručna CLI komanda",
+            detail: "Ako porediš podešavanja sa forumima ili Reddit-om, ovde odmah kopiraš PowerShell ili cmd.exe ekvivalent.",
+          },
+        ]}
+      />
+      <ActionResultPanel result={result} />
       <section className="status-card wide-card">
         <span className="status-label">Runtime server</span>
         <strong className="status-value">{serverStatus?.lastReason || "Učitavam server status..."}</strong>
@@ -243,8 +263,6 @@ export function ServerPage() {
           ))}
         </div>
       </section>
-
-      <ActionResultPanel result={result} />
     </>
   );
 }

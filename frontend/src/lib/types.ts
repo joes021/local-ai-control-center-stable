@@ -515,6 +515,11 @@ export type TuningLabSlot = {
   stderrPath?: string;
   liveOutputTokensPerSecond?: number;
   liveTotalTokensPerSecond?: number;
+  runtimePromptTokensPerSecond?: number;
+  runtimeGenerationTokensPerSecond?: number;
+  runtimePromptSummary?: string;
+  runtimeGenerationSummary?: string;
+  runtimeLatestTimingLine?: string;
   lastLiveMeasuredAt?: string;
   playableEntryPath?: string;
   playableFilesPreserved?: number;
@@ -581,6 +586,7 @@ export type TuningLabRun = {
   currentStepSummary?: string;
   currentCheckLabel?: string;
   currentLogExcerpt?: string;
+  currentRawLogExcerpt?: string;
   lastUpdatedAt?: string;
   elapsedMs?: number;
 };

@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import re
+import signal
 import shutil
 import socket
 import subprocess
@@ -27,6 +28,7 @@ from local_ai_control_center_installer.control_center_backend.services.opencode_
 )
 from local_ai_control_center_installer.control_center_backend.services import benchmark_service
 from local_ai_control_center_installer.control_center_backend.services.server_service import (
+    _load_runtime_launch_argument_values,
     _resolve_spec_type_for_runtime,
 )
 from local_ai_control_center_installer.control_center_backend.services.settings_service import (
@@ -408,6 +410,7 @@ def load_tuning_lab_summary(
     config: ControlCenterConfig | None = None,
 ) -> dict[str, Any]:
     resolved_config = config or get_config()
+    _reconcile_orphaned_active_run(resolved_config)
     history_items = _load_history(resolved_config)
     page = max(int(history_page or 1), 1)
     total_items = len(history_items)
@@ -415,6 +418,12 @@ def load_tuning_lab_summary(
     start_index = (page - 1) * TUNING_LAB_HISTORY_PAGE_SIZE
     end_index = start_index + TUNING_LAB_HISTORY_PAGE_SIZE
     run_state = _load_run_state(resolved_config)
+    if not run_state["activeRun"]:
+        _cleanup_stale_tuning_processes(
+            resolved_config,
+            active_run=None,
+            history_items=history_items,
+        )
     effective_settings = load_effective_settings_state(resolved_config)
     runtime_state = load_runtime_state(resolved_config)
     configured_working_directory = str(
@@ -483,6 +492,7 @@ def load_tuning_lab_run_status(
     config: ControlCenterConfig | None = None,
 ) -> dict[str, Any]:
     resolved_config = config or get_config()
+    _reconcile_orphaned_active_run(resolved_config)
     run_state = _load_run_state(resolved_config)
     active_run = run_state.get("activeRun")
     return dict(active_run) if isinstance(active_run, dict) else {}
@@ -494,6 +504,62 @@ def load_tuning_lab_history_page(
     config: ControlCenterConfig | None = None,
 ) -> dict[str, Any]:
     return load_tuning_lab_summary(history_page=page, config=config)
+
+
+def _reconcile_orphaned_active_run(config: ControlCenterConfig) -> None:
+    global _RUNNER_THREAD
+    if _RUNNER_THREAD and _RUNNER_THREAD.is_alive():
+        return
+    with _RUN_LOCK:
+        if _RUNNER_THREAD and _RUNNER_THREAD.is_alive():
+            return
+        run_state = _load_run_state(config)
+        active_run = run_state.get("activeRun")
+        if not isinstance(active_run, dict):
+            return
+        status = str(active_run.get("status", "") or "").strip().lower()
+        if status in {"completed", "failed"}:
+            return
+        live_pids = {
+            int(record.get("pid", 0) or 0)
+            for record in _list_local_process_records()
+            if int(record.get("pid", 0) or 0) > 0
+        }
+        tracked_pids: set[int] = set()
+        for slot in active_run.get("slots", []):
+            if not isinstance(slot, dict):
+                continue
+            for key in ("runtimePid", "opencodePid"):
+                pid = int(slot.get(key, 0) or 0)
+                if pid > 0:
+                    tracked_pids.add(pid)
+        if not tracked_pids:
+            return
+        if tracked_pids and tracked_pids.intersection(live_pids):
+            return
+        reconciled = deepcopy(active_run)
+        summary = "Aktivni Tuning Lab run je prekinut tokom restarta panela ili gaÅ¡enja procesa."
+        reconciled["status"] = "failed"
+        reconciled["finishedAt"] = _now_iso()
+        reconciled["suggestedWinnerSlotId"] = None
+        reconciled["winnerSummary"] = ""
+        reconciled["summary"] = summary
+        reconciled["currentPhase"] = "failed"
+        reconciled["currentPhaseLabel"] = "Run je prekinut"
+        reconciled["currentStepSummary"] = summary
+        reconciled["elapsedMs"] = _elapsed_ms_from_started_at(reconciled.get("startedAt"))
+        for slot in reconciled.get("slots", []):
+            if not isinstance(slot, dict):
+                continue
+            slot_status = str(slot.get("status", "") or "").strip().lower()
+            if slot_status in {"completed", "failed"}:
+                continue
+            slot["status"] = "failed"
+            slot["summary"] = "Run je prekinut pre nego Å¡to je ovaj slot zavrÅ¡io."
+        history = _load_history(config)
+        history.insert(0, reconciled)
+        _save_history(config, history)
+        _save_run_state(config, active_run=None, queue=run_state.get("queue", []))
 
 
 def prepare_tuning_workspace(
@@ -667,6 +733,14 @@ def run_next_tuning_experiment(
     config: ControlCenterConfig | None = None,
 ) -> dict[str, Any]:
     resolved_config = config or get_config()
+    history_snapshot = _load_history(resolved_config)
+    run_state_snapshot = _load_run_state(resolved_config)
+    if not run_state_snapshot["activeRun"]:
+        _cleanup_stale_tuning_processes(
+            resolved_config,
+            active_run=None,
+            history_items=history_snapshot,
+        )
     with _RUN_LOCK:
         run_state = _load_run_state(resolved_config)
         active_run = run_state["activeRun"]
@@ -687,6 +761,11 @@ def run_next_tuning_experiment(
         _save_history(resolved_config, history)
         run_state = _load_run_state(resolved_config)
         _save_run_state(resolved_config, active_run=None, queue=run_state["queue"])
+    _cleanup_stale_tuning_processes(
+        resolved_config,
+        active_run=None,
+        history_items=_load_history(resolved_config),
+    )
 
     return {
         "status": "ok",
@@ -862,6 +941,7 @@ def _execute_tuning_experiment(
     active_run["currentStepSummary"] = "Tuning Lab priprema poređenje slotova."
     active_run["currentCheckLabel"] = ""
     active_run["currentLogExcerpt"] = ""
+    active_run["currentRawLogExcerpt"] = ""
     active_run["lastUpdatedAt"] = active_run["startedAt"]
     active_run["elapsedMs"] = 0
     slots = [dict(slot) for slot in active_run.get("slots", []) if isinstance(slot, dict)]
@@ -914,6 +994,7 @@ def _execute_tuning_experiment(
     active_run["currentStepSummary"] = active_run["summary"]
     active_run["currentCheckLabel"] = ""
     active_run["currentLogExcerpt"] = ""
+    active_run["currentRawLogExcerpt"] = ""
     active_run["lastUpdatedAt"] = active_run["finishedAt"]
     active_run["elapsedMs"] = _elapsed_ms_from_started_at(active_run.get("startedAt"))
     _write_active_run(config, active_run)
@@ -952,6 +1033,7 @@ def _run_tuning_slot(
         summary: str,
         *,
         log_excerpt: str = "",
+        raw_log_excerpt: str = "",
         check_label: str = "",
         slot_patch: dict[str, Any] | None = None,
     ) -> None:
@@ -960,6 +1042,7 @@ def _run_tuning_slot(
         experiment["currentStepSummary"] = summary
         experiment["currentCheckLabel"] = check_label
         experiment["currentLogExcerpt"] = log_excerpt[-4000:] if log_excerpt else ""
+        experiment["currentRawLogExcerpt"] = raw_log_excerpt[-4000:] if raw_log_excerpt else ""
         experiment["lastUpdatedAt"] = _now_iso()
         experiment["elapsedMs"] = _elapsed_ms_from_started_at(experiment.get("startedAt"))
         _update_active_run_slot(
@@ -1032,6 +1115,7 @@ def _run_tuning_slot(
             config=config,
             progress_callback=update_progress,
             upstream_base_url=str(runtime_session.get("baseUrl", "") or ""),
+            runtime_log_path=Path(str(runtime_session.get("logPath", "") or "")),
         )
         update_progress(
             "checks",
@@ -1197,6 +1281,51 @@ def _run_tuning_slot(
             if isinstance(opencode_result, dict)
             else float(active_slot_snapshot.get("liveTotalTokensPerSecond", 0.0) or 0.0)
         ),
+        "runtimePromptTokensPerSecond": float(
+            (
+                opencode_result.get("runtimePromptTokensPerSecond", 0.0)
+                or active_slot_snapshot.get("runtimePromptTokensPerSecond", 0.0)
+                or 0.0
+            )
+            if isinstance(opencode_result, dict)
+            else float(active_slot_snapshot.get("runtimePromptTokensPerSecond", 0.0) or 0.0)
+        ),
+        "runtimeGenerationTokensPerSecond": float(
+            (
+                opencode_result.get("runtimeGenerationTokensPerSecond", 0.0)
+                or active_slot_snapshot.get("runtimeGenerationTokensPerSecond", 0.0)
+                or 0.0
+            )
+            if isinstance(opencode_result, dict)
+            else float(active_slot_snapshot.get("runtimeGenerationTokensPerSecond", 0.0) or 0.0)
+        ),
+        "runtimePromptSummary": str(
+            (
+                opencode_result.get("runtimePromptSummary", "")
+                or active_slot_snapshot.get("runtimePromptSummary", "")
+                or ""
+            )
+            if isinstance(opencode_result, dict)
+            else str(active_slot_snapshot.get("runtimePromptSummary", "") or "")
+        ),
+        "runtimeGenerationSummary": str(
+            (
+                opencode_result.get("runtimeGenerationSummary", "")
+                or active_slot_snapshot.get("runtimeGenerationSummary", "")
+                or ""
+            )
+            if isinstance(opencode_result, dict)
+            else str(active_slot_snapshot.get("runtimeGenerationSummary", "") or "")
+        ),
+        "runtimeLatestTimingLine": str(
+            (
+                opencode_result.get("runtimeLatestTimingLine", "")
+                or active_slot_snapshot.get("runtimeLatestTimingLine", "")
+                or ""
+            )
+            if isinstance(opencode_result, dict)
+            else str(active_slot_snapshot.get("runtimeLatestTimingLine", "") or "")
+        ),
         "lastLiveMeasuredAt": str(
             (
                 opencode_result.get("lastLiveMeasuredAt", "")
@@ -1259,15 +1388,23 @@ def _launch_slot_runtime(
         port,
         ctx_size=int(slot_settings.get("context", 262144) or 262144),
         spec_type=spec_type,
-        temperature=float(slot_settings.get("temperature", 0.8)),
-        top_k=int(slot_settings.get("topK", 40)),
-        top_p=float(slot_settings.get("topP", 0.95)),
-        min_p=float(slot_settings.get("minP", 0.05)),
-        repeat_penalty=float(slot_settings.get("repeatPenalty", 1.0)),
-        repeat_last_n=int(slot_settings.get("repeatLastN", 64)),
-        presence_penalty=float(slot_settings.get("presencePenalty", 0.0)),
-        frequency_penalty=float(slot_settings.get("frequencyPenalty", 0.0)),
-        seed=int(slot_settings.get("seed", -1)),
+        **_load_runtime_launch_argument_values(
+            config,
+            runtime_state,
+            runtime_name=runtime_name,
+            binary_path=binary_path,
+        )
+        | {
+            "temperature": float(slot_settings.get("temperature", 0.8)),
+            "top_k": int(slot_settings.get("topK", 40)),
+            "top_p": float(slot_settings.get("topP", 0.95)),
+            "min_p": float(slot_settings.get("minP", 0.05)),
+            "repeat_penalty": float(slot_settings.get("repeatPenalty", 1.0)),
+            "repeat_last_n": int(slot_settings.get("repeatLastN", 64)),
+            "presence_penalty": float(slot_settings.get("presencePenalty", 0.0)),
+            "frequency_penalty": float(slot_settings.get("frequencyPenalty", 0.0)),
+            "seed": int(slot_settings.get("seed", -1)),
+        },
     )
     log_path = slot_artifact_root / "runtime.log"
     process = _launch_background_process(command, log_path)
@@ -1297,6 +1434,7 @@ def _run_slot_opencode_task(
     config: ControlCenterConfig,
     progress_callback: Callable[..., None] | None = None,
     upstream_base_url: str = "",
+    runtime_log_path: Path | None = None,
 ) -> dict[str, Any]:
     executable_path = _resolve_opencode_executable_path(config)
     if not executable_path.is_file():
@@ -1338,6 +1476,7 @@ def _run_slot_opencode_task(
     command = [
         str(executable_path),
         "--pure",
+        "--print-logs",
         "run",
         "--format",
         "json",
@@ -1380,12 +1519,55 @@ def _run_slot_opencode_task(
                     source="tuning-lab",
                     snapshot_key=f"tuning:{runtime_profile_token or slot_label}",
                 )
+            runtime_metrics = (
+                _extract_runtime_speed_metrics(_read_text_tail(runtime_log_path, limit=4000))
+                if runtime_log_path is not None
+                else {}
+            )
+            active_slot_snapshot = next(
+                (
+                    candidate
+                    for candidate in experiment.get("slots", [])
+                    if isinstance(candidate, dict)
+                    and str(candidate.get("id", "") or "") == str(experiment.get("currentSlotId", "") or "")
+                ),
+                {},
+            )
+            prompt_tokens_per_second = float(
+                runtime_metrics.get("promptTokensPerSecond", 0.0)
+                if isinstance(runtime_metrics, dict)
+                else 0.0
+            ) or float(active_slot_snapshot.get("runtimePromptTokensPerSecond", 0.0) or 0.0)
+            generation_tokens_per_second = float(
+                runtime_metrics.get("generationTokensPerSecond", 0.0)
+                if isinstance(runtime_metrics, dict)
+                else 0.0
+            ) or float(active_slot_snapshot.get("runtimeGenerationTokensPerSecond", 0.0) or 0.0)
+            prompt_summary = str(
+                runtime_metrics.get("promptSummary", "")
+                if isinstance(runtime_metrics, dict)
+                else ""
+            ) or str(active_slot_snapshot.get("runtimePromptSummary", "") or "")
+            generation_summary = str(
+                runtime_metrics.get("generationSummary", "")
+                if isinstance(runtime_metrics, dict)
+                else ""
+            ) or str(active_slot_snapshot.get("runtimeGenerationSummary", "") or "")
             if progress_callback is not None:
                 progress_callback(
                     "opencode",
                     "OpenCode task radi",
                     f"{slot_label} trenutno izvršava zadatak nad izolovanim projektom.",
-                    log_excerpt=_read_text_tail(stdout_path) or _read_text_tail(stderr_path),
+                    log_excerpt=_build_live_opencode_log_excerpt(
+                        stdout_path=stdout_path,
+                        stderr_path=stderr_path,
+                        runtime_prompt_summary=prompt_summary,
+                        runtime_generation_summary=generation_summary,
+                    ),
+                    raw_log_excerpt=_build_debug_opencode_excerpt(
+                        stdout_path=stdout_path,
+                        stderr_path=stderr_path,
+                    ),
                     slot_patch={
                         "workspacePath": str(workspace_path),
                         "opencodePid": int(getattr(process, "pid", 0) or 0),
@@ -1402,6 +1584,15 @@ def _run_slot_opencode_task(
                             if isinstance(latest_live_metric, dict)
                             else 0.0
                         ),
+                        "runtimePromptTokensPerSecond": prompt_tokens_per_second,
+                        "runtimeGenerationTokensPerSecond": generation_tokens_per_second,
+                        "runtimePromptSummary": prompt_summary,
+                        "runtimeGenerationSummary": generation_summary,
+                        "runtimeLatestTimingLine": str(
+                            runtime_metrics.get("latestLine", "")
+                            if isinstance(runtime_metrics, dict)
+                            else ""
+                        ),
                         "lastLiveMeasuredAt": str(
                             latest_live_metric.get("measuredAt", "")
                             if isinstance(latest_live_metric, dict)
@@ -1415,6 +1606,11 @@ def _run_slot_opencode_task(
     stdout_text = stdout_path.read_text(encoding="utf-8", errors="replace") if stdout_path.exists() else ""
     stderr_text = stderr_path.read_text(encoding="utf-8", errors="replace") if stderr_path.exists() else ""
     parsed = _parse_opencode_json_output(stdout_text)
+    runtime_metrics = (
+        _extract_runtime_speed_metrics(_read_text_tail(runtime_log_path, limit=4000))
+        if runtime_log_path is not None
+        else {}
+    )
     output_tokens = int(parsed.get("outputTokens", 0))
     total_tokens = int(parsed.get("totalTokens", 0))
     return {
@@ -1441,6 +1637,31 @@ def _run_slot_opencode_task(
             latest_live_metric.get("totalTokensPerSecond", 0.0)
             if isinstance(latest_live_metric, dict)
             else 0.0
+        ),
+        "runtimePromptTokensPerSecond": float(
+            runtime_metrics.get("promptTokensPerSecond", 0.0)
+            if isinstance(runtime_metrics, dict)
+            else 0.0
+        ),
+        "runtimeGenerationTokensPerSecond": float(
+            runtime_metrics.get("generationTokensPerSecond", 0.0)
+            if isinstance(runtime_metrics, dict)
+            else 0.0
+        ),
+        "runtimePromptSummary": str(
+            runtime_metrics.get("promptSummary", "")
+            if isinstance(runtime_metrics, dict)
+            else ""
+        ),
+        "runtimeGenerationSummary": str(
+            runtime_metrics.get("generationSummary", "")
+            if isinstance(runtime_metrics, dict)
+            else ""
+        ),
+        "runtimeLatestTimingLine": str(
+            runtime_metrics.get("latestLine", "")
+            if isinstance(runtime_metrics, dict)
+            else ""
         ),
         "lastLiveMeasuredAt": str(
             latest_live_metric.get("measuredAt", "")
@@ -1858,6 +2079,251 @@ def _parse_opencode_json_output(output_text: str) -> dict[str, Any]:
     }
 
 
+def _shorten_log_text(value: object, limit: int = 200) -> str:
+    text = re.sub(r"\s+", " ", str(value or "").strip())
+    if not text:
+        return ""
+    if len(text) <= limit:
+        return text
+    return f"{text[: limit - 1].rstrip()}…"
+
+
+def _summarize_opencode_signal_excerpt(output_text: str, *, max_events: int = 4) -> str:
+    if not str(output_text or "").strip():
+        return ""
+    event_lines: list[str] = []
+    for raw_line in str(output_text or "").splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        try:
+            payload = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(payload, dict):
+            continue
+        described = _describe_opencode_event(payload)
+        if described:
+            event_lines.extend(described)
+    return "\n".join(event_lines[-max_events:])
+
+
+def _describe_opencode_event(payload: dict[str, Any]) -> list[str]:
+    event_type = str(payload.get("type", "") or "").strip().lower()
+    part = payload.get("part")
+    part_payload = part if isinstance(part, dict) else {}
+    if event_type == "step_start":
+        message_id = str(
+            part_payload.get("messageID")
+            or part_payload.get("messageId")
+            or payload.get("messageID")
+            or payload.get("messageId")
+            or ""
+        ).strip()
+        if message_id:
+            return [
+                "OpenCode je preuzeo zadatak i otvorio novu poruku.",
+                f"ID poruke: {message_id}",
+            ]
+        return ["OpenCode je preuzeo zadatak i zapoceo novi korak."]
+    if event_type == "tool_use":
+        tool_name = str(part_payload.get("tool", "") or "").strip() or "alat"
+        state_payload = part_payload.get("state") if isinstance(part_payload.get("state"), dict) else {}
+        status = str(state_payload.get("status", "") or "").strip()
+        input_payload = state_payload.get("input") if isinstance(state_payload.get("input"), dict) else {}
+        metadata_payload = (
+            state_payload.get("metadata") if isinstance(state_payload.get("metadata"), dict) else {}
+        )
+        file_target = _shorten_log_text(
+            input_payload.get("filePath")
+            or metadata_payload.get("filepath")
+            or part_payload.get("title")
+            or ""
+        )
+        description = _shorten_log_text(
+            input_payload.get("description")
+            or input_payload.get("command")
+            or input_payload.get("text")
+            or ""
+        )
+        prefix = f"Alat {tool_name}"
+        if status:
+            prefix = f"{prefix} ({status})"
+        if tool_name == "write" and file_target:
+            file_name = Path(str(file_target)).name or str(file_target)
+            return [f"{prefix}: upisan fajl {file_name}"]
+        if description:
+            return [f"{prefix}: {description}"]
+        if file_target:
+            return [f"{prefix}: {file_target}"]
+        return [prefix]
+    if event_type == "text":
+        text_value = _shorten_log_text(payload.get("text", ""))
+        if text_value:
+            return [f"Agent: {text_value}"]
+        return []
+    if event_type == "step_finish":
+        tokens_payload = part_payload.get("tokens")
+        tokens = tokens_payload if isinstance(tokens_payload, dict) else {}
+        input_tokens = int(tokens.get("input", 0) or 0)
+        output_tokens = int(tokens.get("output", 0) or 0)
+        total_tokens = int(tokens.get("total", input_tokens + output_tokens) or 0)
+        try:
+            cost = float(part_payload.get("cost", payload.get("cost", 0.0)) or 0.0)
+        except (TypeError, ValueError):
+            cost = 0.0
+        summary = (
+            f"Korak završen: ulaz {input_tokens} | izlaz {output_tokens} | ukupno {total_tokens}"
+        )
+        if cost > 0:
+            summary = f"{summary} | cost {cost:.4f}"
+        elif input_tokens or output_tokens or total_tokens:
+            summary = f"{summary} | cost 0.0000"
+        return [summary]
+    return []
+
+
+def _summarize_opencode_signal_paths(stdout_path: Path, stderr_path: Path) -> str:
+    stdout_excerpt = _summarize_opencode_signal_excerpt(_read_text_tail(stdout_path, limit=8000))
+    if stdout_excerpt:
+        return stdout_excerpt
+    stderr_lines = _extract_notable_opencode_stderr_lines(_read_text_tail(stderr_path, limit=2000))
+    if stderr_lines:
+        return "\n".join(stderr_lines)
+    return ""
+
+
+def _extract_notable_opencode_stderr_lines(stderr_text: str, *, max_lines: int = 4) -> list[str]:
+    lines: list[str] = []
+    for raw_line in str(stderr_text or "").splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        lower = line.lower()
+        if line.startswith("INFO "):
+            continue
+        if "message.part.delta publishing" in lower:
+            continue
+        if "service=bus" in lower and "publishing" in lower:
+            continue
+        if "service=db" in lower and "opening database" in lower:
+            continue
+        if "service=tool.registry" in lower:
+            continue
+        if lower.startswith("internal plugin info "):
+            continue
+        if "service=plugin" in lower and " loading" in lower:
+            continue
+        if "service=lsp" in lower and "disabled" in lower:
+            continue
+        lines.append(_shorten_log_text(line, limit=220))
+    deduped: list[str] = []
+    for line in lines:
+        if line not in deduped:
+            deduped.append(line)
+    return deduped[-max_lines:]
+
+
+def _build_debug_opencode_excerpt(*, stdout_path: Path, stderr_path: Path) -> str:
+    lines: list[str] = []
+    stdout_excerpt = _summarize_opencode_signal_excerpt(
+        _read_text_tail(stdout_path, limit=12000),
+        max_events=6,
+    )
+    if stdout_excerpt:
+        lines.extend(line.strip() for line in stdout_excerpt.splitlines() if line.strip())
+    stderr_lines = _extract_notable_opencode_stderr_lines(_read_text_tail(stderr_path, limit=4000))
+    if stderr_lines:
+        lines.append("stderr:")
+        lines.extend(stderr_lines)
+    if not lines:
+        return _shorten_log_text(_read_text_tail(stderr_path, limit=1200), limit=500).strip()
+    deduped: list[str] = []
+    for line in lines:
+        if line not in deduped:
+            deduped.append(line)
+    return "\n".join(deduped[-10:])
+
+
+def _build_live_opencode_log_excerpt(
+    *,
+    stdout_path: Path,
+    stderr_path: Path,
+    runtime_prompt_summary: str = "",
+    runtime_generation_summary: str = "",
+) -> str:
+    summary = _summarize_opencode_signal_paths(stdout_path, stderr_path)
+    lines: list[str] = []
+    normalized_summary = str(summary or "").strip()
+    if normalized_summary:
+        lines.extend([line.strip() for line in normalized_summary.splitlines() if line.strip()])
+    if (
+        normalized_summary.startswith("OpenCode je preuzeo zadatak")
+        and not runtime_prompt_summary
+        and not runtime_generation_summary
+    ):
+        lines.append("OpenCode sesija je otvorena, ali jos nije poslala naredni citljivi korak.")
+    if runtime_prompt_summary:
+        lines.append(f"Runtime prompt: {runtime_prompt_summary}")
+    if runtime_generation_summary:
+        lines.append(f"Runtime generacija: {runtime_generation_summary}")
+    if not lines:
+        return "OpenCode proces je pokrenut i priprema prvi čitljivi događaj."
+    deduped: list[str] = []
+    for line in lines:
+        if line not in deduped:
+            deduped.append(line)
+    return "\n".join(deduped[-6:])
+
+
+def _extract_runtime_speed_metrics(log_text: str) -> dict[str, object]:
+    latest_prompt_speed = 0.0
+    latest_generation_speed = 0.0
+    latest_prompt_summary = ""
+    latest_generation_summary = ""
+    latest_line = ""
+    prompt_pattern = re.compile(
+        r"slot print_timing:.*?\|\s*([^,|]+),\s*n_tokens\s*=\s*(\d+).*?/\s*([0-9]+(?:\.[0-9]+)?)\s+tokens per second",
+        flags=re.IGNORECASE,
+    )
+    generation_pattern = re.compile(
+        r"slot print_timing:.*?n_decoded\s*=\s*(\d+),\s*tg\s*=\s*([0-9]+(?:\.[0-9]+)?)\s*t/s",
+        flags=re.IGNORECASE,
+    )
+    for raw_line in str(log_text or "").splitlines():
+        line = raw_line.strip()
+        if not line or "slot print_timing:" not in line:
+            continue
+        latest_line = line
+        generation_match = generation_pattern.search(line)
+        if generation_match:
+            token_count = int(generation_match.group(1) or 0)
+            tokens_per_second = float(generation_match.group(2) or 0.0)
+            latest_generation_speed = tokens_per_second
+            latest_generation_summary = f"generacija | {token_count} tokena | {tokens_per_second:.2f} tok/s"
+            continue
+        prompt_match = prompt_pattern.search(line)
+        if not prompt_match:
+            continue
+        phase = str(prompt_match.group(1) or "").strip().lower()
+        token_count = int(prompt_match.group(2) or 0)
+        tokens_per_second = float(prompt_match.group(3) or 0.0)
+        summary = f"{phase} | {token_count} tokena | {tokens_per_second:.2f} tok/s"
+        if "prompt" in phase:
+            latest_prompt_speed = tokens_per_second
+            latest_prompt_summary = summary
+        else:
+            latest_generation_speed = tokens_per_second
+            latest_generation_summary = summary
+    return {
+        "promptTokensPerSecond": latest_prompt_speed,
+        "generationTokensPerSecond": latest_generation_speed,
+        "promptSummary": latest_prompt_summary,
+        "generationSummary": latest_generation_summary,
+        "latestLine": latest_line,
+    }
+
+
 def _auto_detect_success_checks(workspace_path: Path) -> list[dict[str, str]]:
     checks: list[dict[str, str]] = []
     package_json_path = workspace_path / "package.json"
@@ -2151,10 +2617,21 @@ def _update_active_run_slot(active_run: dict[str, Any], patch: dict[str, Any]) -
 
 
 def _read_text_tail(path: Path, limit: int = 2000) -> str:
+    char_limit = max(int(limit or 0), 0)
+    if char_limit <= 0:
+        return ""
     try:
-        return path.read_text(encoding="utf-8", errors="replace")[-limit:]
+        file_size = path.stat().st_size
+        if file_size <= 0:
+            return ""
+        byte_window = max(char_limit * 4, 4096)
+        read_offset = max(file_size - byte_window, 0)
+        with path.open("rb") as handle:
+            handle.seek(read_offset)
+            raw_bytes = handle.read()
     except OSError:
         return ""
+    return raw_bytes.decode("utf-8", errors="replace")[-char_limit:]
 
 
 def _elapsed_ms_from_started_at(started_at: object) -> int:
@@ -2258,6 +2735,162 @@ def _cleanup_workspace_path(workspace_info: dict[str, Any]) -> None:
             )
             return
     shutil.rmtree(cleanup_path, ignore_errors=True)
+
+
+def _extract_runtime_port_from_base_url(base_url: object) -> int | None:
+    match = re.search(r":(\d+)(?:/|$)", str(base_url or "").strip())
+    if not match:
+        return None
+    try:
+        return int(match.group(1))
+    except (TypeError, ValueError):
+        return None
+
+
+def _extract_port_from_command_line(command_line: object) -> int | None:
+    match = re.search(r"--port\s+(\d+)", str(command_line or ""))
+    if not match:
+        return None
+    try:
+        return int(match.group(1))
+    except (TypeError, ValueError):
+        return None
+
+
+def _list_local_process_records() -> list[dict[str, Any]]:
+    if os.name == "nt":
+        script = (
+            "Get-CimInstance Win32_Process | "
+            "Where-Object { $_.Name -in @('llama-server.exe','opencode.exe') } | "
+            "Select-Object ProcessId, Name, CommandLine | ConvertTo-Json -Compress"
+        )
+        completed = subprocess.run(
+            [
+                "powershell",
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-Command",
+                script,
+            ],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+        )
+        if completed.returncode != 0:
+            return []
+        output = str(completed.stdout or "").strip()
+        if not output:
+            return []
+        try:
+            payload = json.loads(output)
+        except json.JSONDecodeError:
+            return []
+        items = payload if isinstance(payload, list) else [payload]
+        records: list[dict[str, Any]] = []
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            records.append(
+                {
+                    "pid": int(item.get("ProcessId", 0) or 0),
+                    "name": str(item.get("Name", "") or ""),
+                    "commandLine": str(item.get("CommandLine", "") or ""),
+                }
+            )
+        return records
+    completed = subprocess.run(
+        ["ps", "-eo", "pid=,comm=,args="],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+    )
+    if completed.returncode != 0:
+        return []
+    records: list[dict[str, Any]] = []
+    for raw_line in completed.stdout.splitlines():
+        columns = raw_line.strip().split(None, 2)
+        if len(columns) < 3:
+            continue
+        try:
+            pid = int(columns[0])
+        except ValueError:
+            continue
+        records.append({"pid": pid, "name": columns[1], "commandLine": columns[2]})
+    return records
+
+
+def _kill_process_tree(pid: int) -> bool:
+    normalized_pid = int(pid or 0)
+    if normalized_pid <= 0:
+        return False
+    if os.name == "nt":
+        completed = subprocess.run(
+            ["taskkill", "/PID", str(normalized_pid), "/T", "/F"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+        )
+        output = f"{completed.stdout}\n{completed.stderr}".lower()
+        return completed.returncode == 0 or "not found" in output or "not running" in output
+    try:
+        os.kill(normalized_pid, signal.SIGTERM)
+    except OSError:
+        return False
+    return True
+
+
+def _cleanup_stale_tuning_processes(
+    config: ControlCenterConfig,
+    *,
+    active_run: dict[str, Any] | None = None,
+    history_items: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    if active_run:
+        return {"killedPids": []}
+    runtime_state = load_runtime_state(config)
+    main_runtime_port = int(runtime_state.get("port", 0) or 0)
+    tuning_root = str(_tuning_runs_root(config).resolve()).lower()
+    install_root = str(config.install_root.resolve()).lower()
+    stale_ports: set[int] = set()
+    for item in history_items or _load_history(config):
+        if not isinstance(item, dict):
+            continue
+        slots = item.get("slots")
+        if not isinstance(slots, list):
+            continue
+        for slot in slots:
+            if not isinstance(slot, dict):
+                continue
+            port = _extract_runtime_port_from_base_url(slot.get("runtimeBaseUrl", ""))
+            if port and port != main_runtime_port:
+                stale_ports.add(port)
+    killed: list[int] = []
+    for process in _list_local_process_records():
+        pid = int(process.get("pid", 0) or 0)
+        name = str(process.get("name", "") or "").strip().lower()
+        command_line = str(process.get("commandLine", "") or "")
+        if pid <= 0 or not command_line:
+            continue
+        if name == "opencode.exe" and tuning_root in command_line.lower():
+            if _kill_process_tree(pid):
+                killed.append(pid)
+            continue
+        if name != "llama-server.exe":
+            continue
+        port = _extract_port_from_command_line(command_line)
+        if not port or port == main_runtime_port:
+            continue
+        if port in stale_ports or install_root in command_line.lower():
+            if _kill_process_tree(pid):
+                killed.append(pid)
+    return {"killedPids": killed}
 
 
 def _detect_model_family(model_id: str, model_label: str) -> str:

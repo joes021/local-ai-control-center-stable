@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 
 import { ActionResultPanel } from "../components/ActionResultPanel";
+import { PageDataStateCard } from "../components/PageDataStateCard";
+import { PageFlowCard } from "../components/PageFlowCard";
 import {
   addFleetMachine,
   fetchFleetSummary,
@@ -81,9 +83,40 @@ export function FleetPage() {
 
   const machines = summary?.machines ?? [];
 
+  if (!summary) {
+    return (
+      <PageDataStateCard
+        error={error}
+        loadingText="U\u010ditavam flotu..."
+        onRetry={() => {
+          setError(null);
+          void load();
+        }}
+      />
+    );
+  }
+
   return (
     <>
-      {error ? <div className="error-panel">{error}</div> : null}
+      {error ? <div className="error-panel wide-card">{error}</div> : null}
+      <PageFlowCard
+        title="Fleet tok"
+        summary="Ovde prvo doda\u0161 ma\u0161inu, zatim osve\u017ei\u0161 njen snapshot, pa tek onda koristi\u0161 udaljeni panel ili telemetry brojke za pore\u0111enje."
+        steps={[
+          {
+            title: "Dodaj ma\u0161inu",
+            detail: "Naziv i osnovni URL su dovoljni da Control Center po\u010dne da prati udaljenu instalaciju.",
+          },
+          {
+            title: "Osve\u017ei snapshot",
+            detail: "Fleet ima smisla tek kada povu\u010de runtime, model i live signal sa druge ma\u0161ine.",
+          },
+          {
+            title: "Otvori panel ili uporedi signal",
+            detail: "Kada je snapshot zdrav, koristi ga za brzu procenu ili otvori puni udaljeni panel.",
+          },
+        ]}
+      />
 
       <section className="status-card wide-card">
         <span className="status-label">Flota</span>

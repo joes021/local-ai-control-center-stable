@@ -8,6 +8,7 @@ from urllib.request import Request as UrlRequest, urlopen
 
 from fastapi import APIRouter, Request, Response
 from fastapi.responses import StreamingResponse
+from starlette.concurrency import run_in_threadpool
 
 from local_ai_control_center_installer.control_center_backend.services.search_service import (
     perform_search_query,
@@ -101,7 +102,8 @@ async def _proxy_runtime_request(
         body = _apply_generation_defaults(body, override_settings=generation_override)
 
     stream_requested = isinstance(body, dict) and bool(body.get("stream"))
-    proxied = _invoke_forward_runtime_request(
+    proxied = await run_in_threadpool(
+        _invoke_forward_runtime_request,
         method=request.method.upper(),
         path=path,
         body=body,

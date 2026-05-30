@@ -661,8 +661,11 @@ def test_run_slot_opencode_task_records_runtime_live_signal(
     slot_artifact_root = tmp_path / "artifacts"
     slot_artifact_root.mkdir(parents=True, exist_ok=True)
 
+    spawned_commands: list[list[str]] = []
+
     class FakeProcess:
         def __init__(self, *args, **kwargs):
+            spawned_commands.append(list(args[0]))
             self._polls = 0
 
         def poll(self):
@@ -707,6 +710,8 @@ def test_run_slot_opencode_task_records_runtime_live_signal(
     )
 
     assert result["processReturncode"] == 0
+    assert spawned_commands
+    assert "--print-logs" in spawned_commands[0]
     assert recorded_calls
     assert all(call["base_url"] == "http://127.0.0.1:49000" for call in recorded_calls)
     assert all(call["label"] == "tuning-lab-live" for call in recorded_calls)
@@ -997,3 +1002,377 @@ def test_tuning_lab_enqueue_batch_expands_three_runs(tmp_path: Path, monkeypatch
     assert summary["queue"][0]["successChecks"][0]["label"]
     custom_slot = next(slot for slot in summary["queue"][0]["slots"] if slot["id"] == "custom")
     assert custom_slot["settingsPatch"]["temperature"] == 0.33
+
+
+def test_tuning_lab_summarizes_opencode_signal_for_humans():
+    from local_ai_control_center_installer.control_center_backend.services import tuning_lab_service
+
+    excerpt = tuning_lab_service._summarize_opencode_signal_excerpt(
+        "\n".join(
+            [
+                '{"type":"step_start","part":{"messageID":"msg_demo","type":"step-start"}}',
+                '{"type":"tool_use","part":{"tool":"bash","state":{"status":"completed","input":{"description":"Check if index.html already exists"}}}}',
+                '{"type":"step_finish","part":{"tokens":{"input":10889,"output":306,"total":11195},"cost":0}}',
+            ]
+        )
+    )
+
+    assert "OpenCode je preuzeo zadatak i otvorio novu poruku." in excerpt
+    assert "ID poruke: msg_demo" in excerpt
+    assert "Alat bash (completed): Check if index.html already exists" in excerpt
+    assert "Korak završen: ulaz 10889 | izlaz 306 | ukupno 11195 | cost 0.0000" in excerpt
+
+
+def test_tuning_lab_summarizes_write_tool_with_target_file():
+    from local_ai_control_center_installer.control_center_backend.services import tuning_lab_service
+
+    excerpt = tuning_lab_service._summarize_opencode_signal_excerpt(
+        "\n".join(
+            [
+                '{"type":"step_start","part":{"messageID":"msg_demo","type":"step-start"}}',
+                '{"type":"tool_use","part":{"tool":"write","state":{"status":"completed","input":{"filePath":"index.html"}}}}',
+            ]
+        )
+    )
+
+    assert "OpenCode je preuzeo zadatak i otvorio novu poruku." in excerpt
+    assert "Alat write (completed): upisan fajl index.html" in excerpt
+
+
+def test_tuning_lab_extracts_runtime_prompt_speed_from_llama_log():
+    from local_ai_control_center_installer.control_center_backend.services import tuning_lab_service
+
+    metrics = tuning_lab_service._extract_runtime_speed_metrics(
+        """
+0.46.217.334 I slot print_timing: id  2 | task 10 | prompt processing, n_tokens =   2047, progress = 0.19, t =  26.25 s / 77.98 tokens per second
+0.53.010.000 I slot print_timing: id  2 | task 10 | generation, n_tokens =    128, t =   4.10 s / 31.22 tokens per second
+5.48.913.350 I slot print_timing: id  2 | task 10 | n_decoded =   1656, tg =   9.97 t/s
+"""
+    )
+
+    assert metrics["promptTokensPerSecond"] == 77.98
+    assert metrics["generationTokensPerSecond"] == 9.97
+    assert "prompt processing" in str(metrics["promptSummary"])
+    assert "generacija" in str(metrics["generationSummary"])
+
+
+def test_tuning_lab_builds_human_log_excerpt_with_runtime_fallback(tmp_path: Path):
+    from local_ai_control_center_installer.control_center_backend.services import tuning_lab_service
+
+    stdout_path = tmp_path / "opencode-output.jsonl"
+    stderr_path = tmp_path / "opencode-error.log"
+    stdout_path.write_text(
+        '{"type":"step_start","part":{"messageID":"msg_demo","type":"step-start"}}\n',
+        encoding="utf-8",
+    )
+    stderr_path.write_text("", encoding="utf-8")
+
+    excerpt = tuning_lab_service._build_live_opencode_log_excerpt(
+        stdout_path=stdout_path,
+        stderr_path=stderr_path,
+        runtime_prompt_summary="prompt processing | 2047 tokena | 77.98 tok/s",
+        runtime_generation_summary="generacija | 1656 tokena | 9.97 tok/s",
+    )
+
+    assert "OpenCode je preuzeo zadatak i otvorio novu poruku." in excerpt
+    assert "Runtime prompt:" in excerpt
+    assert "Runtime generacija:" in excerpt
+
+
+def test_tuning_lab_builds_filtered_debug_excerpt_without_skill_dump_noise(tmp_path: Path):
+    from local_ai_control_center_installer.control_center_backend.services import tuning_lab_service
+
+    stdout_path = tmp_path / "opencode-output.jsonl"
+    stderr_path = tmp_path / "opencode-error.log"
+    stdout_path.write_text(
+        "\n".join(
+            [
+                '{"type":"step_start","part":{"messageID":"msg_demo","type":"step-start"}}',
+                '{"type":"tool_use","part":{"tool":"skill","state":{"status":"completed","input":{"description":"Load brainstorming skill"},"output":"<skill_content>very long dump</skill_content>"}}}',
+                '{"type":"step_finish","part":{"tokens":{"input":2048,"output":128,"total":2176},"cost":0}}',
+            ]
+        ),
+        encoding="utf-8",
+    )
+    stderr_path.write_text(
+        "\n".join(
+            [
+                "INFO  2026-05-29T23:13:36 +1ms service=bus type=message.part.delta publishing",
+                "WARN  tuning-lab live trace fallback",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    excerpt = tuning_lab_service._build_debug_opencode_excerpt(
+        stdout_path=stdout_path,
+        stderr_path=stderr_path,
+    )
+
+    assert "OpenCode je preuzeo zadatak i otvorio novu poruku." in excerpt
+    assert "Alat skill (completed): Load brainstorming skill" in excerpt
+    assert "Korak završen: ulaz 2048 | izlaz 128 | ukupno 2176 | cost 0.0000" in excerpt
+    assert "WARN tuning-lab live trace fallback" in excerpt
+    assert "<skill_content>" not in excerpt
+    assert "message.part.delta publishing" not in excerpt
+
+
+def test_tuning_lab_live_excerpt_hides_internal_info_noise(tmp_path: Path):
+    from local_ai_control_center_installer.control_center_backend.services import tuning_lab_service
+
+    stdout_path = tmp_path / "opencode-output.jsonl"
+    stderr_path = tmp_path / "opencode-error.log"
+    stdout_path.write_text("", encoding="utf-8")
+    stderr_path.write_text(
+        "\n".join(
+            [
+                "internal plugin INFO 2026-05-29T23:29:09 +0ms service=plugin name=nH loading",
+                "INFO  2026-05-29T23:13:36 +1ms service=bus type=message.part.delta publishing",
+                "INFO  2026-05-29T23:13:39 +0ms service=lsp all LSPs are disabled",
+                "INFO  2026-05-29T23:13:40 +0ms service=db path=C:\\Users\\demo\\.local\\share\\opencode\\opencode.db opening database",
+                "INFO  2026-05-29T23:13:41 +0ms service=tool.registry status=completed duration=0 webfetch",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    excerpt = tuning_lab_service._build_live_opencode_log_excerpt(
+        stdout_path=stdout_path,
+        stderr_path=stderr_path,
+    )
+
+    assert excerpt == "OpenCode proces je pokrenut i priprema prvi čitljivi događaj."
+
+
+def test_tuning_lab_read_text_tail_does_not_depend_on_full_read(tmp_path: Path, monkeypatch):
+    from local_ai_control_center_installer.control_center_backend.services import tuning_lab_service
+
+    sample_path = tmp_path / "large.log"
+    sample_path.write_text(("A" * 12000) + "\nTAIL-LINE-ONE\nTAIL-LINE-TWO\n", encoding="utf-8")
+
+    def fail_read_text(*args, **kwargs):
+        raise AssertionError("full read should not be used for tail access")
+
+    monkeypatch.setattr(Path, "read_text", fail_read_text)
+
+    excerpt = tuning_lab_service._read_text_tail(sample_path, limit=40)
+
+    assert "TAIL-LINE-ONE" in excerpt
+    assert "TAIL-LINE-TWO" in excerpt
+
+
+def test_tuning_lab_reconcile_skips_lock_when_worker_is_alive(tmp_path: Path, monkeypatch):
+    from local_ai_control_center_installer.control_center_backend.services import tuning_lab_service
+
+    install_root = tmp_path / "install-root"
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    config = get_config()
+
+    class ExplodingLock:
+        def __enter__(self):
+            raise AssertionError("run lock should not be acquired while worker is alive")
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    class AliveThread:
+        def is_alive(self):
+            return True
+
+    monkeypatch.setattr(tuning_lab_service, "_RUN_LOCK", ExplodingLock())
+    monkeypatch.setattr(tuning_lab_service, "_RUNNER_THREAD", AliveThread())
+
+    tuning_lab_service._reconcile_orphaned_active_run(config)
+
+
+def test_tuning_lab_cleans_stale_processes_without_touching_main_runtime(
+    tmp_path: Path,
+    monkeypatch,
+):
+    from local_ai_control_center_installer.control_center_backend.services import tuning_lab_service
+
+    install_root = tmp_path / "install-root"
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    config = get_config()
+    runs_root = config.control_center_config_root / "tuning-lab" / "runs"
+    runs_root.mkdir(parents=True, exist_ok=True)
+
+    killed: list[int] = []
+    monkeypatch.setattr(
+        tuning_lab_service,
+        "_list_local_process_records",
+        lambda: [
+            {
+                "pid": 111,
+                "name": "llama-server.exe",
+                "commandLine": 'C:\\runtime\\llama-server.exe --host 127.0.0.1 --port 62132 --model "demo.gguf"',
+            },
+            {
+                "pid": 222,
+                "name": "llama-server.exe",
+                "commandLine": 'C:\\runtime\\llama-server.exe --host 127.0.0.1 --port 39281 --model "demo.gguf"',
+            },
+            {
+                "pid": 333,
+                "name": "opencode.exe",
+                "commandLine": f'C:\\tools\\opencode.exe --dir {runs_root}\\demo\\baseline\\copy --pure run',
+            },
+            {
+                "pid": 444,
+                "name": "opencode.exe",
+                "commandLine": 'C:\\tools\\opencode.exe --dir C:\\Users\\demo\\workspace --pure run',
+            },
+        ],
+    )
+    monkeypatch.setattr(
+        tuning_lab_service,
+        "_kill_process_tree",
+        lambda pid: killed.append(pid) or True,
+    )
+    monkeypatch.setattr(
+        tuning_lab_service,
+        "load_runtime_state",
+        lambda resolved_config: {"port": 39281},
+    )
+
+    tuning_lab_service._cleanup_stale_tuning_processes(
+        config,
+        active_run=None,
+        history_items=[
+            {
+                "runId": "tuning-demo",
+                "slots": [
+                    {"runtimeBaseUrl": "http://127.0.0.1:62132"},
+                    {"runtimeBaseUrl": "http://127.0.0.1:39281"},
+                ],
+            }
+        ],
+    )
+
+    assert killed == [111, 333]
+
+
+def test_tuning_lab_reconciles_orphaned_active_run_into_failed_history(tmp_path: Path, monkeypatch):
+    from local_ai_control_center_installer.control_center_backend.services import tuning_lab_service
+
+    install_root = tmp_path / "install-root"
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    config = get_config()
+    config.control_center_config_root.mkdir(parents=True, exist_ok=True)
+    tuning_lab_service._save_run_state(
+        config,
+        active_run={
+            "runId": "tuning-orphan",
+            "name": "Orphan run",
+            "status": "running",
+            "startedAt": "2026-05-29T22:00:00+00:00",
+            "slots": [
+                {
+                    "id": "baseline",
+                    "label": "Baseline",
+                    "status": "running",
+                    "runtimePid": 12345,
+                    "opencodePid": 23456,
+                }
+            ],
+        },
+        queue=[],
+    )
+    monkeypatch.setattr(tuning_lab_service, "_RUNNER_THREAD", None)
+    monkeypatch.setattr(tuning_lab_service, "_list_local_process_records", lambda: [])
+
+    payload = tuning_lab_service.load_tuning_lab_run_status(config=config)
+    history = tuning_lab_service.load_tuning_lab_summary(config=config)["history"]
+
+    assert payload == {}
+    assert history
+    assert history[0]["runId"] == "tuning-orphan"
+    assert history[0]["status"] == "failed"
+    assert history[0]["currentPhaseLabel"] == "Run je prekinut"
+    assert history[0]["slots"][0]["status"] == "failed"
+
+
+def test_tuning_lab_slot_runtime_inherits_gpu_offload_launch_arguments(
+    tmp_path: Path,
+    monkeypatch,
+):
+    from local_ai_control_center_installer.control_center_backend.services import tuning_lab_service
+
+    install_root = tmp_path / "install-root"
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    config = get_config()
+    runtime_root = install_root / "runtime" / "llama.cpp"
+    runtime_root.mkdir(parents=True, exist_ok=True)
+    binary_path = runtime_root / "llama-server.exe"
+    binary_path.write_text("llama", encoding="utf-8")
+    model_path = install_root / "models" / "unsloth" / "Qwen3.6-35B-A3B-UD-IQ2_XXS.gguf"
+    model_path.parent.mkdir(parents=True, exist_ok=True)
+    model_path.write_text("model", encoding="utf-8")
+    config.active_model_config_path.parent.mkdir(parents=True, exist_ok=True)
+    config.active_model_config_path.write_text(
+        '{"model_id":"demo-model","model_path":"' + str(model_path).replace("\\", "\\\\") + '"}',
+        encoding="utf-8",
+    )
+    artifact_root = config.control_center_config_root / "tuning-lab" / "runs" / "demo" / "baseline"
+    artifact_root.mkdir(parents=True, exist_ok=True)
+
+    captured: dict[str, object] = {}
+
+    class FakeProcess:
+        pid = 77701
+
+    monkeypatch.setattr(
+        tuning_lab_service,
+        "load_runtime_state",
+        lambda resolved_config: {
+            "active_runtime": "llama.cpp",
+            "active_binary": str(binary_path),
+            "active_model_id": "demo-model",
+            "active_model_path": str(model_path),
+        },
+    )
+    monkeypatch.setattr(
+        tuning_lab_service,
+        "classify_runtime_model_support",
+        lambda **kwargs: (True, ""),
+    )
+    monkeypatch.setattr(tuning_lab_service, "_allocate_free_port", lambda: 49000)
+    monkeypatch.setattr(tuning_lab_service, "_resolve_spec_type_for_runtime", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        tuning_lab_service,
+        "_load_runtime_launch_argument_values",
+        lambda *args, **kwargs: {"gpu_layers": 40, "flash_attn": "auto"},
+    )
+    def fake_launch_background_process(command, log_path):
+        captured["command"] = command
+        return FakeProcess()
+    monkeypatch.setattr(
+        tuning_lab_service,
+        "_launch_background_process",
+        fake_launch_background_process,
+    )
+    monkeypatch.setattr(tuning_lab_service, "_wait_for_runtime_ready", lambda *args, **kwargs: True)
+
+    result = tuning_lab_service._launch_slot_runtime(
+        slot_settings={
+            "context": 262144,
+            "temperature": 0.8,
+            "topK": 40,
+            "topP": 0.95,
+            "minP": 0.05,
+            "repeatPenalty": 1.0,
+            "repeatLastN": 64,
+            "presencePenalty": 0.0,
+            "frequencyPenalty": 0.0,
+            "seed": -1,
+        },
+        slot_artifact_root=artifact_root,
+        config=config,
+    )
+
+    command = captured["command"]
+    assert "--n-gpu-layers" in command
+    assert command[command.index("--n-gpu-layers") + 1] == "40"
+    assert "--flash-attn" in command
+    assert command[command.index("--flash-attn") + 1] == "auto"
+    assert result["runtimePid"] == 77701

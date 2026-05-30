@@ -365,3 +365,51 @@ def test_tuning_runtime_proxy_returns_404_for_unknown_profile_token(
 
     assert response.status_code == 404
     assert response.json()["error"]["type"] == "tuning_runtime_profile_missing"
+
+
+def test_runtime_proxy_offloads_blocking_forward_to_threadpool(
+    tmp_path: Path,
+    monkeypatch,
+):
+    install_root = tmp_path / "install-root"
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    _write_settings(install_root, {"webSearchMode": "off"})
+
+    calls: list[tuple[str, tuple, dict]] = []
+
+    async def fake_run_in_threadpool(func, *args, **kwargs):
+        calls.append(("threadpool", args, kwargs))
+        return func(*args, **kwargs)
+
+    def fake_invoke_forward_runtime_request(**kwargs):
+        calls.append(("forward", tuple(), kwargs))
+        return {
+            "status_code": 200,
+            "headers": {"Content-Type": "application/json"},
+            "body": json.dumps({"ok": True}).encode("utf-8"),
+        }
+
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.routes.runtime_proxy.run_in_threadpool",
+        fake_run_in_threadpool,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.routes.runtime_proxy._invoke_forward_runtime_request",
+        fake_invoke_forward_runtime_request,
+    )
+
+    client = TestClient(app)
+    response = client.post(
+        "/api/runtime-proxy/v1/chat/completions",
+        json={
+            "model": "local-lacc/demo.gguf",
+            "messages": [{"role": "user", "content": "zdravo"}],
+            "stream": False,
+        },
+    )
+
+    assert response.status_code == 200
+    assert calls
+    assert calls[0][0] == "threadpool"
+    assert any(call[0] == "forward" for call in calls)
