@@ -635,6 +635,31 @@ def test_deploy_control_center_runtime_does_not_emit_open_browser_in_launcher(
     assert "--open-browser" not in launcher_text
 
 
+def test_deploy_control_center_runtime_emits_existing_panel_guard_in_windows_launcher(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    install_root = tmp_path / "install-root"
+    current_executable = tmp_path / "LocalAIControlCenterSetup-v0.4.76.exe"
+    current_executable.write_bytes(b"panel-runtime")
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_runtime._ensure_windows_shell_assets",
+        lambda **kwargs: _empty_shell_assets(),
+    )
+
+    deployment = deploy_control_center_runtime(
+        install_root,
+        panel_executable_resource=None,
+        frozen=True,
+        frozen_executable=str(current_executable),
+    )
+
+    launcher_text = deployment.launcher_path.read_text(encoding="utf-8")
+    assert "Invoke-RestMethod" in launcher_text
+    assert "local-ai-control-center-stable" in launcher_text
+    assert str(install_root.resolve()) in launcher_text
+
+
 def test_deploy_control_center_runtime_copies_linux_frozen_host_binary(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

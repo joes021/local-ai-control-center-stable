@@ -535,9 +535,45 @@ def _write_launcher_script(
     lines = ["@echo off"]
     for key, value in (env_overrides or {}).items():
         lines.append(f"set \"{key}={value}\"")
+    lines.extend(_build_windows_panel_launcher_guard_lines(command))
     quoted_command = " ".join(_quote_windows_part(part) for part in command)
     lines.append(f"start \"\" {quoted_command}")
     launcher_path.write_text("\r\n".join(lines) + "\r\n", encoding="utf-8")
+
+
+def _build_windows_panel_launcher_guard_lines(command: tuple[str, ...]) -> list[str]:
+    install_root = _extract_command_flag_value(command, "--install-root")
+    port = _extract_command_flag_value(command, "--port")
+    host = _extract_command_flag_value(command, "--host") or "127.0.0.1"
+    if not install_root or not port:
+        return []
+    normalized_install_root = str(Path(install_root).expanduser().resolve())
+    health_url = f"http://{host}:{port}/health"
+    powershell_script = (
+        f"$installRoot = {_quote_powershell_string(normalized_install_root)}; "
+        f"$healthUrl = {_quote_powershell_string(health_url)}; "
+        "try { "
+        "  $response = Invoke-RestMethod -Uri $healthUrl -TimeoutSec 1; "
+        "  $actualInstallRoot = [System.IO.Path]::GetFullPath([string]$response.installRoot).ToLowerInvariant(); "
+        "  $expectedInstallRoot = [System.IO.Path]::GetFullPath($installRoot).ToLowerInvariant(); "
+        "  if ($response.status -eq 'ok' -and $response.app -eq 'local-ai-control-center-stable' -and $actualInstallRoot -eq $expectedInstallRoot) { exit 0 } "
+        "} catch {} ; "
+        "exit 1"
+    )
+    return [
+        f'powershell -NoProfile -ExecutionPolicy Bypass -Command "{powershell_script}" >nul 2>nul',
+        'if "%ERRORLEVEL%"=="0" exit /b 0',
+    ]
+
+
+def _extract_command_flag_value(command: tuple[str, ...], flag: str) -> str | None:
+    try:
+        index = command.index(flag)
+    except ValueError:
+        return None
+    if index + 1 >= len(command):
+        return None
+    return str(command[index + 1] or "").strip() or None
 
 
 def _write_linux_panel_host_script(

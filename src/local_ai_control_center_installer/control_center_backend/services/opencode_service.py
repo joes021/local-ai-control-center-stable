@@ -50,17 +50,21 @@ def load_opencode_status_payload(
     config = config or get_config()
     executable_path = _resolve_opencode_executable_path(config)
     config_path = config.install_root / "config" / "opencode" / "managed-config.json"
+    launcher_path = config.install_root / "control-center" / (
+        "Open-OpenCode.cmd" if is_windows_platform() else "Open-OpenCode.sh"
+    )
     instances = detect_opencode_instances(executable_path)
+    launcher_instances = detect_opencode_launcher_instances(launcher_path)
     settings = load_effective_settings_state(config)
     runtime_state = load_runtime_state(config)
     runtime_connected = str(runtime_state.get("runtime_live_status", "")) == "started"
     session_state, session_summary = _build_session_state(
         has_instances=bool(instances),
+        launch_in_progress=bool(launcher_instances),
         runtime_connected=runtime_connected,
         runtime_reason=str(runtime_state.get("runtime_live_reason", "") or ""),
     )
-    can_open = executable_path.is_file() and config_path.is_file()
-    open_action_label, open_blocked_reason = _build_open_action_contract(
+    can_open, open_action_label, open_blocked_reason = _resolve_open_action_contract(
         available=executable_path.is_file(),
         config_exists=config_path.is_file(),
         session_state=session_state,
@@ -212,9 +216,17 @@ def open_opencode(
             "OpenCode je već otvoren; backend je pripremljen za postojeću sesiju.",
         )
 
+    launcher_path = prepare_opencode_launcher(config=config, profile=profile)
+    existing_launchers = detect_opencode_launcher_instances(launcher_path)
+    if existing_launchers:
+        return _result(
+            "ok",
+            "open-opencode",
+            "OpenCode launch je već u toku; sačekaj da se postojeći launcher završi.",
+        )
+
     log_path = config.install_root / "logs" / "opencode-launch.log"
     log_path.parent.mkdir(parents=True, exist_ok=True)
-    launcher_path = prepare_opencode_launcher(config=config, profile=profile)
     with log_path.open("a", encoding="utf-8") as handle:
         handle.write(f"Launching OpenCode via {launcher_path}\n")
     try:
@@ -288,6 +300,35 @@ def detect_opencode_instances(executable_path: Path) -> list[dict[str, object]]:
     return instances
 
 
+def detect_opencode_launcher_instances(launcher_path: Path) -> list[dict[str, object]]:
+    if not is_windows_platform():
+        return []
+    launcher_token = _normalize_windows_path_token(str(launcher_path))
+    if not launcher_token:
+        return []
+    payloads = _query_shell_launcher_processes()
+    if not payloads:
+        return []
+    instances: list[dict[str, object]] = []
+    for item in payloads:
+        if not isinstance(item, dict):
+            continue
+        pid = item.get("pid") or item.get("ProcessId")
+        if not isinstance(pid, int):
+            continue
+        command_line = str(item.get("commandLine") or item.get("CommandLine") or "")
+        if not _command_line_matches_executable(command_line, launcher_token):
+            continue
+        instances.append(
+            {
+                "pid": pid,
+                "name": str(item.get("name") or item.get("Name") or ""),
+                "commandLine": command_line,
+            }
+        )
+    return instances
+
+
 def _query_opencode_processes() -> list[dict[str, object]]:
     completed = subprocess.run(
         [
@@ -299,6 +340,38 @@ def _query_opencode_processes() -> list[dict[str, object]]:
             (
                 "$matches = Get-CimInstance Win32_Process "
                 "-Filter \"Name = 'opencode.exe'\" "
+                "| Select-Object ProcessId, Name, CommandLine; "
+                "$matches | ConvertTo-Json -Compress -Depth 3"
+            ),
+        ],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+    )
+    if completed.returncode != 0 or not completed.stdout.strip():
+        return []
+    try:
+        parsed = json.loads(completed.stdout)
+    except json.JSONDecodeError:
+        return []
+    return parsed if isinstance(parsed, list) else [parsed]
+
+
+def _query_shell_launcher_processes() -> list[dict[str, object]]:
+    if not is_windows_platform():
+        return []
+    completed = subprocess.run(
+        [
+            "powershell",
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-Command",
+            (
+                "$matches = Get-CimInstance Win32_Process "
+                "| Where-Object { $_.Name -in @('cmd.exe','powershell.exe','pwsh.exe') } "
                 "| Select-Object ProcessId, Name, CommandLine; "
                 "$matches | ConvertTo-Json -Compress -Depth 3"
             ),
@@ -388,6 +461,10 @@ def _write_opencode_launcher(
     lines = [
         "@echo off",
         "setlocal",
+        *_build_windows_opencode_launcher_guard_lines(
+            launcher_path=launcher_path,
+            executable_path=executable_path,
+        ),
         "title Local AI Control Center - OpenCode",
         f'cd /d "{working_directory}"',
     ]
@@ -414,6 +491,33 @@ def _write_opencode_launcher(
     lines.append(")")
     lines.append("endlocal")
     launcher_path.write_text("\r\n".join(lines) + "\r\n", encoding="utf-8")
+
+
+def _build_windows_opencode_launcher_guard_lines(
+    *,
+    launcher_path: Path,
+    executable_path: Path,
+) -> list[str]:
+    launcher_token = _quote_powershell_string(str(launcher_path))
+    executable_token = _quote_powershell_string(str(executable_path))
+    powershell_script = (
+        f"$launcherPath = {launcher_token}; "
+        f"$executablePath = {executable_token}; "
+        "$launcherMatches = Get-CimInstance Win32_Process "
+        "| Where-Object { $_.Name -in @('cmd.exe','powershell.exe','pwsh.exe') -and $_.CommandLine -like ('*' + $launcherPath + '*') }; "
+        "$runtimeMatches = Get-CimInstance Win32_Process "
+        "| Where-Object { $_.Name -eq 'opencode.exe' -and $_.CommandLine -like ('*' + $executablePath + '*') }; "
+        "if (($runtimeMatches | Measure-Object).Count -gt 0 -or ($launcherMatches | Measure-Object).Count -gt 1) { exit 0 }; "
+        "exit 1"
+    )
+    return [
+        f'powershell -NoProfile -ExecutionPolicy Bypass -Command "{powershell_script}" >nul 2>nul',
+        'if "%ERRORLEVEL%"=="0" (',
+        "  echo OpenCode launch je vec u toku ili je sesija vec otvorena.",
+        "  endlocal",
+        "  exit /b 0",
+        ")",
+    ]
 
 
 def _build_opencode_launch_preview(
@@ -585,6 +689,10 @@ def _escape_powershell_value(value: str) -> str:
     return value.replace('"', '`"')
 
 
+def _quote_powershell_string(value: str) -> str:
+    return "'" + value.replace("'", "''") + "'"
+
+
 def _ensure_executable_bit(path: Path) -> None:
     current_mode = path.stat().st_mode
     path.chmod(current_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
@@ -697,6 +805,7 @@ def _build_generation_defaults_summary(settings: dict[str, object]) -> str:
 def _build_session_state(
     *,
     has_instances: bool,
+    launch_in_progress: bool,
     runtime_connected: bool,
     runtime_reason: str,
 ) -> tuple[str, str]:
@@ -705,6 +814,8 @@ def _build_session_state(
     if has_instances:
         reason = runtime_reason or "Runtime trenutno nije pokrenut."
         return "app-only", f"OpenCode je otvoren, ali backend nije spreman. {reason}"
+    if launch_in_progress:
+        return "launching", "OpenCode launch je u toku i čeka se da se sesija stabilizuje."
     if runtime_connected:
         return "runtime-ready", "Runtime je spreman za novi OpenCode session."
     reason = runtime_reason or "Runtime trenutno nije pokrenut."
@@ -726,6 +837,25 @@ def _build_open_action_contract(
     if session_state == "connected":
         return "OpenCode je već otvoren", ""
     return "Otvori OpenCode", ""
+
+
+def _resolve_open_action_contract(
+    *,
+    available: bool,
+    config_exists: bool,
+    session_state: str,
+) -> tuple[bool, str, str]:
+    if not available:
+        return False, "OpenCode nije instaliran", "OpenCode executable nije pronađen."
+    if not config_exists:
+        return False, "OpenCode config nedostaje", "OpenCode managed config nije pronađen."
+    if session_state == "launching":
+        return False, "OpenCode launch je u toku", "Sačekaj da se postojeći OpenCode launcher završi."
+    if session_state == "app-only":
+        return True, "Pripremi backend za postojeći OpenCode", ""
+    if session_state == "connected":
+        return True, "OpenCode je već otvoren", ""
+    return True, "Otvori OpenCode", ""
 
 
 def _build_bootstrap_action_contract(

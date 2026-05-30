@@ -27,6 +27,9 @@ function renderOpenCodeState(opencode: OpenCodeStatusPayload | null) {
   if (!opencode?.available) {
     return "Nedostupan";
   }
+  if (opencode.sessionState === "launching") {
+    return "Pokretanje u toku";
+  }
   if (opencode.sessionState === "connected") {
     return "Aktivan";
   }

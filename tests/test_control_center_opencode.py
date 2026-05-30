@@ -184,6 +184,11 @@ def test_opencode_bootstrap_route_delegates_to_bootstrap_service(
         fake_bootstrap,
     )
 
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.opencode_service.detect_opencode_launcher_instances",
+        lambda launcher_path: [],
+    )
+
     client = TestClient(app)
     response = client.post("/api/opencode/bootstrap")
 
@@ -294,6 +299,10 @@ def test_opencode_open_route_does_not_treat_foreign_instance_as_local_session(
         ],
     )
     monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.opencode_service.detect_opencode_launcher_instances",
+        lambda launcher_path: [],
+    )
+    monkeypatch.setattr(
         "local_ai_control_center_installer.control_center_backend.services.opencode_service.ensure_runtime_ready",
         lambda config: {
             "status": "ok",
@@ -359,6 +368,10 @@ def test_opencode_open_route_launches_visible_windows_launcher(
     monkeypatch.setattr(
         "local_ai_control_center_installer.control_center_backend.services.opencode_service.detect_opencode_instances",
         lambda executable_path: [],
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.opencode_service.detect_opencode_launcher_instances",
+        lambda launcher_path: [],
     )
 
     client = TestClient(app)
@@ -532,6 +545,112 @@ def test_prepare_opencode_launcher_writes_linux_shell_launcher(
     assert launcher_text.startswith("#!/usr/bin/env bash\n")
     assert f'export OPENCODE_CONFIG="{managed_config_path}"' in launcher_text
     assert f'exec "{executable_path}" "$@"' in launcher_text
+
+
+def test_opencode_open_route_does_not_spawn_new_terminal_when_launcher_is_already_in_progress(
+    tmp_path: Path,
+    monkeypatch,
+):
+    install_root = tmp_path / "install-root"
+    _write_opencode_fixture(install_root)
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+
+    launch_attempted = False
+
+    def fake_popen(command, **kwargs):
+        nonlocal launch_attempted
+        launch_attempted = True
+
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.opencode_service.subprocess.Popen",
+        fake_popen,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.opencode_service.detect_opencode_instances",
+        lambda executable_path: [],
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.opencode_service.detect_opencode_launcher_instances",
+        lambda launcher_path: [
+            {
+                "pid": 9898,
+                "name": "cmd.exe",
+                "commandLine": f'cmd.exe /d /k "{launcher_path}"',
+            }
+        ],
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.opencode_service.ensure_runtime_ready",
+        lambda config: {
+            "status": "ok",
+            "action": "ensure-runtime-ready",
+            "summary": "Runtime je spreman za OpenCode.",
+            "details": {
+                "returncode": 0,
+                "stdout": "Runtime je spreman za OpenCode.",
+                "stderr": "",
+            },
+        },
+        raising=False,
+    )
+
+    client = TestClient(app)
+    response = client.post("/api/opencode/open", json={"profile": "balanced"})
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "ok"
+    assert "launch je ve" in payload["summary"].lower()
+    assert launch_attempted is False
+
+
+def test_prepare_opencode_launcher_writes_windows_duplicate_launch_guard(
+    tmp_path: Path,
+    monkeypatch,
+):
+    from local_ai_control_center_installer.control_center_backend.config import ControlCenterConfig
+    from local_ai_control_center_installer.control_center_backend.services import opencode_service
+
+    install_root = tmp_path / "install-root"
+    config = ControlCenterConfig(
+        ui_host="127.0.0.1",
+        ui_port=3210,
+        install_root=install_root,
+        access_mode="local-only",
+    )
+    opencode_root = install_root / "tools" / "opencode"
+    opencode_root.mkdir(parents=True, exist_ok=True)
+    executable_path = opencode_root / "opencode.exe"
+    executable_path.write_text("opencode", encoding="utf-8")
+    config_root = install_root / "config" / "opencode"
+    config_root.mkdir(parents=True, exist_ok=True)
+    managed_config_path = config_root / "managed-config.json"
+    managed_config_path.write_text("{}", encoding="utf-8")
+
+    monkeypatch.setattr(
+        opencode_service,
+        "load_opencode_manifest",
+        lambda: {
+            "opencode_artifact": {
+                "install_subdir": "tools/opencode",
+                "launch": {"executable_relative_path": "opencode.exe"},
+            }
+        },
+    )
+
+    launcher_path = opencode_service.prepare_opencode_launcher(
+        config=config,
+        profile="balanced",
+        platform="win32",
+    )
+
+    launcher_text = launcher_path.read_text(encoding="utf-8")
+
+    assert launcher_path.name == "Open-OpenCode.cmd"
+    assert "Win32_Process" in launcher_text
+    assert str(executable_path) in launcher_text
+    assert str(launcher_path) in launcher_text
+    assert "OpenCode launch je ve" in launcher_text
 
 
 def test_opencode_steps_and_settings_routes_persist_panel_managed_values(
