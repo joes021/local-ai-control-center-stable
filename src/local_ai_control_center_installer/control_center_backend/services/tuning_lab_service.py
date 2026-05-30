@@ -64,6 +64,7 @@ TUNING_LAB_WORKER_POLL_SECONDS = 0.25
 TUNING_LAB_DIFF_FILE_LIMIT = 10
 TUNING_LAB_DIFF_FILE_BYTES_LIMIT = 200_000
 TUNING_LAB_DIFF_LINES_LIMIT = 400
+_INVALID_MAIN_GPU_RE = re.compile(r"invalid value for main_gpu", re.IGNORECASE)
 
 _RUN_LOCK = threading.Lock()
 _RUNNER_THREAD: threading.Thread | None = None
@@ -1413,26 +1414,87 @@ def _launch_slot_runtime(
         "frequency_penalty": float(slot_settings.get("frequencyPenalty", 0.0)),
         "seed": int(slot_settings.get("seed", -1)),
     }
+    target = ServerVerificationTarget(
+        server_executable=binary_path,
+        model_id=model_id,
+        model_path=model_path,
+        active_model_config_path=config.active_model_config_path,
+    )
+    context_size = int(slot_settings.get("context", 262144) or 262144)
     command = _build_server_command(
-        ServerVerificationTarget(
-            server_executable=binary_path,
-            model_id=model_id,
-            model_path=model_path,
-            active_model_config_path=config.active_model_config_path,
-        ),
+        target,
         port,
-        ctx_size=int(slot_settings.get("context", 262144) or 262144),
+        ctx_size=context_size,
         spec_type=spec_type,
         **launch_arguments,
     )
     log_path = slot_artifact_root / "runtime.log"
     process = _launch_background_process(command, log_path)
+    fallback_applied = False
+    fallback_reason = ""
     if not _wait_for_runtime_ready(base_url, process, timeout_seconds=TUNING_LAB_RUNTIME_READY_TIMEOUT_SECONDS):
         _stop_process(process)
         log_excerpt = log_path.read_text(encoding="utf-8", errors="replace")[-4000:] if log_path.exists() else ""
-        raise RuntimeError(
-            "Tuning Lab runtime nije postao spreman. "
-            + (f"Log: {log_excerpt}" if log_excerpt else "Health endpoint nije odgovorio na vreme.")
+        if _should_retry_slot_runtime_without_explicit_main_gpu(
+            launch_arguments=launch_arguments,
+            log_excerpt=log_excerpt,
+        ):
+            fallback_launch_arguments = dict(launch_arguments)
+            fallback_launch_arguments.pop("main_gpu", None)
+            fallback_launch_arguments.pop("split_mode", None)
+            fallback_command = _build_server_command(
+                target,
+                port,
+                ctx_size=context_size,
+                spec_type=spec_type,
+                **fallback_launch_arguments,
+            )
+            process = _launch_background_process(fallback_command, log_path)
+            if not _wait_for_runtime_ready(
+                base_url,
+                process,
+                timeout_seconds=TUNING_LAB_RUNTIME_READY_TIMEOUT_SECONDS,
+            ):
+                _stop_process(process)
+                fallback_log_excerpt = (
+                    log_path.read_text(encoding="utf-8", errors="replace")[-4000:]
+                    if log_path.exists()
+                    else ""
+                )
+                raise RuntimeError(
+                    "Tuning Lab runtime nije postao spreman ni posle fallback pokušaja bez "
+                    "eksplicitnog `main_gpu` izbora. "
+                    + (
+                        f"Log: {fallback_log_excerpt}"
+                        if fallback_log_excerpt
+                        else "Health endpoint nije odgovorio na vreme."
+                    )
+                )
+            launch_arguments = fallback_launch_arguments
+            command = fallback_command
+            fallback_applied = True
+            fallback_reason = (
+                "Runtime je odbio eksplicitni `--main-gpu`, pa je Tuning Lab ponovio start "
+                "bez `--main-gpu` i `--split-mode`."
+            )
+        else:
+            raise RuntimeError(
+                "Tuning Lab runtime nije postao spreman. "
+                + (f"Log: {log_excerpt}" if log_excerpt else "Health endpoint nije odgovorio na vreme.")
+            )
+    runtime_diagnostics = load_runtime_diagnostics(
+        runtime_name=runtime_name,
+        launch_arguments=launch_arguments,
+        log_path=log_path,
+    )
+    if fallback_applied:
+        existing_notes = list(runtime_diagnostics.get("notes", [])) if isinstance(runtime_diagnostics.get("notes"), list) else []
+        runtime_diagnostics["notes"] = [fallback_reason, *existing_notes]
+        existing_summary = str(runtime_diagnostics.get("summary", "") or "").strip()
+        runtime_diagnostics["summary"] = (
+            f"{fallback_reason} {existing_summary}".strip()
+            if existing_summary
+            else fallback_reason
         )
     return {
         "process": process,
@@ -1441,13 +1503,23 @@ def _launch_slot_runtime(
         "logPath": str(log_path),
         "runtimeName": runtime_name,
         "launchArguments": launch_arguments,
-        "runtimeDiagnostics": load_runtime_diagnostics(
-            runtime_name=runtime_name,
-            launch_arguments=launch_arguments,
-            log_path=log_path,
-        ),
+        "launchFallbackApplied": fallback_applied,
+        "launchFallbackReason": fallback_reason,
+        "runtimeDiagnostics": runtime_diagnostics,
         "runtimePid": int(getattr(process, "pid", 0) or 0),
     }
+
+
+def _should_retry_slot_runtime_without_explicit_main_gpu(
+    *,
+    launch_arguments: dict[str, Any],
+    log_excerpt: str,
+) -> bool:
+    if not isinstance(launch_arguments, dict):
+        return False
+    if "main_gpu" not in launch_arguments and "split_mode" not in launch_arguments:
+        return False
+    return bool(_INVALID_MAIN_GPU_RE.search(str(log_excerpt or "")))
 
 
 def _run_slot_opencode_task(

@@ -1378,3 +1378,128 @@ def test_tuning_lab_slot_runtime_inherits_gpu_offload_launch_arguments(
     assert result["runtimePid"] == 77701
     assert result["runtimeDiagnostics"]["status"] == "requested"
     assert result["runtimeDiagnostics"]["requestedGpuLayers"] == 40
+
+
+def test_tuning_lab_slot_runtime_retries_without_explicit_main_gpu_when_runtime_rejects_it(
+    tmp_path: Path,
+    monkeypatch,
+):
+    from local_ai_control_center_installer.control_center_backend.services import tuning_lab_service
+
+    install_root = tmp_path / "install-root"
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    config = get_config()
+    runtime_root = install_root / "runtime" / "llama.cpp"
+    runtime_root.mkdir(parents=True, exist_ok=True)
+    binary_path = runtime_root / "llama-server.exe"
+    binary_path.write_text("llama", encoding="utf-8")
+    model_path = install_root / "models" / "unsloth" / "Qwen3.6-35B-A3B-UD-IQ2_XXS.gguf"
+    model_path.parent.mkdir(parents=True, exist_ok=True)
+    model_path.write_text("model", encoding="utf-8")
+    config.active_model_config_path.parent.mkdir(parents=True, exist_ok=True)
+    config.active_model_config_path.write_text(
+        '{"model_id":"demo-model","model_path":"' + str(model_path).replace("\\", "\\\\") + '"}',
+        encoding="utf-8",
+    )
+    artifact_root = config.control_center_config_root / "tuning-lab" / "runs" / "demo" / "baseline"
+    artifact_root.mkdir(parents=True, exist_ok=True)
+
+    launch_commands: list[list[str]] = []
+
+    class FakeProcess:
+        def __init__(self, pid: int) -> None:
+            self.pid = pid
+
+        def poll(self):
+            return None
+
+        def terminate(self) -> None:
+            return None
+
+        def kill(self) -> None:
+            return None
+
+    monkeypatch.setattr(
+        tuning_lab_service,
+        "load_runtime_state",
+        lambda resolved_config: {
+            "active_runtime": "llama.cpp",
+            "active_binary": str(binary_path),
+            "active_model_id": "demo-model",
+            "active_model_path": str(model_path),
+        },
+    )
+    monkeypatch.setattr(
+        tuning_lab_service,
+        "classify_runtime_model_support",
+        lambda **kwargs: (True, ""),
+    )
+    monkeypatch.setattr(tuning_lab_service, "_allocate_free_port", lambda: 49000)
+    monkeypatch.setattr(tuning_lab_service, "_resolve_spec_type_for_runtime", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        tuning_lab_service,
+        "_load_runtime_launch_argument_values",
+        lambda *args, **kwargs: {
+            "gpu_layers": 40,
+            "flash_attn": "auto",
+            "main_gpu": 0,
+            "split_mode": "none",
+        },
+    )
+
+    def fake_launch_background_process(command, log_path):
+        launch_commands.append(command)
+        attempt = len(launch_commands)
+        if attempt == 1:
+            log_path.write_text(
+                "E llama_prepare_model_devices: invalid value for main_gpu: 0 (available devices: 0)\n",
+                encoding="utf-8",
+            )
+        else:
+            log_path.write_text(
+                "llm_load_tensors: offloaded 35/35 layers to GPU\n",
+                encoding="utf-8",
+            )
+        return FakeProcess(77700 + attempt)
+
+    monkeypatch.setattr(
+        tuning_lab_service,
+        "_launch_background_process",
+        fake_launch_background_process,
+    )
+
+    wait_results = iter([False, True])
+    monkeypatch.setattr(
+        tuning_lab_service,
+        "_wait_for_runtime_ready",
+        lambda *args, **kwargs: next(wait_results),
+    )
+
+    result = tuning_lab_service._launch_slot_runtime(
+        slot_settings={
+            "context": 262144,
+            "temperature": 0.8,
+            "topK": 40,
+            "topP": 0.95,
+            "minP": 0.05,
+            "repeatPenalty": 1.0,
+            "repeatLastN": 64,
+            "presencePenalty": 0.0,
+            "frequencyPenalty": 0.0,
+            "seed": -1,
+        },
+        slot_artifact_root=artifact_root,
+        config=config,
+    )
+
+    assert len(launch_commands) == 2
+    assert "--main-gpu" in launch_commands[0]
+    assert "--split-mode" in launch_commands[0]
+    assert "--main-gpu" not in launch_commands[1]
+    assert "--split-mode" not in launch_commands[1]
+    assert "main_gpu" not in result["launchArguments"]
+    assert "split_mode" not in result["launchArguments"]
+    assert result["launchFallbackApplied"] is True
+    assert "ponovio start bez `--main-gpu`" in result["launchFallbackReason"]
+    assert "ponovio start bez `--main-gpu`" in result["runtimeDiagnostics"]["summary"]
+    assert result["runtimePid"] == 77702
