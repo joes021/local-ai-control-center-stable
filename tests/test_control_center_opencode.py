@@ -84,7 +84,7 @@ def test_opencode_status_route_reports_packaged_installation(
     assert payload["bootstrapBlockedReason"] == ""
     assert payload["launchPreview"]["shellLabel"] == "PowerShell"
     assert payload["launchPreview"]["launcherPath"].endswith("Open-OpenCode.cmd")
-    assert "cmd.exe /d /k" in payload["launchPreview"]["launcherCommand"]
+    assert "cmd.exe /d /c" in payload["launchPreview"]["launcherCommand"]
     assert "$env:OPENCODE_CONFIG" in payload["launchPreview"]["powershellCommand"]
     assert "opencode.exe" in payload["launchPreview"]["powershellCommand"]
     assert "temp 0.8" in payload["launchPreview"]["generationSummary"]
@@ -325,7 +325,7 @@ def test_opencode_open_route_does_not_treat_foreign_instance_as_local_session(
     assert payload["status"] == "ok"
     assert "pokrenut" in payload["summary"].lower()
     launcher_path = install_root / "control-center" / "Open-OpenCode.cmd"
-    assert captured["command"] == ["cmd.exe", "/d", "/k", str(launcher_path)]
+    assert captured["command"] == ["cmd.exe", "/d", "/c", str(launcher_path)]
 
 
 def test_opencode_open_route_launches_visible_windows_launcher(
@@ -396,7 +396,7 @@ def test_opencode_open_route_launches_visible_windows_launcher(
     assert captured["command"] == [
         "cmd.exe",
         "/d",
-        "/k",
+        "/c",
         str(launcher_path),
     ]
     assert captured["kwargs"]["cwd"] == str(launcher_path.parent)
@@ -575,7 +575,7 @@ def test_opencode_open_route_does_not_spawn_new_terminal_when_launcher_is_alread
             {
                 "pid": 9898,
                 "name": "cmd.exe",
-                "commandLine": f'cmd.exe /d /k "{launcher_path}"',
+                "commandLine": f'cmd.exe /d /c "{launcher_path}"',
             }
         ],
     )
@@ -651,6 +651,43 @@ def test_prepare_opencode_launcher_writes_windows_duplicate_launch_guard(
     assert str(executable_path) in launcher_text
     assert str(launcher_path) in launcher_text
     assert "OpenCode launch je ve" in launcher_text
+
+
+def test_detect_opencode_launcher_instances_ignores_non_cmd_shell_noise(
+    tmp_path: Path,
+    monkeypatch,
+):
+    from local_ai_control_center_installer.control_center_backend.services import opencode_service
+
+    launcher_path = tmp_path / "Open-OpenCode.cmd"
+    launcher_path.write_text("@echo off\r\n", encoding="utf-8")
+
+    monkeypatch.setattr(
+        opencode_service,
+        "_query_shell_launcher_processes",
+        lambda: [
+            {
+                "ProcessId": 111,
+                "Name": "cmd.exe",
+                "CommandLine": f'cmd.exe /d /c "{launcher_path}"',
+            },
+            {
+                "ProcessId": 222,
+                "Name": "powershell.exe",
+                "CommandLine": f'powershell -Command "Write-Host \\"{launcher_path}\\""',
+            },
+        ],
+    )
+
+    instances = opencode_service.detect_opencode_launcher_instances(launcher_path)
+
+    assert instances == [
+        {
+            "pid": 111,
+            "name": "cmd.exe",
+            "commandLine": f'cmd.exe /d /c "{launcher_path}"',
+        }
+    ]
 
 
 def test_opencode_steps_and_settings_routes_persist_panel_managed_values(

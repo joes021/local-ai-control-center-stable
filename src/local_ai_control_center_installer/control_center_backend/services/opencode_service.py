@@ -313,6 +313,9 @@ def detect_opencode_launcher_instances(launcher_path: Path) -> list[dict[str, ob
     for item in payloads:
         if not isinstance(item, dict):
             continue
+        name = str(item.get("name") or item.get("Name") or "").strip().lower()
+        if name != "cmd.exe":
+            continue
         pid = item.get("pid") or item.get("ProcessId")
         if not isinstance(pid, int):
             continue
@@ -322,7 +325,7 @@ def detect_opencode_launcher_instances(launcher_path: Path) -> list[dict[str, ob
         instances.append(
             {
                 "pid": pid,
-                "name": str(item.get("name") or item.get("Name") or ""),
+                "name": name,
                 "commandLine": command_line,
             }
         )
@@ -371,7 +374,7 @@ def _query_shell_launcher_processes() -> list[dict[str, object]]:
             "-Command",
             (
                 "$matches = Get-CimInstance Win32_Process "
-                "| Where-Object { $_.Name -in @('cmd.exe','powershell.exe','pwsh.exe') } "
+                "| Where-Object { $_.Name -eq 'cmd.exe' } "
                 "| Select-Object ProcessId, Name, CommandLine; "
                 "$matches | ConvertTo-Json -Compress -Depth 3"
             ),
@@ -504,7 +507,7 @@ def _build_windows_opencode_launcher_guard_lines(
         f"$launcherPath = {launcher_token}; "
         f"$executablePath = {executable_token}; "
         "$launcherMatches = Get-CimInstance Win32_Process "
-        "| Where-Object { $_.Name -in @('cmd.exe','powershell.exe','pwsh.exe') -and $_.CommandLine -like ('*' + $launcherPath + '*') }; "
+        "| Where-Object { $_.Name -eq 'cmd.exe' -and $_.CommandLine -like ('*' + $launcherPath + '*') }; "
         "$runtimeMatches = Get-CimInstance Win32_Process "
         "| Where-Object { $_.Name -eq 'opencode.exe' -and $_.CommandLine -like ('*' + $executablePath + '*') }; "
         "if (($runtimeMatches | Measure-Object).Count -gt 0 -or ($launcherMatches | Measure-Object).Count -gt 1) { exit 0 }; "
@@ -582,7 +585,7 @@ def _build_opencode_launch_preview(
     return {
         "shellLabel": "PowerShell",
         "launcherPath": str(launcher_path),
-        "launcherCommand": f'cmd.exe /d /k "{launcher_path}"',
+        "launcherCommand": f'cmd.exe /d /c "{launcher_path}"',
         "powershellCommand": "\n".join(powershell_lines),
         "workingDirectory": str(settings["workingDirectory"]),
         "environment": env_items,
@@ -613,7 +616,7 @@ def _launch_opencode_launcher(launcher_path: Path) -> None:
         [
             "cmd.exe",
             "/d",
-            "/k",
+            "/c",
             str(launcher_path),
         ],
         cwd=str(launcher_path.parent),
