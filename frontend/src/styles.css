@@ -1597,6 +1597,19 @@ select:-webkit-autofill {
   margin-top: 14px;
 }
 
+.server-diagnostics-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.server-diagnostics-notes {
+  display: grid;
+  gap: 6px;
+  margin-top: 12px;
+}
+
 .command-preview-card {
   display: grid;
   gap: 8px;
@@ -2859,6 +2872,7 @@ select:-webkit-autofill {
 }
 
 .tuning-lab-cockpit-main,
+.tuning-lab-diagnostics-card,
 .tuning-lab-path-card,
 .tuning-lab-log-card,
 .tuning-lab-cockpit-footnote {
@@ -2866,6 +2880,7 @@ select:-webkit-autofill {
 }
 
 .tuning-lab-cockpit-main,
+.tuning-lab-diagnostics-card,
 .tuning-lab-log-card,
 .tuning-lab-cockpit-footnote {
   grid-column: 1 / -1;
@@ -2890,12 +2905,29 @@ select:-webkit-autofill {
 .tuning-lab-cockpit-metric strong {
   font-size: 1.05rem;
   color: var(--app-text);
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .tuning-lab-cockpit-metric span:last-child {
   color: var(--app-text-soft);
   font-size: 0.88rem;
   line-height: 1.5;
+}
+
+.tuning-lab-cockpit-metric-grid-compact .tuning-lab-cockpit-metric {
+  gap: 4px;
+}
+
+.tuning-lab-diagnostics-card {
+  display: grid;
+  gap: 12px;
+}
+
+.tuning-lab-diagnostics-notes {
+  display: grid;
+  gap: 6px;
 }
 
 .tuning-lab-cockpit-helper-grid {
@@ -2969,6 +3001,9 @@ select:-webkit-autofill {
   display: block;
   font-size: 0.94rem;
   color: var(--app-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .tuning-lab-resource-helper {
@@ -3273,13 +3308,18 @@ select:-webkit-autofill {
 
 .tuning-lab-log-panel pre {
   margin: 0;
-  max-height: 220px;
+  max-height: 260px;
   overflow: auto;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   word-break: break-word;
-  font-size: 0.96rem;
-  line-height: 1.75;
+  font-size: 1rem;
+  line-height: 1.8;
+  font-family: "Cascadia Code", "Consolas", monospace;
+}
+
+.tuning-lab-log-card .helper-text {
+  line-height: 1.6;
 }
 
 .tuning-lab-filter-grid {
@@ -3463,6 +3503,10 @@ select:-webkit-autofill {
 
   .browser-toolbar {
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  }
+
+  .server-diagnostics-grid {
+    grid-template-columns: 1fr;
   }
 
   .tuning-lab-progress-grid,

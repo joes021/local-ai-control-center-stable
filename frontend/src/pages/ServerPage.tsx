@@ -4,7 +4,7 @@ import { ActionResultPanel } from "../components/ActionResultPanel";
 import { PageFlowCard } from "../components/PageFlowCard";
 import { StatusCard } from "../components/StatusCard";
 import { fetchServerStatus, startServer, stopServer } from "../lib/api";
-import type { ActionResult, ServerStatusPayload } from "../lib/types";
+import type { ActionResult, RuntimeDiagnostics, ServerStatusPayload } from "../lib/types";
 
 function formatRuntimeCommandMeta(
   context: number | null,
@@ -19,6 +19,31 @@ function formatRuntimeCommandMeta(
 
 function formatShellLabel(label: string, shell: "powershell" | "cmd"): string {
   return shell === "powershell" ? `${label} / PowerShell` : `${label} / cmd.exe`;
+}
+
+function formatMiB(value: number | null | undefined) {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+    return "--";
+  }
+  return `${value.toFixed(value >= 100 ? 0 : 2)} MiB`;
+}
+
+function buildRuntimeDiagnosticsHighlights(diagnostics: RuntimeDiagnostics | undefined) {
+  if (!diagnostics) {
+    return [];
+  }
+  return [
+    diagnostics.requestedGpuLayers > 0
+      ? `Traženo: ${diagnostics.requestedGpuLayers} GPU slojeva`
+      : "Traženo: bez eksplicitnog GPU offload-a",
+    diagnostics.requestedFlashAttention
+      ? `Flash-attn: ${diagnostics.requestedFlashAttention}`
+      : "Flash-attn: --",
+    diagnostics.backend ? `Backend: ${diagnostics.backend}` : "Backend: --",
+    diagnostics.confirmedGpuLayers && diagnostics.confirmedTotalLayers
+      ? `Potvrđeno: ${diagnostics.confirmedGpuLayers}/${diagnostics.confirmedTotalLayers}`
+      : "Potvrđeno: čeka log dokaz",
+  ];
 }
 
 export function ServerPage() {
@@ -184,6 +209,64 @@ export function ServerPage() {
           Runtime live signal: {serverStatus?.runtimeLiveStatus || "--"} |{" "}
           {serverStatus?.runtimeLiveReason || "Nema dodatnih detalja."}
         </p>
+      </section>
+
+      <section className="status-card wide-card">
+        <span className="status-label">GPU offload dijagnostika</span>
+        <strong className="status-value">
+          {serverStatus?.runtimeDiagnostics?.summary || "Dijagnostika se učitava..."}
+        </strong>
+        <p className="helper-text">
+          Ovaj blok razdvaja ono što launch komanda planira od onoga što je runtime log stvarno
+          potvrdio. Na Windows mašinama to je pošteniji dokaz od samog Task Manager prikaza.
+        </p>
+        <div className="summary-metrics">
+          {buildRuntimeDiagnosticsHighlights(serverStatus?.runtimeDiagnostics).map((item) => (
+            <span key={item}>{item}</span>
+          ))}
+        </div>
+        <div className="server-diagnostics-grid">
+          <article className="command-preview-card">
+            <span className="status-label">Planirano kroz launch komandu</span>
+            <strong className="status-value">
+              {serverStatus?.runtimeDiagnostics?.requestedSummary || "--"}
+            </strong>
+            <p className="helper-text">
+              Ako ovde vidiš `--n-gpu-layers` i `--flash-attn`, portal je stvarno pokušao GPU
+              offload za izabrani runtime.
+            </p>
+          </article>
+          <article className="command-preview-card">
+            <span className="status-label">Potvrđeno kroz runtime log</span>
+            <strong className="status-value">
+              {serverStatus?.runtimeDiagnostics?.confirmedSummary || "--"}
+            </strong>
+            <div className="summary-metrics">
+              <span>
+                Device mem: {formatMiB(serverStatus?.runtimeDiagnostics?.projectedDeviceMemoryMiB)}
+              </span>
+              <span>
+                Host mem: {formatMiB(serverStatus?.runtimeDiagnostics?.projectedHostMemoryMiB)}
+              </span>
+              <span>
+                Model buffer: {formatMiB(serverStatus?.runtimeDiagnostics?.modelBufferMiB)}
+              </span>
+              <span>KV buffer: {formatMiB(serverStatus?.runtimeDiagnostics?.kvBufferMiB)}</span>
+              <span>
+                Compute buffer: {formatMiB(serverStatus?.runtimeDiagnostics?.computeBufferMiB)}
+              </span>
+            </div>
+          </article>
+        </div>
+        {serverStatus?.runtimeDiagnostics?.notes?.length ? (
+          <div className="server-diagnostics-notes">
+            {serverStatus.runtimeDiagnostics.notes.map((note) => (
+              <p className="helper-text" key={note}>
+                {note}
+              </p>
+            ))}
+          </div>
+        ) : null}
       </section>
 
       <section className="status-card wide-card">

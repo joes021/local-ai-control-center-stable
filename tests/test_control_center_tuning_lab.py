@@ -1376,3 +1376,5 @@ def test_tuning_lab_slot_runtime_inherits_gpu_offload_launch_arguments(
     assert "--flash-attn" in command
     assert command[command.index("--flash-attn") + 1] == "auto"
     assert result["runtimePid"] == 77701
+    assert result["runtimeDiagnostics"]["status"] == "requested"
+    assert result["runtimeDiagnostics"]["requestedGpuLayers"] == 40

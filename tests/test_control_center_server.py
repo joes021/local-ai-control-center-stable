@@ -38,6 +38,12 @@ def _write_turboquant_config(install_root: Path, payload: dict[str, object]) -> 
     config_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
+def _write_runtime_log(install_root: Path, text: str) -> None:
+    log_path = install_root / "logs" / "runtime-server.log"
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    log_path.write_text(text, encoding="utf-8")
+
+
 def test_server_status_route_reports_started_runtime_snapshot(
     tmp_path: Path,
     monkeypatch,
@@ -233,8 +239,14 @@ def test_server_status_route_preview_shows_gpu_offload_flags_for_llama_runtime(
     )
 
     monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
-    monkeypatch.setattr(server_service, "_runtime_binary_supports_flag", lambda *args, **kwargs: True)
-    monkeypatch.setattr(server_service, "_detect_nvidia_total_memory_mib", lambda: 12 * 1024)
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.server_service._runtime_binary_supports_flag",
+        lambda *args, **kwargs: True,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.server_service._detect_nvidia_total_memory_mib",
+        lambda: 12 * 1024,
+    )
     monkeypatch.setattr(
         "local_ai_control_center_installer.control_center_backend.services.server_service.probe_server_health",
         lambda *args, **kwargs: "ready",
@@ -256,6 +268,155 @@ def test_server_status_route_preview_shows_gpu_offload_flags_for_llama_runtime(
     assert "--n-gpu-layers 40" in payload["commandPreview"]["activeCommand"]
     assert "--flash-attn auto" in payload["commandPreview"]["activeCommand"]
     assert any("GPU offload" in note for note in payload["commandPreview"]["notes"])
+
+
+def test_server_status_route_reports_confirmed_gpu_offload_diagnostics(
+    tmp_path: Path,
+    monkeypatch,
+):
+    from local_ai_control_center_installer.control_center_backend.services import server_service
+
+    install_root = tmp_path / "install-root"
+    runtime_root = install_root / "runtime" / "llama.cpp"
+    runtime_root.mkdir(parents=True)
+    (runtime_root / "llama-server.exe").write_text("llama", encoding="utf-8")
+    _write_active_model_config(
+        install_root,
+        filename="Qwen3.6-35B-A3B-UD-IQ2_XXS.gguf",
+    )
+    _write_runtime_endpoint_config(
+        install_root / "config" / "runtime-endpoint.json",
+        port=39281,
+    )
+    _write_runtime_log(
+        install_root,
+        "\n".join(
+            [
+                "ggml_cuda_init: found 1 CUDA devices (Total VRAM: 12287 MiB):",
+                "llama_params_fit_impl: projected to use 5548 MiB of device memory vs. 11245 MiB of free device memory",
+                "common_params_fit_impl: projected to use 16154 MiB of host memory vs. 32535 MiB of total host memory",
+                "llama_model_load_from_file_impl: using device CUDA0 (NVIDIA GeForce RTX 3060) (0000:01:00.0) - 11245 MiB free",
+                "load_tensors: offloading output layer to GPU",
+                "load_tensors: offloading 41 repeating layers to GPU",
+                "load_tensors: offloaded 43/43 layers to GPU",
+                "load_tensors:        CUDA0 model buffer size =  2883.51 MiB",
+                "llama_kv_cache:      CUDA0 KV buffer size =  2048.00 MiB",
+                "llama_kv_cache:      CUDA0 KV buffer size =   100.00 MiB",
+                "sched_reserve:      CUDA0 compute buffer size =   517.00 MiB",
+            ]
+        ),
+    )
+
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.server_service._runtime_binary_supports_flag",
+        lambda *args, **kwargs: True,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.server_service._detect_nvidia_total_memory_mib",
+        lambda: 12 * 1024,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.server_service.probe_server_health",
+        lambda *args, **kwargs: "ready",
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.server_service.find_runtime_pid",
+        lambda *args, **kwargs: 5150,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.server_service.detect_tailscale_ip",
+        lambda: "",
+    )
+
+    client = TestClient(app)
+    response = client.get("/api/server/status")
+
+    assert response.status_code == 200
+    payload = response.json()
+    diagnostics = payload["runtimeDiagnostics"]
+    assert diagnostics["status"] == "confirmed"
+    assert diagnostics["backend"] == "CUDA"
+    assert diagnostics["deviceLabel"] == "NVIDIA GeForce RTX 3060"
+    assert diagnostics["requestedGpuLayers"] == 40
+    assert diagnostics["requestedFlashAttention"] == "auto"
+    assert diagnostics["projectedDeviceMemoryMiB"] == 5548
+    assert diagnostics["projectedHostMemoryMiB"] == 16154
+    assert diagnostics["confirmedGpuLayers"] == 43
+    assert diagnostics["confirmedTotalLayers"] == 43
+    assert diagnostics["modelBufferMiB"] == 2883.51
+    assert diagnostics["kvBufferMiB"] == 2148.0
+    assert diagnostics["computeBufferMiB"] == 517.0
+    assert "potvrđen" in diagnostics["summary"].lower()
+
+
+def test_server_status_route_uses_latest_kv_buffer_block_for_runtime_diagnostics(
+    tmp_path: Path,
+    monkeypatch,
+):
+    install_root = tmp_path / "install-root"
+    runtime_root = install_root / "runtime" / "llama.cpp"
+    runtime_root.mkdir(parents=True)
+    (runtime_root / "llama-server.exe").write_text("llama", encoding="utf-8")
+    _write_active_model_config(
+        install_root,
+        filename="Qwen3.6-35B-A3B-UD-IQ2_XXS.gguf",
+    )
+    _write_runtime_endpoint_config(
+        install_root / "config" / "runtime-endpoint.json",
+        port=39281,
+    )
+    selection_path = install_root / "config" / "runtime-selection.json"
+    selection_path.parent.mkdir(parents=True, exist_ok=True)
+    selection_path.write_text(json.dumps({"runtime": "llama.cpp"}), encoding="utf-8")
+    _write_runtime_log(
+        install_root,
+        "\n".join(
+            [
+                "load_tensors: offloaded 43/43 layers to GPU",
+                "llama_kv_cache:      CUDA0 KV buffer size =  2048.00 MiB",
+                "llama_kv_cache:      CUDA0 KV buffer size =   100.00 MiB",
+                "sched_reserve:      CUDA0 compute buffer size =   517.00 MiB",
+                "server: restarting runtime",
+                "load_tensors: offloaded 35/35 layers to GPU",
+                "llama_kv_cache:      CUDA0 KV buffer size =   768.00 MiB",
+                "llama_kv_cache:      CUDA0 KV buffer size =    32.00 MiB",
+                "sched_reserve:      CUDA0 compute buffer size =   275.02 MiB",
+            ]
+        ),
+    )
+
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.server_service._runtime_binary_supports_flag",
+        lambda *args, **kwargs: True,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.server_service._detect_nvidia_total_memory_mib",
+        lambda: 12 * 1024,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.server_service.probe_server_health",
+        lambda *args, **kwargs: "ready",
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.server_service.find_runtime_pid",
+        lambda *args, **kwargs: 5150,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.server_service.detect_tailscale_ip",
+        lambda: "",
+    )
+
+    client = TestClient(app)
+    response = client.get("/api/server/status")
+
+    assert response.status_code == 200
+    payload = response.json()
+    diagnostics = payload["runtimeDiagnostics"]
+    assert diagnostics["confirmedGpuLayers"] == 35
+    assert diagnostics["kvBufferMiB"] == 800.0
+    assert diagnostics["computeBufferMiB"] == 275.02
 
 
 def test_server_stop_route_reports_ok_when_runtime_is_already_stopped(

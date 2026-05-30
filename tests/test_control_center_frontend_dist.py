@@ -258,47 +258,60 @@ def test_tuning_lab_source_and_navigation_are_present():
     assert "Primeni pobednički set" in page_source
     assert "Export / share" in page_source
     assert "Uvezi forum / Reddit snippet" in page_source
-    assert "Živa generacija" in page_source
-    assert "Prompt ingest" in page_source
-    assert "Šta OpenCode upravo radi" in page_source
-    assert "OpenCode ne otvara zaseban GUI prozor" in page_source
-    assert "Tuning Lab trenutno nije spreman za pokretanje" in page_source
-    assert "runBlockers" in page_source
-    assert "Instaliraj ili popravi OpenCode" in page_source
-    assert "OpenCode nedostaje za Tuning Lab" in page_source
-    assert "Aktivni run cockpit" in page_source
-    assert "tuning-lab-slot-grid" in page_source
-    assert "tuning-lab-results-table" in page_source
-    assert "tuning-lab-history-card" in page_source
-    assert "Zašto je ovaj slot pobedio" in page_source
-    assert "Aktivni korak" in page_source
-    assert "Poslednji log signal" in page_source
-    assert "Aktivni run cockpit" in page_source
-    assert "OpenCode u Tuning Lab-u radi u pozadini" in page_source
-    assert "Queue radi sekvencijalno" in page_source
-    assert "OpenCode PID" in page_source
-    assert "Živa sesija i signal" in page_source
-    assert "Workspace, logovi i komande" in page_source
-    assert "OpenCode signal uživo" in page_source
-    assert "Napredni debug trag" in page_source
-    assert "Aktivna OpenCode poruka" in page_source
-    assert "Alat " in page_source
-    assert "Živi output" in page_source
-    assert "tuning-lab-cockpit-metric-grid" in page_source
-    assert "Kopiraj workspace putanju" in page_source
-    assert "Kopiraj log putanju" in page_source
-    assert "Kopiraj output putanju" in page_source
-    assert "Token telemetry nije prijavljen" in page_source
-    assert "Filtriraj istoriju" in page_source
-    assert "Spremno za otvaranje" in page_source
-    assert "Poslednji playable" in page_source
-    assert "Playable rezultat još nije dostupan" in page_source
-    assert "Sačuvan playable izlaz" in page_source
-    assert "Kopiraj parametre" in page_source
-    assert "Kopiraj runtime komandu" in page_source
-    assert "Kopiraj OpenCode komandu" in page_source
-    assert "Izmenjeni fajlovi" in page_source
-    assert "Otvori diff" in page_source
+
+
+def test_server_and_tuning_lab_sources_show_runtime_gpu_diagnostics():
+    server_source = Path("frontend/src/pages/ServerPage.tsx").read_text(encoding="utf-8")
+    tuning_source = Path("frontend/src/pages/TuningLabPage.tsx").read_text(encoding="utf-8")
+    styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
+
+    assert "GPU offload dijagnostika" in server_source
+    assert "Planirano kroz launch komandu" in server_source
+    assert "Potvrđeno kroz runtime log" in server_source
+    assert "GPU offload dijagnostika" in tuning_source
+    assert "Launch plan" in tuning_source
+    assert "Potvrda loga" in tuning_source
+    assert "Prompt ingest" in tuning_source
+    assert "Runtime generacija" in tuning_source
+    assert "Živa generacija" in tuning_source
+    assert "Šta OpenCode upravo radi" in tuning_source
+    assert "OpenCode ne otvara zaseban GUI prozor" in tuning_source
+    assert "Tuning Lab trenutno nije spreman za pokretanje" in tuning_source
+    assert "runBlockers" in tuning_source
+    assert "Instaliraj ili popravi OpenCode" in tuning_source
+    assert "OpenCode nedostaje za Tuning Lab" in tuning_source
+    assert "Aktivni run cockpit" in tuning_source
+    assert "tuning-lab-slot-grid" in tuning_source
+    assert "tuning-lab-results-table" in tuning_source
+    assert "tuning-lab-history-card" in tuning_source
+    assert "Zašto je ovaj slot pobedio" in tuning_source
+    assert "Aktivni korak" in tuning_source
+    assert "Poslednji log signal" in tuning_source
+    assert "OpenCode u Tuning Lab-u radi u pozadini" in tuning_source
+    assert "Queue radi sekvencijalno" in tuning_source
+    assert "OpenCode PID" in tuning_source
+    assert "Živa sesija i signal" in tuning_source
+    assert "Workspace, logovi i komande" in tuning_source
+    assert "OpenCode signal uživo" in tuning_source
+    assert "Napredni debug trag" in tuning_source
+    assert "Aktivna OpenCode poruka" in tuning_source
+    assert "Alat " in tuning_source
+    assert "Živi output" in tuning_source
+    assert "tuning-lab-cockpit-metric-grid" in tuning_source
+    assert "Kopiraj workspace putanju" in tuning_source
+    assert "Kopiraj log putanju" in tuning_source
+    assert "Kopiraj output putanju" in tuning_source
+    assert "Token telemetry nije prijavljen" in tuning_source
+    assert "Filtriraj istoriju" in tuning_source
+    assert "Spremno za otvaranje" in tuning_source
+    assert "Poslednji playable" in tuning_source
+    assert "Playable rezultat još nije dostupan" in tuning_source
+    assert "Sačuvan playable izlaz" in tuning_source
+    assert "Kopiraj parametre" in tuning_source
+    assert "Kopiraj runtime komandu" in tuning_source
+    assert "Kopiraj OpenCode komandu" in tuning_source
+    assert "Izmenjeni fajlovi" in tuning_source
+    assert "Otvori diff" in tuning_source
     assert ".tuning-lab-slot-grid" in styles_source
     assert ".tuning-lab-results-table" in styles_source
     assert ".tuning-lab-history-card" in styles_source

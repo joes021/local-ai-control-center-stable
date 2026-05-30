@@ -15,6 +15,7 @@ import {
 } from "../lib/api";
 import type {
   ActionResult,
+  RuntimeDiagnostics,
   TuningLabBatchPreset,
   TuningLabBatchTask,
   TuningLabDiffFile,
@@ -335,6 +336,29 @@ function findCurrentActiveSlot(run: TuningLabRun | null | undefined) {
 
 function buildRuntimeLogPath(slot: TuningLabSlot | null) {
   return slot?.stdoutPath || slot?.runtimeLogPath || slot?.stderrPath || "";
+}
+
+function formatMiB(value: number | null | undefined) {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+    return "--";
+  }
+  return `${value.toFixed(value >= 100 ? 0 : 2)} MiB`;
+}
+
+function buildRuntimeDiagnosticsBadge(diagnostics: RuntimeDiagnostics | undefined) {
+  if (!diagnostics) {
+    return "Dijagnostika čeka signal";
+  }
+  if (diagnostics.status === "confirmed") {
+    return "GPU offload potvrđen";
+  }
+  if (diagnostics.status === "requested") {
+    return "GPU offload planiran";
+  }
+  if (diagnostics.status === "cpu-only") {
+    return "CPU-only signal";
+  }
+  return "Dijagnostika čeka signal";
 }
 
 function describeCockpitJsonLine(line: string) {
@@ -732,9 +756,59 @@ export function TuningLabPage() {
       activeRunSlot?.liveTotalTokensPerSecond,
       activeRunSlot?.opencodePid,
       activeRunSlot?.runtimeGenerationTokensPerSecond,
+      activeRunSlot?.runtimeDiagnostics,
       activeRunSlot?.runtimePid,
       activeRunSlot?.runtimePromptTokensPerSecond,
     ],
+  );
+  const activeRunRuntimeDiagnostics = activeRunSlot?.runtimeDiagnostics;
+  const activeRunDiagnosticsMetrics = useMemo(
+    () => [
+      {
+        label: "Launch plan",
+        value: activeRunRuntimeDiagnostics?.requestedGpuLayers
+          ? `${activeRunRuntimeDiagnostics.requestedGpuLayers} slojeva`
+          : "bez eksplicitnog offload-a",
+        helper: activeRunRuntimeDiagnostics?.requestedFlashAttention
+          ? `flash-attn ${activeRunRuntimeDiagnostics.requestedFlashAttention}`
+          : "bez flash-attn signala",
+      },
+      {
+        label: "Potvrda loga",
+        value:
+          activeRunRuntimeDiagnostics?.confirmedGpuLayers &&
+          activeRunRuntimeDiagnostics?.confirmedTotalLayers
+            ? `${activeRunRuntimeDiagnostics.confirmedGpuLayers}/${activeRunRuntimeDiagnostics.confirmedTotalLayers}`
+            : "čeka potvrdu",
+        helper: activeRunRuntimeDiagnostics?.backend
+          ? `backend ${activeRunRuntimeDiagnostics.backend}`
+          : "nema backend potvrde",
+      },
+      {
+        label: "Device mem",
+        value: formatMiB(activeRunRuntimeDiagnostics?.projectedDeviceMemoryMiB),
+        helper: "projekcija device memorije iz runtime loga",
+      },
+      {
+        label: "Host mem",
+        value: formatMiB(activeRunRuntimeDiagnostics?.projectedHostMemoryMiB),
+        helper: "projekcija host memorije iz runtime loga",
+      },
+      {
+        label: "Model buffer",
+        value: formatMiB(activeRunRuntimeDiagnostics?.modelBufferMiB),
+        helper: "CUDA model buffer",
+      },
+      {
+        label: "KV + compute",
+        value:
+          activeRunRuntimeDiagnostics
+            ? `${formatMiB(activeRunRuntimeDiagnostics.kvBufferMiB)} / ${formatMiB(activeRunRuntimeDiagnostics.computeBufferMiB)}`
+            : "--",
+        helper: "KV buffer / compute buffer",
+      },
+    ],
+    [activeRunRuntimeDiagnostics],
   );
   const runBlockers = summary?.context.runBlockers ?? [];
   const canQueueRuns = summary?.context.canQueue ?? false;
@@ -1062,6 +1136,38 @@ export function TuningLabPage() {
                 Dve `llama-server` sesije su normalne dok `Tuning Lab` radi: jedna je glavni runtime
                 portala, a druga je privremeni slot runtime za izolovani eksperiment.
               </p>
+            </article>
+            <article className="status-card tuning-lab-diagnostics-card">
+              <span className="status-label">GPU offload dijagnostika</span>
+              <strong className="status-value">
+                {buildRuntimeDiagnosticsBadge(activeRunRuntimeDiagnostics)}
+              </strong>
+              <p className="helper-text">
+                Ovde je najvažnija razlika: launch komanda može da traži GPU offload, ali tek runtime
+                log potvrđuje da je CUDA/offload stvarno zaživeo za ovaj slot.
+              </p>
+              <div className="summary-metrics">
+                <span>{activeRunRuntimeDiagnostics?.requestedSummary || "Launch summary čeka signal"}</span>
+                <span>{activeRunRuntimeDiagnostics?.confirmedSummary || "Runtime log još nema potvrdu"}</span>
+              </div>
+              <div className="tuning-lab-cockpit-metric-grid tuning-lab-cockpit-metric-grid-compact">
+                {activeRunDiagnosticsMetrics.map((item) => (
+                  <div className="tuning-lab-cockpit-metric" key={item.label}>
+                    <span className="status-label">{item.label}</span>
+                    <strong>{item.value}</strong>
+                    <span>{item.helper}</span>
+                  </div>
+                ))}
+              </div>
+              {activeRunRuntimeDiagnostics?.notes?.length ? (
+                <div className="tuning-lab-diagnostics-notes">
+                  {activeRunRuntimeDiagnostics.notes.map((note) => (
+                    <p className="helper-text" key={note}>
+                      {note}
+                    </p>
+                  ))}
+                </div>
+              ) : null}
             </article>
             <article className="status-card tuning-lab-path-card">
               <span className="status-label">Workspace, logovi i komande</span>

@@ -36,6 +36,34 @@ from local_ai_control_center_installer.server_verification import (
 RUNTIME_READY_TIMEOUT_SECONDS = 180.0
 RUNTIME_READY_POLL_INTERVAL_SECONDS = 1.0
 _POWERSHELL_SAFE_ARGUMENT_RE = re.compile(r"^[A-Za-z0-9_./:-]+$")
+_PROJECTED_DEVICE_MEMORY_RE = re.compile(
+    r"projected to use (?P<used>\d+) MiB of device memory",
+    re.IGNORECASE,
+)
+_PROJECTED_HOST_MEMORY_RE = re.compile(
+    r"projected to use (?P<used>\d+) MiB of host memory",
+    re.IGNORECASE,
+)
+_DEVICE_LABEL_RE = re.compile(
+    r"using device [A-Z0-9]+ \((?P<label>[^)]+)\)",
+    re.IGNORECASE,
+)
+_OFFLOADED_LAYERS_RE = re.compile(
+    r"offloaded (?P<gpu>\d+)/(?P<total>\d+) layers to GPU",
+    re.IGNORECASE,
+)
+_MODEL_BUFFER_RE = re.compile(
+    r"model buffer size =\s+(?P<value>\d+(?:\.\d+)?) MiB",
+    re.IGNORECASE,
+)
+_KV_BUFFER_RE = re.compile(
+    r"KV buffer size =\s+(?P<value>\d+(?:\.\d+)?) MiB",
+    re.IGNORECASE,
+)
+_COMPUTE_BUFFER_RE = re.compile(
+    r"compute buffer size =\s+(?P<value>\d+(?:\.\d+)?) MiB",
+    re.IGNORECASE,
+)
 
 
 def load_server_status(
@@ -43,6 +71,18 @@ def load_server_status(
 ) -> dict[str, object]:
     config = config or get_config()
     runtime_state = load_runtime_state(config)
+    active_runtime = str(runtime_state.get("active_runtime", "") or "").strip().lower()
+    active_binary_path = Path(str(runtime_state.get("active_binary", "") or ""))
+    runtime_diagnostics = load_runtime_diagnostics(
+        runtime_name=active_runtime,
+        launch_arguments=_load_runtime_launch_argument_values(
+            config,
+            runtime_state,
+            runtime_name=active_runtime,
+            binary_path=active_binary_path,
+        ),
+        log_path=config.install_root / "logs" / "runtime-server.log",
+    )
     health_status = probe_server_health(runtime_state["base_url"])
     pid = find_runtime_pid(int(runtime_state["port"]))
     status, health, reason = _build_server_state(health_status, pid)
@@ -108,6 +148,7 @@ def load_server_status(
         "stopBlockedReason": stop_blocked_reason,
         "canOpenWeb": can_open_web,
         "openWebBlockedReason": open_web_blocked_reason,
+        "runtimeDiagnostics": runtime_diagnostics,
         "commandPreview": _build_server_command_preview(config, runtime_state),
     }
 
@@ -423,6 +464,11 @@ def _positive_int_or_none(value: object) -> int | None:
     return parsed if parsed > 0 else None
 
 
+def _positive_int_or_zero(value: object) -> int:
+    parsed = _positive_int_or_none(value)
+    return parsed if parsed is not None else 0
+
+
 def _resolve_spec_type(
     runtime_state: dict[str, object],
     binary_path: Path,
@@ -635,6 +681,120 @@ def _build_server_command_variant(
     }
 
 
+def load_runtime_diagnostics(
+    *,
+    runtime_name: str,
+    launch_arguments: dict[str, object] | None,
+    log_path: Path | None,
+) -> dict[str, object]:
+    requested_gpu_layers = _positive_int_or_zero((launch_arguments or {}).get("gpu_layers"))
+    requested_flash_attention = str((launch_arguments or {}).get("flash_attn", "") or "").strip()
+    log_text = _read_runtime_log_text(log_path)
+    backend = _detect_runtime_backend(log_text)
+    device_label = _last_match_group(_DEVICE_LABEL_RE, log_text, "label")
+    projected_device_memory_mib = _last_match_int(_PROJECTED_DEVICE_MEMORY_RE, log_text, "used")
+    projected_host_memory_mib = _last_match_int(_PROJECTED_HOST_MEMORY_RE, log_text, "used")
+    confirmed_gpu_layers = _last_match_int(_OFFLOADED_LAYERS_RE, log_text, "gpu")
+    confirmed_total_layers = _last_match_int(_OFFLOADED_LAYERS_RE, log_text, "total")
+    model_buffer_mib = _last_match_float(_MODEL_BUFFER_RE, log_text, "value")
+    kv_buffer_mib = _sum_last_matching_line_block(_KV_BUFFER_RE, log_text, "value")
+    compute_buffer_mib = _last_match_float(_COMPUTE_BUFFER_RE, log_text, "value")
+
+    has_log_evidence = any(
+        value is not None
+        for value in (
+            projected_device_memory_mib,
+            projected_host_memory_mib,
+            confirmed_gpu_layers,
+            confirmed_total_layers,
+            model_buffer_mib,
+            kv_buffer_mib,
+            compute_buffer_mib,
+        )
+    ) or bool(backend or device_label)
+    normalized_runtime = str(runtime_name or "").strip().lower()
+    if confirmed_gpu_layers is not None or (backend == "CUDA" and has_log_evidence):
+        status = "confirmed"
+    elif requested_gpu_layers > 0 or requested_flash_attention:
+        status = "requested"
+    elif normalized_runtime in {"llama.cpp", "turboquant"}:
+        status = "cpu-only" if log_text else "unknown"
+    else:
+        status = "unknown"
+
+    requested_summary_bits: list[str] = []
+    if requested_gpu_layers > 0:
+        requested_summary_bits.append(f"--n-gpu-layers {requested_gpu_layers}")
+    if requested_flash_attention:
+        requested_summary_bits.append(f"--flash-attn {requested_flash_attention}")
+    requested_summary = (
+        "Launch komanda traži " + " i ".join(requested_summary_bits)
+        if requested_summary_bits
+        else "Launch komanda trenutno ne traži eksplicitni GPU offload."
+    )
+
+    confirmed_summary_bits: list[str] = []
+    if backend:
+        confirmed_summary_bits.append(f"backend {backend}")
+    if device_label:
+        confirmed_summary_bits.append(device_label)
+    if confirmed_gpu_layers is not None and confirmed_total_layers is not None:
+        confirmed_summary_bits.append(f"offload {confirmed_gpu_layers}/{confirmed_total_layers} slojeva")
+    if model_buffer_mib is not None:
+        confirmed_summary_bits.append(f"model buffer {model_buffer_mib:.2f} MiB")
+    if kv_buffer_mib is not None:
+        confirmed_summary_bits.append(f"KV buffer {kv_buffer_mib:.2f} MiB")
+    if compute_buffer_mib is not None:
+        confirmed_summary_bits.append(f"compute buffer {compute_buffer_mib:.2f} MiB")
+    confirmed_summary = (
+        "Runtime log potvrđuje " + " | ".join(confirmed_summary_bits)
+        if confirmed_summary_bits
+        else "Runtime log još nije dao čitljiv dokaz o GPU offload-u."
+    )
+
+    notes = [requested_summary, confirmed_summary]
+    if status == "requested":
+        notes.append(
+            "Na Windows WDDM okruženju `nvidia-smi` ume da izgleda niže ili nepotpuno, pa je runtime log bolji dokaz od Task Manager prikaza."
+        )
+    if status == "confirmed":
+        notes.append(
+            "Ako Task Manager pokaže manje VRAM-a nego što očekuješ, prednost daj runtime log linijama za CUDA model/KV/compute buffer."
+        )
+    if normalized_runtime == "turboquant":
+        notes.append(
+            "TurboQuant koristi sopstveni binar, ali ista dijagnostika ovde proverava šta je launch tražio i šta je runtime log stvarno potvrdio."
+        )
+
+    if status == "confirmed":
+        summary = "GPU offload je potvrđen kroz runtime log."
+    elif status == "requested":
+        summary = "Launch komanda traži GPU offload, ali runtime log ga još nije potvrdio."
+    elif status == "cpu-only":
+        summary = "GPU offload trenutno nije potvrđen i runtime verovatno radi CPU-only."
+    else:
+        summary = "Nema dovoljno signala za pouzdanu GPU offload dijagnostiku."
+
+    return {
+        "status": status,
+        "backend": backend,
+        "deviceLabel": device_label,
+        "requestedGpuLayers": requested_gpu_layers,
+        "requestedFlashAttention": requested_flash_attention,
+        "projectedDeviceMemoryMiB": projected_device_memory_mib,
+        "projectedHostMemoryMiB": projected_host_memory_mib,
+        "confirmedGpuLayers": confirmed_gpu_layers,
+        "confirmedTotalLayers": confirmed_total_layers,
+        "modelBufferMiB": model_buffer_mib,
+        "kvBufferMiB": kv_buffer_mib,
+        "computeBufferMiB": compute_buffer_mib,
+        "requestedSummary": requested_summary,
+        "confirmedSummary": confirmed_summary,
+        "summary": summary,
+        "notes": notes,
+    }
+
+
 def _format_powershell_command(command: list[str]) -> str:
     if not command:
         return ""
@@ -750,6 +910,75 @@ def _build_generation_summary(arguments: dict[str, object]) -> str:
         f"presence {arguments['presence_penalty']} | frequency {arguments['frequency_penalty']} | "
         f"seed {arguments['seed']}"
     )
+
+
+def _read_runtime_log_text(log_path: Path | None) -> str:
+    if log_path is None:
+        return ""
+    resolved = Path(str(log_path))
+    try:
+        return resolved.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return ""
+
+
+def _detect_runtime_backend(log_text: str) -> str:
+    lowered = log_text.lower()
+    if "ggml_cuda_init" in lowered or "cuda0" in lowered:
+        return "CUDA"
+    if "ggml_vulkan_init" in lowered:
+        return "Vulkan"
+    if "metal" in lowered:
+        return "Metal"
+    if "sycl" in lowered:
+        return "SYCL"
+    return ""
+
+
+def _last_match_group(pattern: re.Pattern[str], text: str, group: str) -> str:
+    matches = list(pattern.finditer(text))
+    if not matches:
+        return ""
+    return str(matches[-1].group(group) or "").strip()
+
+
+def _last_match_int(pattern: re.Pattern[str], text: str, group: str) -> int | None:
+    matches = list(pattern.finditer(text))
+    if not matches:
+        return None
+    try:
+        return int(matches[-1].group(group))
+    except (TypeError, ValueError):
+        return None
+
+
+def _last_match_float(pattern: re.Pattern[str], text: str, group: str) -> float | None:
+    matches = list(pattern.finditer(text))
+    if not matches:
+        return None
+    try:
+        return float(matches[-1].group(group))
+    except (TypeError, ValueError):
+        return None
+
+
+def _sum_last_matching_line_block(pattern: re.Pattern[str], text: str, group: str) -> float | None:
+    current_block: list[float] = []
+    last_block: list[float] = []
+    for line in (text or "").splitlines():
+        match = pattern.search(line)
+        if not match:
+            if current_block:
+                last_block = current_block
+                current_block = []
+            continue
+        try:
+            current_block.append(float(match.group(group)))
+        except (TypeError, ValueError):
+            continue
+    if current_block:
+        last_block = current_block
+    return sum(last_block) if last_block else None
 
 
 @lru_cache(maxsize=16)

@@ -63,6 +63,7 @@ export type ServerStatusPayload = {
   stopBlockedReason?: string;
   canOpenWeb?: boolean;
   openWebBlockedReason?: string;
+  runtimeDiagnostics: RuntimeDiagnostics;
   commandPreview: {
     shellLabel: string;
     activeRuntime: string;
@@ -85,6 +86,25 @@ export type ServerStatusPayload = {
       cmdCommand?: string;
     }>;
   };
+};
+
+export type RuntimeDiagnostics = {
+  status: string;
+  backend: string;
+  deviceLabel: string;
+  requestedGpuLayers: number;
+  requestedFlashAttention: string;
+  projectedDeviceMemoryMiB: number | null;
+  projectedHostMemoryMiB: number | null;
+  confirmedGpuLayers: number | null;
+  confirmedTotalLayers: number | null;
+  modelBufferMiB: number | null;
+  kvBufferMiB: number | null;
+  computeBufferMiB: number | null;
+  requestedSummary: string;
+  confirmedSummary: string;
+  summary: string;
+  notes: string[];
 };
 
 export type BenchmarkHistoryItem = {
@@ -507,6 +527,7 @@ export type TuningLabSlot = {
   averageTotalTokensPerSecond?: number;
   runtimeCommand?: string;
   runtimeBaseUrl?: string;
+  runtimeDiagnostics?: RuntimeDiagnostics;
   runtimePid?: number;
   runtimeLogPath?: string;
   opencodeCommand?: string;

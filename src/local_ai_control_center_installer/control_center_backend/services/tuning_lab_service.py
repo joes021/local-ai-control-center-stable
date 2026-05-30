@@ -30,6 +30,7 @@ from local_ai_control_center_installer.control_center_backend.services import be
 from local_ai_control_center_installer.control_center_backend.services.server_service import (
     _load_runtime_launch_argument_values,
     _resolve_spec_type_for_runtime,
+    load_runtime_diagnostics,
 )
 from local_ai_control_center_installer.control_center_backend.services.settings_service import (
     THINKING_PRESETS,
@@ -1091,6 +1092,9 @@ def _run_tuning_slot(
                 "workspacePath": str(workspace_path),
                 "runtimeCommand": str(runtime_session.get("commandPreview", "") or ""),
                 "runtimeBaseUrl": str(runtime_session.get("baseUrl", "") or ""),
+                "runtimeDiagnostics": dict(runtime_session.get("runtimeDiagnostics", {}))
+                if isinstance(runtime_session.get("runtimeDiagnostics"), dict)
+                else {},
                 "runtimePid": int(
                     runtime_session.get("runtimePid", 0)
                     or getattr(runtime_session.get("process"), "pid", 0)
@@ -1116,6 +1120,12 @@ def _run_tuning_slot(
             progress_callback=update_progress,
             upstream_base_url=str(runtime_session.get("baseUrl", "") or ""),
             runtime_log_path=Path(str(runtime_session.get("logPath", "") or "")),
+            runtime_name=str(runtime_session.get("runtimeName", "") or ""),
+            launch_arguments=(
+                dict(runtime_session.get("launchArguments", {}))
+                if isinstance(runtime_session.get("launchArguments"), dict)
+                else {}
+            ),
         )
         update_progress(
             "checks",
@@ -1225,6 +1235,15 @@ def _run_tuning_slot(
         "averageTotalTokensPerSecond": float(opencode_result.get("averageTotalTokensPerSecond", 0.0) if isinstance(opencode_result, dict) else 0.0),
         "runtimeCommand": str(runtime_session.get("commandPreview", "") if isinstance(runtime_session, dict) else ""),
         "runtimeBaseUrl": str(runtime_session.get("baseUrl", "") if isinstance(runtime_session, dict) else ""),
+        "runtimeDiagnostics": (
+            dict(opencode_result.get("runtimeDiagnostics", {}))
+            if isinstance(opencode_result, dict) and isinstance(opencode_result.get("runtimeDiagnostics"), dict)
+            else dict(active_slot_snapshot.get("runtimeDiagnostics", {}))
+            if isinstance(active_slot_snapshot.get("runtimeDiagnostics"), dict)
+            else dict(runtime_session.get("runtimeDiagnostics", {}))
+            if isinstance(runtime_session, dict) and isinstance(runtime_session.get("runtimeDiagnostics"), dict)
+            else {}
+        ),
         "runtimePid": int(
             (
                 runtime_session.get("runtimePid", 0)
@@ -1378,6 +1397,22 @@ def _launch_slot_runtime(
     port = _allocate_free_port()
     base_url = f"http://127.0.0.1:{port}"
     spec_type = _resolve_spec_type_for_runtime(runtime_state, binary_path, runtime_name)
+    launch_arguments = _load_runtime_launch_argument_values(
+        config,
+        runtime_state,
+        runtime_name=runtime_name,
+        binary_path=binary_path,
+    ) | {
+        "temperature": float(slot_settings.get("temperature", 0.8)),
+        "top_k": int(slot_settings.get("topK", 40)),
+        "top_p": float(slot_settings.get("topP", 0.95)),
+        "min_p": float(slot_settings.get("minP", 0.05)),
+        "repeat_penalty": float(slot_settings.get("repeatPenalty", 1.0)),
+        "repeat_last_n": int(slot_settings.get("repeatLastN", 64)),
+        "presence_penalty": float(slot_settings.get("presencePenalty", 0.0)),
+        "frequency_penalty": float(slot_settings.get("frequencyPenalty", 0.0)),
+        "seed": int(slot_settings.get("seed", -1)),
+    }
     command = _build_server_command(
         ServerVerificationTarget(
             server_executable=binary_path,
@@ -1388,23 +1423,7 @@ def _launch_slot_runtime(
         port,
         ctx_size=int(slot_settings.get("context", 262144) or 262144),
         spec_type=spec_type,
-        **_load_runtime_launch_argument_values(
-            config,
-            runtime_state,
-            runtime_name=runtime_name,
-            binary_path=binary_path,
-        )
-        | {
-            "temperature": float(slot_settings.get("temperature", 0.8)),
-            "top_k": int(slot_settings.get("topK", 40)),
-            "top_p": float(slot_settings.get("topP", 0.95)),
-            "min_p": float(slot_settings.get("minP", 0.05)),
-            "repeat_penalty": float(slot_settings.get("repeatPenalty", 1.0)),
-            "repeat_last_n": int(slot_settings.get("repeatLastN", 64)),
-            "presence_penalty": float(slot_settings.get("presencePenalty", 0.0)),
-            "frequency_penalty": float(slot_settings.get("frequencyPenalty", 0.0)),
-            "seed": int(slot_settings.get("seed", -1)),
-        },
+        **launch_arguments,
     )
     log_path = slot_artifact_root / "runtime.log"
     process = _launch_background_process(command, log_path)
@@ -1420,6 +1439,13 @@ def _launch_slot_runtime(
         "baseUrl": base_url,
         "commandPreview": subprocess.list2cmdline(command),
         "logPath": str(log_path),
+        "runtimeName": runtime_name,
+        "launchArguments": launch_arguments,
+        "runtimeDiagnostics": load_runtime_diagnostics(
+            runtime_name=runtime_name,
+            launch_arguments=launch_arguments,
+            log_path=log_path,
+        ),
         "runtimePid": int(getattr(process, "pid", 0) or 0),
     }
 
@@ -1435,6 +1461,8 @@ def _run_slot_opencode_task(
     progress_callback: Callable[..., None] | None = None,
     upstream_base_url: str = "",
     runtime_log_path: Path | None = None,
+    runtime_name: str = "",
+    launch_arguments: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     executable_path = _resolve_opencode_executable_path(config)
     if not executable_path.is_file():
@@ -1524,6 +1552,11 @@ def _run_slot_opencode_task(
                 if runtime_log_path is not None
                 else {}
             )
+            runtime_diagnostics = load_runtime_diagnostics(
+                runtime_name=runtime_name,
+                launch_arguments=launch_arguments,
+                log_path=runtime_log_path,
+            )
             active_slot_snapshot = next(
                 (
                     candidate
@@ -1570,6 +1603,7 @@ def _run_slot_opencode_task(
                     ),
                     slot_patch={
                         "workspacePath": str(workspace_path),
+                        "runtimeDiagnostics": runtime_diagnostics,
                         "opencodePid": int(getattr(process, "pid", 0) or 0),
                         "opencodeCommand": subprocess.list2cmdline(command),
                         "stdoutPath": str(stdout_path),
@@ -1610,6 +1644,11 @@ def _run_slot_opencode_task(
         _extract_runtime_speed_metrics(_read_text_tail(runtime_log_path, limit=4000))
         if runtime_log_path is not None
         else {}
+    )
+    runtime_diagnostics = load_runtime_diagnostics(
+        runtime_name=runtime_name,
+        launch_arguments=launch_arguments,
+        log_path=runtime_log_path,
     )
     output_tokens = int(parsed.get("outputTokens", 0))
     total_tokens = int(parsed.get("totalTokens", 0))
@@ -1663,6 +1702,7 @@ def _run_slot_opencode_task(
             if isinstance(runtime_metrics, dict)
             else ""
         ),
+        "runtimeDiagnostics": runtime_diagnostics,
         "lastLiveMeasuredAt": str(
             latest_live_metric.get("measuredAt", "")
             if isinstance(latest_live_metric, dict)
