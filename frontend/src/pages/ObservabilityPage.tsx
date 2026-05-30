@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import { PageDataStateCard } from "../components/PageDataStateCard";
 import { PageFlowCard } from "../components/PageFlowCard";
+import { RuntimeResourcePanel } from "../components/RuntimeResourcePanel";
 import { TelemetryPanel } from "../components/TelemetryPanel";
 import { fetchBenchmark, fetchObservability } from "../lib/api";
 import type { BenchmarkPayload, ObservabilityPayload } from "../lib/types";
@@ -117,6 +118,7 @@ export function ObservabilityPage() {
         ]}
       />
       <TelemetryPanel benchmark={benchmark} variant="benchmark" />
+      <RuntimeResourcePanel observability={observability} />
 
       <section className="status-card wide-card">
         <span className="status-label">Telemetrija</span>

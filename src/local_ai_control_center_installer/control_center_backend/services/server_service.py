@@ -56,6 +56,10 @@ _MODEL_BUFFER_RE = re.compile(
     r"model buffer size =\s+(?P<value>\d+(?:\.\d+)?) MiB",
     re.IGNORECASE,
 )
+_CPU_MAPPED_MODEL_BUFFER_RE = re.compile(
+    r"CPU_Mapped model buffer size =\s+(?P<value>\d+(?:\.\d+)?) MiB",
+    re.IGNORECASE,
+)
 _KV_BUFFER_RE = re.compile(
     r"KV buffer size =\s+(?P<value>\d+(?:\.\d+)?) MiB",
     re.IGNORECASE,
@@ -469,6 +473,14 @@ def _positive_int_or_zero(value: object) -> int:
     return parsed if parsed is not None else 0
 
 
+def _non_negative_int_or_none(value: object) -> int | None:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed >= 0 else None
+
+
 def _resolve_spec_type(
     runtime_state: dict[str, object],
     binary_path: Path,
@@ -689,6 +701,8 @@ def load_runtime_diagnostics(
 ) -> dict[str, object]:
     requested_gpu_layers = _positive_int_or_zero((launch_arguments or {}).get("gpu_layers"))
     requested_flash_attention = str((launch_arguments or {}).get("flash_attn", "") or "").strip()
+    requested_main_gpu = _non_negative_int_or_none((launch_arguments or {}).get("main_gpu"))
+    requested_split_mode = str((launch_arguments or {}).get("split_mode", "") or "").strip()
     log_text = _read_runtime_log_text(log_path)
     backend = _detect_runtime_backend(log_text)
     device_label = _last_match_group(_DEVICE_LABEL_RE, log_text, "label")
@@ -696,6 +710,7 @@ def load_runtime_diagnostics(
     projected_host_memory_mib = _last_match_int(_PROJECTED_HOST_MEMORY_RE, log_text, "used")
     confirmed_gpu_layers = _last_match_int(_OFFLOADED_LAYERS_RE, log_text, "gpu")
     confirmed_total_layers = _last_match_int(_OFFLOADED_LAYERS_RE, log_text, "total")
+    cpu_mapped_model_buffer_mib = _last_match_float(_CPU_MAPPED_MODEL_BUFFER_RE, log_text, "value")
     model_buffer_mib = _last_match_float(_MODEL_BUFFER_RE, log_text, "value")
     kv_buffer_mib = _sum_last_matching_line_block(_KV_BUFFER_RE, log_text, "value")
     compute_buffer_mib = _last_match_float(_COMPUTE_BUFFER_RE, log_text, "value")
@@ -707,6 +722,7 @@ def load_runtime_diagnostics(
             projected_host_memory_mib,
             confirmed_gpu_layers,
             confirmed_total_layers,
+            cpu_mapped_model_buffer_mib,
             model_buffer_mib,
             kv_buffer_mib,
             compute_buffer_mib,
@@ -727,6 +743,10 @@ def load_runtime_diagnostics(
         requested_summary_bits.append(f"--n-gpu-layers {requested_gpu_layers}")
     if requested_flash_attention:
         requested_summary_bits.append(f"--flash-attn {requested_flash_attention}")
+    if requested_main_gpu is not None:
+        requested_summary_bits.append(f"--main-gpu {requested_main_gpu}")
+    if requested_split_mode:
+        requested_summary_bits.append(f"--split-mode {requested_split_mode}")
     requested_summary = (
         "Launch komanda traži " + " i ".join(requested_summary_bits)
         if requested_summary_bits
@@ -740,6 +760,8 @@ def load_runtime_diagnostics(
         confirmed_summary_bits.append(device_label)
     if confirmed_gpu_layers is not None and confirmed_total_layers is not None:
         confirmed_summary_bits.append(f"offload {confirmed_gpu_layers}/{confirmed_total_layers} slojeva")
+    if cpu_mapped_model_buffer_mib is not None:
+        confirmed_summary_bits.append(f"CPU mapped {cpu_mapped_model_buffer_mib:.2f} MiB")
     if model_buffer_mib is not None:
         confirmed_summary_bits.append(f"model buffer {model_buffer_mib:.2f} MiB")
     if kv_buffer_mib is not None:
@@ -775,19 +797,32 @@ def load_runtime_diagnostics(
     else:
         summary = "Nema dovoljno signala za pouzdanu GPU offload dijagnostiku."
 
+    execution_mode_id, execution_mode_label, execution_mode_summary = _classify_execution_mode(
+        status=status,
+        confirmed_gpu_layers=confirmed_gpu_layers,
+        confirmed_total_layers=confirmed_total_layers,
+        requested_gpu_layers=requested_gpu_layers,
+    )
+
     return {
         "status": status,
         "backend": backend,
         "deviceLabel": device_label,
         "requestedGpuLayers": requested_gpu_layers,
         "requestedFlashAttention": requested_flash_attention,
+        "requestedMainGpu": requested_main_gpu,
+        "requestedSplitMode": requested_split_mode,
         "projectedDeviceMemoryMiB": projected_device_memory_mib,
         "projectedHostMemoryMiB": projected_host_memory_mib,
         "confirmedGpuLayers": confirmed_gpu_layers,
         "confirmedTotalLayers": confirmed_total_layers,
+        "cpuMappedModelBufferMiB": cpu_mapped_model_buffer_mib,
         "modelBufferMiB": model_buffer_mib,
         "kvBufferMiB": kv_buffer_mib,
         "computeBufferMiB": compute_buffer_mib,
+        "executionModeId": execution_mode_id,
+        "executionModeLabel": execution_mode_label,
+        "executionModeSummary": execution_mode_summary,
         "requestedSummary": requested_summary,
         "confirmedSummary": confirmed_summary,
         "summary": summary,
@@ -871,17 +906,28 @@ def _load_runtime_acceleration_argument_values(
     del config
     del runtime_state
     normalized_runtime = str(runtime_name or "").strip().lower()
-    if normalized_runtime != "llama.cpp":
+    if normalized_runtime not in {"llama.cpp", "turboquant"}:
         return {}
     if not _runtime_binary_supports_flag(binary_path, "--n-gpu-layers"):
         return {}
-    gpu_total_mib = _detect_nvidia_total_memory_mib()
+    gpu_inventory = _detect_nvidia_gpu_inventory()
+    preferred_gpu = _select_preferred_gpu(gpu_inventory)
+    gpu_total_mib = (
+        int(preferred_gpu.get("totalMemoryMiB", 0) or 0)
+        if preferred_gpu is not None
+        else _detect_nvidia_total_memory_mib()
+    )
     gpu_layers = _recommend_gpu_layers(gpu_total_mib)
     if gpu_layers <= 0:
         return {}
     acceleration: dict[str, object] = {"gpu_layers": gpu_layers}
     if _runtime_binary_supports_flag(binary_path, "--flash-attn"):
         acceleration["flash_attn"] = "auto"
+    if preferred_gpu is not None:
+        if _runtime_binary_supports_flag(binary_path, "--main-gpu"):
+            acceleration["main_gpu"] = int(preferred_gpu.get("index", 0) or 0)
+        if _runtime_binary_supports_flag(binary_path, "--split-mode"):
+            acceleration["split_mode"] = "none"
     return acceleration
 
 
@@ -893,6 +939,12 @@ def _build_launch_summary(arguments: dict[str, object]) -> str:
     flash_attn = str(arguments.get("flash_attn", "") or "").strip()
     if flash_attn:
         details.append(f"flash-attn {flash_attn}")
+    main_gpu = arguments.get("main_gpu")
+    if isinstance(main_gpu, int) and main_gpu >= 0:
+        details.append(f"glavni GPU {main_gpu}")
+    split_mode = str(arguments.get("split_mode", "") or "").strip()
+    if split_mode:
+        details.append(f"split-mode {split_mode}")
     batch_size = arguments.get("batch_size")
     if isinstance(batch_size, int) and batch_size > 0:
         details.append(f"batch {batch_size}")
@@ -1004,9 +1056,13 @@ def _runtime_binary_supports_flag(binary_path: Path, flag: str) -> bool:
     return flag in output
 
 
-def _detect_nvidia_total_memory_mib() -> int | None:
+def _detect_nvidia_gpu_inventory() -> list[dict[str, object]]:
     completed = subprocess.run(
-        ["nvidia-smi", "--query-gpu=memory.total", "--format=csv,noheader,nounits"],
+        [
+            "nvidia-smi",
+            "--query-gpu=index,name,memory.total,memory.used,utilization.gpu",
+            "--format=csv,noheader,nounits",
+        ],
         capture_output=True,
         text=True,
         encoding="utf-8",
@@ -1015,16 +1071,77 @@ def _detect_nvidia_total_memory_mib() -> int | None:
         creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
     )
     if completed.returncode != 0:
-        return None
+        completed = subprocess.run(
+            [
+                "nvidia-smi",
+                "--query-gpu=index,name,memory.total,memory.used",
+                "--format=csv,noheader,nounits",
+            ],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+        if completed.returncode != 0:
+            return []
+
+    devices: list[dict[str, object]] = []
     for raw_line in completed.stdout.splitlines():
         line = raw_line.strip()
         if not line:
             continue
+        parts = [part.strip() for part in line.split(",")]
+        if len(parts) < 4:
+            continue
         try:
-            return int(float(line))
+            index = int(float(parts[0]))
+            total_memory_mib = int(float(parts[2]))
+            used_memory_mib = int(float(parts[3]))
         except ValueError:
             continue
-    return None
+        utilization_gpu_percent: float | None = None
+        if len(parts) >= 5:
+            try:
+                utilization_gpu_percent = float(parts[4])
+            except ValueError:
+                utilization_gpu_percent = None
+        devices.append(
+            {
+                "index": index,
+                "name": parts[1],
+                "totalMemoryMiB": total_memory_mib,
+                "usedMemoryMiB": used_memory_mib,
+                "freeMemoryMiB": max(total_memory_mib - used_memory_mib, 0),
+                "utilizationGpuPercent": utilization_gpu_percent,
+            }
+        )
+    return devices
+
+
+def _select_preferred_gpu(devices: list[dict[str, object]]) -> dict[str, object] | None:
+    normalized_devices = [device for device in devices if isinstance(device, dict)]
+    if not normalized_devices:
+        return None
+    return max(
+        normalized_devices,
+        key=lambda item: (
+            int(item.get("totalMemoryMiB", 0) or 0),
+            int(item.get("freeMemoryMiB", 0) or 0),
+            -int(item.get("index", 0) or 0),
+        ),
+    )
+
+
+def _detect_nvidia_total_memory_mib() -> int | None:
+    preferred_gpu = _select_preferred_gpu(_detect_nvidia_gpu_inventory())
+    if preferred_gpu is None:
+        return None
+    try:
+        return int(preferred_gpu.get("totalMemoryMiB", 0) or 0)
+    except (TypeError, ValueError):
+        return None
 
 
 def _recommend_gpu_layers(total_memory_mib: int | None) -> int:
@@ -1041,3 +1158,37 @@ def _recommend_gpu_layers(total_memory_mib: int | None) -> int:
     if total_memory_mib >= 6 * 1024:
         return 20
     return 0
+
+
+def _classify_execution_mode(
+    *,
+    status: str,
+    confirmed_gpu_layers: int | None,
+    confirmed_total_layers: int | None,
+    requested_gpu_layers: int,
+) -> tuple[str, str, str]:
+    confirmed_gpu_layers = confirmed_gpu_layers or 0
+    confirmed_total_layers = confirmed_total_layers or 0
+    if status == "confirmed" and confirmed_total_layers > 0 and confirmed_gpu_layers >= confirmed_total_layers:
+        return (
+            "gpu-vram",
+            "GPU VRAM dominantno",
+            "Svi slojevi su potvrđeni na GPU-u. Host RAM se i dalje koristi za mapiranje i radne bafere.",
+        )
+    if (status == "confirmed" and confirmed_gpu_layers > 0) or (status == "requested" and requested_gpu_layers > 0):
+        return (
+            "hybrid-vram-ram",
+            "Hibrid VRAM + RAM",
+            "GPU je uključen u izvršavanje, ali model ili dalje koristi i sistemski RAM.",
+        )
+    if status == "cpu-only":
+        return (
+            "cpu-ram",
+            "CPU + RAM",
+            "Runtime trenutno nema potvrđen GPU offload i model radi preko CPU-a i sistemskog RAM-a.",
+        )
+    return (
+        "unknown",
+        "Čeka potvrdu",
+        "Nema dovoljno živih signala da se sigurno klasifikuje gde model trenutno radi.",
+    )

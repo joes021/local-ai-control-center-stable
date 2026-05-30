@@ -3,11 +3,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { CustomSelect } from "../components/CustomSelect";
 import { PageDataStateCard } from "../components/PageDataStateCard";
 import { PageFlowCard } from "../components/PageFlowCard";
+import { RuntimeResourcePanel } from "../components/RuntimeResourcePanel";
 import { TelemetryPanel } from "../components/TelemetryPanel";
 import {
   clearBenchmarkHistory,
   exportBenchmarkRuns,
   fetchBenchmark,
+  fetchObservability,
   fetchSettings,
   fetchBenchmarkCompare,
   loadBenchmarkBattery,
@@ -22,6 +24,7 @@ import type {
   BenchmarkHistoryItem,
   BenchmarkPayload,
   BenchmarkScenario,
+  ObservabilityPayload,
   SettingsPayload,
 } from "../lib/types";
 
@@ -397,6 +400,7 @@ export function BenchmarkPage({
   onOpenTuningLab?: () => void;
 }) {
   const [benchmark, setBenchmark] = useState<BenchmarkPayload | null>(null);
+  const [observability, setObservability] = useState<ObservabilityPayload | null>(null);
   const [comparePayload, setComparePayload] = useState<BenchmarkComparePayload | null>(null);
   const [compareError, setCompareError] = useState<string | null>(null);
   const [selectedCompareRunIds, setSelectedCompareRunIds] = useState<string[]>([]);
@@ -419,12 +423,17 @@ export function BenchmarkPage({
     requestIdRef.current = requestId;
     inFlightRef.current = true;
     try {
-      const [payload, nextSettings] = await Promise.all([fetchBenchmark(), fetchSettings()]);
+      const [payload, nextSettings, nextObservability] = await Promise.all([
+        fetchBenchmark(),
+        fetchSettings(),
+        fetchObservability(),
+      ]);
       if (!isMountedRef.current || requestId !== requestIdRef.current) {
         return;
       }
       setBenchmark(payload);
       setSettingsPayload(nextSettings);
+      setObservability(nextObservability);
       setError(null);
       setActionMessage("");
       setSelectedScenarioId((current) => current || payload.selectedBattery?.scenarios?.[0]?.id || "");
@@ -882,6 +891,13 @@ export function BenchmarkPage({
       </section>
 
       <TelemetryPanel benchmark={benchmark} variant="benchmark" />
+      <p className="helper-text">
+        CPU uživo, RAM uživo i VRAM uživo su stalno vidljivi, a ispod odmah dobijaš i jasno
+        objašnjenje režima izvršavanja: Režim izvršavanja može biti GPU VRAM dominantno, Hibrid VRAM + RAM
+        ili CPU + RAM.
+        Tako se na jednom mestu vidi i koliko je resursa zauzeto i da li model stvarno koristi GPU.
+      </p>
+      <RuntimeResourcePanel observability={observability} />
 
       <section className="status-card wide-card">
         <div className="benchmark-card-header">

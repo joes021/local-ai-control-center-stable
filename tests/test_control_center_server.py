@@ -193,6 +193,18 @@ def test_server_start_route_spawns_runtime_process(
     )
     monkeypatch.setattr(server_service, "_runtime_binary_supports_flag", lambda *args, **kwargs: True)
     monkeypatch.setattr(server_service, "_detect_nvidia_total_memory_mib", lambda: 12 * 1024)
+    monkeypatch.setattr(
+        server_service,
+        "_detect_nvidia_gpu_inventory",
+        lambda: [
+            {
+                "index": 0,
+                "name": "RTX 3060",
+                "totalMemoryMiB": 12 * 1024,
+                "usedMemoryMiB": 256,
+            }
+        ],
+    )
 
     client = TestClient(app)
     response = client.post("/api/server/start")
@@ -217,6 +229,84 @@ def test_server_start_route_spawns_runtime_process(
     assert "--flash-attn" in command
     assert command[command.index("--flash-attn") + 1] == "auto"
     assert any(str(item).endswith("gemma-4-E4B-it-Q4_K_M.gguf") for item in command)
+
+
+def test_server_start_route_prefers_highest_vram_gpu_and_explicit_gpu_flags(
+    tmp_path: Path,
+    monkeypatch,
+):
+    from local_ai_control_center_installer.control_center_backend.services import server_service
+
+    install_root = tmp_path / "install-root"
+    runtime_root = install_root / "runtime" / "llama.cpp"
+    runtime_root.mkdir(parents=True)
+    executable = runtime_root / "llama-server.exe"
+    executable.write_text("llama", encoding="utf-8")
+    _write_active_model_config(
+        install_root,
+        filename="gemma-4-E4B-it-Q4_K_M.gguf",
+    )
+    _write_runtime_endpoint_config(
+        install_root / "config" / "runtime-endpoint.json",
+        port=39281,
+    )
+
+    captured: dict[str, object] = {}
+
+    class FakeProcess:
+        pid = 7001
+
+    def fake_popen(command, **kwargs):
+        captured["command"] = command
+        captured["kwargs"] = kwargs
+        return FakeProcess()
+
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.server_service.find_runtime_pid",
+        lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.status_service.find_runtime_pid",
+        lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.server_service.subprocess.Popen",
+        fake_popen,
+    )
+    monkeypatch.setattr(server_service, "_runtime_binary_supports_flag", lambda *args, **kwargs: True)
+    monkeypatch.setattr(
+        server_service,
+        "_detect_nvidia_gpu_inventory",
+        lambda: [
+            {
+                "index": 0,
+                "name": "RTX 2060",
+                "totalMemoryMiB": 6144,
+                "usedMemoryMiB": 256,
+            },
+            {
+                "index": 1,
+                "name": "RTX 4090",
+                "totalMemoryMiB": 24576,
+                "usedMemoryMiB": 512,
+            },
+        ],
+    )
+
+    client = TestClient(app)
+    response = client.post("/api/server/start")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "ok"
+    command = captured["command"]
+    assert "--n-gpu-layers" in command
+    assert command[command.index("--n-gpu-layers") + 1] == "99"
+    assert "--main-gpu" in command
+    assert command[command.index("--main-gpu") + 1] == "1"
+    assert "--split-mode" in command
+    assert command[command.index("--split-mode") + 1] == "none"
 
 
 def test_server_status_route_preview_shows_gpu_offload_flags_for_llama_runtime(
@@ -348,6 +438,50 @@ def test_server_status_route_reports_confirmed_gpu_offload_diagnostics(
     assert diagnostics["kvBufferMiB"] == 2148.0
     assert diagnostics["computeBufferMiB"] == 517.0
     assert "potvrđen" in diagnostics["summary"].lower()
+
+
+def test_runtime_diagnostics_classify_gpu_vram_mode_with_explicit_gpu_selection(tmp_path: Path):
+    from local_ai_control_center_installer.control_center_backend.services.server_service import load_runtime_diagnostics
+
+    log_path = tmp_path / "runtime-server.log"
+    log_path.write_text(
+        "\n".join(
+            [
+                "ggml_cuda_init: found 1 CUDA devices (Total VRAM: 12287 MiB):",
+                "llama_params_fit_impl: projected to use 5548 MiB of device memory vs. 11245 MiB of free device memory",
+                "common_params_fit_impl: projected to use 16154 MiB of host memory vs. 32535 MiB of total host memory",
+                "llama_model_load_from_file_impl: using device CUDA0 (NVIDIA GeForce RTX 3060) (0000:01:00.0) - 11245 MiB free",
+                "load_tensors: offloading output layer to GPU",
+                "load_tensors: offloading 41 repeating layers to GPU",
+                "load_tensors: offloaded 43/43 layers to GPU",
+                "CPU_Mapped model buffer size =  2208.00 MiB",
+                "load_tensors:        CUDA0 model buffer size =  2883.51 MiB",
+                "llama_kv_cache:      CUDA0 KV buffer size =  2048.00 MiB",
+                "llama_kv_cache:      CUDA0 KV buffer size =   100.00 MiB",
+                "sched_reserve:      CUDA0 compute buffer size =   517.00 MiB",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    diagnostics = load_runtime_diagnostics(
+        runtime_name="llama.cpp",
+        launch_arguments={
+            "gpu_layers": 40,
+            "flash_attn": "auto",
+            "main_gpu": 0,
+            "split_mode": "none",
+        },
+        log_path=log_path,
+    )
+
+    assert diagnostics["status"] == "confirmed"
+    assert diagnostics["executionModeId"] == "gpu-vram"
+    assert diagnostics["executionModeLabel"] == "GPU VRAM dominantno"
+    assert diagnostics["requestedMainGpu"] == 0
+    assert diagnostics["requestedSplitMode"] == "none"
+    assert diagnostics["requestedSummary"]
+    assert diagnostics["confirmedSummary"]
 
 
 def test_server_status_route_uses_latest_kv_buffer_block_for_runtime_diagnostics(

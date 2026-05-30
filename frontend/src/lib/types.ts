@@ -94,13 +94,19 @@ export type RuntimeDiagnostics = {
   deviceLabel: string;
   requestedGpuLayers: number;
   requestedFlashAttention: string;
+  requestedMainGpu?: number | null;
+  requestedSplitMode?: string;
   projectedDeviceMemoryMiB: number | null;
   projectedHostMemoryMiB: number | null;
   confirmedGpuLayers: number | null;
   confirmedTotalLayers: number | null;
+  cpuMappedModelBufferMiB?: number | null;
   modelBufferMiB: number | null;
   kvBufferMiB: number | null;
   computeBufferMiB: number | null;
+  executionModeId?: string;
+  executionModeLabel?: string;
+  executionModeSummary?: string;
   requestedSummary: string;
   confirmedSummary: string;
   summary: string;
@@ -349,6 +355,15 @@ export type ObservabilityPayload = {
     vramTotalGiB: number | null;
     vramUsedGiB: number | null;
     vramFreeGiB: number | null;
+    gpuDevices: Array<{
+      index: number | null;
+      name: string;
+      totalGiB: number | null;
+      usedGiB: number | null;
+      freeGiB: number | null;
+      utilizationPercent?: number | null;
+      selected: boolean;
+    }>;
   };
   runtime: {
     activeRuntime: string;
@@ -357,6 +372,18 @@ export type ObservabilityPayload = {
     runtimeLiveReason: string;
     baseUrl: string;
     port: number | null;
+    runtimePid?: number | null;
+    runtimeProcessRamMiB?: number | null;
+    executionModeId: string;
+    executionModeLabel: string;
+    executionModeSummary: string;
+    offloadStatus: string;
+    offloadLabel: string;
+    offloadSummary: string;
+    selectedGpuIndex?: number | null;
+    selectedGpuName?: string;
+    selectedGpuTotalGiB?: number | null;
+    runtimeDiagnostics?: RuntimeDiagnostics;
   };
   telemetry: {
     input24h: number;

@@ -2838,6 +2838,117 @@ select:-webkit-autofill {
   border-color: rgba(190, 70, 70, 0.45);
 }
 
+.live-resource-strip {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  padding: 12px 14px;
+  border-radius: 18px;
+  border: 1px solid var(--app-card-soft-border);
+  background: color-mix(in srgb, var(--app-card-soft-bg) 84%, transparent);
+}
+
+.live-resource-strip-main {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.live-resource-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.live-resource-chip {
+  display: grid;
+  gap: 4px;
+  min-width: 136px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid var(--app-card-soft-border);
+  background: color-mix(in srgb, var(--app-card-bg) 74%, transparent);
+}
+
+.live-resource-chip-label {
+  color: var(--app-text-soft);
+  font-size: 0.74rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.live-resource-chip strong {
+  font-size: 0.96rem;
+  line-height: 1.4;
+  color: var(--app-text);
+}
+
+.resource-chip-tone-good {
+  border-color: color-mix(in srgb, #5bbd81 50%, var(--app-card-soft-border));
+  background: color-mix(in srgb, #5bbd81 12%, var(--app-card-bg));
+}
+
+.resource-chip-tone-warm {
+  border-color: color-mix(in srgb, #f2b84b 55%, var(--app-card-soft-border));
+  background: color-mix(in srgb, #f2b84b 12%, var(--app-card-bg));
+}
+
+.resource-chip-tone-muted {
+  border-color: color-mix(in srgb, #b88d70 45%, var(--app-card-soft-border));
+  background: color-mix(in srgb, #b88d70 10%, var(--app-card-bg));
+}
+
+.resource-chip-tone-neutral {
+  border-color: var(--app-card-soft-border);
+}
+
+.live-resource-strip-side {
+  display: grid;
+  gap: 4px;
+  justify-items: end;
+  text-align: right;
+  color: var(--app-text-soft);
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+.runtime-resource-panel {
+  display: grid;
+  gap: 16px;
+}
+
+.runtime-resource-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.runtime-resource-card {
+  display: grid;
+  gap: 8px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px solid var(--app-card-soft-border);
+  background: color-mix(in srgb, var(--app-card-soft-bg) 78%, transparent);
+}
+
+.runtime-resource-card strong {
+  font-size: 1.08rem;
+  color: var(--app-text);
+  line-height: 1.45;
+}
+
+.runtime-resource-summary {
+  gap: 10px 12px;
+}
+
+.runtime-resource-explainer {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .tuning-lab-layout {
   display: grid;
   gap: 16px;
@@ -2958,6 +3069,7 @@ select:-webkit-autofill {
   display: grid;
   gap: 12px;
   align-content: start;
+  grid-column: 1 / -1;
 }
 
 .tuning-lab-resource-list {
@@ -2968,7 +3080,9 @@ select:-webkit-autofill {
 
 .tuning-lab-resource-row {
   display: grid;
-  gap: 6px;
+  grid-template-columns: minmax(150px, 210px) minmax(0, 1fr);
+  gap: 10px 16px;
+  align-items: start;
   min-width: 0;
   padding: 10px 12px;
   border-radius: 14px;
@@ -2982,6 +3096,7 @@ select:-webkit-autofill {
   font-size: 0.78rem;
   letter-spacing: 0.06em;
   text-transform: uppercase;
+  padding-top: 3px;
 }
 
 .tuning-lab-resource-value {
@@ -3002,8 +3117,9 @@ select:-webkit-autofill {
   font-size: 0.94rem;
   color: var(--app-text);
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .tuning-lab-resource-helper {
@@ -3065,6 +3181,23 @@ select:-webkit-autofill {
 
 .tuning-lab-log-card strong {
   line-height: 1.5;
+}
+
+.tuning-lab-live-console {
+  display: grid;
+  gap: 12px;
+  margin-top: 10px;
+  padding: 14px;
+  border-radius: 16px;
+  border: 1px solid color-mix(in srgb, var(--app-accent-strong) 30%, var(--app-card-soft-border));
+  background: color-mix(in srgb, var(--app-card-bg) 76%, transparent);
+}
+
+.tuning-lab-log-panel .tuning-lab-live-console {
+  margin-top: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
 }
 
 .tuning-lab-log-line-empty {
@@ -3531,6 +3664,24 @@ select:-webkit-autofill {
     grid-template-columns: 1fr;
   }
 
+  .live-resource-strip,
+  .runtime-resource-explainer {
+    grid-template-columns: 1fr;
+  }
+
+  .live-resource-strip-side {
+    justify-items: start;
+    text-align: left;
+  }
+
+  .runtime-resource-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .tuning-lab-resource-row {
+    grid-template-columns: 1fr;
+  }
+
   .benchmark-run-main {
     justify-content: start;
   }
@@ -3621,6 +3772,10 @@ select:-webkit-autofill {
 
   .tuning-lab-slot-grid,
   .tuning-lab-check-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .runtime-resource-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

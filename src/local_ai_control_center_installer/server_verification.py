@@ -581,6 +581,8 @@ def _build_server_command(
     seed: int | None = None,
     flash_attn: str | None = None,
     gpu_layers: int | None = None,
+    main_gpu: int | None = None,
+    split_mode: str | None = None,
     batch_size: int | None = None,
     ubatch_size: int | None = None,
 ) -> list[str]:
@@ -605,6 +607,10 @@ def _build_server_command(
         command.extend(["--flash-attn", flash_attn.strip()])
     if isinstance(gpu_layers, int) and gpu_layers > 0:
         command.extend(["--n-gpu-layers", str(gpu_layers)])
+    if isinstance(main_gpu, int) and main_gpu >= 0:
+        command.extend(["--main-gpu", str(main_gpu)])
+    if isinstance(split_mode, str) and split_mode.strip():
+        command.extend(["--split-mode", split_mode.strip()])
     if isinstance(temperature, (int, float)):
         command.extend(["--temp", str(float(temperature))])
     if isinstance(top_k, int) and top_k >= 0:

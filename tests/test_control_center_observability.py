@@ -35,7 +35,7 @@ def test_observability_route_returns_runtime_system_and_log_summary(tmp_path: Pa
 
     monkeypatch.setattr(
         "local_ai_control_center_installer.control_center_backend.services.observability_service._detect_system_snapshot",
-        lambda config=None: {
+        lambda config=None, selected_gpu_index=None: {
             "hostname": "gpu-box",
             "platformLabel": "Windows",
             "cpuPercent": 19.4,
@@ -47,6 +47,16 @@ def test_observability_route_returns_runtime_system_and_log_summary(tmp_path: Pa
             "vramTotalGiB": 12.0,
             "vramUsedGiB": 7.3,
             "vramFreeGiB": 4.7,
+            "gpuDevices": [
+                {
+                    "index": 0,
+                    "name": "RTX 3060",
+                    "totalGiB": 12.0,
+                    "usedGiB": 7.3,
+                    "freeGiB": 4.7,
+                    "selected": True,
+                }
+            ],
         },
     )
     monkeypatch.setattr(
@@ -98,6 +108,27 @@ def test_observability_route_returns_runtime_system_and_log_summary(tmp_path: Pa
             {"level": "error", "source": "runtime-server.log", "message": "CUDA oom", "timestamp": "2026-05-27T11:00:00+00:00"}
         ],
     )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.observability_service._build_runtime_resource_snapshot",
+        lambda config, runtime_state: {
+            "activeRuntime": "turboquant",
+            "activeModel": "Qwen3.6-35B-A3B-UD-IQ2_XXS.gguf",
+            "runtimeLiveStatus": "started",
+            "runtimeLiveReason": "Runtime healthy.",
+            "baseUrl": "http://127.0.0.1:39281",
+            "port": 39281,
+            "executionModeId": "gpu-vram",
+            "executionModeLabel": "GPU VRAM dominantno",
+            "executionModeSummary": "Svi slojevi su potvrđeni na GPU-u.",
+            "offloadStatus": "confirmed",
+            "offloadLabel": "GPU offload potvrđen",
+            "offloadSummary": "Runtime log potvrđuje CUDA offload.",
+            "selectedGpuIndex": 0,
+            "selectedGpuName": "RTX 3060",
+            "selectedGpuTotalGiB": 12.0,
+            "runtimeProcessRamMiB": 6285.0,
+        },
+    )
 
     client = TestClient(app)
     response = client.get("/api/observability")
@@ -106,8 +137,11 @@ def test_observability_route_returns_runtime_system_and_log_summary(tmp_path: Pa
     payload = response.json()
     assert payload["system"]["hostname"] == "gpu-box"
     assert payload["system"]["gpuName"] == "RTX 3060"
+    assert payload["system"]["gpuDevices"][0]["selected"] is True
     assert payload["runtime"]["activeRuntime"] == "turboquant"
     assert payload["runtime"]["runtimeLiveStatus"] == "started"
+    assert payload["runtime"]["executionModeLabel"] == "GPU VRAM dominantno"
+    assert payload["runtime"]["offloadStatus"] == "confirmed"
     assert payload["telemetry"]["input24h"] == 50789
     assert payload["telemetry"]["liveNowTokensPerSecond"] == 21.8
     assert payload["activity"]["requestCount"] == 9

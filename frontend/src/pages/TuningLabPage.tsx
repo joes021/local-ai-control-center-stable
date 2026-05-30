@@ -1069,9 +1069,9 @@ export function TuningLabPage() {
           {activeRun ? activeRun.name : "Tuning Lab trenutno miruje"}
         </strong>
         <p className="helper-text">
-          OpenCode u Tuning Lab-u radi u pozadini kao stvarni `opencode.exe --pure run` proces nad
-          izolovanim projektom. Ne otvara poseban GUI prozor, pa se pravi signal rada prikazuje
-          ovde.
+          OpenCode sesija uživo je prikazana ovde u portalu kao stvarni `opencode.exe --pure run`
+          proces nad izolovanim projektom. OpenCode u Tuning Lab-u radi u pozadini. Ne otvara dodatni terminal, pa ovaj cockpit možeš
+          direktno da pratiš i snimaš.
         </p>
         <div className="summary-metrics tuning-lab-cockpit-strip">
           <span>Queue radi sekvencijalno: jedan run po jedan, jedan slot po jedan.</span>
@@ -1111,10 +1111,17 @@ export function TuningLabPage() {
                   </p>
                 </div>
                 <div className="tuning-lab-cockpit-helper-card">
-                  <strong>Zašto ne vidiš poseban OpenCode prozor</strong>
+                  <strong>Kako se OpenCode ovde vidi uživo</strong>
                   <p className="helper-text">
                     OpenCode ne otvara zaseban GUI prozor. Ovaj cockpit prikazuje stvarni `opencode.exe`
-                    rad kroz PID, log signal, workspace i runtime throughput.
+                    rad kroz PID, log signal, workspace, komande i runtime throughput.
+                  </p>
+                </div>
+                <div className="tuning-lab-cockpit-helper-card">
+                  <strong>Spremno za snimanje ekrana</strong>
+                  <p className="helper-text">
+                    Ovaj prikaz možeš direktno da snimaš dok agent radi. OpenCode sesija uživo se vidi
+                    u portalu kroz PID, log signal, workspace, komande i runtime throughput.
                   </p>
                 </div>
               </div>
@@ -1130,7 +1137,7 @@ export function TuningLabPage() {
               ) : null}
               <p className="helper-text">
                 Ako vidiš `OpenCode PID`, `Runtime PID` i runtime prompt brzinu, to znači da stvarni
-                agent task zaista radi, samo bez zasebnog vidljivog prozora.
+                agent task zaista radi. Umesto zasebnog prozora, sesiju uživo gledaš ovde u portalu.
               </p>
               <p className="helper-text">
                 Dve `llama-server` sesije su normalne dok `Tuning Lab` radi: jedna je glavni runtime
@@ -1266,13 +1273,20 @@ export function TuningLabPage() {
               </details>
             </article>
             <article className="status-card tuning-lab-log-card">
-              <span className="status-label">OpenCode signal uživo</span>
+              <span className="status-label">OpenCode sesija uživo</span>
               <strong>Šta OpenCode upravo radi</strong>
               <p className="helper-text">
                 Ovo je čitljiv trag iz stvarne agent sesije: nova poruka, upis fajla, završetak koraka
                 ili skorašnji runtime signal.
               </p>
-              <div className="tuning-lab-log-lines">
+              <p className="helper-text">
+                OpenCode signal uživo je ovde prikazan kao čitljiva sesija, a ne kao sirovi debug šum.
+              </p>
+              <p className="helper-text">
+                Poslednji log signal je izdvojen u najčitljiviji mogući oblik, tako da bez otvaranja
+                dodatnog prozora vidiš šta agent upravo radi.
+              </p>
+              <div className="tuning-lab-live-console">
                 {activeRunLogLines.length ? (
                   activeRunLogLines.map((line, index) => (
                     <div className="tuning-lab-log-line" key={`${line}-${index}`}>
@@ -1952,8 +1966,20 @@ export function TuningLabPage() {
                   </div>
                 ) : null}
                 <div className="tuning-lab-log-panel">
-                  <span className="status-label">Poslednji log signal</span>
-                  <pre>{activeRun.currentLogExcerpt || "Još nema log signala za aktivni korak."}</pre>
+                  <span className="status-label">OpenCode sesija uživo</span>
+                  <div className="tuning-lab-live-console">
+                    {activeRunLogLines.length ? (
+                      activeRunLogLines.map((line, index) => (
+                        <div className="tuning-lab-log-line" key={`panel-${line}-${index}`}>
+                          {line}
+                        </div>
+                      ))
+                    ) : (
+                      <div className="tuning-lab-log-line tuning-lab-log-line-empty">
+                        Još nema log signala za aktivni korak.
+                      </div>
+                    )}
+                  </div>
                 </div>
               </>
             ) : (

@@ -127,6 +127,20 @@ def test_observability_source_and_navigation_are_present():
     assert "Skorašnji log signali" in observability_source
 
 
+def test_layout_and_benchmark_source_show_persistent_resource_strip_and_mode_labels():
+    layout_source = Path("frontend/src/components/Layout.tsx").read_text(encoding="utf-8")
+    benchmark_source = Path("frontend/src/pages/BenchmarkPage.tsx").read_text(encoding="utf-8")
+
+    assert "LiveResourceStrip" in layout_source
+    assert "CPU uživo" in benchmark_source
+    assert "RAM uživo" in benchmark_source
+    assert "VRAM uživo" in benchmark_source
+    assert "Režim izvršavanja" in benchmark_source
+    assert "GPU VRAM dominantno" in benchmark_source
+    assert "Hibrid VRAM + RAM" in benchmark_source
+    assert "CPU + RAM" in benchmark_source
+
+
 def test_fleet_source_and_navigation_are_present():
     app_source = Path("frontend/src/App.tsx").read_text(encoding="utf-8")
     fleet_source = Path("frontend/src/pages/FleetPage.tsx").read_text(encoding="utf-8")
@@ -318,6 +332,16 @@ def test_server_and_tuning_lab_sources_show_runtime_gpu_diagnostics():
     assert ".tuning-lab-progress-grid" in styles_source
     assert ".tuning-lab-filter-grid" in styles_source
     assert ".tuning-lab-diff-browser" in styles_source
+
+
+def test_tuning_lab_source_mentions_visible_live_opencode_session():
+    page_source = Path("frontend/src/pages/TuningLabPage.tsx").read_text(encoding="utf-8")
+    styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
+
+    assert "OpenCode sesija uživo" in page_source
+    assert "Spremno za snimanje ekrana" in page_source
+    assert "Ovaj prikaz možeš direktno da snimaš" in page_source
+    assert ".tuning-lab-live-console" in styles_source
     assert ".tuning-lab-copy-row" in styles_source
     assert ".tuning-lab-batch-overview" in styles_source
     assert ".tuning-lab-batch-focus-list" in styles_source

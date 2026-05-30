@@ -15,11 +15,18 @@ from local_ai_control_center_installer.control_center_backend.config import (
 from local_ai_control_center_installer.control_center_backend.services.benchmark_service import (
     load_benchmark_summary,
 )
+from local_ai_control_center_installer.control_center_backend.services.server_service import (
+    _detect_nvidia_gpu_inventory,
+    _load_runtime_launch_argument_values,
+    _select_preferred_gpu,
+    load_runtime_diagnostics,
+)
 from local_ai_control_center_installer.control_center_backend.services.compatibility_service import (
     detect_ram_gib,
     detect_vram_gib,
 )
 from local_ai_control_center_installer.control_center_backend.services.status_service import (
+    find_runtime_pid,
     load_runtime_state,
 )
 
@@ -29,21 +36,15 @@ def load_observability_payload(
 ) -> dict[str, Any]:
     config = config or get_config()
     runtime_state = load_runtime_state(config)
+    runtime_snapshot = _build_runtime_resource_snapshot(config, runtime_state)
     benchmark_summary = load_benchmark_summary(config)
     telemetry = dict(benchmark_summary.get("telemetry", {}) or {})
     activity = dict(benchmark_summary.get("activity", {}) or {})
 
     return {
         "generatedAt": _utc_now(),
-        "system": _detect_system_snapshot(config),
-        "runtime": {
-            "activeRuntime": str(runtime_state.get("active_runtime", "unknown") or "unknown"),
-            "activeModel": str(runtime_state.get("active_model", "unknown") or "unknown"),
-            "runtimeLiveStatus": str(runtime_state.get("runtime_live_status", "unknown") or "unknown"),
-            "runtimeLiveReason": str(runtime_state.get("runtime_live_reason", "") or ""),
-            "baseUrl": str(runtime_state.get("base_url", "") or ""),
-            "port": _coerce_int(runtime_state.get("port")),
-        },
+        "system": _detect_system_snapshot(config, selected_gpu_index=runtime_snapshot.get("selectedGpuIndex")),
+        "runtime": runtime_snapshot,
         "telemetry": {
             "input24h": _coerce_int(telemetry.get("input24h")) or 0,
             "output24h": _coerce_int(telemetry.get("output24h")) or 0,
@@ -78,6 +79,8 @@ def load_observability_payload(
 
 def _detect_system_snapshot(
     config: ControlCenterConfig | None = None,
+    *,
+    selected_gpu_index: object = None,
 ) -> dict[str, Any]:
     del config
     platform_label = {
@@ -87,7 +90,17 @@ def _detect_system_snapshot(
     }.get(platform.system(), platform.system() or "Unknown")
     ram_total = detect_ram_gib()
     ram_used = _detect_used_ram_gib()
-    vram_total, vram_used, gpu_name = _detect_gpu_snapshot()
+    selected_index = _coerce_int(selected_gpu_index)
+    gpu_devices = _detect_gpu_devices(selected_index)
+    selected_gpu = next((device for device in gpu_devices if device.get("selected")), None)
+    vram_total = _coerce_float((selected_gpu or {}).get("totalGiB"))
+    vram_used = _coerce_float((selected_gpu or {}).get("usedGiB"))
+    gpu_name = str((selected_gpu or {}).get("name", "") or "")
+    if not gpu_name:
+        first_gpu = gpu_devices[0] if gpu_devices else {}
+        vram_total = vram_total if vram_total is not None else _coerce_float(first_gpu.get("totalGiB"))
+        vram_used = vram_used if vram_used is not None else _coerce_float(first_gpu.get("usedGiB"))
+        gpu_name = str(first_gpu.get("name", "") or "")
     return {
         "hostname": socket.gethostname(),
         "platformLabel": platform_label,
@@ -100,6 +113,7 @@ def _detect_system_snapshot(
         "vramTotalGiB": vram_total if vram_total is not None else detect_vram_gib(),
         "vramUsedGiB": vram_used,
         "vramFreeGiB": _difference_or_none(vram_total if vram_total is not None else detect_vram_gib(), vram_used),
+        "gpuDevices": gpu_devices,
     }
 
 
@@ -151,31 +165,125 @@ def _detect_used_ram_gib() -> float | None:
         return None
 
 
-def _detect_gpu_snapshot() -> tuple[float | None, float | None, str]:
+def _detect_gpu_devices(selected_gpu_index: int | None) -> list[dict[str, Any]]:
     try:
-        completed = subprocess.run(
-            ["nvidia-smi", "--query-gpu=name,memory.total,memory.used", "--format=csv,noheader,nounits"],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            check=False,
-            timeout=8,
-        )
-        if completed.returncode != 0:
-            return None, None, ""
-        first_line = next((line.strip() for line in completed.stdout.splitlines() if line.strip()), "")
-        if not first_line:
-            return None, None, ""
-        parts = [part.strip() for part in first_line.split(",")]
-        if len(parts) < 3:
-            return None, None, parts[0] if parts else ""
-        name = parts[0]
-        total_gib = _mib_to_gib(_coerce_float(parts[1]))
-        used_gib = _mib_to_gib(_coerce_float(parts[2]))
-        return total_gib, used_gib, name
+        inventory = _detect_nvidia_gpu_inventory()
     except Exception:  # noqa: BLE001
-        return None, None, ""
+        inventory = []
+    preferred_gpu = _select_preferred_gpu(inventory)
+    normalized_selected = selected_gpu_index if selected_gpu_index is not None else int((preferred_gpu or {}).get("index", 0) or 0)
+    devices: list[dict[str, Any]] = []
+    for device in inventory:
+        if not isinstance(device, dict):
+            continue
+        index = _coerce_int(device.get("index"))
+        total_mib = _coerce_float(device.get("totalMemoryMiB"))
+        used_mib = _coerce_float(device.get("usedMemoryMiB"))
+        total_gib = _mib_to_gib(total_mib)
+        used_gib = _mib_to_gib(used_mib)
+        devices.append(
+            {
+                "index": index,
+                "name": str(device.get("name", "") or ""),
+                "totalGiB": total_gib,
+                "usedGiB": used_gib,
+                "freeGiB": _difference_or_none(total_gib, used_gib),
+                "utilizationPercent": _coerce_float(device.get("utilizationGpuPercent")),
+                "selected": index == normalized_selected if index is not None else False,
+            }
+        )
+    return devices
+
+
+def _build_runtime_resource_snapshot(
+    config: ControlCenterConfig,
+    runtime_state: dict[str, Any],
+) -> dict[str, Any]:
+    active_runtime = str(runtime_state.get("active_runtime", "unknown") or "unknown")
+    active_model = str(runtime_state.get("active_model", "unknown") or "unknown")
+    base_url = str(runtime_state.get("base_url", "") or "")
+    port = _coerce_int(runtime_state.get("port"))
+    runtime_pid = find_runtime_pid(port or 0) if port else None
+    binary_path = Path(str(runtime_state.get("active_binary", "") or ""))
+    launch_arguments = (
+        _load_runtime_launch_argument_values(
+            config,
+            runtime_state,
+            runtime_name=active_runtime,
+            binary_path=binary_path,
+        )
+        if binary_path.is_file()
+        else {}
+    )
+    runtime_diagnostics = load_runtime_diagnostics(
+        runtime_name=active_runtime,
+        launch_arguments=launch_arguments,
+        log_path=config.install_root / "logs" / "runtime-server.log",
+    )
+    selected_gpu_index = _coerce_int(runtime_diagnostics.get("requestedMainGpu"))
+    selected_gpu_name = str(runtime_diagnostics.get("deviceLabel", "") or "")
+    gpu_devices = _detect_gpu_devices(selected_gpu_index)
+    if not selected_gpu_name:
+        selected_gpu = next((device for device in gpu_devices if device.get("selected")), None)
+        selected_gpu_name = str((selected_gpu or {}).get("name", "") or "")
+    selected_gpu = next((device for device in gpu_devices if device.get("selected")), None)
+    return {
+        "activeRuntime": active_runtime,
+        "activeModel": active_model,
+        "runtimeLiveStatus": str(runtime_state.get("runtime_live_status", "unknown") or "unknown"),
+        "runtimeLiveReason": str(runtime_state.get("runtime_live_reason", "") or ""),
+        "baseUrl": base_url,
+        "port": port,
+        "runtimePid": runtime_pid,
+        "runtimeProcessRamMiB": _detect_process_working_set_mib(runtime_pid),
+        "executionModeId": str(runtime_diagnostics.get("executionModeId", "unknown") or "unknown"),
+        "executionModeLabel": str(runtime_diagnostics.get("executionModeLabel", "") or "Čeka potvrdu"),
+        "executionModeSummary": str(runtime_diagnostics.get("executionModeSummary", "") or ""),
+        "offloadStatus": str(runtime_diagnostics.get("status", "unknown") or "unknown"),
+        "offloadLabel": _build_offload_label(str(runtime_diagnostics.get("status", "unknown") or "unknown")),
+        "offloadSummary": str(runtime_diagnostics.get("summary", "") or ""),
+        "selectedGpuIndex": selected_gpu_index,
+        "selectedGpuName": selected_gpu_name,
+        "selectedGpuTotalGiB": _coerce_float((selected_gpu or {}).get("totalGiB")),
+        "runtimeDiagnostics": runtime_diagnostics,
+    }
+
+
+def _detect_process_working_set_mib(pid: int | None) -> float | None:
+    if not pid:
+        return None
+    try:
+        if os.name == "nt":
+            completed = subprocess.run(
+                [
+                    "powershell",
+                    "-NoProfile",
+                    "-Command",
+                    f"[math]::Round((Get-Process -Id {pid} -ErrorAction Stop).WorkingSet64 / 1MB, 2)",
+                ],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                check=False,
+                timeout=8,
+            )
+            if completed.returncode == 0:
+                return _coerce_float(completed.stdout.strip())
+        return None
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _build_offload_label(status: str) -> str:
+    normalized = str(status or "").strip().lower()
+    if normalized == "confirmed":
+        return "GPU offload potvrđen"
+    if normalized == "requested":
+        return "GPU offload tražen"
+    if normalized == "cpu-only":
+        return "CPU-only signal"
+    return "Čeka potvrdu"
 
 
 def _load_recent_log_signals(
