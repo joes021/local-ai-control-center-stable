@@ -326,9 +326,21 @@ def _normalize_model(model: dict[str, object]) -> dict[str, object]:
     )
     quantization_runtime_key = quantization[3:] if quantization.upper().startswith("UD-") else quantization
     family = str(model.get("family", "Unknown") or "Unknown")
+    absolute_path = str(
+        model.get("absolute_path")
+        or model.get("absolutePath")
+        or model.get("resolvedPath")
+        or ""
+    ).strip()
     approx_size_gib = _as_float(model.get("approxSizeGiB"))
+    installed_size_gib = _as_float(model.get("installedSizeGiB"))
+    path_size_gib = _size_gib_from_model_path(absolute_path)
     if approx_size_gib is None:
-        approx_size_gib = _as_float(model.get("installedSizeGiB"))
+        approx_size_gib = installed_size_gib
+    if approx_size_gib is None:
+        approx_size_gib = path_size_gib
+    if installed_size_gib is None:
+        installed_size_gib = path_size_gib
     min_vram = _as_float(model.get("minimumVramGiB"))
     if min_vram is None:
         min_gpu_mib = _as_float(model.get("minimumGpuMiB"))
@@ -364,6 +376,7 @@ def _normalize_model(model: dict[str, object]) -> dict[str, object]:
         "family": family,
         "quantization": quantization,
         "approxSizeGiB": approx_size_gib,
+        "installedSizeGiB": installed_size_gib,
         "minimumRamGiB": minimum_ram or _guess_min_ram(approx_size_gib, moe=moe),
         "minimumVramGiB": min_vram or _guess_min_vram(approx_size_gib, turboquant_ready=turboquant_ready),
         "recommendedVramGiB": recommended_vram or _guess_recommended_vram(approx_size_gib, turboquant_ready=turboquant_ready),
@@ -373,6 +386,18 @@ def _normalize_model(model: dict[str, object]) -> dict[str, object]:
         "mtp": mtp,
         "turboQuantReady": turboquant_ready,
     }
+
+
+def _size_gib_from_model_path(path_text: str) -> float | None:
+    if not path_text:
+        return None
+    try:
+        path = Path(path_text).expanduser()
+        if not path.is_file():
+            return None
+        return round(path.stat().st_size / (1024**3), 2)
+    except OSError:
+        return None
 
 
 def _normalize_system(system_info: dict[str, object]) -> dict[str, object]:

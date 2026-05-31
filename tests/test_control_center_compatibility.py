@@ -1,4 +1,6 @@
 from fastapi.testclient import TestClient
+from types import SimpleNamespace
+from unittest.mock import patch
 
 from local_ai_control_center_installer.control_center_backend.main import app
 from local_ai_control_center_installer.control_center_backend.services.compatibility_service import (
@@ -242,3 +244,38 @@ def test_calculate_compatibility_treats_ud_iq_quant_as_turboquant_ready_for_non_
     assert payload["bestRuntime"] == "turboquant"
     assert payload["runtimeBreakdown"]["turboquant"]["fitStatus"] == "granicno"
     assert payload["runtimeBreakdown"]["turboquant"]["estimated"]["requiredVramGiB"] < 12.0
+
+
+def test_calculate_compatibility_uses_absolute_path_size_for_local_model_when_size_fields_are_missing():
+    fake_size_gib = 16.08
+    fake_size_bytes = int(fake_size_gib * (1024**3))
+    with (
+        patch("pathlib.Path.is_file", return_value=True),
+        patch("pathlib.Path.stat", return_value=SimpleNamespace(st_size=fake_size_bytes)),
+    ):
+        payload = calculate_compatibility(
+            {
+                "id": "local-qwen3-6-28b-reap20-a3b-q4-k-m",
+                "label": "Qwen3.6-28B-REAP20-A3B-Q4_K_M",
+                "filename": "Qwen3.6-28B-REAP20-A3B-Q4_K_M.gguf",
+                "family": "Custom",
+                "absolute_path": "C:/models/Qwen3.6-28B-REAP20-A3B-Q4_K_M.gguf",
+            },
+            system_info={
+                "ramGiB": 31.77,
+                "vramGiB": 12.0,
+                "turboQuantAvailable": True,
+                "context": 32768,
+                "outputTokens": 2048,
+                "turboQuantConfig": {
+                    "ctk": "turbo4",
+                    "ctv": "turbo3",
+                    "ncmoe": 20,
+                    "runtimePreference": "turboquant",
+                },
+            },
+        )
+
+    assert payload["memoryBudget"]["vram"]["requiredGiB"] > 10.0
+    assert payload["memoryBudget"]["ram"]["requiredGiB"] > 20.0
+    assert payload["overallFitStatus"] in {"granicno", "ne radi"}

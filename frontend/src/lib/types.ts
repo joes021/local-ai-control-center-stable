@@ -717,6 +717,7 @@ export type ModelEntry = {
   diskNeededGiB?: number | null;
   freeDiskGiB?: number | null;
   hasEnoughDisk?: boolean | null;
+  resolvedPath?: string;
 };
 
 export type ModelsPayload = {

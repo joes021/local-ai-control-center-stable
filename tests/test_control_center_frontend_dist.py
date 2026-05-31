@@ -1089,6 +1089,13 @@ def test_models_and_browser_source_offer_compatibility_tab_handoff():
     assert "Compatibility tab" in browser_source
 
 
+def test_compatibility_handoff_includes_installed_size_and_resolved_path_for_local_models():
+    source = Path("frontend/src/lib/compatibility.ts").read_text(encoding="utf-8")
+
+    assert "installedSizeGiB: item.installedSizeGiB ?? item.approxSizeGiB ?? null" in source
+    assert "absolute_path: item.resolvedPath ?? null" in source
+
+
 def test_models_source_guides_local_gguf_import_into_local_group():
     models_source = Path("frontend/src/pages/ModelsPage.tsx").read_text(encoding="utf-8")
 

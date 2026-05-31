@@ -36,7 +36,8 @@ export function buildCompatibilityRequestFromModelEntry(
       filename,
       family: item.family ?? "Unknown",
       quantization,
-      approxSizeGiB: item.approxSizeGiB ?? null,
+      approxSizeGiB: item.approxSizeGiB ?? item.installedSizeGiB ?? null,
+      installedSizeGiB: item.installedSizeGiB ?? item.approxSizeGiB ?? null,
       minimumRamGiB: item.minimumRamGiB ?? null,
       minimumVramGiB,
       recommendedVramGiB,
@@ -45,6 +46,7 @@ export function buildCompatibilityRequestFromModelEntry(
       moe: joined.includes("a3b") || joined.includes("moe"),
       mtp: item.mtpStatus === "has-mtp",
       turboQuantReady: /^(UD-|IQ|Q2|Q3|Q4)/.test(quantization),
+      absolute_path: item.resolvedPath ?? null,
     },
   };
 }

@@ -283,15 +283,21 @@ def add_local_model(
     target_root.mkdir(parents=True, exist_ok=True)
     target_path = target_root / source_path.name
     shutil.copy2(source_path, target_path)
+    size_gib = _to_gib(target_path.stat().st_size)
+    normalized_family = family.strip() or "Custom"
+    if normalized_family.lower() == "custom":
+        normalized_family = _infer_model_family(source_path.name)
 
     entry = {
         "id": _build_local_model_id(source_path.name),
         "label": label.strip() or source_path.stem,
         "filename": source_path.name,
-        "family": family.strip() or "Custom",
+        "family": normalized_family,
         "source": "local",
         "description": "Lokalno dodat GGUF model.",
         "absolute_path": str(target_path),
+        "approxSizeGiB": size_gib,
+        "installedSizeGiB": size_gib,
     }
     _upsert_custom_registry_entry(config, entry)
     result = action_result(
