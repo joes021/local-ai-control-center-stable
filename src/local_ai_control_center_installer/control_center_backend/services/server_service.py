@@ -35,7 +35,14 @@ from local_ai_control_center_installer.server_verification import (
 
 RUNTIME_READY_TIMEOUT_SECONDS = 180.0
 RUNTIME_READY_POLL_INTERVAL_SECONDS = 1.0
+_START_SERVER_READY_TIMEOUT_SECONDS = 2.0
+_START_SERVER_READY_POLL_INTERVAL_SECONDS = 0.1
+_START_SERVER_LOG_EXCERPT_CHARS = 4000
+_START_SERVER_EXIT_LOG_WAIT_SECONDS = 0.6
+_START_SERVER_EXIT_LOG_POLL_INTERVAL_SECONDS = 0.1
+_START_SERVER_LOADING_STABILITY_SECONDS = 1.0
 _POWERSHELL_SAFE_ARGUMENT_RE = re.compile(r"^[A-Za-z0-9_./:-]+$")
+_INVALID_MAIN_GPU_RE = re.compile(r"invalid value for main_gpu", re.IGNORECASE)
 _PROJECTED_DEVICE_MEMORY_RE = re.compile(
     r"projected to use (?P<used>\d+) MiB of device memory",
     re.IGNORECASE,
@@ -218,37 +225,43 @@ def start_server(
             )
         restart_summary = "Neodgovarajući runtime proces je zaustavljen i restartovan."
 
-    command = _build_server_command(
-        ServerVerificationTarget(
-            server_executable=binary_path,
-            model_id=str(runtime_state["active_model_id"]),
-            model_path=model_path,
-            active_model_config_path=config.install_root / "config" / "active-model.json",
-        ),
-        port,
+    target = ServerVerificationTarget(
+        server_executable=binary_path,
+        model_id=str(runtime_state["active_model_id"]),
+        model_path=model_path,
+        active_model_config_path=config.install_root / "config" / "active-model.json",
+    )
+    launch_arguments = _load_runtime_launch_argument_values(
+        config,
+        runtime_state,
+        runtime_name=str(runtime_state.get("active_runtime", "") or ""),
+        binary_path=binary_path,
+    )
+    launch_result = _launch_runtime_with_main_gpu_fallback(
+        target=target,
+        port=port,
+        base_url=str(runtime_state["base_url"]),
         ctx_size=_resolve_runtime_context_size(config, runtime_state),
         spec_type=_resolve_spec_type(runtime_state, binary_path),
-        **_load_runtime_launch_argument_values(
-            config,
-            runtime_state,
-            runtime_name=str(runtime_state.get("active_runtime", "") or ""),
-            binary_path=binary_path,
-        ),
+        launch_arguments=launch_arguments,
+        log_path=config.install_root / "logs" / "runtime-server.log",
     )
-    log_path = config.install_root / "logs" / "runtime-server.log"
-    log_path.parent.mkdir(parents=True, exist_ok=True)
-    with log_path.open("a", encoding="utf-8") as handle:
-        subprocess.Popen(
-            command,
-            stdout=handle,
-            stderr=subprocess.STDOUT,
-            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+    if str(launch_result.get("status", "")) != "ok":
+        return _result(
+            "error",
+            "start-server",
+            str(launch_result.get("summary", "") or "Runtime nije mogao da se pokrene."),
         )
+
+    log_path = config.install_root / "logs" / "runtime-server.log"
+    summary = restart_summary
+    if bool(launch_result.get("fallbackApplied")):
+        summary = f"{restart_summary} {str(launch_result.get('fallbackReason', '') or '').strip()}".strip()
 
     return _result(
         "ok",
         "start-server",
-        restart_summary,
+        summary,
     )
 
 
@@ -400,6 +413,177 @@ def _build_server_state(
     if pid is not None:
         return "degraded", "offline", "Runtime proces postoji, ali health endpoint ne odgovara."
     return "stopped", "offline", "Runtime trenutno nije pokrenut."
+
+
+def _launch_runtime_with_main_gpu_fallback(
+    *,
+    target: ServerVerificationTarget,
+    port: int,
+    base_url: str,
+    ctx_size: int,
+    spec_type: str | None,
+    launch_arguments: dict[str, object],
+    log_path: Path,
+) -> dict[str, object]:
+    command = _build_server_command(
+        target,
+        port,
+        ctx_size=ctx_size,
+        spec_type=spec_type,
+        **launch_arguments,
+    )
+    process = _launch_runtime_process(command, log_path)
+    start_signal = _wait_for_runtime_start_signal(base_url, process)
+    if str(start_signal.get("state", "")) != "exited":
+        return {
+            "status": "ok",
+            "command": command,
+            "launchArguments": launch_arguments,
+            "fallbackApplied": False,
+            "fallbackReason": "",
+        }
+
+    log_excerpt = _read_runtime_log_excerpt_after_exit(
+        log_path,
+        prefer_pattern=_INVALID_MAIN_GPU_RE,
+    )
+    if _should_retry_runtime_without_explicit_main_gpu(
+        launch_arguments=launch_arguments,
+        log_excerpt=log_excerpt,
+    ):
+        fallback_launch_arguments = dict(launch_arguments)
+        fallback_launch_arguments.pop("main_gpu", None)
+        fallback_launch_arguments.pop("split_mode", None)
+        fallback_command = _build_server_command(
+            target,
+            port,
+            ctx_size=ctx_size,
+            spec_type=spec_type,
+            **fallback_launch_arguments,
+        )
+        process = _launch_runtime_process(fallback_command, log_path)
+        fallback_signal = _wait_for_runtime_start_signal(base_url, process)
+        fallback_reason = (
+            "Runtime je odbio eksplicitni `--main-gpu`, pa je start ponovljen bez "
+            "`--main-gpu` i `--split-mode`."
+        )
+        if str(fallback_signal.get("state", "")) != "exited":
+            return {
+                "status": "ok",
+                "command": fallback_command,
+                "launchArguments": fallback_launch_arguments,
+                "fallbackApplied": True,
+                "fallbackReason": fallback_reason,
+            }
+        fallback_log_excerpt = _read_runtime_log_excerpt_after_exit(log_path)
+        return {
+            "status": "error",
+            "summary": (
+                "Runtime nije mogao da se pokrene ni posle fallback pokušaja bez "
+                "eksplicitnog `--main-gpu` izbora. "
+                + _format_runtime_start_failure_details(fallback_log_excerpt)
+            ),
+        }
+
+    return {
+        "status": "error",
+        "summary": "Runtime nije mogao da se pokrene. " + _format_runtime_start_failure_details(log_excerpt),
+    }
+
+
+def _launch_runtime_process(command: list[str], log_path: Path):
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    with log_path.open("a", encoding="utf-8") as handle:
+        return subprocess.Popen(
+            command,
+            stdout=handle,
+            stderr=subprocess.STDOUT,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+
+
+def _wait_for_runtime_start_signal(
+    base_url: str,
+    process,
+    *,
+    timeout_seconds: float = _START_SERVER_READY_TIMEOUT_SECONDS,
+    poll_interval_seconds: float = _START_SERVER_READY_POLL_INTERVAL_SECONDS,
+    now_fn=time.monotonic,
+    sleep_fn=time.sleep,
+    health_probe=None,
+) -> dict[str, object]:
+    health_probe = health_probe or probe_server_health
+    deadline = now_fn() + max(0.0, float(timeout_seconds))
+    loading_seen_at: float | None = None
+    while now_fn() < deadline:
+        health_status = str(health_probe(base_url) or "")
+        current_time = now_fn()
+        if health_status == "ready":
+            return {"state": "responding", "health": health_status}
+        if health_status == "loading":
+            if loading_seen_at is None:
+                loading_seen_at = current_time
+            elif (current_time - loading_seen_at) >= _START_SERVER_LOADING_STABILITY_SECONDS:
+                return {"state": "responding", "health": health_status}
+        else:
+            loading_seen_at = None
+        if getattr(process, "poll", lambda: None)() is not None:
+            return {"state": "exited", "health": health_status}
+        sleep_fn(poll_interval_seconds)
+    health_status = str(health_probe(base_url) or "")
+    if health_status == "ready":
+        return {"state": "responding", "health": health_status}
+    if health_status == "loading" and getattr(process, "poll", lambda: None)() is None:
+        return {"state": "responding", "health": health_status}
+    if getattr(process, "poll", lambda: None)() is not None:
+        return {"state": "exited", "health": health_status}
+    return {"state": "pending", "health": health_status}
+
+
+def _read_runtime_log_excerpt(log_path: Path, *, max_chars: int = _START_SERVER_LOG_EXCERPT_CHARS) -> str:
+    if not log_path.exists():
+        return ""
+    return log_path.read_text(encoding="utf-8", errors="replace")[-max_chars:].strip()
+
+
+def _read_runtime_log_excerpt_after_exit(
+    log_path: Path,
+    *,
+    prefer_pattern: re.Pattern[str] | None = None,
+    timeout_seconds: float = _START_SERVER_EXIT_LOG_WAIT_SECONDS,
+    poll_interval_seconds: float = _START_SERVER_EXIT_LOG_POLL_INTERVAL_SECONDS,
+    now_fn=time.monotonic,
+    sleep_fn=time.sleep,
+) -> str:
+    deadline = now_fn() + max(0.0, float(timeout_seconds))
+    latest_excerpt = ""
+    while True:
+        latest_excerpt = _read_runtime_log_excerpt(log_path)
+        if latest_excerpt:
+            if prefer_pattern is None or prefer_pattern.search(latest_excerpt):
+                return latest_excerpt
+        if now_fn() >= deadline:
+            return latest_excerpt
+        sleep_fn(poll_interval_seconds)
+
+
+def _should_retry_runtime_without_explicit_main_gpu(
+    *,
+    launch_arguments: dict[str, object],
+    log_excerpt: str,
+) -> bool:
+    if not isinstance(launch_arguments, dict):
+        return False
+    if "main_gpu" not in launch_arguments and "split_mode" not in launch_arguments:
+        return False
+    return bool(_INVALID_MAIN_GPU_RE.search(str(log_excerpt or "")))
+
+
+def _format_runtime_start_failure_details(log_excerpt: str) -> str:
+    cleaned_excerpt = str(log_excerpt or "").strip()
+    if cleaned_excerpt:
+        return f"Log: {cleaned_excerpt}"
+    return "Runtime proces je prerano završen pre nego što je health endpoint odgovorio."
 
 
 def _build_runtime_live_signal(
@@ -903,7 +1087,6 @@ def _load_runtime_acceleration_argument_values(
     runtime_name: str,
     binary_path: Path,
 ) -> dict[str, object]:
-    del config
     del runtime_state
     normalized_runtime = str(runtime_name or "").strip().lower()
     if normalized_runtime not in {"llama.cpp", "turboquant"}:
@@ -917,7 +1100,14 @@ def _load_runtime_acceleration_argument_values(
         if preferred_gpu is not None
         else _detect_nvidia_total_memory_mib()
     )
-    gpu_layers = _recommend_gpu_layers(gpu_total_mib)
+    effective_settings = load_effective_settings_state(config)
+    gpu_layers_mode = str(effective_settings.get("gpuLayersMode", "auto") or "auto").strip().lower()
+    manual_gpu_layers = _positive_int_or_zero(effective_settings.get("gpuLayersOverride"))
+    gpu_layers = (
+        manual_gpu_layers
+        if gpu_layers_mode == "manual" and manual_gpu_layers > 0
+        else _recommend_gpu_layers(gpu_total_mib)
+    )
     if gpu_layers <= 0:
         return {}
     acceleration: dict[str, object] = {"gpu_layers": gpu_layers}

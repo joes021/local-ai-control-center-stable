@@ -552,6 +552,9 @@ export type TuningLabSlot = {
   totalDurationMs?: number;
   averageOutputTokensPerSecond?: number;
   averageTotalTokensPerSecond?: number;
+  completionMode?: string;
+  successChecksVerifiedLive?: boolean;
+  completionSummary?: string;
   runtimeCommand?: string;
   runtimeBaseUrl?: string;
   runtimeDiagnostics?: RuntimeDiagnostics;
@@ -559,8 +562,20 @@ export type TuningLabSlot = {
   runtimeLogPath?: string;
   opencodeCommand?: string;
   opencodePid?: number;
+  opencodeSessionId?: string;
+  activeMessageId?: string;
   stdoutPath?: string;
   stderrPath?: string;
+  liveWorkspaceSummary?: string;
+  liveWorkspaceFiles?: Array<{
+    path: string;
+    sizeBytes: number;
+    modifiedAt: string;
+  }>;
+  livePreviewFilePath?: string;
+  livePreviewFileName?: string;
+  livePreviewText?: string;
+  livePreviewModifiedAt?: string;
   liveOutputTokensPerSecond?: number;
   liveTotalTokensPerSecond?: number;
   runtimePromptTokensPerSecond?: number;
@@ -936,6 +951,8 @@ export type SettingsPayload = {
   presencePenalty: number;
   frequencyPenalty: number;
   seed: number;
+  gpuLayersMode: string;
+  gpuLayersOverride: number;
   workingDirectory: string;
   thinkingMode: string;
   buildSteps: number;
@@ -1048,6 +1065,8 @@ export type SettingsProfileValues = {
   presencePenalty: number;
   frequencyPenalty: number;
   seed: number;
+  gpuLayersMode: string;
+  gpuLayersOverride: number;
   workingDirectory: string;
   thinkingMode: string;
   buildSteps: number;

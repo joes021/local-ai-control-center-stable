@@ -75,6 +75,30 @@ function formatTok(value: number | undefined) {
   return `${value.toFixed(1)} tok/s`;
 }
 
+function getPreferredSlotOutputTok(slot: TuningLabSlot) {
+  if ((slot.averageOutputTokensPerSecond || 0) > 0) {
+    return slot.averageOutputTokensPerSecond || 0;
+  }
+  if ((slot.liveOutputTokensPerSecond || 0) > 0) {
+    return slot.liveOutputTokensPerSecond || 0;
+  }
+  return 0;
+}
+
+function getPreferredSlotTotalTok(slot: TuningLabSlot) {
+  if ((slot.averageTotalTokensPerSecond || 0) > 0) {
+    return slot.averageTotalTokensPerSecond || 0;
+  }
+  if ((slot.liveTotalTokensPerSecond || 0) > 0) {
+    return slot.liveTotalTokensPerSecond || 0;
+  }
+  return 0;
+}
+
+function slotUsesLiveTelemetryFallback(slot: TuningLabSlot) {
+  return (slot.averageOutputTokensPerSecond || 0) <= 0 && (slot.liveOutputTokensPerSecond || 0) > 0;
+}
+
 function formatMs(value: number | undefined) {
   if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
     return "--";
@@ -345,6 +369,19 @@ function formatMiB(value: number | null | undefined) {
   return `${value.toFixed(value >= 100 ? 0 : 2)} MiB`;
 }
 
+function formatBytes(value: number | undefined) {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
+    return "--";
+  }
+  if (value < 1024) {
+    return `${value} B`;
+  }
+  if (value < 1024 * 1024) {
+    return `${(value / 1024).toFixed(value >= 100 * 1024 ? 0 : 1)} KiB`;
+  }
+  return `${(value / (1024 * 1024)).toFixed(value >= 100 * 1024 * 1024 ? 0 : 1)} MiB`;
+}
+
 function buildRuntimeDiagnosticsBadge(diagnostics: RuntimeDiagnostics | undefined) {
   if (!diagnostics) {
     return "Dijagnostika čeka signal";
@@ -433,7 +470,11 @@ function buildCockpitLogLines(value: string | undefined) {
 }
 
 function hasMissingTokenTelemetry(slot: TuningLabSlot) {
-  return slot.status === "completed" && (slot.totalTokens ?? 0) <= 0;
+  return (
+    slot.status === "completed" &&
+    getPreferredSlotOutputTok(slot) <= 0 &&
+    getPreferredSlotTotalTok(slot) <= 0
+  );
 }
 
 function parseDiffFilesFromText(diffText: string | undefined): TuningLabDiffFile[] {
@@ -505,10 +546,15 @@ function buildWinnerReason(run: TuningLabRun) {
     return "Nijedan slot nije završio zadatak i success check uspešno.";
   }
   const completedCount = run.slots.filter((slot) => slot.taskCompleted && slot.successChecksPassed).length;
+  const preferredOutputTok = getPreferredSlotOutputTok(winner);
   return [
     `${winner.label} je predložen kao pobednik jer je uspešno završio task i prošao success check.`,
     completedCount > 1
-      ? `Od uspešnih slotova, imao je najzdraviji odnos trajanja ${formatMs(winner.totalDurationMs)} i throughput-a ${formatTok(winner.averageOutputTokensPerSecond)}.`
+      ? preferredOutputTok > 0
+        ? slotUsesLiveTelemetryFallback(winner)
+          ? `Od uspešnih slotova, imao je najzdraviji odnos trajanja ${formatMs(winner.totalDurationMs)} i poslednjeg živog throughput signala ${formatTok(preferredOutputTok)}.`
+          : `Od uspešnih slotova, imao je najzdraviji odnos trajanja ${formatMs(winner.totalDurationMs)} i throughput-a ${formatTok(preferredOutputTok)}.`
+        : `Od uspešnih slotova, bio je najbrži po trajanju ${formatMs(winner.totalDurationMs)}. Token telemetry nije prijavljen za završni slot rezultat.`
       : "Bio je jedini slot koji je ostao tehnički upotrebljiv do kraja eksperimenta.",
   ].join(" ");
 }
@@ -594,6 +640,7 @@ export function TuningLabPage() {
     status: "all",
   });
   const [selectedDiffs, setSelectedDiffs] = useState<Record<string, string>>({});
+  const [expandedHistoryDetails, setExpandedHistoryDetails] = useState<Record<string, boolean>>({});
   const editorRef = useRef<HTMLElement | null>(null);
   const progressRef = useRef<HTMLElement | null>(null);
   const cockpitRef = useRef<HTMLElement | null>(null);
@@ -674,9 +721,23 @@ export function TuningLabPage() {
     () => buildCockpitLogLines(activeRun?.currentLogExcerpt || activeRun?.currentRawLogExcerpt),
     [activeRun?.currentLogExcerpt, activeRun?.currentRawLogExcerpt],
   );
+  const activeRunLiveWorkspaceFiles = useMemo(
+    () => activeRunSlot?.liveWorkspaceFiles ?? [],
+    [activeRunSlot?.liveWorkspaceFiles],
+  );
   const activeRunResources = useMemo(
     () =>
       [
+        buildCockpitResource(
+          "OpenCode session",
+          activeRunSlot?.opencodeSessionId || "",
+          "Interni session ID aktivne OpenCode sesije.",
+        ),
+        buildCockpitResource(
+          "Aktivna poruka",
+          activeRunSlot?.activeMessageId || "",
+          "Poruka koju OpenCode trenutno obrađuje.",
+        ),
         buildCockpitResource(
           "Radni workspace",
           activeRunSlot?.workspacePath || activeRun?.workingDirectory || "",
@@ -705,6 +766,8 @@ export function TuningLabPage() {
       ].filter(Boolean) as CockpitResource[],
     [
       activeRun?.workingDirectory,
+      activeRunSlot?.activeMessageId,
+      activeRunSlot?.opencodeSessionId,
       activeRunSlot?.runtimeBaseUrl,
       activeRunSlot?.runtimeLogPath,
       activeRunSlot?.stderrPath,
@@ -863,6 +926,35 @@ export function TuningLabPage() {
       return haystack.includes(query);
     });
   }, [historyFilters, summary?.history]);
+  const expandedHistoryDetailCount = useMemo(
+    () => Object.values(expandedHistoryDetails).filter(Boolean).length,
+    [expandedHistoryDetails],
+  );
+
+  function buildHistoryDetailKey(runId: string, slotId: string) {
+    return `${runId}:${slotId}`;
+  }
+
+  function toggleHistoryDetail(detailKey: string) {
+    setExpandedHistoryDetails((current) => ({
+      ...current,
+      [detailKey]: !current[detailKey],
+    }));
+  }
+
+  function collapseAllHistoryDetails() {
+    setExpandedHistoryDetails({});
+  }
+
+  function expandAllHistoryDetails() {
+    const nextState: Record<string, boolean> = {};
+    for (const run of filteredHistory) {
+      for (const slot of run.slots) {
+        nextState[buildHistoryDetailKey(run.runId, slot.id)] = true;
+      }
+    }
+    setExpandedHistoryDetails(nextState);
+  }
 
   async function runMutation(callback: () => Promise<ActionResult | { status: string; summary: string }>) {
     try {
@@ -1271,6 +1363,55 @@ export function TuningLabPage() {
                   <pre>{activeRunSlot?.runtimeCommand || "--"}</pre>
                 </div>
               </details>
+            </article>
+            <article className="status-card tuning-lab-workspace-card">
+              <span className="status-label">Živi workspace i preview</span>
+              <strong>Šta OpenCode trenutno menja</strong>
+              <p className="helper-text">
+                Kada je transcript siromašan, ovde uživo vidiš koje fajlove agent dodiruje i kako
+                izgleda poslednji aktivni fajl. To je najdirektniji dokaz da zadatak stvarno radi.
+              </p>
+              <p className="helper-text">
+                {activeRunSlot?.liveWorkspaceSummary ||
+                  "Čekamo da se u izolovanom workspace-u pojave prve izmene."}
+              </p>
+              <div className="tuning-lab-workspace-columns">
+                <div className="tuning-lab-workspace-files">
+                  <strong className="tuning-lab-workspace-heading">Poslednje menjani fajlovi</strong>
+                  {activeRunLiveWorkspaceFiles.length ? (
+                    <div className="tuning-lab-workspace-file-list">
+                      {activeRunLiveWorkspaceFiles.map((file) => (
+                        <div className="tuning-lab-workspace-file-row" key={`${file.path}-${file.modifiedAt}`}>
+                          <span className="tuning-lab-workspace-file-path">{file.path}</span>
+                          <span className="tuning-lab-workspace-file-meta">
+                            {formatBytes(file.sizeBytes)} · {formatDateTime(file.modifiedAt)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="helper-text">
+                      Još nema vidljive izmene fajlova za aktivni slot.
+                    </p>
+                  )}
+                </div>
+                <div className="tuning-lab-workspace-preview">
+                  <strong className="tuning-lab-workspace-heading">
+                    Preview: {activeRunSlot?.livePreviewFileName || "--"}
+                  </strong>
+                  <span className="tuning-lab-workspace-preview-meta">
+                    {activeRunSlot?.livePreviewFilePath || "Aktivni preview fajl će se pojaviti čim agent nešto upiše."}
+                  </span>
+                  {activeRunSlot?.livePreviewModifiedAt ? (
+                    <span className="tuning-lab-workspace-preview-meta">
+                      Poslednja izmena: {formatDateTime(activeRunSlot.livePreviewModifiedAt)}
+                    </span>
+                  ) : null}
+                  <div className="tuning-lab-workspace-preview-panel">
+                    <pre>{activeRunSlot?.livePreviewText || "Još nema čitljivog preview sadržaja."}</pre>
+                  </div>
+                </div>
+              </div>
             </article>
             <article className="status-card tuning-lab-log-card">
               <span className="status-label">OpenCode sesija uživo</span>
@@ -2077,6 +2218,32 @@ export function TuningLabPage() {
         </div>
         {filteredHistory.length ? (
           <>
+            <div className="tuning-lab-history-toolbar">
+              <div className="tuning-lab-history-toolbar-copy">
+                <strong>Istorija run-ova</strong>
+                <span className="helper-text">
+                  Otvoreno detalja: {expandedHistoryDetailCount}. Kada istorija postane predugačka,
+                  `Collapse all` odmah vraća pregledan prikaz.
+                </span>
+              </div>
+              <div className="inline-actions">
+                <button
+                  type="button"
+                  className="secondary-button"
+                  disabled={!expandedHistoryDetailCount}
+                  onClick={collapseAllHistoryDetails}
+                >
+                  Collapse all
+                </button>
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={expandAllHistoryDetails}
+                >
+                  Expand all
+                </button>
+              </div>
+            </div>
             <div className="tuning-lab-history-list">
               {filteredHistory.map((run) => {
                 const baselineSlot = run.slots.find((slot) => slot.id === "baseline");
@@ -2133,8 +2300,8 @@ export function TuningLabPage() {
                         <p className="helper-text">{buildWinnerReason(run)}</p>
                         <div className="summary-metrics">
                           <span>Trajanje: {formatMs(winnerSlot.totalDurationMs)}</span>
-                          <span>Output: {formatTok(winnerSlot.averageOutputTokensPerSecond)}</span>
-                          <span>Ukupno: {formatTok(winnerSlot.averageTotalTokensPerSecond)}</span>
+                          <span>Output: {formatTok(getPreferredSlotOutputTok(winnerSlot))}</span>
+                          <span>Ukupno: {formatTok(getPreferredSlotTotalTok(winnerSlot))}</span>
                           <span>Diff: {winnerSlot.diffSummary || "--"}</span>
                         </div>
                         <div className="tuning-lab-delta-list">
@@ -2170,12 +2337,14 @@ export function TuningLabPage() {
                               <td>{slot.status || "--"}</td>
                               <td>{formatMs(slot.totalDurationMs)}</td>
                               <td>
-                                {formatTok(slot.averageOutputTokensPerSecond)}
-                                {hasMissingTokenTelemetry(slot) ? (
+                                {formatTok(getPreferredSlotOutputTok(slot))}
+                                {slotUsesLiveTelemetryFallback(slot) ? (
+                                  <div className="helper-text">Poslednji živi signal</div>
+                                ) : hasMissingTokenTelemetry(slot) ? (
                                   <div className="helper-text">Token telemetry nije prijavljen</div>
                                 ) : null}
                               </td>
-                              <td>{formatTok(slot.averageTotalTokensPerSecond)}</td>
+                              <td>{formatTok(getPreferredSlotTotalTok(slot))}</td>
                               <td>{slot.diffSummary || "--"}</td>
                             </tr>
                           ))}
@@ -2186,12 +2355,22 @@ export function TuningLabPage() {
                     {run.slots.map((slot) => {
                       const diffFiles = getSlotDiffFiles(slot);
                       const diffKey = `${run.runId}:${slot.id}`;
+                      const historyDetailKey = buildHistoryDetailKey(run.runId, slot.id);
                       const selectedPath = selectedDiffs[diffKey] || diffFiles[0]?.path || "";
                       const selectedFile =
                         diffFiles.find((item) => item.path === selectedPath) || diffFiles[0] || null;
                       return (
-                        <details className="tuning-lab-history-detail" key={`${run.runId}-detail-${slot.id}`}>
-                          <summary>
+                        <details
+                          className="tuning-lab-history-detail"
+                          key={`${run.runId}-detail-${slot.id}`}
+                          open={!!expandedHistoryDetails[historyDetailKey]}
+                        >
+                          <summary
+                            onClick={(event) => {
+                              event.preventDefault();
+                              toggleHistoryDetail(historyDetailKey);
+                            }}
+                          >
                             {slot.label} detalji | {slot.summary || slot.status || "--"}
                           </summary>
                           {slot.playableEntryPath ? (

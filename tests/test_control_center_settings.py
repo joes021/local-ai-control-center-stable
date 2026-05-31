@@ -61,6 +61,8 @@ def test_settings_route_persists_global_defaults_and_model_override(
     assert initial.json()["presencePenalty"] == 0.0
     assert initial.json()["frequencyPenalty"] == 0.0
     assert initial.json()["seed"] == -1
+    assert initial.json()["gpuLayersMode"] == "auto"
+    assert initial.json()["gpuLayersOverride"] == 0
     assert initial.json()["themeId"] == "dark-chocolate"
     assert [item["id"] for item in initial.json()["availableGenerationStarters"]] == [
         "llama-cpp-default",
@@ -112,6 +114,8 @@ def test_settings_route_persists_global_defaults_and_model_override(
             "presencePenalty": 0.1,
             "frequencyPenalty": 0.0,
             "seed": 42,
+            "gpuLayersMode": "manual",
+            "gpuLayersOverride": 41,
             "buildSteps": 1,
             "planSteps": 1,
             "generalSteps": 1,
@@ -150,6 +154,8 @@ def test_settings_route_persists_global_defaults_and_model_override(
     assert payload["presencePenalty"] == 0.1
     assert payload["frequencyPenalty"] == 0.0
     assert payload["seed"] == 42
+    assert payload["gpuLayersMode"] == "manual"
+    assert payload["gpuLayersOverride"] == 41
     assert payload["buildSteps"] == 40
     assert payload["planSteps"] == 30
     assert payload["settingsScope"] == "global"
@@ -180,6 +186,8 @@ def test_settings_route_persists_global_defaults_and_model_override(
             "presencePenalty": 0.4,
             "frequencyPenalty": 0.2,
             "seed": -1,
+            "gpuLayersMode": "auto",
+            "gpuLayersOverride": 0,
             "buildSteps": 1,
             "planSteps": 1,
             "generalSteps": 1,
@@ -218,6 +226,8 @@ def test_settings_route_persists_global_defaults_and_model_override(
     assert override_payload["presencePenalty"] == 0.4
     assert override_payload["frequencyPenalty"] == 0.2
     assert override_payload["seed"] == -1
+    assert override_payload["gpuLayersMode"] == "auto"
+    assert override_payload["gpuLayersOverride"] == 0
     assert override_payload["buildSteps"] == 160
     assert override_payload["webSearchMode"] == "on-demand"
     assert override_payload["webSearchProvider"] == "duckduckgo"

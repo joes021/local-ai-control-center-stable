@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { ActionResultPanel } from "../components/ActionResultPanel";
 import { CustomSelect } from "../components/CustomSelect";
@@ -9,6 +9,7 @@ import {
   bootstrapManagedSearchProvider,
   deleteSettingsProfile,
   deleteTurboQuantPreset,
+  fetchObservability,
   fetchSearchProviderStatus,
   fetchSettings,
   fetchTurboQuantSchema,
@@ -16,11 +17,19 @@ import {
   saveSettingsProfile,
   saveTurboQuantConfig,
   saveTurboQuantPreset,
+  startServer,
 } from "../lib/api";
+import {
+  estimateAutoGpuLayersFromTotalGiB,
+  estimateContextFitFromKvBuffer,
+  estimateHybridRuntimeUsage,
+  estimateRuntimeFitPreview,
+} from "../lib/runtimeDiagnostics";
 import { applyTheme } from "../lib/theme";
 import { resolveSelectedWorkflowPreset, resolveWorkflowPresets } from "../lib/workflowPresets";
 import type {
   ActionResult,
+  ObservabilityPayload,
   SearchProviderStatusPayload,
   SettingsPayload,
   SettingsProfilePreset,
@@ -94,6 +103,8 @@ const SETTINGS_PROFILE_COMPARE_KEYS: Array<keyof SettingsProfileValues> = [
   "presencePenalty",
   "frequencyPenalty",
   "seed",
+  "gpuLayersMode",
+  "gpuLayersOverride",
   "workingDirectory",
   "thinkingMode",
   "buildSteps",
@@ -383,6 +394,8 @@ function buildSettingsProfileDraft(settings: SettingsPayload): SettingsProfileVa
     presencePenalty: settings.presencePenalty,
     frequencyPenalty: settings.frequencyPenalty,
     seed: settings.seed,
+    gpuLayersMode: settings.gpuLayersMode,
+    gpuLayersOverride: settings.gpuLayersOverride,
     workingDirectory: settings.workingDirectory,
     thinkingMode: settings.thinkingMode,
     buildSteps: settings.buildSteps,
@@ -393,11 +406,56 @@ function buildSettingsProfileDraft(settings: SettingsPayload): SettingsProfileVa
   };
 }
 
-export function SettingsPage() {
+function formatMiB(value: number | null | undefined) {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return "--";
+  }
+  if (value >= 1024) {
+    return `${(value / 1024).toFixed(2)} GiB`;
+  }
+  return `${value.toFixed(value >= 100 ? 0 : 1)} MiB`;
+}
+
+function formatPercent(value: number | null | undefined) {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return "--";
+  }
+  return `${(value * 100).toFixed(0)}%`;
+}
+
+function formatTokenCount(value: number | null | undefined) {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+    return "--";
+  }
+  return `${value} tokena`;
+}
+
+function formatGpuLayersModeLabel(mode: string, override: number, autoRecommendation: number) {
+  if (mode === "manual") {
+    return `Ručno ${override || 0}`;
+  }
+  return `Auto ${autoRecommendation || 0}`;
+}
+
+type VramFitComparisonRow = {
+  label: string;
+  saved: string;
+  editor: string;
+  changed: boolean;
+};
+
+type SettingsPageProps = {
+  focusSectionId?: string | null;
+  onFocusHandled?: () => void;
+};
+
+export function SettingsPage({ focusSectionId = null, onFocusHandled }: SettingsPageProps) {
   const [settings, setSettings] = useState<SettingsPayload | null>(null);
   const [settingsDefaults, setSettingsDefaults] = useState<SettingsPayload | null>(null);
   const [schema, setSchema] = useState<TurboQuantSchemaPayload | null>(null);
   const [turboConfig, setTurboConfig] = useState<TurboQuantConfig | null>(null);
+  const [turboConfigDefaults, setTurboConfigDefaults] = useState<TurboQuantConfig | null>(null);
+  const [observability, setObservability] = useState<ObservabilityPayload | null>(null);
   const [settingsProfileName, setSettingsProfileName] = useState("");
   const [presetName, setPresetName] = useState("");
   const [presetDescription, setPresetDescription] = useState("");
@@ -406,18 +464,25 @@ export function SettingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ActionResult | null>(null);
   const [providerBusy, setProviderBusy] = useState<"" | "check" | "setup">("");
+  const [vramFitBusy, setVramFitBusy] = useState(false);
+  const [showTurboQuantGuidance, setShowTurboQuantGuidance] = useState(false);
+  const vramFitSectionRef = useRef<HTMLElement | null>(null);
 
   async function reload() {
-    const [settingsPayload, schemaPayload] = await Promise.all([
+    const [settingsPayload, schemaPayload, observabilityPayload] = await Promise.all([
       fetchSettings(),
       fetchTurboQuantSchema(),
+      fetchObservability(),
     ]);
     const turboDraft = readDraft<TurboQuantConfig>(TURBOQUANT_DRAFT_STORAGE_KEY);
+    const savedTurboConfig = schemaPayload.currentConfig;
 
     setSettings(settingsPayload);
     setSettingsDefaults(settingsPayload);
     setSchema(schemaPayload);
-    setTurboConfig(turboDraft ? { ...schemaPayload.currentConfig, ...turboDraft } : schemaPayload.currentConfig);
+    setTurboConfigDefaults(savedTurboConfig);
+    setTurboConfig(turboDraft ? { ...savedTurboConfig, ...turboDraft } : savedTurboConfig);
+    setObservability(observabilityPayload);
   }
 
   useEffect(() => {
@@ -431,6 +496,14 @@ export function SettingsPage() {
       writeDraft(TURBOQUANT_DRAFT_STORAGE_KEY, turboConfig);
     }
   }, [turboConfig]);
+
+  useEffect(() => {
+    if (focusSectionId !== "vram-fit" || !settings || !turboConfig) {
+      return;
+    }
+    vramFitSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    onFocusHandled?.();
+  }, [focusSectionId, onFocusHandled, settings, turboConfig]);
 
   const settingsProfiles = useMemo(
     () => (settings ? [...settings.builtInSettingsProfiles, ...settings.userSettingsProfiles] : []),
@@ -509,6 +582,7 @@ export function SettingsPage() {
   const contextChoice = resolveTokenChoice(settings.context);
   const outputTokensChoice = resolveTokenChoice(settings.outputTokens);
   const activeSettings = settings;
+  const activeTurboConfig = turboConfig;
   const activeInferenceSummary = buildInferenceSummaryItems(settings);
   const activeInferenceSummaryCards = activeInferenceSummary.map((item) => ({
     ...item,
@@ -521,12 +595,310 @@ export function SettingsPage() {
     (item) =>
       !INFERENCE_PRIMARY_LABELS.includes(item.label as (typeof INFERENCE_PRIMARY_LABELS)[number]),
   );
+  const selectedGpuTotalGiB =
+    observability?.runtime.selectedGpuTotalGiB ??
+    observability?.system.gpuDevices.find((device) => device.selected)?.totalGiB ??
+    null;
+  const hybridEstimate = estimateHybridRuntimeUsage(
+    observability?.runtime.runtimeDiagnostics,
+    selectedGpuTotalGiB,
+  );
+  const autoGpuLayersRecommendation = estimateAutoGpuLayersFromTotalGiB(selectedGpuTotalGiB);
+  const activeRuntimeContext =
+    observability?.runtime.activeRuntime === "turboquant" ? activeTurboConfig.context : activeSettings.context;
+  const previewGpuLayersValue =
+    activeSettings.gpuLayersMode === "manual" && activeSettings.gpuLayersOverride > 0
+      ? activeSettings.gpuLayersOverride
+      : autoGpuLayersRecommendation;
+  const previewContextValue =
+    observability?.runtime.activeRuntime === "turboquant" ? activeTurboConfig.context : activeSettings.context;
+  const runtimeFitPreview = estimateRuntimeFitPreview(
+    observability?.runtime.runtimeDiagnostics,
+    activeRuntimeContext,
+    selectedGpuTotalGiB,
+    previewGpuLayersValue,
+    previewContextValue,
+  );
+  const contextFitEstimate = estimateContextFitFromKvBuffer(
+    observability?.runtime.runtimeDiagnostics,
+    previewContextValue,
+    selectedGpuTotalGiB,
+    runtimeFitPreview?.estimatedAdditionalVramToFitMiB,
+  );
+  const suggestedGpuLayers =
+    observability?.runtime.runtimeDiagnostics?.confirmedTotalLayers &&
+    observability.runtime.runtimeDiagnostics.confirmedTotalLayers > 0
+      ? observability.runtime.runtimeDiagnostics.confirmedTotalLayers
+      : null;
+  const activeGpuLayersValue = previewGpuLayersValue;
+  const totalModelLayers = observability?.runtime.runtimeDiagnostics?.confirmedTotalLayers ?? null;
+  const canTryToFitInVram = Boolean(totalModelLayers || suggestedGpuLayers || contextFitEstimate?.suggestedContext);
+  const fitBaselineSettings = settingsDefaults ?? activeSettings;
+  const fitBaselineTurboConfig = turboConfigDefaults ?? activeTurboConfig;
+  const runtimeUsesTurboQuant = observability?.runtime.activeRuntime === "turboquant";
+  const savedGpuLayersValue =
+    fitBaselineSettings.gpuLayersMode === "manual" && fitBaselineSettings.gpuLayersOverride > 0
+      ? fitBaselineSettings.gpuLayersOverride
+      : autoGpuLayersRecommendation;
+  const savedRuntimeContext = runtimeUsesTurboQuant ? fitBaselineTurboConfig.context : fitBaselineSettings.context;
+  const savedRuntimeFitPreview = estimateRuntimeFitPreview(
+    observability?.runtime.runtimeDiagnostics,
+    savedRuntimeContext,
+    selectedGpuTotalGiB,
+    savedGpuLayersValue,
+    savedRuntimeContext,
+  );
+  const savedContextFitEstimate = estimateContextFitFromKvBuffer(
+    observability?.runtime.runtimeDiagnostics,
+    savedRuntimeContext,
+    selectedGpuTotalGiB,
+    savedRuntimeFitPreview?.estimatedAdditionalVramToFitMiB,
+  );
+  const vramFitComparisonRows: VramFitComparisonRow[] = [
+    {
+      label: "GPU layers",
+      saved: formatGpuLayersModeLabel(
+        fitBaselineSettings.gpuLayersMode,
+        fitBaselineSettings.gpuLayersOverride,
+        autoGpuLayersRecommendation,
+      ),
+      editor: formatGpuLayersModeLabel(
+        activeSettings.gpuLayersMode,
+        activeSettings.gpuLayersOverride,
+        autoGpuLayersRecommendation,
+      ),
+      changed:
+        fitBaselineSettings.gpuLayersMode !== activeSettings.gpuLayersMode ||
+        fitBaselineSettings.gpuLayersOverride !== activeSettings.gpuLayersOverride,
+    },
+    {
+      label: runtimeUsesTurboQuant ? "TurboQuant context" : "Context",
+      saved: formatTokenCount(savedRuntimeContext),
+      editor: formatTokenCount(activeRuntimeContext),
+      changed: savedRuntimeContext !== activeRuntimeContext,
+    },
+    {
+      label: "Model preliv",
+      saved: formatMiB(savedRuntimeFitPreview?.estimatedModelRamSpillMiB),
+      editor: formatMiB(runtimeFitPreview?.estimatedModelRamSpillMiB),
+      changed:
+        savedRuntimeFitPreview?.estimatedModelRamSpillMiB !== runtimeFitPreview?.estimatedModelRamSpillMiB,
+    },
+    {
+      label: "Još VRAM-a",
+      saved: formatMiB(savedRuntimeFitPreview?.estimatedAdditionalVramToFitMiB),
+      editor: formatMiB(runtimeFitPreview?.estimatedAdditionalVramToFitMiB),
+      changed:
+        savedRuntimeFitPreview?.estimatedAdditionalVramToFitMiB !==
+        runtimeFitPreview?.estimatedAdditionalVramToFitMiB,
+    },
+    {
+      label: "Procena context fit",
+      saved: savedContextFitEstimate?.suggestedContext
+        ? formatTokenCount(savedContextFitEstimate.suggestedContext)
+        : savedContextFitEstimate?.contextOnlyCanFit === false
+          ? "Context sam nije dovoljan"
+          : "--",
+      editor: contextFitEstimate?.suggestedContext
+        ? formatTokenCount(contextFitEstimate.suggestedContext)
+        : contextFitEstimate?.contextOnlyCanFit === false
+          ? "Context sam nije dovoljan"
+          : "--",
+      changed: savedContextFitEstimate?.suggestedContext !== contextFitEstimate?.suggestedContext,
+    },
+  ];
+  if (runtimeUsesTurboQuant) {
+    vramFitComparisonRows.splice(
+      2,
+      0,
+      {
+        label: "ctv",
+        saved: fitBaselineTurboConfig.ctv,
+        editor: activeTurboConfig.ctv,
+        changed: fitBaselineTurboConfig.ctv !== activeTurboConfig.ctv,
+      },
+      {
+        label: "ctk",
+        saved: fitBaselineTurboConfig.ctk,
+        editor: activeTurboConfig.ctk,
+        changed: fitBaselineTurboConfig.ctk !== activeTurboConfig.ctk,
+      },
+    );
+  }
+  const hasUnsavedVramFitChanges = vramFitComparisonRows.some((row) => row.changed);
+  const vramFitLocalResult =
+    result && (result.action === "try-fit-in-vram" || result.action === "save-and-apply-vram-tuning")
+      ? result
+      : null;
+  const vramFitLocalLines = (vramFitLocalResult?.details.stdout || vramFitLocalResult?.details.stderr || "")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
 
   function updateInferenceSetting(key: InferenceParameterKey, value: number) {
     setSettings({
       ...activeSettings,
       [key]: value,
     } as SettingsPayload);
+  }
+
+  function tryToFitInVramInEditor() {
+    const currentRuntime = observability?.runtime.activeRuntime;
+    const baselineGpuLayers =
+      fitBaselineSettings.gpuLayersMode === "manual" && fitBaselineSettings.gpuLayersOverride > 0
+        ? fitBaselineSettings.gpuLayersOverride
+        : autoGpuLayersRecommendation;
+    const targetGpuLayers =
+      totalModelLayers ??
+      suggestedGpuLayers ??
+      baselineGpuLayers ??
+      0;
+    const currentContextValue =
+      currentRuntime === "turboquant" ? fitBaselineTurboConfig.context : fitBaselineSettings.context;
+    const fallbackContextChoices = [262144, 131072, 65536, 32768, 16384, 8192, 4096];
+    const fallbackContextTarget =
+      fallbackContextChoices.find((value) => value < currentContextValue) ?? currentContextValue;
+    const fitBaselinePreview = estimateRuntimeFitPreview(
+      observability?.runtime.runtimeDiagnostics,
+      currentContextValue,
+      selectedGpuTotalGiB,
+      targetGpuLayers,
+      currentContextValue,
+    );
+    const fitBaselineContextEstimate = estimateContextFitFromKvBuffer(
+      observability?.runtime.runtimeDiagnostics,
+      currentContextValue,
+      selectedGpuTotalGiB,
+      fitBaselinePreview?.estimatedAdditionalVramToFitMiB,
+    );
+    const targetContext =
+      fitBaselineContextEstimate?.suggestedContext ??
+      ((fitBaselinePreview?.estimatedAdditionalVramToFitMiB ?? 0) > 0 ? fallbackContextTarget : currentContextValue);
+    const nextPreview = estimateRuntimeFitPreview(
+      observability?.runtime.runtimeDiagnostics,
+      currentContextValue,
+      selectedGpuTotalGiB,
+      targetGpuLayers,
+      targetContext,
+    );
+    const nextGpuLayerSettings: SettingsPayload = {
+      ...activeSettings,
+      gpuLayersMode: "manual",
+      gpuLayersOverride: targetGpuLayers,
+      context: currentRuntime === "turboquant" ? activeSettings.context : targetContext,
+    };
+    let nextTurboConfig: TurboQuantConfig = activeTurboConfig;
+    if (currentRuntime === "turboquant") {
+      const deficitMiB = fitBaselinePreview?.estimatedAdditionalVramToFitMiB ?? 0;
+      nextTurboConfig = {
+        ...activeTurboConfig,
+        context: targetContext,
+        flashAttention: true,
+        runtimePreference: "turboquant",
+        ctv: deficitMiB > 256 ? "turbo2" : activeTurboConfig.ctv === "turbo4" ? "turbo3" : activeTurboConfig.ctv,
+        ctk:
+          deficitMiB > 768
+            ? "turbo2"
+            : deficitMiB > 256
+              ? activeTurboConfig.ctk === "turbo4"
+                ? "turbo3"
+                : activeTurboConfig.ctk
+              : activeTurboConfig.ctk,
+      };
+    }
+
+    setSettings(nextGpuLayerSettings);
+    if (nextTurboConfig !== activeTurboConfig) {
+      setTurboConfig(nextTurboConfig);
+    }
+
+    const turboChanges: string[] = [];
+    if (currentRuntime === "turboquant") {
+      if (nextTurboConfig.context !== activeTurboConfig.context) {
+        turboChanges.push(`TurboQuant context: ${activeTurboConfig.context} → ${nextTurboConfig.context}`);
+      }
+      if (nextTurboConfig.ctv !== activeTurboConfig.ctv) {
+        turboChanges.push(`ctv: ${activeTurboConfig.ctv} → ${nextTurboConfig.ctv}`);
+      }
+      if (nextTurboConfig.ctk !== activeTurboConfig.ctk) {
+        turboChanges.push(`ctk: ${activeTurboConfig.ctk} → ${nextTurboConfig.ctk}`);
+      }
+    }
+
+    setResult({
+      status: "ok",
+      action: "try-fit-in-vram",
+      summary:
+        "Predlog za VRAM fit je upisan u editor. Još nije sačuvan ni aktivan u runtime-u; pregledaj razlike pa klikni `Sačuvaj i primeni na runtime` kada želiš da postanu aktivne.",
+      details: {
+        returncode: 0,
+        stdout: [
+          `GPU layers: ${formatGpuLayersModeLabel(fitBaselineSettings.gpuLayersMode, fitBaselineSettings.gpuLayersOverride, autoGpuLayersRecommendation)} → Ručno ${targetGpuLayers}`,
+          targetContext !== currentContextValue
+            ? currentRuntime === "turboquant"
+              ? `TurboQuant context: ${currentContextValue} → ${targetContext}`
+              : `Context: ${currentContextValue} → ${targetContext}`
+            : "",
+          `Model preliv procena: ${formatMiB(fitBaselinePreview?.estimatedModelRamSpillMiB)} → ${formatMiB(nextPreview?.estimatedModelRamSpillMiB)}`,
+          `Još VRAM-a procena: ${formatMiB(fitBaselinePreview?.estimatedAdditionalVramToFitMiB)} → ${formatMiB(nextPreview?.estimatedAdditionalVramToFitMiB)}`,
+          ...turboChanges,
+        ]
+          .filter(Boolean)
+          .join("\n"),
+        stderr: "",
+      },
+    });
+  }
+
+  async function saveAndApplyCurrentVramTuning() {
+    setVramFitBusy(true);
+    try {
+      const settingsResult = await applySettings(activeSettings);
+      if (settingsResult.status !== "ok") {
+        setResult(settingsResult);
+        return;
+      }
+
+      let turboResult: ActionResult | null = null;
+      if (observability?.runtime.activeRuntime === "turboquant") {
+        turboResult = await saveTurboQuantConfig(activeTurboConfig);
+        if (turboResult.status !== "ok") {
+          setResult(turboResult);
+          return;
+        }
+      }
+
+      setSettingsDefaults({ ...activeSettings });
+      if (observability?.runtime.activeRuntime === "turboquant") {
+        setTurboConfigDefaults({ ...activeTurboConfig });
+      }
+
+      const restartResult = await startServer();
+      setResult({
+        status:
+          restartResult.status === "ok" && (!turboResult || turboResult.status === "ok") ? "ok" : restartResult.status,
+        action: "save-and-apply-vram-tuning",
+        summary: [
+          `Trenutno VRAM tuning podešavanje je sačuvano i poslato na runtime.`,
+          `Ako je runtime već aktivan, portal ga restartuje; ako nije, pokreće ga sa novim vrednostima.`,
+          `GPU layers režim: ${activeSettings.gpuLayersMode === "manual" ? `ručno ${activeSettings.gpuLayersOverride || 0}` : `auto ${autoGpuLayersRecommendation || 0}`}.`,
+          observability?.runtime.activeRuntime === "turboquant"
+            ? `TurboQuant context: ${activeTurboConfig.context}.`
+            : `Context: ${activeSettings.context}.`,
+          restartResult.summary,
+        ]
+          .filter(Boolean)
+          .join(" "),
+        details: {
+          returncode: restartResult.details.returncode,
+          stdout: [settingsResult.summary, turboResult?.summary, restartResult.summary].filter(Boolean).join("\n"),
+          stderr: restartResult.details.stderr || turboResult?.details.stderr || settingsResult.details.stderr,
+        },
+      });
+      await reload();
+    } finally {
+      setVramFitBusy(false);
+    }
   }
 
   function applyWorkflowPreset(preset: WorkflowPreset) {
@@ -583,6 +955,7 @@ export function SettingsPage() {
           },
         ]}
       />
+      <ActionResultPanel result={result} />
       <section className="status-card wide-card settings-cluster-card">
         <div className="section-header settings-cluster-header">
           <div>
@@ -1133,6 +1506,250 @@ export function SettingsPage() {
       <section className="status-card wide-card settings-cluster-card">
         <div className="section-header settings-cluster-header">
           <div>
+            <span className="status-label">VRAM fit tuning</span>
+            <strong className="status-value">Direktan put do cilja da model stane što više u GPU VRAM</strong>
+          </div>
+        </div>
+        <p className="helper-text">
+          Ovde podešavaš ručni <code>GPU layers override</code> i vidiš procenu koliko još fali do
+          punog GPU fit-a. Ako je aktivan TurboQuant, isti blok ti govori i kada treba da spustiš
+          njegov <code>context</code>.
+        </p>
+        <p className="helper-text">
+          Auto trenutno cilja oko <code>{autoGpuLayersRecommendation || 0}</code> GPU slojeva za
+          izabrani GPU. Više GPU slojeva = više VRAM i manje RAM preliva. Manje GPU slojeva = manje
+          VRAM, ali više oslanjanja na RAM.
+        </p>
+        <div className="settings-cluster-grid settings-cluster-grid-core">
+          <article
+            className="settings-field settings-field-wide settings-vram-fit-card"
+            id="settings-vram-fit"
+            ref={vramFitSectionRef}
+          >
+            <span className="settings-field-label">Aktivni runtime signal</span>
+            <strong className="status-value">
+              {observability?.runtime.activeRuntime || "--"} | {observability?.runtime.executionModeLabel || "Čeka potvrdu"}
+            </strong>
+            <div className="summary-metrics">
+              <span>GPU: {observability?.runtime.selectedGpuName || observability?.system.gpuName || "--"}</span>
+              <span>Offload: {observability?.runtime.offloadLabel || "--"}</span>
+              <span>Model buffer: {formatMiB(observability?.runtime.runtimeDiagnostics?.modelBufferMiB)}</span>
+              <span>KV buffer: {formatMiB(observability?.runtime.runtimeDiagnostics?.kvBufferMiB)}</span>
+              <span>Compute buffer: {formatMiB(observability?.runtime.runtimeDiagnostics?.computeBufferMiB)}</span>
+            </div>
+            <p className="helper-text">
+              Ako je režim <code>Hibrid VRAM + RAM</code>, gledaj najviše <code>GPU layers</code>,
+              <code>context</code> i TurboQuant KV kompresiju. Ako je model i quant pretežak, ni
+              agresivan tuning neće garantovati čist GPU fit.
+            </p>
+          </article>
+
+          <article className="settings-field">
+            <span className="settings-field-label">GPU layers override</span>
+            <strong className="status-value">
+              {activeSettings.gpuLayersMode === "manual"
+                ? `Ručno: ${activeSettings.gpuLayersOverride || 0} slojeva`
+                : `Auto: ${autoGpuLayersRecommendation || 0} slojeva`}
+            </strong>
+            <div className="settings-number-row">
+              <CustomSelect
+                value={settings.gpuLayersMode}
+                options={[
+                  { value: "auto", label: "Auto" },
+                  { value: "manual", label: "Ručno" },
+                ]}
+                onChange={(value) =>
+                  setSettings({
+                    ...settings,
+                    gpuLayersMode: value,
+                  })
+                }
+                ariaLabel="Izaberi GPU layers režim"
+              />
+              {settings.gpuLayersMode === "manual" ? (
+                <input
+                  type="number"
+                  value={settings.gpuLayersOverride}
+                  aria-label="Unesi GPU layers override"
+                  onChange={(event) =>
+                    setSettings({
+                      ...settings,
+                      gpuLayersOverride: Number(event.target.value || 0),
+                    })
+                  }
+                />
+              ) : null}
+            </div>
+            <p className="helper-text">
+              `Auto` prati procenu po VRAM-u. `Ručno` ti daje direktnu kontrolu kada želiš da teraš
+              puni fit, na primer <code>{suggestedGpuLayers ?? "--"}</code> sloj{suggestedGpuLayers === 1 ? "" : "a"}.
+            </p>
+            <p className="helper-text">
+              Ako ručno promeniš broj ovde, on postaje aktivan tek kada klikneš
+              <code>Sačuvaj opšta podešavanja</code> ili <code>Sačuvaj i primeni na runtime</code>.
+            </p>
+            <div className="summary-metrics">
+              <span>Auto trenutno cilja: {autoGpuLayersRecommendation || 0}</span>
+              <span>Aktivno u editoru: {activeGpuLayersValue || 0}</span>
+              <span>Runtime trenutno traži: {observability?.runtime.runtimeDiagnostics?.requestedGpuLayers ?? "--"}</span>
+              <span>Ukupno slojeva modela: {totalModelLayers ?? "--"}</span>
+            </div>
+          </article>
+
+          <article className="settings-field">
+            <span className="settings-field-label">Model preliv za editor</span>
+            <strong className="status-value">{formatMiB(runtimeFitPreview?.estimatedModelRamSpillMiB)}</strong>
+            <p className="helper-text">
+              Ovaj broj se najviše menja kada menjaš <code>GPU layers</code>. Pokazuje koliko bi
+              sam model deo i dalje ostao van VRAM-a za trenutno podešavanje u editoru.
+            </p>
+          </article>
+
+          <article className="settings-field">
+            <span className="settings-field-label">Još VRAM-a za editor</span>
+            <strong className="status-value">{formatMiB(runtimeFitPreview?.estimatedAdditionalVramToFitMiB)}</strong>
+            <p className="helper-text">
+              Ovaj broj reaguje i na <code>GPU layers</code> i na <code>context</code>. Ako ostaje
+              visok, samo spuštanje context-a verovatno nije dovoljno.
+            </p>
+            <div className="summary-metrics">
+              <span>Trenutni runtime preliv: {formatMiB(hybridEstimate?.estimatedRamSpillMiB)}</span>
+              <span>Editor GPU slojevi: {runtimeFitPreview?.targetGpuLayers ?? "--"}</span>
+              <span>Editor context: {previewContextValue}</span>
+            </div>
+          </article>
+
+          <article className="settings-field settings-field-wide">
+            <span className="settings-field-label">Procenjeni context za puni GPU fit</span>
+            <strong className="status-value">
+              {contextFitEstimate?.suggestedContext
+                ? `${contextFitEstimate.suggestedContext} tokena`
+                : contextFitEstimate?.contextOnlyCanFit === false
+                  ? "Samo spuštanje context-a verovatno nije dovoljno"
+                  : "Nema dovoljnog signala za procenu"}
+            </strong>
+            <p className="helper-text">
+              {contextFitEstimate?.suggestedContext
+                ? `Na osnovu trenutnog KV buffer-a procena je da bi oko ${contextFitEstimate.suggestedContext} tokena oslobodilo približno ${formatMiB(contextFitEstimate.estimatedFreedVramMiB)} VRAM-a.`
+                : contextFitEstimate?.contextOnlyCanFit === false
+                  ? "KV buffer nije dovoljan da sam od sebe oslobodi sav nedostajući VRAM. Tada treba i manji quant/model ili agresivniji TurboQuant kompromis."
+                  : "Procena postaje korisna tek kada runtime već radi i prijavi čitljiv KV buffer."}
+            </p>
+            <div className="summary-metrics">
+              <span>Aktivni context: {activeRuntimeContext}</span>
+              <span>Smanjenje: {formatPercent(contextFitEstimate?.estimatedReductionPercent)}</span>
+              <span>Aktivni runtime: {observability?.runtime.activeRuntime || "--"}</span>
+            </div>
+          </article>
+
+          <article className="settings-field settings-field-wide">
+            <span className="settings-field-label">Sačuvano i editor</span>
+            <strong className="status-value">
+              {hasUnsavedVramFitChanges
+                ? "Editor ima nesnimljene VRAM tuning promene"
+                : "Editor je usklađen sa poslednjim sačuvanim VRAM tuning stanjem"}
+            </strong>
+            <p className="helper-text">
+              Ovde odmah vidiš stare i nove vrednosti. Kada klikneš `Try to fit in VRAM`, promene se
+              prvo vide ovde, pa tek posle `Sačuvaj i primeni na runtime` postaju aktivne.
+            </p>
+            <div className="settings-vram-compare-grid">
+              {vramFitComparisonRows.map((row) => (
+                <article
+                  key={row.label}
+                  className={`settings-vram-compare-card ${row.changed ? "settings-vram-compare-card-changed" : ""}`}
+                >
+                  <span className="settings-vram-compare-label">{row.label}</span>
+                  <span className="settings-vram-compare-side">Sačuvano: {row.saved}</span>
+                  <span className="settings-vram-compare-side">Editor: {row.editor}</span>
+                </article>
+              ))}
+            </div>
+          </article>
+
+          <article className="settings-field settings-field-wide">
+            <span className="settings-field-label">Preporučeni sledeći korak</span>
+            <div className="inline-actions">
+              <button
+                type="button"
+                onClick={() => {
+                  void saveAndApplyCurrentVramTuning();
+                }}
+                disabled={vramFitBusy}
+              >
+                {vramFitBusy ? "Čuvam i primenjujem..." : "Sačuvaj i primeni na runtime"}
+              </button>
+              <button
+                type="button"
+                title="Try to fit in VRAM"
+                aria-label="Try to fit in VRAM"
+                className="secondary-button"
+                onClick={tryToFitInVramInEditor}
+                disabled={!canTryToFitInVram}
+              >
+                Try to fit in VRAM
+              </button>
+              {observability?.runtime.activeRuntime === "turboquant" ? (
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() => setShowTurboQuantGuidance((current) => !current)}
+                >
+                  {showTurboQuantGuidance ? "Sakrij TurboQuant smernice" : "Prikaži TurboQuant smernice"}
+                </button>
+              ) : null}
+            </div>
+            <p className="helper-text">
+              `Try to fit in VRAM` samo popunjava editor smislenijim VRAM-fit vrednostima: puni GPU layers,
+              manji context po proceni i, kod TurboQuant-a, jaču KV kompresiju kada izgleda korisno.
+              Runtime se tada još ne restartuje. `Sačuvaj i primeni na runtime` je zaseban korak koji tek tada stvarno
+              snima i primenjuje ono što vidiš. Ako je runtime već aktivan, portal ga restartuje; ako nije, pokreće ga.
+            </p>
+            {vramFitLocalResult ? (
+              <div className="compat-empty-state settings-vram-local-status">
+                <strong>
+                  {vramFitLocalResult.action === "try-fit-in-vram"
+                    ? "Poslednji VRAM fit predlog"
+                    : "Poslednja primena runtime-a"}
+                </strong>
+                <p className="helper-text">
+                  {vramFitLocalResult.action === "try-fit-in-vram"
+                    ? "Ovo još nije sačuvano ni aktivno u runtime-u."
+                    : "Posle čuvanja, Živi resursi mogu da kasne nekoliko sekundi dok novi runtime signal ne stigne."}
+                </p>
+                <p className="helper-text">{vramFitLocalResult.summary}</p>
+                {vramFitLocalLines.length ? (
+                  <div className="summary-metrics">
+                    {vramFitLocalLines.map((line) => (
+                      <span key={line}>{line}</span>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+            {showTurboQuantGuidance && observability?.runtime.activeRuntime === "turboquant" ? (
+              <div className="compat-empty-state">
+                <strong>TurboQuant smernice za čistiji VRAM fit</strong>
+                <p className="helper-text">
+                  Ako hoćeš da sve stane u VRAM, redosled je obično: prvo spusti <code>context</code>,
+                  zatim proveri <code>GPU layers</code>, pa tek onda idi na agresivnije TurboQuant
+                  kompromise.
+                </p>
+                <div className="summary-metrics">
+                  <span>Prvo probaj: ctv turbo3</span>
+                  <span>Zatim po potrebi: ctk turbo3</span>
+                  <span>flashAttention: ostavi uključeno</span>
+                  <span>ncmoe: koristi samo ako prihvataš više hibrida</span>
+                </div>
+              </div>
+            ) : null}
+          </article>
+        </div>
+      </section>
+
+      <section className="status-card wide-card settings-cluster-card">
+        <div className="section-header settings-cluster-header">
+          <div>
             <span className="status-label">Pretraga i izvori</span>
             <strong className="status-value">Kako Search, Knowledge i local-lacc dolaze do web rezultata</strong>
           </div>
@@ -1584,7 +2201,6 @@ export function SettingsPage() {
           </button>
         </div>
       </section>
-      <ActionResultPanel result={result} />
     </div>
   );
 }

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 import difflib
 import hashlib
 import json
@@ -61,6 +61,9 @@ TUNING_LAB_DEFAULT_TIMEOUT_SECONDS = 30 * 60
 TUNING_LAB_RUNTIME_READY_TIMEOUT_SECONDS = 180.0
 TUNING_LAB_RUNTIME_READY_POLL_SECONDS = 0.5
 TUNING_LAB_WORKER_POLL_SECONDS = 0.25
+TUNING_LAB_OPENCODE_SUCCESS_PROBE_INTERVAL_SECONDS = 5.0
+TUNING_LAB_OPENCODE_SUCCESS_QUIET_SECONDS = 12.0
+TUNING_LAB_OPENCODE_NO_PROGRESS_TIMEOUT_SECONDS = 180.0
 TUNING_LAB_DIFF_FILE_LIMIT = 10
 TUNING_LAB_DIFF_FILE_BYTES_LIMIT = 200_000
 TUNING_LAB_DIFF_LINES_LIMIT = 400
@@ -329,7 +332,7 @@ _BATCH_PRESETS: list[dict[str, Any]] = [
                     },
                     {
                         "label": "Ključni stringovi postoje",
-                        "command": "Select-String -Path index.html -Pattern 'Jumping Ball Runner|High Score|Score' -AllMatches | Out-Null; if ($LASTEXITCODE -eq 0) { exit 0 } else { exit 1 }",
+                        "command": "if (Select-String -Path index.html -Pattern 'Jumping Ball Runner|High Score|Score' -AllMatches -Quiet) { exit 0 } else { exit 1 }",
                         "kind": "custom",
                     },
                 ],
@@ -362,7 +365,7 @@ _BATCH_PRESETS: list[dict[str, Any]] = [
                     },
                     {
                         "label": "Ključni stringovi postoje",
-                        "command": "Select-String -Path index.html -Pattern 'Balloon Blaster|Combo|High Score' -AllMatches | Out-Null; if ($LASTEXITCODE -eq 0) { exit 0 } else { exit 1 }",
+                        "command": "if (Select-String -Path index.html -Pattern 'Balloon Blaster|Combo|High Score' -AllMatches -Quiet) { exit 0 } else { exit 1 }",
                         "kind": "custom",
                     },
                 ],
@@ -396,7 +399,7 @@ _BATCH_PRESETS: list[dict[str, Any]] = [
                     },
                     {
                         "label": "README i index referenca postoje",
-                        "command": "Select-String -Path README.md -Pattern 'kontrol|control|pokret' -AllMatches | Out-Null; if ($LASTEXITCODE -ne 0) { exit 1 }; Select-String -Path index.html -Pattern 'styles.css|config.js|game.js' -AllMatches | Out-Null; if ($LASTEXITCODE -eq 0) { exit 0 } else { exit 1 }",
+                        "command": "if (-not (Select-String -Path README.md -Pattern 'kontrol|control|pokret' -AllMatches -Quiet)) { exit 1 }; if (Select-String -Path index.html -Pattern 'styles.css|config.js|game.js' -AllMatches -Quiet) { exit 0 } else { exit 1 }",
                         "kind": "custom",
                     },
                 ],
@@ -522,11 +525,6 @@ def _reconcile_orphaned_active_run(config: ControlCenterConfig) -> None:
         status = str(active_run.get("status", "") or "").strip().lower()
         if status in {"completed", "failed"}:
             return
-        live_pids = {
-            int(record.get("pid", 0) or 0)
-            for record in _list_local_process_records()
-            if int(record.get("pid", 0) or 0) > 0
-        }
         tracked_pids: set[int] = set()
         for slot in active_run.get("slots", []):
             if not isinstance(slot, dict):
@@ -537,10 +535,13 @@ def _reconcile_orphaned_active_run(config: ControlCenterConfig) -> None:
                     tracked_pids.add(pid)
         if not tracked_pids:
             return
-        if tracked_pids and tracked_pids.intersection(live_pids):
-            return
         reconciled = deepcopy(active_run)
-        summary = "Aktivni Tuning Lab run je prekinut tokom restarta panela ili gaÅ¡enja procesa."
+        summary = "Aktivni Tuning Lab run je prekinut tokom restarta panela ili gašenja procesa."
+        if tracked_pids:
+            summary = (
+                "Aktivni Tuning Lab run je ostao bez svog runner procesa tokom restarta panela. "
+                "Preostali runtime/OpenCode procesi biće očišćeni, a run je prebačen u istoriju kao prekinut."
+            )
         reconciled["status"] = "failed"
         reconciled["finishedAt"] = _now_iso()
         reconciled["suggestedWinnerSlotId"] = None
@@ -562,6 +563,7 @@ def _reconcile_orphaned_active_run(config: ControlCenterConfig) -> None:
         history.insert(0, reconciled)
         _save_history(config, history)
         _save_run_state(config, active_run=None, queue=run_state.get("queue", []))
+    _cleanup_stale_tuning_processes(config, active_run=None, history_items=_load_history(config))
 
 
 def prepare_tuning_workspace(
@@ -633,8 +635,8 @@ def suggest_tuning_winner(slot_results: list[dict[str, Any]]) -> str | None:
         successful_slots,
         key=lambda slot: (
             float(slot.get("totalDurationMs", float("inf")) or float("inf")),
-            -float(slot.get("averageOutputTokensPerSecond", 0.0) or 0.0),
-            -float(slot.get("averageTotalTokensPerSecond", 0.0) or 0.0),
+            -_preferred_slot_output_tokens_per_second(slot),
+            -_preferred_slot_total_tokens_per_second(slot),
         ),
     )
     return str(ranked[0].get("id", "") or "") or None
@@ -712,6 +714,8 @@ def enqueue_tuning_batch(
                     "name": f"{preset['label']} · {task.get('label', 'Task')}",
                     "goal": str(task.get("goal", "code") or "code"),
                     "taskPrompt": str(task.get("taskPrompt", "") or ""),
+                    "expectedArtifact": str(task.get("expectedArtifact", "") or ""),
+                    "difficulty": str(task.get("difficulty", "") or ""),
                     "workingDirectory": working_directory,
                     "successChecks": deepcopy(task.get("successChecks", [])),
                     "slots": deepcopy(provided_slots),
@@ -1128,22 +1132,47 @@ def _run_tuning_slot(
                 else {}
             ),
         )
-        update_progress(
-            "checks",
-            "Pokretanje success check lanca",
-            f"{slot_label} je završio OpenCode task i ulazi u proveru uspeha.",
-            log_excerpt=str(opencode_result.get("assistantText", "") if isinstance(opencode_result, dict) else "")[-4000:],
+        reused_live_checks = (
+            list(opencode_result.get("successCheckResults", []))
+            if isinstance(opencode_result, dict) and isinstance(opencode_result.get("successCheckResults"), list)
+            else []
         )
-        success_check_specs = _resolve_success_check_specs(
-            experiment=experiment,
-            workspace_path=workspace_path,
-        )
-        success_checks = _run_success_checks(
-            success_check_specs,
-            workspace_path,
-            slot_artifact_root,
-            progress_callback=update_progress,
-        )
+        if reused_live_checks:
+            success_checks = reused_live_checks
+            update_progress(
+                "checks-finished",
+                "Success check je potvrden tokom zive sesije",
+                str(
+                    opencode_result.get("completionSummary", "")
+                    or f"{slot_label} je zavrsio OpenCode task i success check je vec potvrdjen."
+                ),
+                log_excerpt=str(
+                    opencode_result.get("completionSummary", "")
+                    or opencode_result.get("assistantText", "")
+                    or ""
+                )[-4000:],
+                slot_patch={
+                    "successChecksVerifiedLive": bool(opencode_result.get("successChecksVerifiedLive")),
+                    "successCheckSummary": str(opencode_result.get("completionSummary", "") or ""),
+                },
+            )
+        else:
+            update_progress(
+                "checks",
+                "Pokretanje success check lanca",
+                f"{slot_label} je završio OpenCode task i ulazi u proveru uspeha.",
+                log_excerpt=str(opencode_result.get("assistantText", "") if isinstance(opencode_result, dict) else "")[-4000:],
+            )
+            success_check_specs = _resolve_success_check_specs(
+                experiment=experiment,
+                workspace_path=workspace_path,
+            )
+            success_checks = _run_success_checks(
+                success_check_specs,
+                workspace_path,
+                slot_artifact_root,
+                progress_callback=update_progress,
+            )
     except Exception as exc:  # noqa: BLE001
         error_summary = str(exc)
         update_progress(
@@ -1234,6 +1263,11 @@ def _run_tuning_slot(
         "totalDurationMs": total_duration_ms,
         "averageOutputTokensPerSecond": float(opencode_result.get("averageOutputTokensPerSecond", 0.0) if isinstance(opencode_result, dict) else 0.0),
         "averageTotalTokensPerSecond": float(opencode_result.get("averageTotalTokensPerSecond", 0.0) if isinstance(opencode_result, dict) else 0.0),
+        "completionMode": str(opencode_result.get("completionMode", "") if isinstance(opencode_result, dict) else ""),
+        "successChecksVerifiedLive": bool(opencode_result.get("successChecksVerifiedLive", False))
+        if isinstance(opencode_result, dict)
+        else False,
+        "completionSummary": str(opencode_result.get("completionSummary", "") if isinstance(opencode_result, dict) else ""),
         "runtimeCommand": str(runtime_session.get("commandPreview", "") if isinstance(runtime_session, dict) else ""),
         "runtimeBaseUrl": str(runtime_session.get("baseUrl", "") if isinstance(runtime_session, dict) else ""),
         "runtimeDiagnostics": (
@@ -1282,6 +1316,76 @@ def _run_tuning_slot(
             )
             if isinstance(opencode_result, dict)
             else str(active_slot_snapshot.get("stderrPath", "") or "")
+        ),
+        "opencodeSessionId": str(
+            (
+                opencode_result.get("opencodeSessionId", "")
+                or active_slot_snapshot.get("opencodeSessionId", "")
+                or ""
+            )
+            if isinstance(opencode_result, dict)
+            else str(active_slot_snapshot.get("opencodeSessionId", "") or "")
+        ),
+        "activeMessageId": str(
+            (
+                opencode_result.get("activeMessageId", "")
+                or active_slot_snapshot.get("activeMessageId", "")
+                or ""
+            )
+            if isinstance(opencode_result, dict)
+            else str(active_slot_snapshot.get("activeMessageId", "") or "")
+        ),
+        "liveWorkspaceSummary": str(
+            (
+                opencode_result.get("liveWorkspaceSummary", "")
+                or active_slot_snapshot.get("liveWorkspaceSummary", "")
+                or ""
+            )
+            if isinstance(opencode_result, dict)
+            else str(active_slot_snapshot.get("liveWorkspaceSummary", "") or "")
+        ),
+        "liveWorkspaceFiles": (
+            list(opencode_result.get("liveWorkspaceFiles", []))
+            if isinstance(opencode_result, dict) and isinstance(opencode_result.get("liveWorkspaceFiles"), list)
+            else list(active_slot_snapshot.get("liveWorkspaceFiles", []))
+            if isinstance(active_slot_snapshot.get("liveWorkspaceFiles"), list)
+            else []
+        ),
+        "livePreviewFilePath": str(
+            (
+                opencode_result.get("livePreviewFilePath", "")
+                or active_slot_snapshot.get("livePreviewFilePath", "")
+                or ""
+            )
+            if isinstance(opencode_result, dict)
+            else str(active_slot_snapshot.get("livePreviewFilePath", "") or "")
+        ),
+        "livePreviewFileName": str(
+            (
+                opencode_result.get("livePreviewFileName", "")
+                or active_slot_snapshot.get("livePreviewFileName", "")
+                or ""
+            )
+            if isinstance(opencode_result, dict)
+            else str(active_slot_snapshot.get("livePreviewFileName", "") or "")
+        ),
+        "livePreviewText": str(
+            (
+                opencode_result.get("livePreviewText", "")
+                or active_slot_snapshot.get("livePreviewText", "")
+                or ""
+            )
+            if isinstance(opencode_result, dict)
+            else str(active_slot_snapshot.get("livePreviewText", "") or "")
+        ),
+        "livePreviewModifiedAt": str(
+            (
+                opencode_result.get("livePreviewModifiedAt", "")
+                or active_slot_snapshot.get("livePreviewModifiedAt", "")
+                or ""
+            )
+            if isinstance(opencode_result, dict)
+            else str(active_slot_snapshot.get("livePreviewModifiedAt", "") or "")
         ),
         "liveOutputTokensPerSecond": float(
             (
@@ -1570,7 +1674,7 @@ def _run_slot_opencode_task(
         slot_settings=slot_settings,
         override_payload=override_payload,
     )
-    prompt = str(experiment.get("taskPrompt", "") or "").strip()
+    prompt = _build_tuning_lab_task_prompt(experiment)
     if not prompt:
         raise RuntimeError("Tuning Lab eksperiment nema OpenCode task prompt.")
     command = [
@@ -1583,15 +1687,23 @@ def _run_slot_opencode_task(
         "--dir",
         str(workspace_path),
         "--dangerously-skip-permissions",
+        "--agent",
+        "build",
         "--model",
         f"local-lacc/{public_model_name}",
         prompt,
     ]
     started = time.monotonic()
+    started_at_utc = datetime.now(UTC)
+    no_progress_timeout_seconds = _resolve_no_progress_timeout_seconds(experiment)
     stdout_path = slot_artifact_root / "opencode-output.jsonl"
     stderr_path = slot_artifact_root / "opencode-error.log"
     slot_label = str(experiment.get("currentSlotLabel", "Aktivni slot") or "Aktivni slot")
     latest_live_metric: dict[str, Any] | None = None
+    stable_success_results: list[dict[str, Any]] = []
+    stable_success_summary = ""
+    stable_success_live = False
+    next_success_probe_at = started + TUNING_LAB_OPENCODE_SUCCESS_PROBE_INTERVAL_SECONDS
     with stdout_path.open("w", encoding="utf-8") as stdout_handle, stderr_path.open(
         "w", encoding="utf-8"
     ) as stderr_handle:
@@ -1629,6 +1741,11 @@ def _run_slot_opencode_task(
                 launch_arguments=launch_arguments,
                 log_path=runtime_log_path,
             )
+            stdout_tail = _read_text_tail(stdout_path, limit=12000)
+            stderr_tail = _read_text_tail(stderr_path, limit=4000)
+            session_metadata = _parse_opencode_session_metadata(stdout_tail)
+            live_state = _parse_opencode_live_state(stdout_tail)
+            workspace_activity = _collect_live_workspace_activity(workspace_path)
             active_slot_snapshot = next(
                 (
                     candidate
@@ -1680,6 +1797,16 @@ def _run_slot_opencode_task(
                         "opencodeCommand": subprocess.list2cmdline(command),
                         "stdoutPath": str(stdout_path),
                         "stderrPath": str(stderr_path),
+                        "opencodeSessionId": session_metadata.get("sessionId", ""),
+                        "activeMessageId": session_metadata.get("messageId", ""),
+                        "liveWorkspaceSummary": str(workspace_activity.get("summary", "") or ""),
+                        "liveWorkspaceFiles": list(workspace_activity.get("recentFiles", []))
+                        if isinstance(workspace_activity.get("recentFiles"), list)
+                        else [],
+                        "livePreviewFilePath": str(workspace_activity.get("previewFilePath", "") or ""),
+                        "livePreviewFileName": str(workspace_activity.get("previewFileName", "") or ""),
+                        "livePreviewText": str(workspace_activity.get("previewText", "") or ""),
+                        "livePreviewModifiedAt": str(workspace_activity.get("previewModifiedAt", "") or ""),
                         "liveOutputTokensPerSecond": float(
                             latest_live_metric.get("completionTokensPerSecond", 0.0)
                             if isinstance(latest_live_metric, dict)
@@ -1706,12 +1833,94 @@ def _run_slot_opencode_task(
                         ),
                     },
                 )
+            has_workspace_output = _workspace_activity_indicates_new_output(
+                live_state=live_state,
+                workspace_activity=workspace_activity,
+                started_at_utc=started_at_utc,
+                experiment=experiment,
+                workspace_path=workspace_path,
+            )
+            expected_artifacts_ready = _expected_artifacts_present(experiment, workspace_path)
+            now_utc = datetime.now(UTC)
+            quiet_seconds = _workspace_quiet_seconds(
+                workspace_activity=workspace_activity,
+                now_utc=now_utc,
+                started_at_utc=started_at_utc,
+                has_completion_signal=(has_workspace_output or expected_artifacts_ready),
+            )
+            is_workspace_quiet = quiet_seconds >= TUNING_LAB_OPENCODE_SUCCESS_QUIET_SECONDS
+            if (
+                time.monotonic() >= next_success_probe_at
+                and (
+                    live_state.get("hasStepFinish")
+                    or live_state.get("hasWriteTool")
+                    or expected_artifacts_ready
+                )
+                and is_workspace_quiet
+                and (has_workspace_output or expected_artifacts_ready)
+            ):
+                success_check_specs = _resolve_success_check_specs(
+                    experiment=experiment,
+                    workspace_path=workspace_path,
+                )
+                if success_check_specs:
+                    probe_results = _run_success_checks(
+                        success_check_specs,
+                        workspace_path,
+                        slot_artifact_root,
+                        progress_callback=None,
+                        persist_logs=True,
+                    )
+                    if probe_results and all(bool(check.get("passed")) for check in probe_results):
+                        stable_success_results = probe_results
+                        stable_success_live = True
+                        stable_success_summary = (
+                            "OpenCode je napravio rezultat, success check prolazi i workspace je miran "
+                            f"oko {quiet_seconds} s. Run se bezbedno zatvara bez dodatnog cekanja."
+                        )
+                        if progress_callback is not None:
+                            progress_callback(
+                                "opencode-stable-success",
+                                "OpenCode task je prakticno gotov",
+                                stable_success_summary,
+                                log_excerpt=stable_success_summary,
+                                slot_patch={
+                                    "successChecksVerifiedLive": True,
+                                    "successCheckSummary": stable_success_summary,
+                                },
+                            )
+                        _stop_process(process)
+                        break
+                next_success_probe_at = time.monotonic() + TUNING_LAB_OPENCODE_SUCCESS_PROBE_INTERVAL_SECONDS
+            has_recent_live_generation = _has_recent_live_runtime_generation(
+                latest_live_metric,
+                prompt_tokens_per_second=prompt_tokens_per_second,
+                generation_tokens_per_second=generation_tokens_per_second,
+                now_utc=now_utc,
+            )
+            if (
+                not has_workspace_output
+                and not expected_artifacts_ready
+                and (time.monotonic() - started) >= no_progress_timeout_seconds
+                and not has_recent_live_generation
+                and (_summarize_opencode_stderr_activity(stderr_tail) or live_state.get("lastEventType") == "step_start")
+            ):
+                _stop_process(process)
+                raise RuntimeError(
+                    "OpenCode je otvorio sesiju i koristio model, ali nije napravio nijedan fajl niti "
+                    f"naredni citljivi korak u prvih {int(no_progress_timeout_seconds)} s. "
+                    "Run je zaustavljen da ne visi beskonačno."
+                )
             time.sleep(0.75)
         completed_returncode = int(process.wait())
+        if stable_success_live:
+            completed_returncode = 0
     total_duration_seconds = max(time.monotonic() - started, 0.001)
     stdout_text = stdout_path.read_text(encoding="utf-8", errors="replace") if stdout_path.exists() else ""
     stderr_text = stderr_path.read_text(encoding="utf-8", errors="replace") if stderr_path.exists() else ""
     parsed = _parse_opencode_json_output(stdout_text)
+    session_metadata = _parse_opencode_session_metadata(stdout_text)
+    workspace_activity = _collect_live_workspace_activity(workspace_path)
     runtime_metrics = (
         _extract_runtime_speed_metrics(_read_text_tail(runtime_log_path, limit=4000))
         if runtime_log_path is not None
@@ -1737,6 +1946,16 @@ def _run_slot_opencode_task(
         "stderrText": stderr_text,
         "commandPreview": subprocess.list2cmdline(command),
         "opencodePid": int(getattr(process, "pid", 0) or 0),
+        "opencodeSessionId": session_metadata.get("sessionId", ""),
+        "activeMessageId": session_metadata.get("messageId", ""),
+        "liveWorkspaceSummary": str(workspace_activity.get("summary", "") or ""),
+        "liveWorkspaceFiles": list(workspace_activity.get("recentFiles", []))
+        if isinstance(workspace_activity.get("recentFiles"), list)
+        else [],
+        "livePreviewFilePath": str(workspace_activity.get("previewFilePath", "") or ""),
+        "livePreviewFileName": str(workspace_activity.get("previewFileName", "") or ""),
+        "livePreviewText": str(workspace_activity.get("previewText", "") or ""),
+        "livePreviewModifiedAt": str(workspace_activity.get("previewModifiedAt", "") or ""),
         "averageOutputTokensPerSecond": (output_tokens / total_duration_seconds) if output_tokens > 0 else 0.0,
         "averageTotalTokensPerSecond": (total_tokens / total_duration_seconds) if total_tokens > 0 else 0.0,
         "liveOutputTokensPerSecond": float(
@@ -1780,6 +1999,10 @@ def _run_slot_opencode_task(
             if isinstance(latest_live_metric, dict)
             else ""
         ),
+        "successCheckResults": stable_success_results,
+        "successChecksVerifiedLive": stable_success_live,
+        "completionSummary": stable_success_summary,
+        "completionMode": "success-probe" if stable_success_live else "",
     }
 
 
@@ -1814,6 +2037,8 @@ def _run_success_checks(
     workspace_path: Path,
     slot_artifact_root: Path,
     progress_callback: Callable[..., None] | None = None,
+    *,
+    persist_logs: bool = True,
 ) -> list[dict[str, Any]]:
     results: list[dict[str, Any]] = []
     for index, check_spec in enumerate(checks, start=1):
@@ -1847,17 +2072,18 @@ def _run_success_checks(
             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
         log_path = slot_artifact_root / f"success-check-{index}.log"
-        log_path.write_text(
-            f"$ {command}\n\nSTDOUT\n{completed.stdout}\n\nSTDERR\n{completed.stderr}",
-            encoding="utf-8",
-        )
+        if persist_logs:
+            log_path.write_text(
+                f"$ {command}\n\nSTDOUT\n{completed.stdout}\n\nSTDERR\n{completed.stderr}",
+                encoding="utf-8",
+            )
         result = {
             "label": check_label,
             "command": command,
             "kind": str(check_spec.get("kind", "custom") or "custom"),
             "returncode": int(completed.returncode),
             "passed": int(completed.returncode) == 0,
-            "stdoutPath": str(log_path),
+            "stdoutPath": str(log_path) if persist_logs else "",
             "stdoutPreview": str(completed.stdout or "")[-1200:],
             "stderrPreview": str(completed.stderr or "")[-1200:],
         }
@@ -2048,6 +2274,8 @@ def _normalize_experiment_payload(
         "goal": goal,
         "goalLabel": next((item["label"] for item in _GOAL_OPTIONS if item["id"] == goal), goal),
         "taskPrompt": str(payload.get("taskPrompt", "") or "").strip(),
+        "expectedArtifact": str(payload.get("expectedArtifact", "") or "").strip(),
+        "difficulty": str(payload.get("difficulty", "") or "").strip().lower(),
         "workingDirectory": working_directory,
         "queuedAt": _now_iso(),
         "status": "queued",
@@ -2150,6 +2378,118 @@ def _build_slot_opencode_env(
     return env
 
 
+def _build_tuning_lab_task_prompt(experiment: dict[str, Any]) -> str:
+    base_prompt = str(experiment.get("taskPrompt", "") or "").strip()
+    if not base_prompt:
+        return ""
+    expected_artifact = str(experiment.get("expectedArtifact", "") or "").strip()
+    artifact_line = (
+        f"Obavezni izlazni artefakti: {expected_artifact}."
+        if expected_artifact
+        else "Obavezni izlazni artefakti: napravi stvarne fajlove koje zadatak traži."
+    )
+    return "\n\n".join(
+        [
+            "Tuning Lab automatizovani zadatak.",
+            (
+                "Radiš u izolovanom radnom direktorijumu prosleđenom kroz `--dir`. "
+                "Nemoj da opisuješ plan bez izmena: odmah napravi ili izmeni potrebne fajlove."
+            ),
+            artifact_line,
+            (
+                "Kada traženi fajlovi postoje i zadatak je funkcionalno završen, stani. "
+                "Nemoj da nastavljaš sa dodatnim čitanjem istih fajlova, novim porukama ili "
+                "kozmetičkim obilascima ako rezultat već ispunjava zadatak."
+            ),
+            (
+                "Na kraju daj samo kratku završnu potvrdu šta je napravljeno, bez dodatnog "
+                "planiranja i bez praznog objašnjavanja."
+            ),
+            "Originalni zadatak:",
+            base_prompt,
+        ]
+    )
+
+
+def _parse_expected_artifact_entries(value: object) -> list[str]:
+    text = str(value or "").replace("`", "").strip()
+    if not text:
+        return []
+    parts = re.split(r"\s*\+\s*|\s*,\s*", text)
+    return [str(part or "").strip() for part in parts if str(part or "").strip()]
+
+
+def _expected_artifacts_present(experiment: dict[str, Any], workspace_path: Path) -> bool:
+    entries = _parse_expected_artifact_entries(experiment.get("expectedArtifact"))
+    if not entries:
+        return False
+    workspace_root = Path(workspace_path)
+    if not workspace_root.is_dir():
+        return False
+    for entry in entries:
+        if entry.endswith("/*"):
+            directory = workspace_root / Path(entry[:-2])
+            if not directory.is_dir() or not any(candidate.is_file() for candidate in directory.rglob("*")):
+                return False
+            continue
+        target = workspace_root / Path(entry)
+        if not target.exists():
+            return False
+    return True
+
+
+def _workspace_activity_indicates_new_output(
+    *,
+    live_state: dict[str, Any],
+    workspace_activity: dict[str, Any],
+    started_at_utc: datetime,
+    experiment: dict[str, Any],
+    workspace_path: Path,
+) -> bool:
+    if bool(live_state.get("hasWriteTool")):
+        return True
+    if _expected_artifacts_present(experiment, workspace_path):
+        return True
+    latest_modified_at = _parse_iso_datetime(
+        workspace_activity.get("latestModifiedAt")
+        or workspace_activity.get("previewModifiedAt")
+    )
+    if latest_modified_at is None:
+        return False
+    return latest_modified_at >= (started_at_utc - timedelta(seconds=2))
+
+
+def _workspace_quiet_seconds(
+    *,
+    workspace_activity: dict[str, Any],
+    now_utc: datetime,
+    started_at_utc: datetime,
+    has_completion_signal: bool,
+) -> int:
+    if not has_completion_signal:
+        return 0
+    latest_modified_at = _parse_iso_datetime(
+        workspace_activity.get("latestModifiedAt")
+        or workspace_activity.get("previewModifiedAt")
+    )
+    if latest_modified_at is None:
+        return 0
+    if latest_modified_at < (started_at_utc - timedelta(seconds=2)):
+        return 0
+    return max(int((now_utc - latest_modified_at).total_seconds()), 0)
+
+
+def _resolve_no_progress_timeout_seconds(experiment: dict[str, Any]) -> float:
+    difficulty = str(experiment.get("difficulty", "") or "").strip().lower()
+    if difficulty == "hard":
+        return 600.0
+    if difficulty == "medium":
+        return 420.0
+    if difficulty == "easy":
+        return 300.0
+    return TUNING_LAB_OPENCODE_NO_PROGRESS_TIMEOUT_SECONDS
+
+
 def _parse_opencode_json_output(output_text: str) -> dict[str, Any]:
     assistant_chunks: list[str] = []
     input_tokens = 0
@@ -2166,18 +2506,25 @@ def _parse_opencode_json_output(output_text: str) -> dict[str, Any]:
             continue
         if not isinstance(payload, dict):
             continue
+        part_payload = payload.get("part") if isinstance(payload.get("part"), dict) else {}
         if payload.get("type") == "text":
-            text_value = str(payload.get("text", "") or "")
+            text_value = str(payload.get("text", "") or part_payload.get("text", "") or "")
             if text_value:
                 assistant_chunks.append(text_value)
         if payload.get("type") == "step_finish":
             tokens = payload.get("tokens", {})
+            if not isinstance(tokens, dict):
+                tokens = {}
+            if not tokens and isinstance(part_payload.get("tokens"), dict):
+                tokens = part_payload.get("tokens", {})
             if isinstance(tokens, dict):
                 input_tokens = int(tokens.get("input", input_tokens) or input_tokens)
                 output_tokens = int(tokens.get("output", output_tokens) or output_tokens)
                 total_tokens = int(tokens.get("total", total_tokens) or total_tokens)
             try:
-                cost_usd = float(payload.get("cost", cost_usd) or cost_usd)
+                cost_usd = float(
+                    payload.get("cost", part_payload.get("cost", cost_usd)) or cost_usd
+                )
             except (TypeError, ValueError):
                 pass
     if total_tokens <= 0:
@@ -2189,6 +2536,170 @@ def _parse_opencode_json_output(output_text: str) -> dict[str, Any]:
         "totalTokens": total_tokens,
         "costUsd": cost_usd,
     }
+
+
+def _preferred_slot_output_tokens_per_second(slot: dict[str, Any]) -> float:
+    average_output = float(slot.get("averageOutputTokensPerSecond", 0.0) or 0.0)
+    if average_output > 0.0:
+        return average_output
+    live_output = float(slot.get("liveOutputTokensPerSecond", 0.0) or 0.0)
+    if live_output > 0.0:
+        return live_output
+    return 0.0
+
+
+def _preferred_slot_total_tokens_per_second(slot: dict[str, Any]) -> float:
+    average_total = float(slot.get("averageTotalTokensPerSecond", 0.0) or 0.0)
+    if average_total > 0.0:
+        return average_total
+    live_total = float(slot.get("liveTotalTokensPerSecond", 0.0) or 0.0)
+    if live_total > 0.0:
+        return live_total
+    return 0.0
+
+
+def _rehydrate_history_slot_metrics(slot: dict[str, Any]) -> bool:
+    stdout_path_raw = str(slot.get("stdoutPath", "") or "").strip()
+    if not stdout_path_raw:
+        return False
+    stdout_path = Path(stdout_path_raw)
+    if not stdout_path.exists():
+        return False
+    needs_token_backfill = (
+        int(slot.get("outputTokens", 0) or 0) <= 0
+        or int(slot.get("totalTokens", 0) or 0) <= 0
+        or float(slot.get("averageOutputTokensPerSecond", 0.0) or 0.0) <= 0.0
+        or float(slot.get("averageTotalTokensPerSecond", 0.0) or 0.0) <= 0.0
+    )
+    needs_assistant_text = not str(slot.get("assistantText", "") or "").strip()
+    if not needs_token_backfill and not needs_assistant_text:
+        return False
+    stdout_text = stdout_path.read_text(encoding="utf-8", errors="replace")
+    if not stdout_text.strip():
+        return False
+    parsed = _parse_opencode_json_output(stdout_text)
+    changed = False
+    input_tokens = int(parsed.get("inputTokens", 0) or 0)
+    output_tokens = int(parsed.get("outputTokens", 0) or 0)
+    total_tokens = int(parsed.get("totalTokens", 0) or 0)
+    cost_usd = float(parsed.get("costUsd", 0.0) or 0.0)
+    if input_tokens > 0 and int(slot.get("inputTokens", 0) or 0) <= 0:
+        slot["inputTokens"] = input_tokens
+        changed = True
+    if output_tokens > 0 and int(slot.get("outputTokens", 0) or 0) <= 0:
+        slot["outputTokens"] = output_tokens
+        changed = True
+    if total_tokens > 0 and int(slot.get("totalTokens", 0) or 0) <= 0:
+        slot["totalTokens"] = total_tokens
+        changed = True
+    if cost_usd > 0.0 and float(slot.get("costUsd", 0.0) or 0.0) <= 0.0:
+        slot["costUsd"] = cost_usd
+        changed = True
+    duration_ms = int(slot.get("totalDurationMs", 0) or 0)
+    if duration_ms > 0:
+        duration_seconds = max(duration_ms / 1000.0, 0.001)
+        if output_tokens > 0 and float(slot.get("averageOutputTokensPerSecond", 0.0) or 0.0) <= 0.0:
+            slot["averageOutputTokensPerSecond"] = output_tokens / duration_seconds
+            changed = True
+        if total_tokens > 0 and float(slot.get("averageTotalTokensPerSecond", 0.0) or 0.0) <= 0.0:
+            slot["averageTotalTokensPerSecond"] = total_tokens / duration_seconds
+            changed = True
+    assistant_text = str(parsed.get("assistantText", "") or "").strip()
+    if assistant_text and not str(slot.get("assistantText", "") or "").strip():
+        slot["assistantText"] = assistant_text
+        changed = True
+    return changed
+
+
+def _rehydrate_history_items(items: list[dict[str, Any]]) -> bool:
+    changed = False
+    for item in items:
+        slots = item.get("slots")
+        if not isinstance(slots, list):
+            continue
+        for slot in slots:
+            if isinstance(slot, dict) and _rehydrate_history_slot_metrics(slot):
+                changed = True
+    return changed
+
+
+def _parse_opencode_live_state(output_text: str) -> dict[str, Any]:
+    has_step_finish = False
+    has_write_tool = False
+    last_event_type = ""
+    last_tool_name = ""
+    last_tool_status = ""
+    for raw_line in str(output_text or "").splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        try:
+            payload = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(payload, dict):
+            continue
+        event_type = str(payload.get("type", "") or "").strip().lower()
+        if not event_type:
+            continue
+        last_event_type = event_type
+        if event_type == "step_finish":
+            has_step_finish = True
+            continue
+        if event_type != "tool_use":
+            continue
+        part_payload = payload.get("part") if isinstance(payload.get("part"), dict) else {}
+        last_tool_name = str(part_payload.get("tool", "") or "").strip().lower()
+        state_payload = part_payload.get("state") if isinstance(part_payload.get("state"), dict) else {}
+        last_tool_status = str(state_payload.get("status", "") or "").strip().lower()
+        if last_tool_name in {"write", "edit", "apply_patch", "create", "rename", "move", "delete"}:
+            has_write_tool = True
+    return {
+        "hasStepFinish": has_step_finish,
+        "hasWriteTool": has_write_tool,
+        "lastEventType": last_event_type,
+        "lastToolName": last_tool_name,
+        "lastToolStatus": last_tool_status,
+    }
+
+
+def _parse_iso_datetime(value: object) -> datetime | None:
+    text = str(value or "").strip()
+    if not text:
+        return None
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=UTC)
+
+
+def _has_recent_live_runtime_generation(
+    latest_live_metric: dict[str, Any] | None,
+    *,
+    prompt_tokens_per_second: float = 0.0,
+    generation_tokens_per_second: float = 0.0,
+    now_utc: datetime | None = None,
+) -> bool:
+    if float(generation_tokens_per_second or 0.0) > 0.0:
+        return True
+    if float(prompt_tokens_per_second or 0.0) > 0.0:
+        return True
+    if not isinstance(latest_live_metric, dict):
+        return False
+    completion_tokens_per_second = float(
+        latest_live_metric.get("completionTokensPerSecond", 0.0) or 0.0
+    )
+    total_tokens_per_second = float(
+        latest_live_metric.get("totalTokensPerSecond", 0.0) or 0.0
+    )
+    if completion_tokens_per_second <= 0.0 and total_tokens_per_second <= 0.0:
+        return False
+    measured_at = _parse_iso_datetime(latest_live_metric.get("measuredAt"))
+    if measured_at is None:
+        return True
+    reference_now = now_utc or datetime.now(UTC)
+    return (reference_now - measured_at).total_seconds() <= 30.0
 
 
 def _shorten_log_text(value: object, limit: int = 200) -> str:
@@ -2336,6 +2847,23 @@ def _extract_notable_opencode_stderr_lines(stderr_text: str, *, max_lines: int =
     return deduped[-max_lines:]
 
 
+def _summarize_opencode_stderr_activity(stderr_text: str) -> str:
+    lower = str(stderr_text or "").lower()
+    lines: list[str] = []
+    has_build_session = "service=session.prompt" in lower or "agent=build" in lower
+    if has_build_session:
+        lines.append("OpenCode je poslao build zahtev modelu.")
+    if has_build_session and ("type=message.part.updated" in lower or "type=message.part.delta" in lower):
+        lines.append("OpenCode trenutno prima odgovor modela.")
+    if "type=session.updated" in lower and lines:
+        lines.append("Sesija je ziva i ceka sledeci alat ili upis fajla.")
+    deduped: list[str] = []
+    for line in lines:
+        if line not in deduped:
+            deduped.append(line)
+    return "\n".join(deduped[-3:])
+
+
 def _build_debug_opencode_excerpt(*, stdout_path: Path, stderr_path: Path) -> str:
     lines: list[str] = []
     stdout_excerpt = _summarize_opencode_signal_excerpt(
@@ -2365,10 +2893,13 @@ def _build_live_opencode_log_excerpt(
     runtime_generation_summary: str = "",
 ) -> str:
     summary = _summarize_opencode_signal_paths(stdout_path, stderr_path)
+    stderr_activity = _summarize_opencode_stderr_activity(_read_text_tail(stderr_path, limit=4000))
     lines: list[str] = []
     normalized_summary = str(summary or "").strip()
     if normalized_summary:
         lines.extend([line.strip() for line in normalized_summary.splitlines() if line.strip()])
+    if stderr_activity:
+        lines.extend([line.strip() for line in stderr_activity.splitlines() if line.strip()])
     if (
         normalized_summary.startswith("OpenCode je preuzeo zadatak")
         and not runtime_prompt_summary
@@ -2746,6 +3277,139 @@ def _read_text_tail(path: Path, limit: int = 2000) -> str:
     return raw_bytes.decode("utf-8", errors="replace")[-char_limit:]
 
 
+def _read_text_preview(path: Path, limit: int = 2400) -> str:
+    char_limit = max(int(limit or 0), 0)
+    if char_limit <= 0 or not path.is_file():
+        return ""
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return ""
+    if len(text) <= char_limit:
+        return text
+    return text[:char_limit].rstrip() + "\n…"
+
+
+def _parse_opencode_session_metadata(stdout_text: str) -> dict[str, str]:
+    session_id = ""
+    message_id = ""
+    for raw_line in str(stdout_text or "").splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        try:
+            payload = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(payload, dict):
+            continue
+        part_payload = payload.get("part") if isinstance(payload.get("part"), dict) else {}
+        if not session_id:
+            session_id = str(
+                payload.get("sessionID")
+                or payload.get("sessionId")
+                or part_payload.get("sessionID")
+                or part_payload.get("sessionId")
+                or ""
+            ).strip()
+        if not message_id:
+            message_id = str(
+                payload.get("messageID")
+                or payload.get("messageId")
+                or part_payload.get("messageID")
+                or part_payload.get("messageId")
+                or ""
+            ).strip()
+        if session_id and message_id:
+            break
+    return {
+        "sessionId": session_id,
+        "messageId": message_id,
+    }
+
+
+def _collect_live_workspace_activity(
+    workspace_path: Path,
+    *,
+    file_limit: int = 8,
+    preview_limit: int = 2400,
+) -> dict[str, Any]:
+    workspace = Path(workspace_path)
+    if not workspace.exists() or not workspace.is_dir():
+        return {
+            "summary": "",
+            "recentFiles": [],
+            "previewFilePath": "",
+            "previewFileName": "",
+            "previewText": "",
+            "previewModifiedAt": "",
+            "latestModifiedAt": "",
+        }
+    entries: list[dict[str, Any]] = []
+    for candidate in workspace.rglob("*"):
+        if not candidate.is_file():
+            continue
+        try:
+            relative_path = candidate.relative_to(workspace).as_posix()
+            stat = candidate.stat()
+        except OSError:
+            continue
+        if not relative_path or relative_path.startswith(".git/"):
+            continue
+        entries.append(
+            {
+                "path": relative_path,
+                "absolutePath": str(candidate),
+                "sizeBytes": int(stat.st_size or 0),
+                "modifiedAt": datetime.fromtimestamp(stat.st_mtime, UTC).isoformat(),
+                "suffix": candidate.suffix.lower(),
+            }
+        )
+    if not entries:
+        return {
+            "summary": "Workspace još nema novih fajlova.",
+            "recentFiles": [],
+            "previewFilePath": "",
+            "previewFileName": "",
+            "previewText": "",
+            "previewModifiedAt": "",
+            "latestModifiedAt": "",
+        }
+    entries.sort(key=lambda item: (str(item.get("modifiedAt", "")), str(item.get("path", ""))), reverse=True)
+    recent_files = entries[:file_limit]
+    preview_entry = next(
+        (
+            item
+            for item in recent_files
+            if str(item.get("suffix", "") or "") not in {".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico", ".woff", ".woff2"}
+            and int(item.get("sizeBytes", 0) or 0) <= 200_000
+        ),
+        recent_files[0],
+    )
+    preview_path = Path(str(preview_entry.get("absolutePath", "") or ""))
+    preview_text = _read_text_preview(preview_path, limit=preview_limit)
+    summary = (
+        f"Živi workspace trenutno ima {len(entries)} fajl(ova). "
+        f"Poslednja aktivnost: {preview_entry.get('path', '--')}."
+    )
+    return {
+        "summary": summary,
+        "recentFiles": [
+            {
+                "path": str(item.get("path", "") or ""),
+                "sizeBytes": int(item.get("sizeBytes", 0) or 0),
+                "modifiedAt": str(item.get("modifiedAt", "") or ""),
+            }
+            for item in recent_files
+        ],
+        "previewFilePath": str(preview_entry.get("path", "") or ""),
+        "previewFileName": Path(str(preview_entry.get("path", "") or "")).name,
+        "previewText": preview_text,
+        "previewModifiedAt": str(preview_entry.get("modifiedAt", "") or ""),
+        "latestModifiedAt": str(entries[0].get("modifiedAt", "") or ""),
+    }
+
+
 def _elapsed_ms_from_started_at(started_at: object) -> int:
     if not isinstance(started_at, str) or not started_at.strip():
         return 0
@@ -2757,7 +3421,10 @@ def _elapsed_ms_from_started_at(started_at: object) -> int:
 
 
 def _load_history(config: ControlCenterConfig) -> list[dict[str, Any]]:
-    return read_json_list(config.tuning_lab_history_path)
+    items = read_json_list(config.tuning_lab_history_path)
+    if _rehydrate_history_items(items):
+        atomic_write_json(config.tuning_lab_history_path, items[:TUNING_LAB_HISTORY_MAX_ITEMS])
+    return items
 
 
 def _save_history(config: ControlCenterConfig, items: list[dict[str, Any]]) -> None:
@@ -2966,12 +3633,20 @@ def _cleanup_stale_tuning_processes(
 ) -> dict[str, Any]:
     if active_run:
         return {"killedPids": []}
+    history_payload = history_items or _load_history(config)
     runtime_state = load_runtime_state(config)
     main_runtime_port = int(runtime_state.get("port", 0) or 0)
     tuning_root = str(_tuning_runs_root(config).resolve()).lower()
     install_root = str(config.install_root.resolve()).lower()
+    process_records = _list_local_process_records()
+    live_pids = {
+        int(process.get("pid", 0) or 0)
+        for process in process_records
+        if int(process.get("pid", 0) or 0) > 0
+    }
     stale_ports: set[int] = set()
-    for item in history_items or _load_history(config):
+    stale_pids: set[int] = set()
+    for item in history_payload:
         if not isinstance(item, dict):
             continue
         slots = item.get("slots")
@@ -2980,19 +3655,33 @@ def _cleanup_stale_tuning_processes(
         for slot in slots:
             if not isinstance(slot, dict):
                 continue
+            for pid_key in ("runtimePid", "opencodePid"):
+                try:
+                    candidate_pid = int(slot.get(pid_key, 0) or 0)
+                except (TypeError, ValueError):
+                    candidate_pid = 0
+                if candidate_pid > 0:
+                    stale_pids.add(candidate_pid)
             port = _extract_runtime_port_from_base_url(slot.get("runtimeBaseUrl", ""))
             if port and port != main_runtime_port:
                 stale_ports.add(port)
     killed: list[int] = []
-    for process in _list_local_process_records():
+    for stale_pid in sorted(stale_pids):
+        if stale_pid not in live_pids:
+            continue
+        if _kill_process_tree(stale_pid):
+            killed.append(stale_pid)
+    killed_set = set(killed)
+    for process in process_records:
         pid = int(process.get("pid", 0) or 0)
         name = str(process.get("name", "") or "").strip().lower()
         command_line = str(process.get("commandLine", "") or "")
-        if pid <= 0 or not command_line:
+        if pid <= 0 or pid in killed_set or not command_line:
             continue
         if name == "opencode.exe" and tuning_root in command_line.lower():
             if _kill_process_tree(pid):
                 killed.append(pid)
+                killed_set.add(pid)
             continue
         if name != "llama-server.exe":
             continue
@@ -3002,6 +3691,7 @@ def _cleanup_stale_tuning_processes(
         if port in stale_ports or install_root in command_line.lower():
             if _kill_process_tree(pid):
                 killed.append(pid)
+                killed_set.add(pid)
     return {"killedPids": killed}
 
 

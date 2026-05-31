@@ -47,6 +47,8 @@ class QueueTuningExperimentRequest(BaseModel):
     name: str = ""
     goal: str = "code"
     taskPrompt: str = ""
+    expectedArtifact: str = ""
+    difficulty: str = ""
     workingDirectory: str = ""
     successChecks: list[dict[str, object]] = []
     slots: list[dict[str, object]] = []

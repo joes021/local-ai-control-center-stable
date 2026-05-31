@@ -309,6 +309,365 @@ def test_server_start_route_prefers_highest_vram_gpu_and_explicit_gpu_flags(
     assert command[command.index("--split-mode") + 1] == "none"
 
 
+def test_server_start_route_respects_manual_gpu_layers_override(
+    tmp_path: Path,
+    monkeypatch,
+):
+    from local_ai_control_center_installer.control_center_backend.services import server_service
+
+    install_root = tmp_path / "install-root"
+    runtime_root = install_root / "runtime" / "llama.cpp"
+    runtime_root.mkdir(parents=True)
+    executable = runtime_root / "llama-server.exe"
+    executable.write_text("llama", encoding="utf-8")
+    _write_active_model_config(
+        install_root,
+        filename="gemma-4-E4B-it-Q4_K_M.gguf",
+    )
+    _write_runtime_endpoint_config(
+        install_root / "config" / "runtime-endpoint.json",
+        port=39281,
+    )
+    _write_settings(
+        install_root,
+        {
+            "gpuLayersMode": "manual",
+            "gpuLayersOverride": 41,
+        },
+    )
+
+    captured: dict[str, object] = {}
+
+    class FakeProcess:
+        pid = 7001
+
+    def fake_popen(command, **kwargs):
+        captured["command"] = command
+        captured["kwargs"] = kwargs
+        return FakeProcess()
+
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.server_service.find_runtime_pid",
+        lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.status_service.find_runtime_pid",
+        lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.server_service.subprocess.Popen",
+        fake_popen,
+    )
+    monkeypatch.setattr(server_service, "_runtime_binary_supports_flag", lambda *args, **kwargs: True)
+    monkeypatch.setattr(server_service, "_detect_nvidia_total_memory_mib", lambda: 12 * 1024)
+    monkeypatch.setattr(
+        server_service,
+        "_detect_nvidia_gpu_inventory",
+        lambda: [
+            {
+                "index": 0,
+                "name": "RTX 3060",
+                "totalMemoryMiB": 12 * 1024,
+                "usedMemoryMiB": 256,
+            }
+        ],
+    )
+
+    client = TestClient(app)
+    response = client.post("/api/server/start")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "ok"
+    command = captured["command"]
+    assert "--n-gpu-layers" in command
+    assert command[command.index("--n-gpu-layers") + 1] == "41"
+
+
+def test_server_start_route_retries_without_explicit_main_gpu_when_runtime_rejects_it(
+    tmp_path: Path,
+    monkeypatch,
+):
+    from local_ai_control_center_installer.control_center_backend.services import server_service
+
+    install_root = tmp_path / "install-root"
+    runtime_root = install_root / "runtime" / "llama.cpp"
+    runtime_root.mkdir(parents=True)
+    executable = runtime_root / "llama-server.exe"
+    executable.write_text("llama", encoding="utf-8")
+    _write_active_model_config(
+        install_root,
+        filename="Qwen3.6-35B-A3B-UD-IQ2_XXS.gguf",
+    )
+    _write_runtime_endpoint_config(
+        install_root / "config" / "runtime-endpoint.json",
+        port=39281,
+    )
+
+    launch_commands: list[list[str]] = []
+
+    class FakeProcess:
+        def __init__(self, pid: int, *, exit_immediately: bool) -> None:
+            self.pid = pid
+            self._exit_immediately = exit_immediately
+
+        def poll(self):
+            return 1 if self._exit_immediately else None
+
+    def fake_popen(command, **kwargs):
+        launch_commands.append(command)
+        stdout_handle = kwargs.get("stdout")
+        if hasattr(stdout_handle, "write"):
+            if len(launch_commands) == 1:
+                stdout_handle.write(
+                    "E llama_prepare_model_devices: invalid value for main_gpu: 0 (available devices: 0)\n"
+                )
+                stdout_handle.write("E srv llama_server: exiting due to model loading error\n")
+                stdout_handle.flush()
+                return FakeProcess(7101, exit_immediately=True)
+            stdout_handle.write("I srv init: using 23 threads for HTTP server\n")
+            stdout_handle.flush()
+        return FakeProcess(7102, exit_immediately=False)
+
+    health_states = ["offline", "offline", "offline", "loading"]
+
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.server_service.find_runtime_pid",
+        lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.status_service.find_runtime_pid",
+        lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.server_service.probe_server_health",
+        lambda *args, **kwargs: health_states.pop(0) if health_states else "loading",
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.server_service.subprocess.Popen",
+        fake_popen,
+    )
+    monkeypatch.setattr(server_service, "_runtime_binary_supports_flag", lambda *args, **kwargs: True)
+    monkeypatch.setattr(server_service, "_detect_nvidia_total_memory_mib", lambda: 12 * 1024)
+    monkeypatch.setattr(
+        server_service,
+        "_detect_nvidia_gpu_inventory",
+        lambda: [
+            {
+                "index": 0,
+                "name": "RTX 3060",
+                "totalMemoryMiB": 12 * 1024,
+                "usedMemoryMiB": 256,
+            }
+        ],
+    )
+    monkeypatch.setattr(server_service.time, "sleep", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(server_service, "_START_SERVER_READY_TIMEOUT_SECONDS", 0.05)
+    monkeypatch.setattr(server_service, "_START_SERVER_READY_POLL_INTERVAL_SECONDS", 0.0)
+
+    client = TestClient(app)
+    response = client.post("/api/server/start")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "ok"
+    assert len(launch_commands) == 2
+    assert "--main-gpu" in launch_commands[0]
+    assert "--split-mode" in launch_commands[0]
+    assert "--main-gpu" not in launch_commands[1]
+    assert "--split-mode" not in launch_commands[1]
+    assert "bez `--main-gpu`" in payload["summary"]
+
+
+def test_server_start_route_waits_for_log_flush_before_main_gpu_fallback(
+    tmp_path: Path,
+    monkeypatch,
+):
+    from local_ai_control_center_installer.control_center_backend.services import server_service
+
+    install_root = tmp_path / "install-root"
+    runtime_root = install_root / "runtime" / "llama.cpp"
+    runtime_root.mkdir(parents=True)
+    executable = runtime_root / "llama-server.exe"
+    executable.write_text("llama", encoding="utf-8")
+    _write_active_model_config(
+        install_root,
+        filename="Qwen3.6-35B-A3B-UD-IQ2_XXS.gguf",
+    )
+    _write_runtime_endpoint_config(
+        install_root / "config" / "runtime-endpoint.json",
+        port=39281,
+    )
+
+    launch_commands: list[list[str]] = []
+
+    class FakeProcess:
+        def __init__(self, pid: int, *, exit_immediately: bool) -> None:
+            self.pid = pid
+            self._exit_immediately = exit_immediately
+
+        def poll(self):
+            return 1 if self._exit_immediately else None
+
+    def fake_popen(command, **kwargs):
+        launch_commands.append(command)
+        return FakeProcess(7200 + len(launch_commands), exit_immediately=len(launch_commands) == 1)
+
+    health_states = ["offline", "offline", "offline", "loading"]
+    log_reads = iter(
+        [
+            "",
+            "E llama_prepare_model_devices: invalid value for main_gpu: 0 (available devices: 0)",
+        ]
+    )
+
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.server_service.find_runtime_pid",
+        lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.status_service.find_runtime_pid",
+        lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.server_service.probe_server_health",
+        lambda *args, **kwargs: health_states.pop(0) if health_states else "loading",
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.server_service.subprocess.Popen",
+        fake_popen,
+    )
+    monkeypatch.setattr(server_service, "_runtime_binary_supports_flag", lambda *args, **kwargs: True)
+    monkeypatch.setattr(server_service, "_detect_nvidia_total_memory_mib", lambda: 12 * 1024)
+    monkeypatch.setattr(
+        server_service,
+        "_detect_nvidia_gpu_inventory",
+        lambda: [
+            {
+                "index": 0,
+                "name": "RTX 3060",
+                "totalMemoryMiB": 12 * 1024,
+                "usedMemoryMiB": 256,
+            }
+        ],
+    )
+    monkeypatch.setattr(server_service.time, "sleep", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(server_service, "_START_SERVER_READY_TIMEOUT_SECONDS", 0.05)
+    monkeypatch.setattr(server_service, "_START_SERVER_READY_POLL_INTERVAL_SECONDS", 0.0)
+    monkeypatch.setattr(
+        server_service,
+        "_read_runtime_log_excerpt",
+        lambda *args, **kwargs: next(log_reads, "E llama_prepare_model_devices: invalid value for main_gpu: 0 (available devices: 0)"),
+    )
+
+    client = TestClient(app)
+    response = client.post("/api/server/start")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "ok"
+    assert len(launch_commands) == 2
+    assert "--main-gpu" in launch_commands[0]
+    assert "--main-gpu" not in launch_commands[1]
+    assert "bez `--main-gpu`" in payload["summary"]
+
+
+def test_server_start_route_does_not_trust_loading_health_when_process_exits_right_after(
+    tmp_path: Path,
+    monkeypatch,
+):
+    from local_ai_control_center_installer.control_center_backend.services import server_service
+
+    install_root = tmp_path / "install-root"
+    runtime_root = install_root / "runtime" / "llama.cpp"
+    runtime_root.mkdir(parents=True)
+    executable = runtime_root / "llama-server.exe"
+    executable.write_text("llama", encoding="utf-8")
+    _write_active_model_config(
+        install_root,
+        filename="Qwen3.6-35B-A3B-UD-IQ2_XXS.gguf",
+    )
+    _write_runtime_endpoint_config(
+        install_root / "config" / "runtime-endpoint.json",
+        port=39281,
+    )
+
+    launch_commands: list[list[str]] = []
+
+    class FakeProcess:
+        def __init__(self, pid: int, poll_states: list[int | None]) -> None:
+            self.pid = pid
+            self._poll_states = list(poll_states)
+
+        def poll(self):
+            if self._poll_states:
+                return self._poll_states.pop(0)
+            return self._poll_states[-1] if self._poll_states else None
+
+    def fake_popen(command, **kwargs):
+        launch_commands.append(command)
+        if len(launch_commands) == 1:
+            return FakeProcess(7301, [None, 1, 1])
+        return FakeProcess(7302, [None, None, None])
+
+    health_states = ["offline", "loading", "offline", "loading", "loading", "loading"]
+
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.server_service.find_runtime_pid",
+        lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.status_service.find_runtime_pid",
+        lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.server_service.probe_server_health",
+        lambda *args, **kwargs: health_states.pop(0) if health_states else "loading",
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.server_service.subprocess.Popen",
+        fake_popen,
+    )
+    monkeypatch.setattr(server_service, "_runtime_binary_supports_flag", lambda *args, **kwargs: True)
+    monkeypatch.setattr(server_service, "_detect_nvidia_total_memory_mib", lambda: 12 * 1024)
+    monkeypatch.setattr(
+        server_service,
+        "_detect_nvidia_gpu_inventory",
+        lambda: [
+            {
+                "index": 0,
+                "name": "RTX 3060",
+                "totalMemoryMiB": 12 * 1024,
+                "usedMemoryMiB": 256,
+            }
+        ],
+    )
+    monkeypatch.setattr(server_service.time, "sleep", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(server_service, "_START_SERVER_READY_TIMEOUT_SECONDS", 0.05)
+    monkeypatch.setattr(server_service, "_START_SERVER_READY_POLL_INTERVAL_SECONDS", 0.0)
+    monkeypatch.setattr(server_service, "_START_SERVER_EXIT_LOG_WAIT_SECONDS", 0.0)
+    monkeypatch.setattr(
+        server_service,
+        "_read_runtime_log_excerpt",
+        lambda *args, **kwargs: "E llama_prepare_model_devices: invalid value for main_gpu: 0 (available devices: 0)",
+    )
+
+    client = TestClient(app)
+    response = client.post("/api/server/start")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "ok"
+    assert len(launch_commands) == 2
+    assert "--main-gpu" in launch_commands[0]
+    assert "--main-gpu" not in launch_commands[1]
+    assert "bez `--main-gpu`" in payload["summary"]
+
+
 def test_server_status_route_preview_shows_gpu_offload_flags_for_llama_runtime(
     tmp_path: Path,
     monkeypatch,

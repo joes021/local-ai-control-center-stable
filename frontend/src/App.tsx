@@ -68,6 +68,7 @@ const MORE_PAGES = MORE_PAGE_SECTIONS.flatMap((section) => section.pages);
 
 export default function App() {
   const [page, setPage] = useState<PageKey>("home");
+  const [settingsFocusSection, setSettingsFocusSection] = useState<string | null>(null);
   const [status, setStatus] = useState<StatusPayload | null>(null);
   const [themeId, setThemeId] = useState<string>(readStoredTheme);
   const [compatibilityLaunchTarget, setCompatibilityLaunchTarget] =
@@ -219,6 +220,10 @@ export default function App() {
       subtitle={`Veb interfejs i lokalni backend za ${status?.hostPlatformLabel ?? "desktop"} okruženje.`}
       themeId={themeId}
       title={`Local AI Control Center${status?.version ? ` ${status.version}` : ""}`}
+      onOpenSettingsSection={(sectionId) => {
+        setSettingsFocusSection(sectionId);
+        setPage("settings");
+      }}
     >
       {page === "home" ? (
         <HomePage
@@ -272,7 +277,12 @@ export default function App() {
         />
       ) : null}
       {page === "tuningLab" ? <TuningLabPage /> : null}
-      {page === "settings" ? <SettingsPage /> : null}
+      {page === "settings" ? (
+        <SettingsPage
+          focusSectionId={settingsFocusSection}
+          onFocusHandled={() => setSettingsFocusSection(null)}
+        />
+      ) : null}
       {page === "logs" ? <LogsPage /> : null}
       {page === "repair" ? <RepairPage /> : null}
       {page === "updates" ? <UpdatesPage /> : null}

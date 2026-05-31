@@ -16,3 +16,4 @@ Thumbs.db
 config/
 logs/
 *.egg-info/
+frontend/tsconfig.tsbuildinfo

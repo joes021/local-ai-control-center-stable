@@ -8,9 +8,18 @@ type LayoutProps = PropsWithChildren<{
   eyebrow?: ReactNode;
   nav?: ReactNode;
   themeId?: string;
+  onOpenSettingsSection?: (sectionId: string) => void;
 }>;
 
-export function Layout({ title, subtitle, eyebrow, nav, children, themeId = "dark-chocolate" }: LayoutProps) {
+export function Layout({
+  title,
+  subtitle,
+  eyebrow,
+  nav,
+  children,
+  themeId = "dark-chocolate",
+  onOpenSettingsSection,
+}: LayoutProps) {
   return (
     <div className="app-shell" data-theme={themeId}>
       <header className="hero">
@@ -19,7 +28,7 @@ export function Layout({ title, subtitle, eyebrow, nav, children, themeId = "dar
         <div className="subtitle">{subtitle}</div>
       </header>
       {nav ? <nav className="top-nav">{nav}</nav> : null}
-      <LiveResourceStrip />
+      <LiveResourceStrip onOpenSettingsSection={onOpenSettingsSection} />
       <main className="content-grid">{children}</main>
     </div>
   );

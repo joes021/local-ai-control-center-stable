@@ -141,6 +141,96 @@ def test_layout_and_benchmark_source_show_persistent_resource_strip_and_mode_lab
     assert "CPU + RAM" in benchmark_source
 
 
+def test_live_resource_strip_source_and_packaged_frontend_use_compact_clickable_two_line_metrics_without_horizontal_scroll():
+    strip_source = Path("frontend/src/components/LiveResourceStrip.tsx").read_text(encoding="utf-8")
+    styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
+    dist_root = Path(
+        "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
+    )
+    js_assets = list((dist_root / "assets").glob("index-*.js"))
+    css_assets = list((dist_root / "assets").glob("index-*.css"))
+
+    assert "live-resource-inline-row" in strip_source
+    assert "live-resource-inline-item" in strip_source
+    assert "estimateHybridRuntimeUsage" in strip_source
+    assert "estimateContextFitFromKvBuffer" in strip_source
+    assert "simplifyGpuName" in strip_source
+    assert "formatUsedTotalGiBCompact" in strip_source
+    assert "aria-pressed" in strip_source
+    assert "resource-chip-detail-panel" in strip_source
+    assert "Otvori VRAM tuning" in strip_source
+    assert ".live-resource-inline-row" in styles_source
+    assert ".live-resource-inline-item" in styles_source
+    assert "grid-template-columns: minmax(0, 0.66fr) minmax(0, 1.08fr) minmax(0, 1.08fr) minmax(0, 1.22fr) minmax(0, 1.48fr) minmax(0, 0.9fr) minmax(0, 1.58fr);" in styles_source
+    assert "grid-template-rows: auto auto;" in styles_source
+    assert "overflow-x: auto;" not in styles_source
+    assert ".live-resource-inline-button" in styles_source
+    assert ".resource-chip-detail-panel" in styles_source
+    assert js_assets
+    assert css_assets
+
+    bundled_js = "\n".join(path.read_text(encoding="utf-8") for path in js_assets)
+    bundled_css = "\n".join(path.read_text(encoding="utf-8") for path in css_assets)
+
+    assert "Živi resursi" in bundled_js
+    assert "Model proces" in bundled_js
+    assert "Klikni stavku za pun detalj" in bundled_js
+    assert "Hibrid" in bundled_js
+    assert "Puni GPU fit" in bundled_js
+    assert "Otvori VRAM tuning" in bundled_js
+    assert "RTX 3060" in bundled_js
+    assert ".live-resource-inline-row" in bundled_css
+    assert ".live-resource-inline-item" in bundled_css
+    assert ".live-resource-inline-button" in bundled_css
+    assert ".resource-chip-detail-panel" in bundled_css
+    assert "grid-template-columns:minmax(0,.66fr) minmax(0,1.08fr) minmax(0,1.08fr) minmax(0,1.22fr) minmax(0,1.48fr) minmax(0,.9fr) minmax(0,1.58fr)" in bundled_css
+
+
+def test_runtime_resource_panel_source_explains_hybrid_ram_spill_and_full_gpu_fit():
+    panel_source = Path("frontend/src/components/RuntimeResourcePanel.tsx").read_text(encoding="utf-8")
+
+    assert "Procena RAM preliva" in panel_source
+    assert "Još VRAM-a za puni GPU fit" in panel_source
+    assert "Ovo je procena na osnovu odnosa GPU slojeva" in panel_source
+
+
+def test_settings_source_mentions_vram_fit_tuning_and_manual_gpu_layers_override():
+    settings_source = Path("frontend/src/pages/SettingsPage.tsx").read_text(encoding="utf-8")
+    runtime_helper_source = Path("frontend/src/lib/runtimeDiagnostics.ts").read_text(encoding="utf-8")
+    dist_root = Path(
+        "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
+    )
+    js_assets = list((dist_root / "assets").glob("index-*.js"))
+
+    assert "VRAM fit tuning" in settings_source
+    assert "GPU layers override" in settings_source
+    assert "Procenjeni context za puni GPU fit" in settings_source
+    assert "Try to fit in VRAM" in settings_source
+    assert "estimateContextFitFromKvBuffer" in runtime_helper_source
+    assert "Samo spuštanje context-a verovatno nije dovoljno" in settings_source
+    assert "Auto trenutno cilja" in settings_source
+    assert "Više GPU slojeva = više VRAM" in settings_source
+    assert "Sačuvaj i primeni na runtime" in settings_source
+    assert "Runtime se tada još ne restartuje" in settings_source
+    assert "Poslednji VRAM fit predlog" in settings_source
+    assert "Ovo još nije sačuvano ni aktivno u runtime-u." in settings_source
+    assert "Poslednja primena runtime-a" in settings_source
+    assert "Ako je runtime već aktivan, portal ga restartuje" in settings_source
+    assert "TurboQuant smernice za čistiji VRAM fit" in settings_source
+    assert js_assets
+
+    bundled_js = "\n".join(path.read_text(encoding="utf-8") for path in js_assets)
+
+    assert "VRAM fit tuning" in bundled_js
+    assert "GPU layers override" in bundled_js
+    assert "Try to fit in VRAM" in bundled_js
+    assert "VRAM fit" in bundled_js
+    assert "GPU layers" in bundled_js
+    assert "TurboQuant smernice" in bundled_js
+    assert "Poslednji VRAM fit predlog" in bundled_js
+    assert "Poslednja primena runtime-a" in bundled_js
+
+
 def test_fleet_source_and_navigation_are_present():
     app_source = Path("frontend/src/App.tsx").read_text(encoding="utf-8")
     fleet_source = Path("frontend/src/pages/FleetPage.tsx").read_text(encoding="utf-8")
@@ -306,6 +396,9 @@ def test_server_and_tuning_lab_sources_show_runtime_gpu_diagnostics():
     assert "OpenCode PID" in tuning_source
     assert "Živa sesija i signal" in tuning_source
     assert "Workspace, logovi i komande" in tuning_source
+    assert "Živi workspace i preview" in tuning_source
+    assert "Poslednje menjani fajlovi" in tuning_source
+    assert "Preview:" in tuning_source
     assert "OpenCode signal uživo" in tuning_source
     assert "Napredni debug trag" in tuning_source
     assert "Aktivna OpenCode poruka" in tuning_source
@@ -326,9 +419,12 @@ def test_server_and_tuning_lab_sources_show_runtime_gpu_diagnostics():
     assert "Kopiraj OpenCode komandu" in tuning_source
     assert "Izmenjeni fajlovi" in tuning_source
     assert "Otvori diff" in tuning_source
+    assert "Collapse all" in tuning_source
+    assert "Expand all" in tuning_source
     assert ".tuning-lab-slot-grid" in styles_source
     assert ".tuning-lab-results-table" in styles_source
     assert ".tuning-lab-history-card" in styles_source
+    assert ".tuning-lab-history-toolbar" in styles_source
     assert ".tuning-lab-progress-grid" in styles_source
     assert ".tuning-lab-filter-grid" in styles_source
     assert ".tuning-lab-diff-browser" in styles_source
@@ -356,6 +452,9 @@ def test_tuning_lab_source_mentions_visible_live_opencode_session():
     assert ".tuning-lab-cockpit-grid" in styles_source
     assert ".tuning-lab-cockpit-strip" in styles_source
     assert ".tuning-lab-path-card" in styles_source
+    assert ".tuning-lab-workspace-card" in styles_source
+    assert ".tuning-lab-workspace-columns" in styles_source
+    assert ".tuning-lab-workspace-preview-panel" in styles_source
     assert ".tuning-lab-cockpit-main" in styles_source
     assert ".tuning-lab-cockpit-metric-grid" in styles_source
     assert ".tuning-lab-cockpit-metric" in styles_source

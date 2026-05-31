@@ -1,3 +1,4 @@
+import { estimateHybridRuntimeUsage } from "../lib/runtimeDiagnostics";
 import type { ObservabilityPayload } from "../lib/types";
 
 function formatPercent(value: number | null | undefined) {
@@ -46,6 +47,10 @@ export function RuntimeResourcePanel({ observability }: RuntimeResourcePanelProp
   const selectedGpu =
     observability.system.gpuDevices.find((item) => item.selected) ?? observability.system.gpuDevices[0] ?? null;
   const diagnostics = observability.runtime.runtimeDiagnostics;
+  const hybridEstimate = estimateHybridRuntimeUsage(
+    diagnostics,
+    observability.runtime.selectedGpuTotalGiB ?? selectedGpu?.totalGiB ?? null,
+  );
 
   return (
     <section className="status-card wide-card runtime-resource-panel">
@@ -89,6 +94,22 @@ export function RuntimeResourcePanel({ observability }: RuntimeResourcePanelProp
           <span className="status-label">GPU offload</span>
           <strong>{observability.runtime.offloadLabel}</strong>
           <span className="helper-text">{observability.runtime.offloadSummary || observability.runtime.runtimeLiveReason}</span>
+        </article>
+        <article className="runtime-resource-card">
+          <span className="status-label">Procena RAM preliva</span>
+          <strong>{formatMiB(hybridEstimate?.estimatedRamSpillMiB)}</strong>
+          <span className="helper-text">
+            Ovo je procena na osnovu odnosa GPU slojeva i već učitanog model buffer-a. Najviše znači kada je režim
+            stvarno potvrđen kao hibridan.
+          </span>
+        </article>
+        <article className="runtime-resource-card">
+          <span className="status-label">Još VRAM-a za puni GPU fit</span>
+          <strong>{formatMiB(hybridEstimate?.estimatedAdditionalVramToFitMiB)}</strong>
+          <span className="helper-text">
+            Približan dodatni VRAM koji bi bio potreban da isti model i isti context stanu potpuno na GPU, bez
+            oslanjanja na RAM.
+          </span>
         </article>
       </div>
       <div className="summary-metrics runtime-resource-summary">

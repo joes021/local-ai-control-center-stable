@@ -688,6 +688,8 @@ SETTINGS_PROFILE_COMPARE_KEYS = (
     "outputTokens",
     "workingDirectory",
     "thinkingMode",
+    "gpuLayersMode",
+    "gpuLayersOverride",
     "buildSteps",
     "planSteps",
     "generalSteps",
@@ -798,6 +800,8 @@ def load_settings_payload(
         "presencePenalty": effective["presencePenalty"],
         "frequencyPenalty": effective["frequencyPenalty"],
         "seed": effective["seed"],
+        "gpuLayersMode": effective["gpuLayersMode"],
+        "gpuLayersOverride": effective["gpuLayersOverride"],
         "buildSteps": effective["buildSteps"],
         "planSteps": effective["planSteps"],
         "generalSteps": effective["generalSteps"],
@@ -1352,6 +1356,8 @@ def _normalize_global_settings(
         "presencePenalty": 0.0,
         "frequencyPenalty": 0.0,
         "seed": -1,
+        "gpuLayersMode": "auto",
+        "gpuLayersOverride": 0,
         "buildSteps": 140,
         "planSteps": 100,
         "generalSteps": 110,
@@ -1680,6 +1686,19 @@ def _normalize_settings_payload(
         general_steps = int(preset["generalSteps"])
         explore_steps = int(preset["exploreSteps"])
 
+    gpu_layers_mode = str(
+        payload.get("gpuLayersMode", current.get("gpuLayersMode", "auto"))
+        or current.get("gpuLayersMode", "auto")
+    ).strip().lower()
+    if gpu_layers_mode not in {"auto", "manual"}:
+        gpu_layers_mode = str(current.get("gpuLayersMode", "auto") or "auto").strip().lower()
+        if gpu_layers_mode not in {"auto", "manual"}:
+            gpu_layers_mode = "auto"
+    gpu_layers_override = _non_negative_int(
+        payload.get("gpuLayersOverride"),
+        int(current.get("gpuLayersOverride", 0) or 0),
+    )
+
     return {
         "profile": normalized_profile,
         "themeId": normalized_theme_id,
@@ -1697,6 +1716,8 @@ def _normalize_settings_payload(
         "presencePenalty": normalized_presence_penalty,
         "frequencyPenalty": normalized_frequency_penalty,
         "seed": normalized_seed,
+        "gpuLayersMode": gpu_layers_mode,
+        "gpuLayersOverride": gpu_layers_override,
         "buildSteps": build_steps,
         "planSteps": plan_steps,
         "generalSteps": general_steps,
@@ -1774,6 +1795,8 @@ def _project_model_override_settings(settings: dict[str, object]) -> dict[str, o
         "outputTokens",
         "workingDirectory",
         "thinkingMode",
+        "gpuLayersMode",
+        "gpuLayersOverride",
         "buildSteps",
         "planSteps",
         "generalSteps",
