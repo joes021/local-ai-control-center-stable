@@ -6,6 +6,7 @@ import { PageFlowCard } from "../components/PageFlowCard";
 import {
   applyTuningLabWinner,
   bootstrapOpenCode,
+  deleteTuningLabHistory,
   exportTuningLabRun,
   fetchTuningLabRunStatus,
   fetchTuningLabSummary,
@@ -639,6 +640,8 @@ export function TuningLabPage() {
     runtime: "all",
     status: "all",
   });
+  const [selectedHistoryRunIds, setSelectedHistoryRunIds] = useState<Record<string, boolean>>({});
+  const [deleteHistoryArtifacts, setDeleteHistoryArtifacts] = useState(false);
   const [selectedDiffs, setSelectedDiffs] = useState<Record<string, string>>({});
   const [expandedHistoryDetails, setExpandedHistoryDetails] = useState<Record<string, boolean>>({});
   const editorRef = useRef<HTMLElement | null>(null);
@@ -926,6 +929,27 @@ export function TuningLabPage() {
       return haystack.includes(query);
     });
   }, [historyFilters, summary?.history]);
+  useEffect(() => {
+    const visibleRunIds = new Set(filteredHistory.map((run) => run.runId));
+    setSelectedHistoryRunIds((current) => {
+      const nextEntries = Object.entries(current).filter(
+        ([runId, selected]) => selected && visibleRunIds.has(runId),
+      );
+      const currentEntries = Object.entries(current).filter(([, selected]) => selected);
+      if (
+        nextEntries.length === currentEntries.length &&
+        nextEntries.every(([runId]) => current[runId])
+      ) {
+        return current;
+      }
+      return Object.fromEntries(nextEntries);
+    });
+  }, [filteredHistory]);
+  const selectedHistoryRunIdList = useMemo(
+    () => filteredHistory.filter((run) => selectedHistoryRunIds[run.runId]).map((run) => run.runId),
+    [filteredHistory, selectedHistoryRunIds],
+  );
+  const selectedHistoryRunCount = selectedHistoryRunIdList.length;
   const expandedHistoryDetailCount = useMemo(
     () => Object.values(expandedHistoryDetails).filter(Boolean).length,
     [expandedHistoryDetails],
@@ -954,6 +978,59 @@ export function TuningLabPage() {
       }
     }
     setExpandedHistoryDetails(nextState);
+  }
+
+  function toggleHistoryRunSelection(runId: string) {
+    setSelectedHistoryRunIds((current) => ({
+      ...current,
+      [runId]: !current[runId],
+    }));
+  }
+
+  function clearHistorySelection() {
+    setSelectedHistoryRunIds({});
+  }
+
+  async function deleteHistory(scope: "selected" | "all" | "failed") {
+    const deleteAll = scope === "all";
+    const deleteFailed = scope === "failed";
+    const targetRunIds = deleteAll || deleteFailed ? [] : selectedHistoryRunIdList;
+    const targetCount = deleteAll
+      ? summary?.historyTotalItems || 0
+      : deleteFailed
+        ? summary?.historyFailedItems || 0
+        : targetRunIds.length;
+    if (!deleteAll && !deleteFailed && !targetRunIds.length) {
+      setResult({
+        status: "error",
+        action: "delete-tuning-lab-history",
+        summary: "Prvo selektuj rezultate koje želiš da obrišeš.",
+        details: {
+          returncode: 1,
+          stdout: "",
+          stderr: "Nijedan Tuning Lab rezultat nije selektovan.",
+        },
+      });
+      return;
+    }
+    const confirmation = deleteAll
+      ? `Obriši celu Tuning Lab istoriju (${targetCount} rezultat(a))?${deleteHistoryArtifacts ? " Biće obrisani i vezani fajlovi na disku." : ""}`
+      : deleteFailed
+        ? `Obriši sve failed rezultate iz cele Tuning Lab istorije (${targetCount} rezultat(a))?${deleteHistoryArtifacts ? " Biće obrisani i vezani fajlovi na disku." : ""}`
+        : `Obriši ${targetCount} selektovanih rezultat(a)?${deleteHistoryArtifacts ? " Biće obrisani i vezani fajlovi na disku." : ""}`;
+    if (!window.confirm(confirmation)) {
+      return;
+    }
+    await runMutation(() =>
+      deleteTuningLabHistory({
+        runIds: targetRunIds,
+        deleteAll,
+        deleteFailed,
+        deleteArtifacts: deleteHistoryArtifacts,
+      }),
+    );
+    clearHistorySelection();
+    collapseAllHistoryDetails();
   }
 
   async function runMutation(callback: () => Promise<ActionResult | { status: string; summary: string }>) {
@@ -2244,21 +2321,78 @@ export function TuningLabPage() {
                 </button>
               </div>
             </div>
+            <div className="tuning-lab-history-selection-bar">
+              <div className="tuning-lab-history-selection-meta">
+                <span className="helper-text">Selektovano: {selectedHistoryRunCount}</span>
+                <button
+                  type="button"
+                  className="secondary-button"
+                  disabled={!selectedHistoryRunCount}
+                  onClick={clearHistorySelection}
+                >
+                  Očisti selekciju
+                </button>
+              </div>
+              <div className="inline-actions">
+                <label className="tuning-lab-history-select-toggle">
+                  <input
+                    type="checkbox"
+                    checked={deleteHistoryArtifacts}
+                    onChange={(event) => setDeleteHistoryArtifacts(event.target.checked)}
+                  />
+                  <span>Obriši i vezane fajlove na disku</span>
+                </label>
+                <button
+                  type="button"
+                  className="danger-button"
+                  disabled={!selectedHistoryRunCount}
+                  onClick={() => void deleteHistory("selected")}
+                >
+                  Obriši selektovane
+                </button>
+                <button
+                  type="button"
+                  className="danger-button"
+                  disabled={!summary?.historyFailedItems}
+                  onClick={() => void deleteHistory("failed")}
+                >
+                  Obriši sve failed
+                </button>
+                <button
+                  type="button"
+                  className="danger-button"
+                  disabled={!summary?.historyTotalItems}
+                  onClick={() => void deleteHistory("all")}
+                >
+                  Obriši sve
+                </button>
+              </div>
+            </div>
             <div className="tuning-lab-history-list">
               {filteredHistory.map((run) => {
                 const baselineSlot = run.slots.find((slot) => slot.id === "baseline");
                 const winnerSlot = run.slots.find((slot) => slot.id === run.suggestedWinnerSlotId);
                 return (
                   <article className="status-card tuning-lab-history-card" key={run.runId}>
-                    <div className="section-header">
-                      <div>
-                        <strong>{run.name}</strong>
-                        <div className="muted-line">
-                          {run.goalLabel || run.goal} | {run.modelLabel || run.modelId || "--"} |{" "}
-                          {run.activeRuntime || "--"}
+                    <div className="tuning-lab-history-card-head">
+                      <label className="tuning-lab-history-select-cell">
+                        <input
+                          type="checkbox"
+                          checked={!!selectedHistoryRunIds[run.runId]}
+                          onChange={() => toggleHistoryRunSelection(run.runId)}
+                        />
+                        <span>Selektuj</span>
+                      </label>
+                      <div className="section-header">
+                        <div>
+                          <strong>{run.name}</strong>
+                          <div className="muted-line">
+                            {run.goalLabel || run.goal} | {run.modelLabel || run.modelId || "--"} |{" "}
+                            {run.activeRuntime || "--"}
+                          </div>
                         </div>
+                        <span className="warning-badge">{renderWinnerLabel(run)}</span>
                       </div>
-                      <span className="warning-badge">{renderWinnerLabel(run)}</span>
                     </div>
                     <p className="helper-text">
                       Start: {formatDateTime(run.startedAt)} | Kraj: {formatDateTime(run.finishedAt)} |

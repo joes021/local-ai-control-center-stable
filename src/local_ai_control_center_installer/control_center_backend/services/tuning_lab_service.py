@@ -419,7 +419,13 @@ def load_tuning_lab_summary(
     history_items = _load_history(resolved_config)
     page = max(int(history_page or 1), 1)
     total_items = len(history_items)
+    failed_items = sum(
+        1
+        for item in history_items
+        if str(item.get("status", "") or "").strip().lower() == "failed"
+    )
     total_pages = max((total_items + TUNING_LAB_HISTORY_PAGE_SIZE - 1) // TUNING_LAB_HISTORY_PAGE_SIZE, 1)
+    page = min(page, total_pages)
     start_index = (page - 1) * TUNING_LAB_HISTORY_PAGE_SIZE
     end_index = start_index + TUNING_LAB_HISTORY_PAGE_SIZE
     run_state = _load_run_state(resolved_config)
@@ -453,6 +459,7 @@ def load_tuning_lab_summary(
         "historyPage": page,
         "historyPageSize": TUNING_LAB_HISTORY_PAGE_SIZE,
         "historyTotalItems": total_items,
+        "historyFailedItems": failed_items,
         "historyTotalPages": total_pages,
         "goalOptions": list(_GOAL_OPTIONS),
         "successCheckTemplates": list(_SUCCESS_CHECK_TEMPLATES),
@@ -824,6 +831,117 @@ def export_tuning_lab_run(
         "summary": f"Eksperiment {run_id} je spreman za export/share.",
         "experiment": experiment,
     }
+
+
+def delete_tuning_lab_history(
+    *,
+    run_ids: list[str] | None = None,
+    delete_all: bool = False,
+    delete_failed: bool = False,
+    delete_artifacts: bool = False,
+    config: ControlCenterConfig | None = None,
+) -> dict[str, Any]:
+    resolved_config = config or get_config()
+    history_items = _load_history(resolved_config)
+    if not history_items:
+        return action_result(
+            "ok",
+            "delete-tuning-lab-history",
+            "Tuning Lab istorija je već prazna.",
+        )
+
+    selected_run_ids = {
+        str(item or "").strip()
+        for item in (run_ids or [])
+        if str(item or "").strip()
+    }
+    if not delete_all and not delete_failed and not selected_run_ids:
+        return action_result(
+            "error",
+            "delete-tuning-lab-history",
+            "Izaberi bar jedan rezultat ili koristi `Obriši sve` / `Obriši sve failed`.",
+        )
+
+    run_state = _load_run_state(resolved_config)
+    active_run = run_state.get("activeRun") if isinstance(run_state.get("activeRun"), dict) else None
+    active_run_id = str(active_run.get("runId", "") or "").strip() if active_run else ""
+
+    removable_runs: list[dict[str, Any]] = []
+    kept_runs: list[dict[str, Any]] = []
+    skipped_active = False
+    for item in history_items:
+        run_id = str(item.get("runId", "") or "").strip()
+        status = str(item.get("status", "") or "").strip().lower()
+        is_target = delete_all or (delete_failed and status == "failed") or run_id in selected_run_ids
+        if not is_target:
+            kept_runs.append(item)
+            continue
+        if active_run_id and run_id == active_run_id:
+            kept_runs.append(item)
+            skipped_active = True
+            continue
+        removable_runs.append(item)
+
+    if not removable_runs:
+        if skipped_active:
+            return action_result(
+                "error",
+                "delete-tuning-lab-history",
+                "Aktivni Tuning Lab run ne može da se obriše dok još radi.",
+            )
+        if delete_failed:
+            return action_result(
+                "error",
+                "delete-tuning-lab-history",
+                "Nema failed rezultata za brisanje.",
+            )
+        return action_result(
+            "error",
+            "delete-tuning-lab-history",
+            "Izabrani rezultati nisu pronađeni u istoriji.",
+        )
+
+    _save_history(resolved_config, kept_runs)
+
+    deleted_artifact_count = 0
+    artifact_errors: list[str] = []
+    if delete_artifacts:
+        runs_root = _tuning_runs_root(resolved_config)
+        for item in removable_runs:
+            run_id = str(item.get("runId", "") or "").strip()
+            if not run_id:
+                continue
+            artifact_root = runs_root / run_id
+            if not artifact_root.exists():
+                continue
+            try:
+                shutil.rmtree(artifact_root, ignore_errors=False)
+                deleted_artifact_count += 1
+            except OSError as exc:
+                artifact_errors.append(f"{run_id}: {exc}")
+
+    deleted_count = len(removable_runs)
+    if delete_all:
+        summary = f"Obrisana je cela Tuning Lab istorija ({deleted_count} rezultat(a))."
+    elif delete_failed:
+        summary = f"Obrisano je {deleted_count} failed rezultat(a) iz Tuning Lab istorije."
+    else:
+        summary = f"Obrisano je {deleted_count} rezultat(a) iz Tuning Lab istorije."
+    if delete_artifacts:
+        summary = (
+            f"{summary} Obrisano je i {deleted_artifact_count} folder(a) sa vezanim fajlovima."
+        )
+    if skipped_active:
+        summary = f"{summary} Aktivni run nije diran."
+    if artifact_errors:
+        summary = f"{summary} Neki vezani fajlovi nisu mogli da se obrišu."
+
+    return action_result(
+        "ok",
+        "delete-tuning-lab-history",
+        summary,
+        stderr="\n".join(artifact_errors),
+    )
 
 
 def resolve_tuning_playable_file(

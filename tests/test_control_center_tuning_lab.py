@@ -1810,6 +1810,219 @@ def test_tuning_lab_queue_apply_export_and_failed_history_flow(tmp_path: Path, m
     assert '"topK": 20' in updated_settings
 
 
+def test_tuning_lab_delete_selected_history_and_artifacts(tmp_path: Path, monkeypatch):
+    from local_ai_control_center_installer.control_center_backend.services import tuning_lab_service
+
+    install_root = tmp_path / "install-root"
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    config = get_config()
+
+    history_items = [
+        {
+            "runId": "tuning-keep",
+            "name": "Zadrži me",
+            "status": "completed",
+            "slots": [],
+        },
+        {
+            "runId": "tuning-delete",
+            "name": "Obriši me",
+            "status": "failed",
+            "slots": [],
+        },
+    ]
+    tuning_lab_service._save_history(config, history_items)
+    tuning_lab_service._save_run_state(config, active_run=None, queue=[])
+
+    keep_root = config.control_center_config_root / "tuning-lab" / "runs" / "tuning-keep"
+    delete_root = config.control_center_config_root / "tuning-lab" / "runs" / "tuning-delete"
+    keep_root.mkdir(parents=True, exist_ok=True)
+    delete_root.mkdir(parents=True, exist_ok=True)
+    (keep_root / "artifact.txt").write_text("keep", encoding="utf-8")
+    (delete_root / "artifact.txt").write_text("delete", encoding="utf-8")
+
+    result = tuning_lab_service.delete_tuning_lab_history(
+        run_ids=["tuning-delete"],
+        delete_artifacts=True,
+        config=config,
+    )
+
+    assert result["status"] == "ok"
+    assert "1 rezultat" in str(result["summary"])
+    remaining_history = tuning_lab_service.load_tuning_lab_summary(config=config)["history"]
+    assert [item["runId"] for item in remaining_history] == ["tuning-keep"]
+    assert keep_root.exists()
+    assert not delete_root.exists()
+
+
+def test_tuning_lab_delete_all_history_keeps_active_run_and_its_artifacts(tmp_path: Path, monkeypatch):
+    from local_ai_control_center_installer.control_center_backend.services import tuning_lab_service
+
+    install_root = tmp_path / "install-root"
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    config = get_config()
+
+    history_items = [
+        {
+            "runId": "tuning-old-1",
+            "name": "Stari 1",
+            "status": "completed",
+            "slots": [],
+        },
+        {
+            "runId": "tuning-old-2",
+            "name": "Stari 2",
+            "status": "failed",
+            "slots": [],
+        },
+    ]
+    tuning_lab_service._save_history(config, history_items)
+    tuning_lab_service._save_run_state(
+        config,
+        active_run={
+            "runId": "tuning-active",
+            "name": "Aktivni",
+            "status": "running",
+            "slots": [],
+        },
+        queue=[],
+    )
+
+    old_one_root = config.control_center_config_root / "tuning-lab" / "runs" / "tuning-old-1"
+    old_two_root = config.control_center_config_root / "tuning-lab" / "runs" / "tuning-old-2"
+    active_root = config.control_center_config_root / "tuning-lab" / "runs" / "tuning-active"
+    old_one_root.mkdir(parents=True, exist_ok=True)
+    old_two_root.mkdir(parents=True, exist_ok=True)
+    active_root.mkdir(parents=True, exist_ok=True)
+
+    result = tuning_lab_service.delete_tuning_lab_history(
+        delete_all=True,
+        delete_artifacts=True,
+        config=config,
+    )
+
+    assert result["status"] == "ok"
+    assert "cela tuning lab istorija" in str(result["summary"]).lower()
+    assert tuning_lab_service.load_tuning_lab_summary(config=config)["history"] == []
+    assert not old_one_root.exists()
+    assert not old_two_root.exists()
+    assert active_root.exists()
+
+
+def test_tuning_lab_summary_clamps_history_page_after_history_shrinks(tmp_path: Path, monkeypatch):
+    from local_ai_control_center_installer.control_center_backend.services import tuning_lab_service
+
+    install_root = tmp_path / "install-root"
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    config = get_config()
+
+    history_items = []
+    for index in range(12):
+        history_items.append(
+            {
+                "runId": f"tuning-{index}",
+                "name": f"Run {index}",
+                "status": "completed",
+                "slots": [],
+            }
+        )
+    tuning_lab_service._save_history(config, history_items)
+    payload = tuning_lab_service.load_tuning_lab_summary(history_page=2, config=config)
+    assert payload["historyPage"] == 2
+    assert len(payload["history"]) == 2
+
+    tuning_lab_service.delete_tuning_lab_history(
+        run_ids=["tuning-11", "tuning-10"],
+        delete_artifacts=False,
+        config=config,
+    )
+    clamped_payload = tuning_lab_service.load_tuning_lab_summary(history_page=2, config=config)
+
+    assert clamped_payload["historyTotalPages"] == 1
+    assert clamped_payload["historyPage"] == 1
+    assert len(clamped_payload["history"]) == 10
+
+
+def test_tuning_lab_delete_all_failed_keeps_non_failed_and_active_run(tmp_path: Path, monkeypatch):
+    from local_ai_control_center_installer.control_center_backend.services import tuning_lab_service
+
+    install_root = tmp_path / "install-root"
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    config = get_config()
+
+    history_items = [
+        {
+            "runId": "tuning-completed",
+            "name": "Uspeo",
+            "status": "completed",
+            "slots": [],
+        },
+        {
+            "runId": "tuning-failed-1",
+            "name": "Pao 1",
+            "status": "failed",
+            "slots": [],
+        },
+        {
+            "runId": "tuning-failed-active",
+            "name": "Aktivni failed snapshot",
+            "status": "failed",
+            "slots": [],
+        },
+        {
+            "runId": "tuning-cancelled",
+            "name": "Prekinut",
+            "status": "cancelled",
+            "slots": [],
+        },
+        {
+            "runId": "tuning-failed-2",
+            "name": "Pao 2",
+            "status": "failed",
+            "slots": [],
+        },
+    ]
+    tuning_lab_service._save_history(config, history_items)
+    tuning_lab_service._save_run_state(
+        config,
+        active_run={
+            "runId": "tuning-failed-active",
+            "name": "Aktivni failed snapshot",
+            "status": "running",
+            "slots": [],
+        },
+        queue=[],
+    )
+
+    failed_one_root = config.control_center_config_root / "tuning-lab" / "runs" / "tuning-failed-1"
+    failed_two_root = config.control_center_config_root / "tuning-lab" / "runs" / "tuning-failed-2"
+    completed_root = config.control_center_config_root / "tuning-lab" / "runs" / "tuning-completed"
+    active_root = config.control_center_config_root / "tuning-lab" / "runs" / "tuning-failed-active"
+    failed_one_root.mkdir(parents=True, exist_ok=True)
+    failed_two_root.mkdir(parents=True, exist_ok=True)
+    completed_root.mkdir(parents=True, exist_ok=True)
+    active_root.mkdir(parents=True, exist_ok=True)
+
+    result = tuning_lab_service.delete_tuning_lab_history(
+        delete_failed=True,
+        delete_artifacts=True,
+        config=config,
+    )
+
+    assert result["status"] == "ok"
+    assert "failed" in str(result["summary"]).lower()
+    remaining_history = tuning_lab_service.load_tuning_lab_summary(config=config)["history"]
+    assert [item["runId"] for item in remaining_history] == [
+        "tuning-completed",
+        "tuning-failed-active",
+        "tuning-cancelled",
+    ]
+    assert not failed_one_root.exists()
+    assert not failed_two_root.exists()
+    assert completed_root.exists()
+    assert active_root.exists()
+
+
 def test_tuning_lab_enqueue_batch_expands_three_runs(tmp_path: Path, monkeypatch):
     from local_ai_control_center_installer.control_center_backend.services import tuning_lab_service
 

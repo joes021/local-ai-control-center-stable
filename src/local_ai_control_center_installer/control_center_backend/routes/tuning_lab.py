@@ -6,6 +6,7 @@ from pydantic import BaseModel
 
 from local_ai_control_center_installer.control_center_backend.services.tuning_lab_service import (
     apply_tuning_lab_winner,
+    delete_tuning_lab_history,
     enqueue_tuning_batch,
     enqueue_tuning_experiment,
     export_tuning_lab_run,
@@ -87,6 +88,23 @@ class ExportTuningRunRequest(BaseModel):
 @router.post("/api/tuning-lab/export")
 def tuning_lab_export(payload: ExportTuningRunRequest) -> dict[str, object]:
     return export_tuning_lab_run(payload.runId)
+
+
+class DeleteTuningHistoryRequest(BaseModel):
+    runIds: list[str] = []
+    deleteAll: bool = False
+    deleteFailed: bool = False
+    deleteArtifacts: bool = False
+
+
+@router.post("/api/tuning-lab/history/delete")
+def tuning_lab_delete_history(payload: DeleteTuningHistoryRequest) -> dict[str, object]:
+    return delete_tuning_lab_history(
+        run_ids=payload.runIds,
+        delete_all=payload.deleteAll,
+        delete_failed=payload.deleteFailed,
+        delete_artifacts=payload.deleteArtifacts,
+    )
 
 
 class ImportTuningSnippetRequest(BaseModel):

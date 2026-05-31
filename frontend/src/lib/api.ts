@@ -527,6 +527,15 @@ export async function exportTuningLabRun(
   return postJson("/api/tuning-lab/export", { runId });
 }
 
+export async function deleteTuningLabHistory(payload: {
+  runIds?: string[];
+  deleteAll?: boolean;
+  deleteFailed?: boolean;
+  deleteArtifacts?: boolean;
+}): Promise<ActionResult> {
+  return postJson("/api/tuning-lab/history/delete", payload);
+}
+
 export async function importTuningSnippet(
   snippet: string,
 ): Promise<{ status: string; summary: string; settingsPatch: Record<string, unknown> }> {

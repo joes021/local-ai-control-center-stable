@@ -662,6 +662,7 @@ export type TuningLabSummaryPayload = {
   historyPage: number;
   historyPageSize: number;
   historyTotalItems: number;
+  historyFailedItems: number;
   historyTotalPages: number;
   goalOptions: TuningLabGoalOption[];
   successCheckTemplates: TuningLabSuccessCheckTemplate[];

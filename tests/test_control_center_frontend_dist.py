@@ -465,6 +465,23 @@ def test_tuning_lab_source_mentions_visible_live_opencode_session():
     assert ".tuning-lab-log-raw" in styles_source
 
 
+def test_tuning_lab_source_mentions_history_selection_and_delete_actions():
+    page_source = Path("frontend/src/pages/TuningLabPage.tsx").read_text(encoding="utf-8")
+    api_source = Path("frontend/src/lib/api.ts").read_text(encoding="utf-8")
+    styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
+
+    assert "Obriši selektovane" in page_source
+    assert "Obriši sve" in page_source
+    assert "Obriši sve failed" in page_source
+    assert "Obriši i vezane fajlove na disku" in page_source
+    assert "Selektovano:" in page_source
+    assert "Očisti selekciju" in page_source
+    assert "deleteTuningLabHistory" in api_source
+    assert ".tuning-lab-history-selection-bar" in styles_source
+    assert ".tuning-lab-history-select-cell" in styles_source
+    assert ".tuning-lab-history-select-toggle" in styles_source
+
+
 def test_benchmark_source_explanation_is_present():
     page_source = Path("frontend/src/pages/BenchmarkPage.tsx").read_text(encoding="utf-8")
     styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")

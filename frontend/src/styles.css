@@ -3694,6 +3694,53 @@ select:-webkit-autofill {
   margin: 0;
 }
 
+.tuning-lab-history-selection-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px solid var(--app-card-soft-border);
+  background: color-mix(in srgb, var(--app-card-soft-bg) 72%, transparent);
+}
+
+.tuning-lab-history-selection-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.tuning-lab-history-card-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.tuning-lab-history-select-cell,
+.tuning-lab-history-select-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--app-text);
+  font-size: 0.94rem;
+}
+
+.tuning-lab-history-select-cell {
+  padding-top: 4px;
+}
+
+.tuning-lab-history-select-cell input,
+.tuning-lab-history-select-toggle input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--app-accent-strong);
+}
+
 .tuning-lab-winner-panel {
   display: grid;
   gap: 12px;
@@ -3794,6 +3841,11 @@ select:-webkit-autofill {
   }
 
   .workflow-editor-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .tuning-lab-history-selection-bar,
+  .tuning-lab-history-card-head {
     grid-template-columns: 1fr;
   }
 
