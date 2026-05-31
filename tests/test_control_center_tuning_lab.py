@@ -258,6 +258,63 @@ def test_parse_opencode_json_output_reads_tokens_from_step_finish_part_payload()
     assert parsed["inputTokens"] == 10875
     assert parsed["outputTokens"] == 7142
     assert parsed["totalTokens"] == 18017
+
+
+def test_parse_opencode_json_output_accumulates_step_finish_tokens_without_cache_reads():
+    from local_ai_control_center_installer.control_center_backend.services import tuning_lab_service
+
+    output = "\n".join(
+        [
+            json.dumps(
+                {
+                    "type": "step_finish",
+                    "part": {
+                        "tokens": {
+                            "input": 11059,
+                            "output": 117,
+                            "total": 11176,
+                            "cache": {"read": 0, "write": 0},
+                        },
+                        "cost": 0,
+                    },
+                }
+            ),
+            json.dumps(
+                {
+                    "type": "step_finish",
+                    "part": {
+                        "tokens": {
+                            "input": 81,
+                            "output": 7494,
+                            "total": 18750,
+                            "cache": {"read": 11175, "write": 0},
+                        },
+                        "cost": 0,
+                    },
+                }
+            ),
+            json.dumps(
+                {
+                    "type": "step_finish",
+                    "part": {
+                        "tokens": {
+                            "input": 21,
+                            "output": 104,
+                            "total": 18874,
+                            "cache": {"read": 18749, "write": 0},
+                        },
+                        "cost": 0,
+                    },
+                }
+            ),
+        ]
+    )
+
+    parsed = tuning_lab_service._parse_opencode_json_output(output)
+
+    assert parsed["inputTokens"] == 11161
+    assert parsed["outputTokens"] == 7715
+    assert parsed["totalTokens"] == 18876
     assert parsed["costUsd"] == 0.0
 
 
@@ -303,6 +360,81 @@ def test_rehydrate_history_slot_metrics_backfills_legacy_token_averages(tmp_path
     assert slot["assistantText"] == "Napravljen je rezultat."
     assert slot["averageOutputTokensPerSecond"] == pytest.approx(50.0)
     assert slot["averageTotalTokensPerSecond"] == pytest.approx(150.0)
+
+
+def test_rehydrate_history_slot_metrics_replaces_stale_nonzero_legacy_values(tmp_path: Path):
+    from local_ai_control_center_installer.control_center_backend.services import tuning_lab_service
+
+    stdout_path = tmp_path / "opencode-output.jsonl"
+    stdout_path.write_text(
+        "\n".join(
+            [
+                json.dumps(
+                    {
+                        "type": "step_finish",
+                        "part": {
+                            "tokens": {
+                                "input": 11059,
+                                "output": 117,
+                                "total": 11176,
+                                "cache": {"read": 0, "write": 0},
+                            },
+                            "cost": 0,
+                        },
+                    }
+                ),
+                json.dumps(
+                    {
+                        "type": "step_finish",
+                        "part": {
+                            "tokens": {
+                                "input": 81,
+                                "output": 7494,
+                                "total": 18750,
+                                "cache": {"read": 11175, "write": 0},
+                            },
+                            "cost": 0,
+                        },
+                    }
+                ),
+                json.dumps(
+                    {
+                        "type": "step_finish",
+                        "part": {
+                            "tokens": {
+                                "input": 21,
+                                "output": 104,
+                                "total": 18874,
+                                "cache": {"read": 18749, "write": 0},
+                            },
+                            "cost": 0,
+                        },
+                    }
+                ),
+            ]
+        ),
+        encoding="utf-8",
+    )
+    slot = {
+        "stdoutPath": str(stdout_path),
+        "inputTokens": 21,
+        "outputTokens": 104,
+        "totalTokens": 18874,
+        "costUsd": 0.0,
+        "assistantText": "",
+        "totalDurationMs": 469000,
+        "averageOutputTokensPerSecond": 0.22,
+        "averageTotalTokensPerSecond": 40.24,
+    }
+
+    changed = tuning_lab_service._rehydrate_history_slot_metrics(slot)
+
+    assert changed is True
+    assert slot["inputTokens"] == 11161
+    assert slot["outputTokens"] == 7715
+    assert slot["totalTokens"] == 18876
+    assert slot["averageOutputTokensPerSecond"] == pytest.approx(16.45, rel=1e-3)
+    assert slot["averageTotalTokensPerSecond"] == pytest.approx(40.25, rel=1e-3)
 
 
 def test_tuning_lab_summary_reports_safe_workspace_and_prerequisite_blockers(
@@ -834,6 +966,30 @@ def test_tuning_lab_builds_stricter_batch_prompt():
     assert "Obavezni izlazni artefakti: index.html." in prompt
     assert "Originalni zadatak:" in prompt
     assert "Napravi index.html igru." in prompt
+
+
+def test_tuning_lab_batch_presets_require_key_gameplay_signals():
+    from local_ai_control_center_installer.control_center_backend.services import tuning_lab_service
+
+    summary = tuning_lab_service.load_tuning_lab_summary()
+    game_batch = next(
+        batch for batch in summary["batchPresets"] if batch["id"] == "game-batch-01"
+    )
+    tasks = {task["id"]: task for task in game_batch["tasks"]}
+
+    jumping_command = tasks["jumping-ball-runner"]["successChecks"][1]["command"]
+    assert "Game Over|game over" in jumping_command
+    assert "ArrowUp|Space|keydown|addEventListener" in jumping_command
+    assert "localStorage" in jumping_command
+
+    balloon_command = tasks["balloon-blaster"]["successChecks"][1]["command"]
+    assert "power[- ]?up|PowerUp|powerUp" in balloon_command
+    assert "difficulty|tezin" in balloon_command
+    assert "localStorage" in balloon_command
+
+    octopus_command = tasks["octopus-invaders"]["successChecks"][1]["command"]
+    assert "Octopus Invaders|space shooter|canvas|boss|combo|health" in octopus_command
+    assert "js\\game.js" in octopus_command
 
 
 def test_tuning_lab_expected_artifact_presence_supports_literal_and_wildcard_entries(tmp_path: Path):

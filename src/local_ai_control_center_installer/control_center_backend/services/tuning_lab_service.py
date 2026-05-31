@@ -332,7 +332,7 @@ _BATCH_PRESETS: list[dict[str, Any]] = [
                     },
                     {
                         "label": "Ključni stringovi postoje",
-                        "command": "if (Select-String -Path index.html -Pattern 'Jumping Ball Runner|High Score|Score' -AllMatches -Quiet) { exit 0 } else { exit 1 }",
+                        "command": "if ((Select-String -Path index.html -Pattern 'Jumping Ball Runner' -Quiet) -and (Select-String -Path index.html -Pattern 'High Score|high score|highScore' -Quiet) -and (Select-String -Path index.html -Pattern 'Score|score' -Quiet) -and (Select-String -Path index.html -Pattern 'Game Over|game over' -Quiet) -and (Select-String -Path index.html -Pattern 'Start|start' -Quiet) -and (Select-String -Path index.html -Pattern 'ArrowUp|Space|keydown|addEventListener' -Quiet) -and (Select-String -Path index.html -Pattern 'localStorage' -Quiet)) { exit 0 } else { exit 1 }",
                         "kind": "custom",
                     },
                 ],
@@ -365,7 +365,7 @@ _BATCH_PRESETS: list[dict[str, Any]] = [
                     },
                     {
                         "label": "Ključni stringovi postoje",
-                        "command": "if (Select-String -Path index.html -Pattern 'Balloon Blaster|Combo|High Score' -AllMatches -Quiet) { exit 0 } else { exit 1 }",
+                        "command": "if ((Select-String -Path index.html -Pattern 'Balloon Blaster' -Quiet) -and (Select-String -Path index.html -Pattern 'Combo|combo' -Quiet) -and (Select-String -Path index.html -Pattern 'High Score|high score|highScore' -Quiet) -and (Select-String -Path index.html -Pattern 'power[- ]?up|PowerUp|powerUp' -Quiet) -and (Select-String -Path index.html -Pattern 'difficulty|tezin|teÅ¾in|level' -Quiet) -and (Select-String -Path index.html -Pattern 'Start|start' -Quiet) -and (Select-String -Path index.html -Pattern 'pause|Pause|Game Over|game over|restart' -Quiet) -and (Select-String -Path index.html -Pattern 'keydown|addEventListener' -Quiet) -and (Select-String -Path index.html -Pattern 'localStorage' -Quiet)) { exit 0 } else { exit 1 }",
                         "kind": "custom",
                     },
                 ],
@@ -399,7 +399,7 @@ _BATCH_PRESETS: list[dict[str, Any]] = [
                     },
                     {
                         "label": "README i index referenca postoje",
-                        "command": "if (-not (Select-String -Path README.md -Pattern 'kontrol|control|pokret' -AllMatches -Quiet)) { exit 1 }; if (Select-String -Path index.html -Pattern 'styles.css|config.js|game.js' -AllMatches -Quiet) { exit 0 } else { exit 1 }",
+                        "command": "if (-not (Select-String -Path README.md -Pattern 'kontrol|control|pokret|run|start' -Quiet)) { exit 1 }; if (-not (Select-String -Path README.md -Pattern 'Octopus Invaders|space shooter|canvas|boss|combo|health' -Quiet)) { exit 1 }; if ((Select-String -Path index.html -Pattern 'styles.css|config.js|game.js' -Quiet) -and (Select-String -Path js\\game.js -Pattern 'pause|gameOver|boss|combo|health|score' -Quiet)) { exit 0 } else { exit 1 }",
                         "kind": "custom",
                     },
                 ],
@@ -2518,9 +2518,21 @@ def _parse_opencode_json_output(output_text: str) -> dict[str, Any]:
             if not tokens and isinstance(part_payload.get("tokens"), dict):
                 tokens = part_payload.get("tokens", {})
             if isinstance(tokens, dict):
-                input_tokens = int(tokens.get("input", input_tokens) or input_tokens)
-                output_tokens = int(tokens.get("output", output_tokens) or output_tokens)
-                total_tokens = int(tokens.get("total", total_tokens) or total_tokens)
+                step_input_tokens = int(tokens.get("input", 0) or 0)
+                step_output_tokens = int(tokens.get("output", 0) or 0)
+                step_total_tokens = int(tokens.get("total", 0) or 0)
+                cache_payload = tokens.get("cache", {})
+                if not isinstance(cache_payload, dict):
+                    cache_payload = {}
+                cache_read_tokens = int(cache_payload.get("read", 0) or 0)
+                cache_write_tokens = int(cache_payload.get("write", 0) or 0)
+                step_non_cache_total = max(
+                    step_total_tokens - cache_read_tokens - cache_write_tokens,
+                    step_input_tokens + step_output_tokens,
+                )
+                input_tokens += step_input_tokens
+                output_tokens += step_output_tokens
+                total_tokens += step_non_cache_total
             try:
                 cost_usd = float(
                     payload.get("cost", part_payload.get("cost", cost_usd)) or cost_usd
@@ -2565,15 +2577,6 @@ def _rehydrate_history_slot_metrics(slot: dict[str, Any]) -> bool:
     stdout_path = Path(stdout_path_raw)
     if not stdout_path.exists():
         return False
-    needs_token_backfill = (
-        int(slot.get("outputTokens", 0) or 0) <= 0
-        or int(slot.get("totalTokens", 0) or 0) <= 0
-        or float(slot.get("averageOutputTokensPerSecond", 0.0) or 0.0) <= 0.0
-        or float(slot.get("averageTotalTokensPerSecond", 0.0) or 0.0) <= 0.0
-    )
-    needs_assistant_text = not str(slot.get("assistantText", "") or "").strip()
-    if not needs_token_backfill and not needs_assistant_text:
-        return False
     stdout_text = stdout_path.read_text(encoding="utf-8", errors="replace")
     if not stdout_text.strip():
         return False
@@ -2583,26 +2586,34 @@ def _rehydrate_history_slot_metrics(slot: dict[str, Any]) -> bool:
     output_tokens = int(parsed.get("outputTokens", 0) or 0)
     total_tokens = int(parsed.get("totalTokens", 0) or 0)
     cost_usd = float(parsed.get("costUsd", 0.0) or 0.0)
-    if input_tokens > 0 and int(slot.get("inputTokens", 0) or 0) <= 0:
+    stored_input_tokens = int(slot.get("inputTokens", 0) or 0)
+    stored_output_tokens = int(slot.get("outputTokens", 0) or 0)
+    stored_total_tokens = int(slot.get("totalTokens", 0) or 0)
+    stored_cost_usd = float(slot.get("costUsd", 0.0) or 0.0)
+    if input_tokens > 0 and stored_input_tokens != input_tokens:
         slot["inputTokens"] = input_tokens
         changed = True
-    if output_tokens > 0 and int(slot.get("outputTokens", 0) or 0) <= 0:
+    if output_tokens > 0 and stored_output_tokens != output_tokens:
         slot["outputTokens"] = output_tokens
         changed = True
-    if total_tokens > 0 and int(slot.get("totalTokens", 0) or 0) <= 0:
+    if total_tokens > 0 and stored_total_tokens != total_tokens:
         slot["totalTokens"] = total_tokens
         changed = True
-    if cost_usd > 0.0 and float(slot.get("costUsd", 0.0) or 0.0) <= 0.0:
+    if cost_usd > 0.0 and abs(stored_cost_usd - cost_usd) > 1e-9:
         slot["costUsd"] = cost_usd
         changed = True
     duration_ms = int(slot.get("totalDurationMs", 0) or 0)
     if duration_ms > 0:
         duration_seconds = max(duration_ms / 1000.0, 0.001)
-        if output_tokens > 0 and float(slot.get("averageOutputTokensPerSecond", 0.0) or 0.0) <= 0.0:
-            slot["averageOutputTokensPerSecond"] = output_tokens / duration_seconds
+        expected_average_output = output_tokens / duration_seconds if output_tokens > 0 else 0.0
+        expected_average_total = total_tokens / duration_seconds if total_tokens > 0 else 0.0
+        stored_average_output = float(slot.get("averageOutputTokensPerSecond", 0.0) or 0.0)
+        stored_average_total = float(slot.get("averageTotalTokensPerSecond", 0.0) or 0.0)
+        if output_tokens > 0 and abs(stored_average_output - expected_average_output) > 0.01:
+            slot["averageOutputTokensPerSecond"] = expected_average_output
             changed = True
-        if total_tokens > 0 and float(slot.get("averageTotalTokensPerSecond", 0.0) or 0.0) <= 0.0:
-            slot["averageTotalTokensPerSecond"] = total_tokens / duration_seconds
+        if total_tokens > 0 and abs(stored_average_total - expected_average_total) > 0.01:
+            slot["averageTotalTokensPerSecond"] = expected_average_total
             changed = True
     assistant_text = str(parsed.get("assistantText", "") or "").strip()
     if assistant_text and not str(slot.get("assistantText", "") or "").strip():
