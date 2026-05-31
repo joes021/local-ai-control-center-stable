@@ -431,6 +431,7 @@ function ModelGroup({
   groupKey,
   items,
   collapsed,
+  highlightedModelId,
   onToggle,
   onChanged,
   onCheckCompatibility,
@@ -439,6 +440,7 @@ function ModelGroup({
   groupKey: GroupKey;
   items: ModelEntry[];
   collapsed: boolean;
+  highlightedModelId?: string | null;
   onToggle: (group: GroupKey) => void;
   onChanged: () => Promise<unknown>;
   onCheckCompatibility: (item: ModelEntry) => void;
@@ -507,13 +509,23 @@ function ModelGroup({
         items.length ? (
           <div className="model-list">
             {items.map((item) => (
-              <article className="model-item" key={item.id}>
+              <article
+                className={`model-item ${highlightedModelId === item.id ? "model-item-highlighted" : ""}`}
+                key={item.id}
+              >
                 <div className="model-item-header">
                   <div>
                     <div className="model-title-row">
                       <strong>{item.label}</strong>
                       <span className={lifecycleTone(item.lifecycleStatus)}>{item.lifecycleLabel ?? "Status"}</span>
                     </div>
+                    {highlightedModelId === item.id ? (
+                      <div className="helper-text">
+                        Novo dodato. Ako želiš da ga pokreneš odmah, idi na <strong>Activate</strong>.
+                        Ako procena kaže da je model pretežak za ovu mašinu, klikni{" "}
+                        <strong>Ipak pokušaj aktivaciju</strong>.
+                      </div>
+                    ) : null}
                     <div className="muted-line">
                       {item.active ? "Aktivan" : "Nije aktivan"} |{" "}
                       {item.installed ? "Skinut" : "Nije skinut"} | {item.family ?? "Unknown"}
@@ -680,6 +692,8 @@ export function ModelsPage({
   const [recommendedModels, setRecommendedModels] = useState<RecommendedModel[]>([]);
   const [downloadProgress, setDownloadProgress] = useState<DownloadProgressPayload | null>(null);
   const [modelsFilter, setModelsFilter] = useState<ModelsFilter>("all");
+  const [lastAddedLocalModelId, setLastAddedLocalModelId] = useState<string | null>(null);
+  const [lastAddedLocalLabel, setLastAddedLocalLabel] = useState<string | null>(null);
   const [collapsedGroups, setCollapsedGroups] = useState<Record<GroupKey, boolean>>({
     curated: false,
     local: false,
@@ -689,6 +703,7 @@ export function ModelsPage({
   const [compatibilityRequest, setCompatibilityRequest] = useState<CompatibilityCheckRequest | null>(null);
   const [compatibilityTitle, setCompatibilityTitle] = useState("Model");
   const progressStatusRef = useRef<string>("idle");
+  const localGroupRef = useRef<HTMLDivElement | null>(null);
 
   function showClientError(summary: string) {
     setResult({
@@ -706,6 +721,12 @@ export function ModelsPage({
       action: "models",
       summary: `Pokrećem model akciju: ${label}`,
       details: { returncode: 0, stdout: "", stderr: "" },
+    });
+  }
+
+  function revealLocalModels() {
+    requestAnimationFrame(() => {
+      localGroupRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
   }
 
@@ -1095,12 +1116,71 @@ export function ModelsPage({
                 showClientError("Izaberi lokalni GGUF fajl pre dodavanja.");
                 return;
               }
-              await runTopLevelAction("add local", () => addLocalModel(localPath.trim(), "", "Custom"));
+              const localPathValue = localPath.trim();
+              try {
+                showPendingAction("add local");
+                const actionResult = await addLocalModel(localPathValue, "", "Custom");
+                const finalResult = await awaitModelActionResult(actionResult, setResult);
+                const reloadedModels = await reloadModels();
+                const localModelId = String(
+                  (finalResult as { localModelId?: string }).localModelId ??
+                    (actionResult as { localModelId?: string }).localModelId ??
+                    "",
+                ).trim();
+                if (finalResult.status === "ok" && localModelId) {
+                  const addedItem =
+                    reloadedModels?.local?.find((item) => item.id === localModelId) ?? null;
+                  setLastAddedLocalModelId(localModelId);
+                  setLastAddedLocalLabel(addedItem?.label || localPathValue.split(/[\\/]/).pop()?.replace(/\.gguf$/i, "") || "lokalni model");
+                  setModelsFilter("installed");
+                  setCollapsedGroups((current) => ({ ...current, local: false }));
+                  setLocalPath("");
+                  setResult({
+                    ...finalResult,
+                    summary:
+                      `${finalResult.summary} Model je dodat u \`Lokalni modeli\`. ` +
+                      "Ako ga ne vidiš odmah, grupa niže na strani će se otvoriti. " +
+                      "Ako fit procena kaže da je model pretežak, klikni Activate pa `Ipak pokušaj aktivaciju`.",
+                  });
+                  revealLocalModels();
+                } else {
+                  setResult(finalResult);
+                }
+              } catch (reason: unknown) {
+                showClientError(reason instanceof Error ? reason.message : "Model akcija nije uspela.");
+              } finally {
+                setPendingAction(null);
+              }
             }}
           >
             Add local
           </button>
         </div>
+        {pendingAction === "add local" ? (
+          <div className="model-import-callout">
+            <strong>Kopiram lokalni GGUF u model folder.</strong>
+            <p className="helper-text">
+              Za velike modele ovo može da traje neko vreme. Kada se kopiranje završi, portal će
+              otvoriti grupu <strong>Lokalni modeli</strong> niže na strani.
+            </p>
+          </div>
+        ) : null}
+        {lastAddedLocalModelId ? (
+          <div className="model-import-callout">
+            <strong>Model je dodat u `Lokalni modeli`.</strong>
+            <p className="helper-text">
+              {lastAddedLocalLabel || "Lokalni model"} je uspešno kopiran u installer-managed model folder.
+              Ako želiš da ga pronađeš odmah, koristi dugme ispod. Ako aktivacija pokaže da je model
+              pretežak za ovu mašinu, nastavi preko <strong>Activate</strong> pa{" "}
+              <strong>Ipak pokušaj aktivaciju</strong>.
+            </p>
+            <div className="inline-actions compact-actions">
+              <button type="button" className="secondary-button" onClick={revealLocalModels}>
+                Prikaži u Lokalni modeli
+              </button>
+            </div>
+          </div>
+        ) : null}
       </section>
 
       <section className="status-card wide-card">
@@ -1234,20 +1314,23 @@ export function ModelsPage({
           setCompatibilityRequest(buildCompatibilityRequestFromModelEntry(item));
         }}
       />
-      <ModelGroup
-        title="Lokalni modeli"
-        groupKey="local"
-        items={filteredModels.local}
-        collapsed={collapsedGroups.local}
-        onToggle={(group) =>
-          setCollapsedGroups((current) => ({ ...current, [group]: !current[group] }))
-        }
-        onChanged={reloadModels}
-        onCheckCompatibility={(item) => {
-          setCompatibilityTitle(item.label);
-          setCompatibilityRequest(buildCompatibilityRequestFromModelEntry(item));
-        }}
-      />
+      <div ref={localGroupRef}>
+        <ModelGroup
+          title="Lokalni modeli"
+          groupKey="local"
+          items={filteredModels.local}
+          collapsed={collapsedGroups.local}
+          highlightedModelId={lastAddedLocalModelId}
+          onToggle={(group) =>
+            setCollapsedGroups((current) => ({ ...current, [group]: !current[group] }))
+          }
+          onChanged={reloadModels}
+          onCheckCompatibility={(item) => {
+            setCompatibilityTitle(item.label);
+            setCompatibilityRequest(buildCompatibilityRequestFromModelEntry(item));
+          }}
+        />
+      </div>
       <ModelGroup
         title="Hugging Face modeli"
         groupKey="huggingFace"

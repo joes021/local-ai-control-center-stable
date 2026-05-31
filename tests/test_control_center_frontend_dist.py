@@ -1089,6 +1089,14 @@ def test_models_and_browser_source_offer_compatibility_tab_handoff():
     assert "Compatibility tab" in browser_source
 
 
+def test_models_source_guides_local_gguf_import_into_local_group():
+    models_source = Path("frontend/src/pages/ModelsPage.tsx").read_text(encoding="utf-8")
+
+    assert "Model je dodat u `Lokalni modeli`" in models_source
+    assert "Ipak pokušaj aktivaciju" in models_source
+    assert "scrollIntoView" in models_source
+
+
 def test_server_page_source_uses_runtime_generic_actions_and_labels():
     source = Path("frontend/src/pages/ServerPage.tsx").read_text(encoding="utf-8")
 

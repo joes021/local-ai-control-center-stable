@@ -294,12 +294,14 @@ def add_local_model(
         "absolute_path": str(target_path),
     }
     _upsert_custom_registry_entry(config, entry)
-    return action_result(
+    result = action_result(
         "ok",
         "add-local-model",
         f"Lokalni model je dodat: {entry['label']}",
         stdout=str(target_path),
     )
+    result["localModelId"] = entry["id"]
+    return result
 
 
 def add_hf_model(

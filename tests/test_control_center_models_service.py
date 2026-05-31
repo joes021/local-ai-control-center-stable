@@ -932,6 +932,26 @@ def test_models_route_marks_missing_local_file_truthfully(
     assert "nije prisutan na disku" in model["activationSummary"]
 
 
+def test_add_local_model_returns_local_model_id_and_registry_entry(tmp_path: Path, monkeypatch):
+    from local_ai_control_center_installer.control_center_backend.services import models_service
+
+    install_root = tmp_path / "install-root"
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    source_path = tmp_path / "Qwen3.6-28B-REAP20-A3B-Q4_K_M.gguf"
+    source_path.write_bytes(b"GGUFTEST")
+
+    result = models_service.add_local_model(str(source_path), "", "Custom")
+
+    assert result["status"] == "ok"
+    assert result["localModelId"] == "local-qwen3-6-28b-reap20-a3b-q4-k-m"
+
+    payload = models_service.load_models_payload()
+    matching = [item for item in payload["local"] if item["id"] == result["localModelId"]]
+    assert len(matching) == 1
+    assert matching[0]["installed"] is True
+    assert matching[0]["filename"] == "Qwen3.6-28B-REAP20-A3B-Q4_K_M.gguf"
+
+
 def test_models_route_marks_installed_mtp_variants_as_runtime_ready_when_llama_supports_draft_mtp(
     tmp_path: Path,
     monkeypatch,

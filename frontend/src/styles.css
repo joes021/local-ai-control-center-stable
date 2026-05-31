@@ -1111,6 +1111,13 @@ code {
   padding-top: 12px;
 }
 
+.model-item-highlighted {
+  padding: 14px 16px 0;
+  border-top-color: rgba(242, 184, 75, 0.34);
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(242, 184, 75, 0.08), rgba(242, 184, 75, 0.02));
+}
+
 .model-item:first-child {
   border-top: 0;
   padding-top: 0;
@@ -1749,6 +1756,16 @@ select:-webkit-autofill {
 .model-activation-warning-title {
   color: #ffe6e2;
   font-weight: 700;
+}
+
+.model-import-callout {
+  margin-top: 12px;
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(242, 184, 75, 0.28);
+  background: linear-gradient(180deg, rgba(242, 184, 75, 0.12), rgba(77, 54, 22, 0.12));
 }
 
 *::-webkit-scrollbar {
