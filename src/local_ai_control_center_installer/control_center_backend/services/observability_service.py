@@ -46,18 +46,27 @@ def load_observability_payload(
         "system": _detect_system_snapshot(config, selected_gpu_index=runtime_snapshot.get("selectedGpuIndex")),
         "runtime": runtime_snapshot,
         "telemetry": {
-            "input24h": _coerce_int(telemetry.get("input24h")) or 0,
-            "output24h": _coerce_int(telemetry.get("output24h")) or 0,
-            "total24h": _coerce_int(telemetry.get("total24h")) or 0,
-            "cost24hUsd": _coerce_float(telemetry.get("cost24hUsd")) or 0.0,
+            "input24h": _coerce_int(telemetry.get("input24hTokens", telemetry.get("input24h"))) or 0,
+            "output24h": _coerce_int(telemetry.get("output24hTokens", telemetry.get("output24h"))) or 0,
+            "total24h": _coerce_int(telemetry.get("total24hTokens", telemetry.get("total24h"))) or 0,
+            "cost24hUsd": _coerce_float(
+                telemetry.get("estimatedCost24hUsd", telemetry.get("cost24hUsd"))
+            )
+            or 0.0,
             "activeRoutes": _coerce_int(telemetry.get("activeRoutes")) or 0,
             "activeRoutesLabel": str(telemetry.get("activeRoutesLabel", "") or "--"),
             "liveNowTokensPerSecond": _coerce_float(telemetry.get("liveNowTokensPerSecond")),
             "flowStateLabel": str(telemetry.get("flowStateLabel", "") or "idle"),
             "flowStateReason": str(telemetry.get("flowStateReason", "") or ""),
-            "lastUpdatedAt": str(telemetry.get("lastUpdatedAt", "") or ""),
-            "promptSharePercent": _coerce_float(telemetry.get("promptSharePercent")) or 0.0,
-            "completionSharePercent": _coerce_float(telemetry.get("completionSharePercent")) or 0.0,
+            "lastUpdatedAt": str(telemetry.get("lastUpdatedAt", telemetry.get("lastUpdate", "")) or ""),
+            "promptSharePercent": _coerce_float(
+                telemetry.get("promptSharePercent", telemetry.get("inputSharePercent"))
+            )
+            or 0.0,
+            "completionSharePercent": _coerce_float(
+                telemetry.get("completionSharePercent", telemetry.get("outputSharePercent"))
+            )
+            or 0.0,
             "launchQueueSignal": {
                 "label": str((telemetry.get("launchQueueSignal") or {}).get("label", "") or "quiet"),
                 "summary": str((telemetry.get("launchQueueSignal") or {}).get("summary", "") or ""),

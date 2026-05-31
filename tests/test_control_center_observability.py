@@ -147,3 +147,108 @@ def test_observability_route_returns_runtime_system_and_log_summary(tmp_path: Pa
     assert payload["activity"]["requestCount"] == 9
     assert payload["activity"]["averageTotalMs"] == 1402.0
     assert payload["logSignals"][0]["message"] == "CUDA oom"
+
+
+def test_observability_route_reads_current_benchmark_telemetry_field_names(tmp_path: Path, monkeypatch):
+    install_root = tmp_path / "install-root"
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    _write_runtime_endpoint_config(install_root)
+    _write_active_model_config(install_root)
+
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.observability_service._detect_system_snapshot",
+        lambda config=None, selected_gpu_index=None: {
+            "hostname": "gpu-box",
+            "platformLabel": "Windows",
+            "cpuPercent": 19.4,
+            "ramTotalGiB": 32.0,
+            "ramUsedGiB": 14.2,
+            "ramFreeGiB": 17.8,
+            "gpuAvailable": True,
+            "gpuName": "RTX 3060",
+            "vramTotalGiB": 12.0,
+            "vramUsedGiB": 7.3,
+            "vramFreeGiB": 4.7,
+            "gpuDevices": [],
+        },
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.observability_service.load_runtime_state",
+        lambda config=None: {
+            "active_model": "Qwen3.6-35B-A3B-UD-IQ2_XXS.gguf",
+            "active_model_id": "qwen",
+            "active_runtime": "turboquant",
+            "runtime_live_status": "started",
+            "runtime_live_reason": "Runtime healthy.",
+            "base_url": "http://127.0.0.1:39281",
+            "port": 39281,
+        },
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.observability_service.load_benchmark_summary",
+        lambda config=None: {
+            "requestCount": 9,
+            "lastMeasuredAt": "2026-05-31T12:00:00+00:00",
+            "telemetry": {
+                "input24hTokens": 50789,
+                "output24hTokens": 25552,
+                "total24hTokens": 76341,
+                "estimatedCost24hUsd": 0.0076,
+                "activeRoutes": 1,
+                "activeRoutesLabel": "TurboQuant / Qwen / runtime-live",
+                "liveNowTokensPerSecond": 21.8,
+                "flowStateLabel": "active generation",
+                "flowStateReason": "live route signal",
+                "lastUpdate": "2026-05-31T12:35:23+00:00",
+                "inputSharePercent": 66.5,
+                "outputSharePercent": 33.5,
+                "launchQueueSignal": {"label": "quiet", "summary": "No backlog"},
+            },
+            "activity": {
+                "averageTotalMs": 1402.0,
+                "stability": {
+                    "label": "stable",
+                    "score": 91,
+                    "reason": "steady",
+                },
+            },
+        },
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.observability_service._load_recent_log_signals",
+        lambda config=None: [],
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.observability_service._build_runtime_resource_snapshot",
+        lambda config, runtime_state: {
+            "activeRuntime": "turboquant",
+            "activeModel": "Qwen3.6-35B-A3B-UD-IQ2_XXS.gguf",
+            "runtimeLiveStatus": "started",
+            "runtimeLiveReason": "Runtime healthy.",
+            "baseUrl": "http://127.0.0.1:39281",
+            "port": 39281,
+            "executionModeId": "gpu-vram",
+            "executionModeLabel": "GPU VRAM dominantno",
+            "executionModeSummary": "Svi slojevi su potvrđeni na GPU-u.",
+            "offloadStatus": "confirmed",
+            "offloadLabel": "GPU offload potvrđen",
+            "offloadSummary": "Runtime log potvrđuje CUDA offload.",
+            "selectedGpuIndex": 0,
+            "selectedGpuName": "RTX 3060",
+            "selectedGpuTotalGiB": 12.0,
+            "runtimeProcessRamMiB": 6285.0,
+        },
+    )
+
+    client = TestClient(app)
+    response = client.get("/api/observability")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["telemetry"]["input24h"] == 50789
+    assert payload["telemetry"]["output24h"] == 25552
+    assert payload["telemetry"]["total24h"] == 76341
+    assert payload["telemetry"]["cost24hUsd"] == 0.01
+    assert payload["telemetry"]["lastUpdatedAt"] == "2026-05-31T12:35:23+00:00"
+    assert payload["telemetry"]["promptSharePercent"] == 66.5
+    assert payload["telemetry"]["completionSharePercent"] == 33.5
