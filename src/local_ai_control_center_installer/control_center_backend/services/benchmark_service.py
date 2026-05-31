@@ -117,6 +117,7 @@ def load_benchmark_summary(
         "liveState": live_state,
         "telemetry": _build_telemetry_summary(
             history=history,
+            live_history=live_history,
             live_current=live_current,
             latest_history_metric=latest_history_metric,
             recent_benchmark_fallback=recent_benchmark_fallback,
@@ -1497,6 +1498,7 @@ def _build_live_state(
 def _build_telemetry_summary(
     *,
     history: list[dict[str, Any]],
+    live_history: list[dict[str, Any]],
     live_current: dict[str, Any] | None,
     latest_history_metric: dict[str, Any] | None,
     recent_benchmark_fallback: dict[str, Any] | None,
@@ -1514,9 +1516,21 @@ def _build_telemetry_summary(
             continue
         recent_history.append(item)
 
-    input_24h_tokens = sum(_int_or_zero(item.get("promptTokens")) for item in recent_history)
-    output_24h_tokens = sum(_int_or_zero(item.get("completionTokens")) for item in recent_history)
-    total_24h_tokens = sum(_int_or_zero(item.get("totalTokens")) for item in recent_history)
+    recent_live_tail = _collect_unfinalized_live_telemetry_tail(
+        live_history=live_history,
+        latest_history_metric=latest_history_metric,
+        now=now,
+    )
+
+    input_24h_tokens = sum(_int_or_zero(item.get("promptTokens")) for item in recent_history) + sum(
+        _int_or_zero(item.get("promptTokens")) for item in recent_live_tail
+    )
+    output_24h_tokens = sum(_int_or_zero(item.get("completionTokens")) for item in recent_history) + sum(
+        _int_or_zero(item.get("completionTokens")) for item in recent_live_tail
+    )
+    total_24h_tokens = sum(_int_or_zero(item.get("totalTokens")) for item in recent_history) + sum(
+        _int_or_zero(item.get("totalTokens")) for item in recent_live_tail
+    )
     if total_24h_tokens <= 0:
         total_24h_tokens = input_24h_tokens + output_24h_tokens
 
@@ -1561,6 +1575,26 @@ def _build_telemetry_summary(
         "outputSharePercent": output_share_percent,
         "launchQueueSignal": _build_launch_queue_signal(active_run),
     }
+
+
+def _collect_unfinalized_live_telemetry_tail(
+    *,
+    live_history: list[dict[str, Any]],
+    latest_history_metric: dict[str, Any] | None,
+    now: datetime,
+) -> list[dict[str, Any]]:
+    latest_history_measured_at = _parse_iso_timestamp((latest_history_metric or {}).get("measuredAt"))
+    recent_live_tail: list[dict[str, Any]] = []
+    for item in live_history:
+        measured_at = _parse_iso_timestamp(item.get("measuredAt"))
+        if measured_at is None:
+            continue
+        if (now - measured_at).total_seconds() > BENCHMARK_TELEMETRY_WINDOW_HOURS * 3600:
+            continue
+        if latest_history_measured_at is not None and measured_at <= latest_history_measured_at:
+            continue
+        recent_live_tail.append(item)
+    return recent_live_tail
 
 
 def _telemetry_flow_state(live_state: dict[str, Any]) -> tuple[str, str]:

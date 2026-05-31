@@ -352,8 +352,8 @@ def test_load_benchmark_summary_builds_24h_telemetry_snapshot(
     telemetry = payload["telemetry"]
 
     assert telemetry["input24hTokens"] == 50789
-    assert telemetry["output24hTokens"] == 25552
-    assert telemetry["total24hTokens"] == 76341
+    assert telemetry["output24hTokens"] == 25661
+    assert telemetry["total24hTokens"] == 76450
     assert telemetry["estimatedCost24hUsd"] == 0.0076
     assert telemetry["activeRoutes"] == 1
     assert telemetry["activeRoutesLabel"] == "llama.cpp / Qwen3.6-35B-A3B-UD-IQ2_XXS.gguf / benchmark"
@@ -362,8 +362,8 @@ def test_load_benchmark_summary_builds_24h_telemetry_snapshot(
     assert telemetry["lastSignalStateLabel"] == "aktivan live signal"
     assert telemetry["flowState"] == "active-generation"
     assert telemetry["flowStateLabel"] == "active generation"
-    assert telemetry["inputSharePercent"] == 66.5
-    assert telemetry["outputSharePercent"] == 33.5
+    assert telemetry["inputSharePercent"] == 66.4
+    assert telemetry["outputSharePercent"] == 33.6
 
 
 def test_load_benchmark_summary_falls_back_to_recent_benchmark_throughput_when_live_signal_is_idle(
@@ -650,6 +650,123 @@ def test_load_benchmark_summary_uses_recent_tuning_live_sample_as_live_current(
         "hasLiveSignal": True,
         "reason": "Live throughput signal dolazi iz aktivnog llama.cpp-kompatibilnog /slots uzorka.",
     }
+
+
+def test_load_benchmark_summary_counts_recent_live_tokens_when_no_24h_history_exists(
+    tmp_path: Path,
+    monkeypatch,
+):
+    from local_ai_control_center_installer.control_center_backend.services import benchmark_service
+
+    install_root = tmp_path / "install-root"
+    now = datetime.now(timezone.utc)
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    _write_runtime_endpoint_config(install_root)
+    _write_active_model_config(install_root)
+    _write_settings_config(install_root)
+
+    config = get_config()
+    config.control_center_config_root.mkdir(parents=True, exist_ok=True)
+    config.benchmark_history_path.write_text("[]", encoding="utf-8")
+    config.benchmark_live_history_path.write_text(
+        json.dumps(
+            [
+                {
+                    "measuredAt": (now - timedelta(seconds=4)).isoformat(),
+                    "label": "runtime-live",
+                    "source": "runtime",
+                    "activeRoutes": 1,
+                    "promptTokens": 0,
+                    "completionTokens": 64,
+                    "totalTokens": 64,
+                    "promptTokensPerSecond": None,
+                    "completionTokensPerSecond": 12.8,
+                    "totalTokensPerSecond": 12.8,
+                    "totalMs": 5000.0,
+                    "signature": "runtime-live:recent-24h",
+                }
+            ],
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(benchmark_service, "_load_live_slot_metric", lambda config=None: None)
+
+    payload = benchmark_service.load_benchmark_summary()
+
+    assert payload["telemetry"]["input24hTokens"] == 0
+    assert payload["telemetry"]["output24hTokens"] == 64
+    assert payload["telemetry"]["total24hTokens"] == 64
+    assert payload["telemetry"]["inputSharePercent"] == 0.0
+    assert payload["telemetry"]["outputSharePercent"] == 100.0
+
+
+def test_load_benchmark_summary_does_not_double_count_live_tokens_older_than_last_saved_metric(
+    tmp_path: Path,
+    monkeypatch,
+):
+    from local_ai_control_center_installer.control_center_backend.services import benchmark_service
+
+    install_root = tmp_path / "install-root"
+    now = datetime.now(timezone.utc)
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    _write_runtime_endpoint_config(install_root)
+    _write_active_model_config(install_root)
+    _write_settings_config(install_root)
+
+    config = get_config()
+    config.control_center_config_root.mkdir(parents=True, exist_ok=True)
+    config.benchmark_history_path.write_text(
+        json.dumps(
+            [
+                {
+                    "measuredAt": (now - timedelta(minutes=5)).isoformat(),
+                    "label": "benchmark-short",
+                    "promptTokens": 100,
+                    "completionTokens": 200,
+                    "totalTokens": 300,
+                    "promptTokensPerSecond": 10.0,
+                    "completionTokensPerSecond": 20.0,
+                    "totalTokensPerSecond": 15.0,
+                    "totalMs": 2000.0,
+                }
+            ],
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    config.benchmark_live_history_path.write_text(
+        json.dumps(
+            [
+                {
+                    "measuredAt": (now - timedelta(minutes=6)).isoformat(),
+                    "label": "runtime-live",
+                    "source": "runtime",
+                    "activeRoutes": 1,
+                    "promptTokens": 0,
+                    "completionTokens": 40,
+                    "totalTokens": 40,
+                    "promptTokensPerSecond": None,
+                    "completionTokensPerSecond": 10.0,
+                    "totalTokensPerSecond": 10.0,
+                    "totalMs": 4000.0,
+                    "signature": "runtime-live:older-than-history",
+                }
+            ],
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(benchmark_service, "_load_live_slot_metric", lambda config=None: None)
+
+    payload = benchmark_service.load_benchmark_summary()
+
+    assert payload["telemetry"]["input24hTokens"] == 100
+    assert payload["telemetry"]["output24hTokens"] == 200
+    assert payload["telemetry"]["total24hTokens"] == 300
 
 
 def test_benchmark_workers_persist_richer_run_metadata(
