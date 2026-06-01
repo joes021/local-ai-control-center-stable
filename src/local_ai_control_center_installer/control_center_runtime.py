@@ -49,6 +49,8 @@ DEFAULT_PANEL_PORT = 3210
 DEFAULT_PANEL_URL = f"http://127.0.0.1:{DEFAULT_PANEL_PORT}/"
 WINDOWS_PANEL_ICON_RESOURCE = "assets/windows/local-ai-control-center-icon-b.ico"
 WINDOWS_PANEL_ICON_NAME = "LocalAIControlCenter.ico"
+WINDOWS_OPENCODE_ICON_RESOURCE = "assets/windows/local-ai-control-center-opencode-icon-b.ico"
+WINDOWS_OPENCODE_ICON_NAME = "OpenCode.ico"
 
 
 @dataclass(frozen=True)
@@ -512,16 +514,18 @@ def _resolve_panel_executable_resource() -> Path | None:
     return None
 
 
-def _install_windows_panel_icon(
+def _install_windows_shell_icon(
     *,
     panel_root: Path,
+    resource_path: str,
+    installed_name: str,
     fallback_icon_path: Path | None = None,
 ) -> Path | None:
-    installed_icon_path = panel_root / WINDOWS_PANEL_ICON_NAME
+    installed_icon_path = panel_root / installed_name
     try:
         icon_bytes = (
             files("local_ai_control_center_installer")
-            .joinpath(WINDOWS_PANEL_ICON_RESOURCE)
+            .joinpath(resource_path)
             .read_bytes()
         )
     except (FileNotFoundError, ModuleNotFoundError):
@@ -691,8 +695,10 @@ def _ensure_windows_shell_assets(
     desktop_dir.mkdir(parents=True, exist_ok=True)
 
     panel_shortcut_target = panel_launcher_path
-    panel_shortcut_icon = _install_windows_panel_icon(
+    panel_shortcut_icon = _install_windows_shell_icon(
         panel_root=panel_root,
+        resource_path=WINDOWS_PANEL_ICON_RESOURCE,
+        installed_name=WINDOWS_PANEL_ICON_NAME,
         fallback_icon_path=panel_executable_path if panel_executable_path.is_file() else None,
     )
     start_menu_panel_shortcut_path = start_menu_dir / PANEL_SHORTCUT_NAME
@@ -716,13 +722,19 @@ def _ensure_windows_shell_assets(
     start_menu_opencode_shortcut_path: Path | None = None
     desktop_opencode_shortcut_path: Path | None = None
     if opencode_launcher_path is not None:
+        opencode_shortcut_icon = _install_windows_shell_icon(
+            panel_root=panel_root,
+            resource_path=WINDOWS_OPENCODE_ICON_RESOURCE,
+            installed_name=WINDOWS_OPENCODE_ICON_NAME,
+            fallback_icon_path=panel_shortcut_icon,
+        )
         start_menu_opencode_shortcut_path = start_menu_dir / OPENCODE_SHORTCUT_NAME
         _create_windows_shortcut(
             start_menu_opencode_shortcut_path,
             opencode_launcher_path,
             working_directory=panel_root,
             description="Open the installer-managed OpenCode console.",
-            icon_path=panel_shortcut_icon,
+            icon_path=opencode_shortcut_icon,
         )
 
         desktop_opencode_shortcut_path = desktop_dir / OPENCODE_SHORTCUT_NAME
@@ -731,7 +743,7 @@ def _ensure_windows_shell_assets(
             opencode_launcher_path,
             working_directory=panel_root,
             description="Open the installer-managed OpenCode console.",
-            icon_path=panel_shortcut_icon,
+            icon_path=opencode_shortcut_icon,
         )
 
     uninstall_launcher_path = panel_root / UNINSTALL_LAUNCHER_NAME

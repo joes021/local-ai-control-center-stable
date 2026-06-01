@@ -557,8 +557,13 @@ def test_deploy_control_center_runtime_creates_shell_shortcuts_and_uninstall_ent
         "Uninstall Local AI Control Center.lnk",
     }
     installed_icon_path = install_root / "control-center" / "LocalAIControlCenter.ico"
+    opencode_icon_path = install_root / "control-center" / "OpenCode.ico"
     assert installed_icon_path.is_file()
-    assert {call["icon_path"] for call in shortcut_calls} == {installed_icon_path}
+    assert opencode_icon_path.is_file()
+    icon_by_shortcut = {call["shortcut_path"].name: call["icon_path"] for call in shortcut_calls}
+    assert icon_by_shortcut["Local AI Control Center.lnk"] == installed_icon_path
+    assert icon_by_shortcut["OpenCode.lnk"] == opencode_icon_path
+    assert icon_by_shortcut["Uninstall Local AI Control Center.lnk"] == installed_icon_path
     assert registry_call["install_root"] == install_root.resolve()
     assert registry_call["display_icon_path"] == installed_icon_path
     assert registry_call["uninstall_command_path"] == deployment.uninstall_launcher_path
