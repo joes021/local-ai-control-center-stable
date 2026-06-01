@@ -1,4 +1,4 @@
-# Local AI Control Center Stable
+# RuntimePilot Stable
 
 Installer-managed local control panel for running `llama.cpp`, `TurboQuant`, GGUF models, and `OpenCode`, with a finished Windows path and an Ubuntu x86_64 port in progress.
 
@@ -83,7 +83,7 @@ After a successful Windows install, the product provides:
 - panel launcher: `control-center/Open-Control-Center.cmd`
 - panel host: `control-center/LocalAIControlCenterPanel.exe`
 - `OpenCode` launcher: `control-center/Open-OpenCode.cmd`
-- Start Menu folder: `Local AI Control Center`
+- Start Menu folder: `RuntimePilot`
 
 The control panel currently exposes:
 

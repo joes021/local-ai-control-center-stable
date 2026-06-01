@@ -9,7 +9,7 @@ def test_control_center_serves_frontend_shell():
     client = TestClient(app)
     response = client.get("/")
     assert response.status_code == 200
-    assert "Local AI Control Center" in response.text
+    assert "RuntimePilot" in response.text
 
 
 def test_control_center_health_exposes_panel_identity(monkeypatch):

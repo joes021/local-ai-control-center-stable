@@ -202,7 +202,7 @@ export function HomePage({
           <span className="status-label">Pregled sistema</span>
           <div className="system-overview-grid">
             <article className="system-overview-item">
-              <span className="system-overview-label">Stanje Control Center-a</span>
+              <span className="system-overview-label">Stanje RuntimePilot-a</span>
               <strong className="system-overview-value">{status?.health ?? "--"}</strong>
             </article>
             <article className="system-overview-item">
@@ -387,7 +387,7 @@ export function HomePage({
             Audit: {opencode?.auditSummary || "Nema dodatnih OpenCode detalja."}
           </p>
           <p className="helper-text">
-            Ako promeniš aktivni model u Control Center-u, zatvori i otvori OpenCode ponovo da bi
+            Ako promeniš aktivni model u RuntimePilot-u, zatvori i otvori OpenCode ponovo da bi
             nova sesija preuzela taj model.
           </p>
         </section>

@@ -10,10 +10,13 @@ from local_ai_control_center_installer.platform_paths import is_windows_platform
 
 
 UNINSTALL_REGISTRY_KEY = r"HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\LocalAIControlCenter"
-START_MENU_FOLDER_NAME = "Local AI Control Center"
-PANEL_SHORTCUT_NAME = "Local AI Control Center.lnk"
+START_MENU_FOLDER_NAME = "RuntimePilot"
+PANEL_SHORTCUT_NAME = "RuntimePilot.lnk"
 OPENCODE_SHORTCUT_NAME = "OpenCode.lnk"
-UNINSTALL_SHORTCUT_NAME = "Uninstall Local AI Control Center.lnk"
+UNINSTALL_SHORTCUT_NAME = "Uninstall RuntimePilot.lnk"
+LEGACY_START_MENU_FOLDER_NAMES = ("Local AI Control Center",)
+LEGACY_PANEL_SHORTCUT_NAMES = ("Local AI Control Center.lnk",)
+LEGACY_UNINSTALL_SHORTCUT_NAMES = ("Uninstall Local AI Control Center.lnk",)
 
 
 def run_control_center_uninstall_entry(
@@ -49,7 +52,7 @@ def run_control_center_uninstall_entry(
     )
     _launch_cleanup_script(cleanup_script)
 
-    output_fn("Local AI Control Center uninstall je pokrenut.")
+    output_fn("RuntimePilot uninstall je pokrenut.")
     output_fn(f"Install root: {install_root}")
     output_fn("Folder i preostale ikone će biti uklonjeni za nekoliko sekundi.")
     return 0
@@ -65,13 +68,32 @@ def _resolve_desktop_dir() -> Path:
 
 
 def _collect_shortcut_paths(start_menu_dir: Path, desktop_dir: Path) -> list[Path]:
-    return [
+    paths = [
         start_menu_dir / PANEL_SHORTCUT_NAME,
         start_menu_dir / OPENCODE_SHORTCUT_NAME,
         start_menu_dir / UNINSTALL_SHORTCUT_NAME,
         desktop_dir / PANEL_SHORTCUT_NAME,
         desktop_dir / OPENCODE_SHORTCUT_NAME,
     ]
+    for legacy_folder_name in LEGACY_START_MENU_FOLDER_NAMES:
+        legacy_start_menu_dir = start_menu_dir.parent / legacy_folder_name
+        paths.extend(
+            [
+                legacy_start_menu_dir / legacy_name
+                for legacy_name in (
+                    *LEGACY_PANEL_SHORTCUT_NAMES,
+                    OPENCODE_SHORTCUT_NAME,
+                    *LEGACY_UNINSTALL_SHORTCUT_NAMES,
+                )
+            ]
+        )
+        paths.extend(
+            [
+                desktop_dir / legacy_name
+                for legacy_name in (*LEGACY_PANEL_SHORTCUT_NAMES, OPENCODE_SHORTCUT_NAME)
+            ]
+        )
+    return paths
 
 
 def _stop_managed_processes(install_root: Path, *, current_pid: int) -> None:
@@ -147,11 +169,16 @@ def _write_cleanup_script(
     install_root: Path,
     start_menu_dir: Path,
 ) -> Path:
+    legacy_dirs = [start_menu_dir.parent / name for name in LEGACY_START_MENU_FOLDER_NAMES]
     cleanup_path = Path(tempfile.gettempdir()) / f"lacc-uninstall-{os.getpid()}.cmd"
     cleanup_lines = [
         "@echo off",
         f'set "LACC_INSTALL_ROOT={install_root}"',
         f'set "LACC_START_MENU_DIR={start_menu_dir}"',
+        *(
+            f'set "LACC_LEGACY_START_MENU_DIR_{index}={legacy_dir}"'
+            for index, legacy_dir in enumerate(legacy_dirs, start=1)
+        ),
         "ping 127.0.0.1 -n 4 >nul",
         ":retry",
         'rmdir /s /q "%LACC_INSTALL_ROOT%" >nul 2>&1',
@@ -160,6 +187,10 @@ def _write_cleanup_script(
         "  goto retry",
         ")",
         'rmdir /s /q "%LACC_START_MENU_DIR%" >nul 2>&1',
+        *(
+            f'rmdir /s /q "%LACC_LEGACY_START_MENU_DIR_{index}%" >nul 2>&1'
+            for index, _ in enumerate(legacy_dirs, start=1)
+        ),
         'del "%~f0" >nul 2>&1',
     ]
     cleanup_path.write_text("\r\n".join(cleanup_lines) + "\r\n", encoding="utf-8")

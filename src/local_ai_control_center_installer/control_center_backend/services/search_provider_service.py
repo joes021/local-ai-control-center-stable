@@ -736,7 +736,7 @@ def _render_bootstrap_script(metadata: dict[str, Any]) -> str:
             'port = os.environ["PORT"]',
             'venv_dir = Path(os.environ["VENV_DIR"])',
             'text = (repo_dir / "searx" / "settings.yml").read_text(encoding="utf-8")',
-            'text = re.sub(r\'(?m)^(\\s*instance_name:\\s*).*$\', lambda m: f\'{m.group(1)}"Local AI Control Center"\', text, count=1)',
+            'text = re.sub(r\'(?m)^(\\s*instance_name:\\s*).*$\', lambda m: f\'{m.group(1)}"RuntimePilot"\', text, count=1)',
             'text = re.sub(r\'(?ms)^  formats:\\n(?:    - .*\\n)+\', "  formats:\\n    - html\\n    - json\\n", text, count=1)',
             'text = re.sub(r\'(?m)^(\\s*port:\\s*).*$\', lambda m: f"{m.group(1)}{port}", text, count=1)',
             'text = re.sub(r\'(?m)^(\\s*bind_address:\\s*).*$\', lambda m: f\'{m.group(1)}"127.0.0.1"\', text, count=1)',

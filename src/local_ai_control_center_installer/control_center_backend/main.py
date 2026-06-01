@@ -81,7 +81,7 @@ async def _lifespan(_: FastAPI):
         stop_jobs_scheduler()
 
 
-app = FastAPI(title="Local AI Control Center", lifespan=_lifespan)
+app = FastAPI(title="RuntimePilot", lifespan=_lifespan)
 
 
 def _package_root() -> Path:

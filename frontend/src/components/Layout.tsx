@@ -7,6 +7,7 @@ type LayoutProps = PropsWithChildren<{
   subtitle: ReactNode;
   eyebrow?: ReactNode;
   nav?: ReactNode;
+  brand?: ReactNode;
   themeId?: string;
   onOpenSettingsSection?: (sectionId: string) => void;
 }>;
@@ -16,6 +17,7 @@ export function Layout({
   subtitle,
   eyebrow,
   nav,
+  brand,
   children,
   themeId = "dark-chocolate",
   onOpenSettingsSection,
@@ -24,7 +26,14 @@ export function Layout({
     <div className="app-shell" data-theme={themeId}>
       <header className="hero">
         <p className="eyebrow">{eyebrow ?? "Lokalni AI shell"}</p>
-        <h1>{title}</h1>
+        {brand ? (
+          <>
+            <div className="hero-brand">{brand}</div>
+            <h1 className="visually-hidden">{title}</h1>
+          </>
+        ) : (
+          <h1>{title}</h1>
+        )}
         <div className="subtitle">{subtitle}</div>
       </header>
       {nav ? <nav className="top-nav">{nav}</nav> : null}

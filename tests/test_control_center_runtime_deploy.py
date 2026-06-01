@@ -482,7 +482,7 @@ def test_deploy_control_center_runtime_creates_shell_shortcuts_and_uninstall_ent
     current_executable = tmp_path / "LocalAIControlCenterSetup-v0.3.5.exe"
     current_executable.write_bytes(b"panel-runtime")
 
-    start_menu_dir = tmp_path / "Start Menu" / "Programs" / "Local AI Control Center"
+    start_menu_dir = tmp_path / "Start Menu" / "Programs" / "RuntimePilot"
     desktop_dir = tmp_path / "Desktop"
     opencode_launcher_path = install_root / "control-center" / "Open-OpenCode.cmd"
     shortcut_calls: list[dict[str, object]] = []
@@ -543,33 +543,33 @@ def test_deploy_control_center_runtime_creates_shell_shortcuts_and_uninstall_ent
 
     assert deployment.opencode_launcher_path == opencode_launcher_path
     assert deployment.uninstall_launcher_path.is_file()
-    assert deployment.start_menu_panel_shortcut_path == start_menu_dir / "Local AI Control Center.lnk"
+    assert deployment.start_menu_panel_shortcut_path == start_menu_dir / "RuntimePilot.lnk"
     assert deployment.start_menu_opencode_shortcut_path == start_menu_dir / "OpenCode.lnk"
     assert deployment.start_menu_uninstall_shortcut_path == (
-        start_menu_dir / "Uninstall Local AI Control Center.lnk"
+        start_menu_dir / "Uninstall RuntimePilot.lnk"
     )
-    assert deployment.desktop_panel_shortcut_path == desktop_dir / "Local AI Control Center.lnk"
+    assert deployment.desktop_panel_shortcut_path == desktop_dir / "RuntimePilot.lnk"
     assert deployment.desktop_opencode_shortcut_path == desktop_dir / "OpenCode.lnk"
     assert len(shortcut_calls) == 5
     assert {call["shortcut_path"].name for call in shortcut_calls} == {
-        "Local AI Control Center.lnk",
+        "RuntimePilot.lnk",
         "OpenCode.lnk",
-        "Uninstall Local AI Control Center.lnk",
+        "Uninstall RuntimePilot.lnk",
     }
-    installed_icon_path = install_root / "control-center" / "LocalAIControlCenter.ico"
-    opencode_icon_path = install_root / "control-center" / "OpenCode.ico"
+    installed_icon_path = install_root / "control-center" / "RuntimePilot.ico"
+    opencode_icon_path = install_root / "control-center" / "RuntimePilot-OpenCode.ico"
     assert installed_icon_path.is_file()
     assert opencode_icon_path.is_file()
     icon_by_shortcut = {call["shortcut_path"].name: call["icon_path"] for call in shortcut_calls}
-    assert icon_by_shortcut["Local AI Control Center.lnk"] == installed_icon_path
+    assert icon_by_shortcut["RuntimePilot.lnk"] == installed_icon_path
     assert icon_by_shortcut["OpenCode.lnk"] == opencode_icon_path
-    assert icon_by_shortcut["Uninstall Local AI Control Center.lnk"] == installed_icon_path
+    assert icon_by_shortcut["Uninstall RuntimePilot.lnk"] == installed_icon_path
     assert registry_call["install_root"] == install_root.resolve()
     assert registry_call["display_icon_path"] == installed_icon_path
     assert registry_call["uninstall_command_path"] == deployment.uninstall_launcher_path
     assert registry_call["display_version"] == "0.3.5"
     uninstall_text = deployment.uninstall_launcher_path.read_text(encoding="utf-8")
-    assert "Local AI Control Center uninstall je pokrenut." in uninstall_text
+    assert "RuntimePilot uninstall je pokrenut." in uninstall_text
     assert str(install_root.resolve()) in uninstall_text
 
 

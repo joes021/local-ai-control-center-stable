@@ -468,7 +468,7 @@ def _write_opencode_launcher(
             launcher_path=launcher_path,
             executable_path=executable_path,
         ),
-        "title Local AI Control Center - OpenCode",
+        "title RuntimePilot - OpenCode",
         f'cd /d "{working_directory}"',
     ]
     for key in [
@@ -570,7 +570,7 @@ def _build_opencode_launch_preview(
             "generationSummary": _build_generation_defaults_summary(settings),
             "summary": (
                 "OpenCode koristi managed config, a local-lacc inference podrazumevana sampling "
-                "podesavanja dobija kroz runtime proxy sloj iz Control Center-a."
+                "podesavanja dobija kroz runtime proxy sloj iz RuntimePilot-a."
             ),
         }
 
@@ -593,7 +593,7 @@ def _build_opencode_launch_preview(
         "generationSummary": _build_generation_defaults_summary(settings),
         "summary": (
             "OpenCode model i provider dolaze iz managed-config.json, a local-lacc u sebi koristi "
-            "trenutni runtime, aktivni model i sampling podrazumevana podesavanja iz Control Center-a."
+            "trenutni runtime, aktivni model i sampling podrazumevana podesavanja iz RuntimePilot-a."
         ),
     }
 

@@ -518,9 +518,9 @@ def _print_final_outcome(session: InstallerSession, run_paths) -> None:
         print(f"Install log: {install_root_path / 'logs' / 'install.log'}")
         print(f"Install report: {install_root_path / 'logs' / 'install-report.json'}")
     if session.control_center_url:
-        print(f"Control Center URL: {session.control_center_url}")
+        print(f"RuntimePilot URL: {session.control_center_url}")
     if session.control_center_launcher_path:
-        print(f"Control Center launcher: {session.control_center_launcher_path}")
+        print(f"RuntimePilot launcher: {session.control_center_launcher_path}")
 
 
 def _probe_python_version() -> str | None:

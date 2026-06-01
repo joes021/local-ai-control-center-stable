@@ -33,7 +33,7 @@ def test_build_windows_installer_script_packages_repo_data_instead_of_site_packa
     assert "control_center_backend" in script
     assert "frontend_dist" in script
     assert "local_ai_control_center_installer/assets" in script
-    assert "local-ai-control-center-icon-b.ico" in script
+    assert "runtimepilot-icon.ico" in script
     assert "turboquant_sidecars" in script
     assert "manifests" in script
     assert '"--icon"' in script

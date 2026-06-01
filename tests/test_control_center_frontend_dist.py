@@ -886,6 +886,7 @@ def test_search_page_source_makes_web_results_clickable_and_guides_toward_answer
 def test_home_page_source_uses_single_system_overview_card():
     source = Path("frontend/src/pages/HomePage.tsx").read_text(encoding="utf-8")
     telemetry_source = Path("frontend/src/components/TelemetryPanel.tsx").read_text(encoding="utf-8")
+    app_source = Path("frontend/src/App.tsx").read_text(encoding="utf-8")
 
     assert "GENERAL_REFRESH_MS = 5000" in source
     assert "BENCHMARK_REALTIME_REFRESH_MS = 1000" in source
@@ -899,7 +900,9 @@ def test_home_page_source_uses_single_system_overview_card():
     assert "Aktivne rute" in telemetry_source
     assert "Uživo sada" in telemetry_source
     assert "Poslednji throughput signal" in telemetry_source
-    assert "Stanje Control Center-a" in source
+    assert "Stanje RuntimePilot-a" in source
+    assert "Control. Monitor. Optimize." in app_source
+    assert "RuntimePilot" in app_source
     assert "Aktivan runtime" in source
     assert "Status runtime servera" in source
     assert "Aktivni model" in source

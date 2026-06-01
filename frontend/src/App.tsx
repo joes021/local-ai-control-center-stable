@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { BrandLockup } from "./components/BrandLockup";
 import { Layout } from "./components/Layout";
 import { fetchSettings, fetchStatus } from "./lib/api";
 import type { CompatibilityLaunchTarget } from "./lib/compatibility";
@@ -118,6 +119,11 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    const versionSuffix = status?.version ? ` ${status.version}` : "";
+    document.title = `RuntimePilot${versionSuffix}`;
+  }, [status?.version]);
+
+  useEffect(() => {
     setIsMoreOpen(false);
   }, [page]);
 
@@ -215,11 +221,18 @@ export default function App() {
 
   return (
     <Layout
-      eyebrow={status?.hostShellLabel ?? "Lokalni AI desktop shell"}
+      brand={<BrandLockup version={status?.version ?? null} />}
+      eyebrow="LOCAL AI RUNTIME CONTROL CENTER"
       nav={nav}
-      subtitle={`Veb interfejs i lokalni backend za ${status?.hostPlatformLabel ?? "desktop"} okruženje.`}
+      subtitle={
+        <>
+          <strong>Control. Monitor. Optimize.</strong>
+          <br />
+          Everything running locally. Under your command.
+        </>
+      }
       themeId={themeId}
-      title={`Local AI Control Center${status?.version ? ` ${status.version}` : ""}`}
+      title={`RuntimePilot${status?.version ? ` ${status.version}` : ""}`}
       onOpenSettingsSection={(sectionId) => {
         setSettingsFocusSection(sectionId);
         setPage("settings");

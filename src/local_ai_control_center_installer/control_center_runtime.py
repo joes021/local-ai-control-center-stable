@@ -25,6 +25,9 @@ from local_ai_control_center_installer.control_center_backend.services.opencode_
     prepare_opencode_launcher,
 )
 from local_ai_control_center_installer.control_center_uninstall import (
+    LEGACY_PANEL_SHORTCUT_NAMES,
+    LEGACY_START_MENU_FOLDER_NAMES,
+    LEGACY_UNINSTALL_SHORTCUT_NAMES,
     OPENCODE_SHORTCUT_NAME,
     PANEL_SHORTCUT_NAME,
     START_MENU_FOLDER_NAME,
@@ -47,10 +50,10 @@ PANEL_EXECUTABLE_NAME = WINDOWS_PANEL_EXECUTABLE_NAME
 UNINSTALL_LAUNCHER_NAME = WINDOWS_UNINSTALL_LAUNCHER_NAME
 DEFAULT_PANEL_PORT = 3210
 DEFAULT_PANEL_URL = f"http://127.0.0.1:{DEFAULT_PANEL_PORT}/"
-WINDOWS_PANEL_ICON_RESOURCE = "assets/windows/local-ai-control-center-icon-b.ico"
-WINDOWS_PANEL_ICON_NAME = "LocalAIControlCenter.ico"
-WINDOWS_OPENCODE_ICON_RESOURCE = "assets/windows/local-ai-control-center-opencode-icon-b.ico"
-WINDOWS_OPENCODE_ICON_NAME = "OpenCode.ico"
+WINDOWS_PANEL_ICON_RESOURCE = "assets/windows/runtimepilot-icon.ico"
+WINDOWS_PANEL_ICON_NAME = "RuntimePilot.ico"
+WINDOWS_OPENCODE_ICON_RESOURCE = "assets/windows/runtimepilot-opencode-icon.ico"
+WINDOWS_OPENCODE_ICON_NAME = "RuntimePilot-OpenCode.ico"
 
 
 @dataclass(frozen=True)
@@ -464,12 +467,12 @@ def launch_control_center(
             listening_pid = _find_listening_pid(deployment.port)
             if listening_pid is None:
                 raise RuntimeError(
-                    f"UI port {deployment.port} je već zauzet drugim Local AI Control Center procesom."
+                    f"UI port {deployment.port} je već zauzet drugim RuntimePilot procesom."
                 )
             detail = _stop_process_id(listening_pid)
             if detail is not None:
                 raise RuntimeError(
-                    f"Control Center panel nije mogao da preuzme port {deployment.port}: {detail}"
+                    f"RuntimePilot panel nije mogao da preuzme port {deployment.port}: {detail}"
                 )
             _wait_for_port_release("127.0.0.1", deployment.port)
         else:
@@ -498,7 +501,7 @@ def launch_control_center(
             return deployment
         time.sleep(0.5)
 
-    raise TimeoutError("Control Center panel nije odgovorio na /health u predvidjenom roku.")
+    raise TimeoutError("RuntimePilot panel nije odgovorio na /health u predvidjenom roku.")
 
 
 def _resolve_panel_executable_resource() -> Path | None:
@@ -693,6 +696,7 @@ def _ensure_windows_shell_assets(
     desktop_dir = _resolve_desktop_dir()
     start_menu_dir.mkdir(parents=True, exist_ok=True)
     desktop_dir.mkdir(parents=True, exist_ok=True)
+    _remove_legacy_windows_shortcuts(start_menu_dir=start_menu_dir, desktop_dir=desktop_dir)
 
     panel_shortcut_target = panel_launcher_path
     panel_shortcut_icon = _install_windows_shell_icon(
@@ -706,7 +710,7 @@ def _ensure_windows_shell_assets(
         start_menu_panel_shortcut_path,
         panel_shortcut_target,
         working_directory=panel_root,
-        description="Open the Local AI Control Center panel.",
+        description="Open the RuntimePilot panel.",
         icon_path=panel_shortcut_icon,
     )
 
@@ -715,7 +719,7 @@ def _ensure_windows_shell_assets(
         desktop_panel_shortcut_path,
         panel_shortcut_target,
         working_directory=panel_root,
-        description="Open the Local AI Control Center panel.",
+        description="Open the RuntimePilot panel.",
         icon_path=panel_shortcut_icon,
     )
 
@@ -758,7 +762,7 @@ def _ensure_windows_shell_assets(
         start_menu_uninstall_shortcut_path,
         uninstall_launcher_path,
         working_directory=panel_root,
-        description="Uninstall Local AI Control Center.",
+        description="Uninstall RuntimePilot.",
         icon_path=panel_shortcut_icon,
     )
 
@@ -792,7 +796,7 @@ def _write_uninstall_launcher(
     lines = [
         "@echo off",
         "setlocal",
-        f"echo Local AI Control Center uninstall je pokrenut.",
+        f"echo RuntimePilot uninstall je pokrenut.",
         f'"{panel_executable_path}" --uninstall --install-root "{install_root}"',
         'set "LACC_UNINSTALL_EXIT_CODE=%ERRORLEVEL%"',
         'if not "%LACC_UNINSTALL_EXIT_CODE%"=="0" (',
@@ -824,6 +828,23 @@ def _write_linux_uninstall_launcher(
 def _resolve_start_menu_programs_dir() -> Path:
     appdata = Path(os.environ.get("APPDATA", Path.home() / "AppData" / "Roaming"))
     return appdata / "Microsoft" / "Windows" / "Start Menu" / "Programs" / START_MENU_FOLDER_NAME
+
+
+def _remove_legacy_windows_shortcuts(*, start_menu_dir: Path, desktop_dir: Path) -> None:
+    legacy_start_menu_dirs = [start_menu_dir.parent / name for name in LEGACY_START_MENU_FOLDER_NAMES]
+    for legacy_start_menu_dir in legacy_start_menu_dirs:
+        for shortcut_name in (
+            *LEGACY_PANEL_SHORTCUT_NAMES,
+            OPENCODE_SHORTCUT_NAME,
+            *LEGACY_UNINSTALL_SHORTCUT_NAMES,
+        ):
+            (legacy_start_menu_dir / shortcut_name).unlink(missing_ok=True)
+        try:
+            legacy_start_menu_dir.rmdir()
+        except OSError:
+            pass
+    for shortcut_name in (*LEGACY_PANEL_SHORTCUT_NAMES, OPENCODE_SHORTCUT_NAME):
+        (desktop_dir / shortcut_name).unlink(missing_ok=True)
 
 
 def _resolve_desktop_dir() -> Path:
@@ -889,7 +910,7 @@ def _register_uninstall_entry(
     display_version: str,
 ) -> None:
     entry_values = {
-        "DisplayName": "Local AI Control Center",
+        "DisplayName": "RuntimePilot",
         "DisplayVersion": display_version,
         "Publisher": "joes021",
         "InstallLocation": str(install_root),
@@ -1003,7 +1024,7 @@ def _stop_existing_panel_for_update(
 
     if not pids:
         raise RuntimeError(
-            f"Control Center panel je aktivan na portu {port}, ali PID nije mogao da se odredi."
+            f"RuntimePilot panel je aktivan na portu {port}, ali PID nije mogao da se odredi."
         )
 
     for pid in pids:
@@ -1011,7 +1032,7 @@ def _stop_existing_panel_for_update(
         if detail is not None:
             if _is_benign_missing_process_stop_error(detail):
                 continue
-            raise RuntimeError(f"Control Center panel nije mogao da se zaustavi: {detail}")
+            raise RuntimeError(f"RuntimePilot panel nije mogao da se zaustavi: {detail}")
 
     deadline = time.monotonic() + timeout_seconds
     while time.monotonic() < deadline:
@@ -1020,7 +1041,7 @@ def _stop_existing_panel_for_update(
         time.sleep(0.25)
 
     raise TimeoutError(
-        f"Control Center panel nije oslobodio port {port} posle zaustavljanja."
+        f"RuntimePilot panel nije oslobodio port {port} posle zaustavljanja."
     )
 
 
@@ -1290,7 +1311,7 @@ def _wait_for_port_release(host: str, port: int, timeout_seconds: float = 10.0) 
         if not _port_in_use(host, port):
             return
         time.sleep(0.25)
-    raise TimeoutError(f"Control Center panel nije oslobodio port {port} u ocekivanom roku.")
+    raise TimeoutError(f"RuntimePilot panel nije oslobodio port {port} u ocekivanom roku.")
 
 
 def _quote_powershell_string(value: str) -> str:

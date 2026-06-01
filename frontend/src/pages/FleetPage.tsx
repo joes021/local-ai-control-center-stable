@@ -105,7 +105,7 @@ export function FleetPage() {
         steps={[
           {
             title: "Dodaj ma\u0161inu",
-            detail: "Naziv i osnovni URL su dovoljni da Control Center po\u010dne da prati udaljenu instalaciju.",
+            detail: "Naziv i osnovni URL su dovoljni da RuntimePilot po\u010dne da prati udaljenu instalaciju.",
           },
           {
             title: "Osve\u017ei snapshot",

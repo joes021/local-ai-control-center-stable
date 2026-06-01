@@ -386,7 +386,7 @@ def test_opencode_open_route_launches_visible_windows_launcher(
     assert launcher_path.name == "Open-OpenCode.cmd"
     assert launcher_path.is_file()
     launcher_text = launcher_path.read_text(encoding="utf-8")
-    assert "title Local AI Control Center - OpenCode" in launcher_text
+    assert "title RuntimePilot - OpenCode" in launcher_text
     assert "opencode.exe" in launcher_text
     assert "managed-config.json" in launcher_text
     assert 'set "LACC_PROFILE=balanced"' in launcher_text

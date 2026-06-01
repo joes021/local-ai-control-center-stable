@@ -123,7 +123,7 @@ export function JobsPage() {
         <strong className="status-value">Zakazani poslovi</strong>
         <p className="helper-text">
           Installer-managed scheduler za benchmark, health, update i fleet ritam. Job-ovi rade u
-          pozadini dok je Control Center backend aktivan.
+          pozadini dok je RuntimePilot backend aktivan.
         </p>
         <div className="summary-metrics">
           <span>Aktivnih job-ova: {summary?.jobCount ?? 0}</span>
@@ -237,7 +237,7 @@ export function JobsPage() {
         ) : (
           <p className="helper-text">
             Još nema sačuvanih job-ova. Dodaj health check, update check ili benchmark battery da
-            Control Center dobije pravi operativni ritam.
+            RuntimePilot dobije pravi operativni ritam.
           </p>
         )}
       </section>
