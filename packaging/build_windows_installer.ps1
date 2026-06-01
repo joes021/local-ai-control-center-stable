@@ -13,6 +13,7 @@ $frontendRoot = Join-Path $repoRoot "frontend"
 $frontendPackageDist = Join-Path $repoRoot "src\\local_ai_control_center_installer\\control_center_backend\\frontend_dist"
 $frontendTsc = Join-Path $frontendRoot "node_modules\\typescript\\bin\\tsc"
 $frontendVite = Join-Path $frontendRoot "node_modules\\vite\\bin\\vite.js"
+$windowsInstallerIcon = Join-Path $packageRoot "assets\\windows\\local-ai-control-center-icon-b.ico"
 $specPath = $null
 
 Push-Location $repoRoot
@@ -114,6 +115,10 @@ try {
             Destination = "local_ai_control_center_installer/control_center_backend/frontend_dist"
         },
         @{
+            Source = Join-Path $packageRoot "assets"
+            Destination = "local_ai_control_center_installer/assets"
+        },
+        @{
             Source = Join-Path $packageRoot "turboquant_sidecars"
             Destination = "local_ai_control_center_installer/turboquant_sidecars"
         }
@@ -127,6 +132,8 @@ try {
         "--console",
         "--name",
         $setupBaseName,
+        "--icon",
+        $windowsInstallerIcon,
         "--paths",
         "src"
     )

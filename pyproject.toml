@@ -19,6 +19,8 @@ testpaths = ["tests"]
 [tool.setuptools.package-data]
 local_ai_control_center_installer = [
   "manifests/*.json",
+  "assets/*",
+  "assets/*/*",
   "control_center_backend/frontend_dist/*",
   "control_center_backend/frontend_dist/assets/*",
   "turboquant_sidecars/*",

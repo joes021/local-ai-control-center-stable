@@ -1,6 +1,13 @@
 from pathlib import Path
 
 
+def test_pyproject_packages_windows_icon_assets():
+    pyproject = Path("pyproject.toml").read_text(encoding="utf-8")
+
+    assert '"assets/*"' in pyproject
+    assert '"assets/*/*"' in pyproject
+
+
 def test_build_windows_installer_script_cleans_build_root_before_pip_install():
     script = Path("packaging/build_windows_installer.ps1").read_text(encoding="utf-8")
 
@@ -25,8 +32,11 @@ def test_build_windows_installer_script_packages_repo_data_instead_of_site_packa
     assert '"$($mapping.Source);$($mapping.Destination)"' in script
     assert "control_center_backend" in script
     assert "frontend_dist" in script
+    assert "local_ai_control_center_installer/assets" in script
+    assert "local-ai-control-center-icon-b.ico" in script
     assert "turboquant_sidecars" in script
     assert "manifests" in script
+    assert '"--icon"' in script
 
 
 def test_windows_installer_entry_prefers_repo_src_before_importing_package():

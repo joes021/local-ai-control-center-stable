@@ -47,6 +47,8 @@ PANEL_EXECUTABLE_NAME = WINDOWS_PANEL_EXECUTABLE_NAME
 UNINSTALL_LAUNCHER_NAME = WINDOWS_UNINSTALL_LAUNCHER_NAME
 DEFAULT_PANEL_PORT = 3210
 DEFAULT_PANEL_URL = f"http://127.0.0.1:{DEFAULT_PANEL_PORT}/"
+WINDOWS_PANEL_ICON_RESOURCE = "assets/windows/local-ai-control-center-icon-b.ico"
+WINDOWS_PANEL_ICON_NAME = "LocalAIControlCenter.ico"
 
 
 @dataclass(frozen=True)
@@ -510,6 +512,26 @@ def _resolve_panel_executable_resource() -> Path | None:
     return None
 
 
+def _install_windows_panel_icon(
+    *,
+    panel_root: Path,
+    fallback_icon_path: Path | None = None,
+) -> Path | None:
+    installed_icon_path = panel_root / WINDOWS_PANEL_ICON_NAME
+    try:
+        icon_bytes = (
+            files("local_ai_control_center_installer")
+            .joinpath(WINDOWS_PANEL_ICON_RESOURCE)
+            .read_bytes()
+        )
+    except (FileNotFoundError, ModuleNotFoundError):
+        if fallback_icon_path is not None and fallback_icon_path.is_file():
+            return fallback_icon_path
+        return None
+    installed_icon_path.write_bytes(icon_bytes)
+    return installed_icon_path
+
+
 def _write_launcher_script(
     launcher_path: Path,
     command: tuple[str, ...],
@@ -669,7 +691,10 @@ def _ensure_windows_shell_assets(
     desktop_dir.mkdir(parents=True, exist_ok=True)
 
     panel_shortcut_target = panel_launcher_path
-    panel_shortcut_icon = panel_executable_path if panel_executable_path.is_file() else None
+    panel_shortcut_icon = _install_windows_panel_icon(
+        panel_root=panel_root,
+        fallback_icon_path=panel_executable_path if panel_executable_path.is_file() else None,
+    )
     start_menu_panel_shortcut_path = start_menu_dir / PANEL_SHORTCUT_NAME
     _create_windows_shortcut(
         start_menu_panel_shortcut_path,
@@ -727,7 +752,7 @@ def _ensure_windows_shell_assets(
 
     _register_uninstall_entry(
         install_root=install_root,
-        display_icon_path=panel_executable_path,
+        display_icon_path=panel_shortcut_icon or panel_executable_path,
         uninstall_command_path=uninstall_launcher_path,
         display_version=display_version,
     )
