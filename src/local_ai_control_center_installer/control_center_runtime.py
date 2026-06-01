@@ -43,6 +43,7 @@ from local_ai_control_center_installer.session import InstallerSession
 
 
 WINDOWS_PANEL_EXECUTABLE_NAME = "LocalAIControlCenterPanel.exe"
+WINDOWS_PANEL_HIDDEN_LAUNCHER_NAME = "Open-Control-Center.vbs"
 LINUX_PANEL_HOST_NAME = "local-ai-control-center-panel"
 WINDOWS_UNINSTALL_LAUNCHER_NAME = "Uninstall-LocalAIControlCenter.cmd"
 LINUX_UNINSTALL_LAUNCHER_NAME = "Uninstall-LocalAIControlCenter.sh"
@@ -565,8 +566,7 @@ def _write_launcher_script(
     for key, value in (env_overrides or {}).items():
         lines.append(f"set \"{key}={value}\"")
     lines.extend(_build_windows_panel_launcher_guard_lines(command))
-    quoted_command = " ".join(_quote_windows_part(part) for part in command)
-    lines.append(f"start \"\" {quoted_command}")
+    lines.append(_build_windows_panel_background_launch_line(command))
     launcher_path.write_text("\r\n".join(lines) + "\r\n", encoding="utf-8")
 
 
@@ -578,6 +578,7 @@ def _build_windows_panel_launcher_guard_lines(command: tuple[str, ...]) -> list[
         return []
     normalized_install_root = str(Path(install_root).expanduser().resolve())
     health_url = f"http://{host}:{port}/health"
+    panel_process_guard = _build_windows_panel_process_guard(command, normalized_install_root)
     powershell_script = (
         f"$installRoot = {_quote_powershell_string(normalized_install_root)}; "
         f"$healthUrl = {_quote_powershell_string(health_url)}; "
@@ -587,12 +588,68 @@ def _build_windows_panel_launcher_guard_lines(command: tuple[str, ...]) -> list[
         "  $expectedInstallRoot = [System.IO.Path]::GetFullPath($installRoot).ToLowerInvariant(); "
         "  if ($response.status -eq 'ok' -and $response.app -eq 'local-ai-control-center-stable' -and $actualInstallRoot -eq $expectedInstallRoot) { exit 0 } "
         "} catch {} ; "
+        f"{panel_process_guard}"
         "exit 1"
     )
     return [
         f'powershell -NoProfile -ExecutionPolicy Bypass -Command "{powershell_script}" >nul 2>nul',
         'if "%ERRORLEVEL%"=="0" exit /b 0',
+        'if "%ERRORLEVEL%"=="10" (',
+        '  echo Launch RuntimePilot je vec u toku.',
+        '  exit /b 0',
+        ")",
     ]
+
+
+def _build_windows_panel_process_guard(
+    command: tuple[str, ...],
+    normalized_install_root: str,
+) -> str:
+    if _is_python_panel_module_command(command):
+        python_executable = Path(str(command[0])).expanduser().resolve()
+        pythonw_executable = _resolve_windows_background_python_executable(python_executable)
+        command_token = "local_ai_control_center_installer.control_center_panel"
+        port = _extract_command_flag_value(command, "--port") or str(DEFAULT_PANEL_PORT)
+        return (
+            f"$pythonExe = {_quote_powershell_string(str(python_executable))}; "
+            f"$pythonwExe = {_quote_powershell_string(str(pythonw_executable))}; "
+            f"$commandToken = {_quote_powershell_string(command_token)}; "
+            f"$expectedPort = {_quote_powershell_string(port)}; "
+            "$panelMatches = Get-CimInstance Win32_Process "
+            "| Where-Object { "
+            "  ($_.ExecutablePath -eq $pythonExe -or $_.ExecutablePath -eq $pythonwExe) "
+            "  -and $_.CommandLine -like ('*' + $commandToken + '*') "
+            "  -and $_.CommandLine -like ('*' + $installRoot + '*') "
+            "  -and $_.CommandLine -like ('*--port ' + $expectedPort + '*') "
+            "}; "
+            "if (($panelMatches | Measure-Object).Count -gt 0) { exit 10 }; "
+        )
+    panel_executable = Path(str(command[0])).expanduser().resolve()
+    return (
+        f"$panelExe = {_quote_powershell_string(str(panel_executable))}; "
+        "$panelMatches = Get-CimInstance Win32_Process "
+        "| Where-Object { $_.ExecutablePath -eq $panelExe }; "
+        "if (($panelMatches | Measure-Object).Count -gt 0) { exit 10 }; "
+    )
+
+
+def _is_python_panel_module_command(command: tuple[str, ...]) -> bool:
+    return len(command) >= 3 and str(command[1]).strip() == "-m" and str(command[2]).strip() == "local_ai_control_center_installer.control_center_panel"
+
+
+def _resolve_windows_background_python_executable(python_executable: Path) -> Path:
+    return python_executable
+
+
+def _build_windows_panel_background_launch_line(command: tuple[str, ...]) -> str:
+    launch_parts = list(command)
+    if _is_python_panel_module_command(command):
+        background_python = _resolve_windows_background_python_executable(
+            Path(str(command[0])).expanduser().resolve()
+        )
+        launch_parts[0] = str(background_python)
+    quoted_command = " ".join(_quote_windows_part(str(part)) for part in launch_parts)
+    return f'start "" /b {quoted_command}'
 
 
 def _extract_command_flag_value(command: tuple[str, ...], flag: str) -> str | None:
@@ -698,7 +755,12 @@ def _ensure_windows_shell_assets(
     desktop_dir.mkdir(parents=True, exist_ok=True)
     _remove_legacy_windows_shortcuts(start_menu_dir=start_menu_dir, desktop_dir=desktop_dir)
 
-    panel_shortcut_target = panel_launcher_path
+    panel_hidden_launcher_path = panel_root / WINDOWS_PANEL_HIDDEN_LAUNCHER_NAME
+    _write_windows_hidden_panel_launcher(
+        hidden_launcher_path=panel_hidden_launcher_path,
+        panel_launcher_path=panel_launcher_path,
+    )
+    panel_shortcut_target = panel_hidden_launcher_path
     panel_shortcut_icon = _install_windows_shell_icon(
         panel_root=panel_root,
         resource_path=WINDOWS_PANEL_ICON_RESOURCE,
@@ -807,6 +869,20 @@ def _write_uninstall_launcher(
         "endlocal",
     ]
     uninstall_launcher_path.write_text("\r\n".join(lines) + "\r\n", encoding="utf-8")
+
+
+def _write_windows_hidden_panel_launcher(
+    *,
+    hidden_launcher_path: Path,
+    panel_launcher_path: Path,
+) -> None:
+    hidden_launcher_path.parent.mkdir(parents=True, exist_ok=True)
+    escaped_launcher = str(panel_launcher_path).replace('"', '""')
+    lines = [
+        'Set shell = CreateObject("WScript.Shell")',
+        f'shell.Run "cmd.exe /d /c ""{escaped_launcher}""", 0, False',
+    ]
+    hidden_launcher_path.write_text("\r\n".join(lines) + "\r\n", encoding="utf-8")
 
 
 def _write_linux_uninstall_launcher(

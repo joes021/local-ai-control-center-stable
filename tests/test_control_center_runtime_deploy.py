@@ -558,12 +558,16 @@ def test_deploy_control_center_runtime_creates_shell_shortcuts_and_uninstall_ent
     }
     installed_icon_path = install_root / "control-center" / "RuntimePilot.ico"
     opencode_icon_path = install_root / "control-center" / "RuntimePilot-OpenCode.ico"
+    hidden_panel_launcher_path = install_root / "control-center" / "Open-Control-Center.vbs"
     assert installed_icon_path.is_file()
     assert opencode_icon_path.is_file()
+    assert hidden_panel_launcher_path.is_file()
     icon_by_shortcut = {call["shortcut_path"].name: call["icon_path"] for call in shortcut_calls}
+    target_by_shortcut = {call["shortcut_path"].name: call["target_path"] for call in shortcut_calls}
     assert icon_by_shortcut["RuntimePilot.lnk"] == installed_icon_path
     assert icon_by_shortcut["OpenCode.lnk"] == opencode_icon_path
     assert icon_by_shortcut["Uninstall RuntimePilot.lnk"] == installed_icon_path
+    assert target_by_shortcut["RuntimePilot.lnk"] == hidden_panel_launcher_path
     assert registry_call["install_root"] == install_root.resolve()
     assert registry_call["display_icon_path"] == installed_icon_path
     assert registry_call["uninstall_command_path"] == deployment.uninstall_launcher_path
@@ -666,6 +670,57 @@ def test_deploy_control_center_runtime_emits_existing_panel_guard_in_windows_lau
     assert "Invoke-RestMethod" in launcher_text
     assert "local-ai-control-center-stable" in launcher_text
     assert str(install_root.resolve()) in launcher_text
+
+
+def test_deploy_control_center_runtime_emits_launch_in_progress_guard_in_windows_launcher(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    install_root = tmp_path / "install-root"
+    current_executable = tmp_path / "python.exe"
+    current_executable.write_bytes(b"panel-runtime")
+    (tmp_path / "pythonw.exe").write_bytes(b"panel-runtime-hidden")
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_runtime._ensure_windows_shell_assets",
+        lambda **kwargs: _empty_shell_assets(),
+    )
+
+    deployment = deploy_control_center_runtime(
+        install_root,
+        panel_executable_resource=None,
+        current_python=str(current_executable),
+        frozen=False,
+    )
+
+    launcher_text = deployment.launcher_path.read_text(encoding="utf-8")
+    assert "Get-CimInstance Win32_Process" in launcher_text
+    assert "local_ai_control_center_installer.control_center_panel" in launcher_text
+    assert "Launch RuntimePilot je vec u toku." in launcher_text
+    assert str(install_root.resolve()) in launcher_text
+
+
+def test_deploy_control_center_runtime_uses_python_for_windows_python_fallback_launcher(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    install_root = tmp_path / "install-root"
+    current_executable = tmp_path / "python.exe"
+    current_executable.write_bytes(b"panel-runtime")
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_runtime._ensure_windows_shell_assets",
+        lambda **kwargs: _empty_shell_assets(),
+    )
+
+    deployment = deploy_control_center_runtime(
+        install_root,
+        panel_executable_resource=None,
+        current_python=str(current_executable),
+        frozen=False,
+    )
+
+    launcher_text = deployment.launcher_path.read_text(encoding="utf-8")
+    assert 'start "" /b' in launcher_text
+    assert str(current_executable) in launcher_text
 
 
 def test_deploy_control_center_runtime_copies_linux_frozen_host_binary(
