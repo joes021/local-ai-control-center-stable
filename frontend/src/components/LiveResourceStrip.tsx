@@ -6,7 +6,16 @@ import type { ObservabilityPayload } from "../lib/types";
 
 const REFRESH_MS = 5000;
 
-type ResourceMetricKey = "cpu" | "ram" | "vram" | "mode" | "offload" | "process" | "gpu" | "signal";
+type ResourceMetricKey =
+  | "cpu"
+  | "ram"
+  | "vram"
+  | "mode"
+  | "offload"
+  | "context"
+  | "process"
+  | "gpu"
+  | "signal";
 
 type ResourceMetric = {
   key: ResourceMetricKey;
@@ -77,6 +86,13 @@ function simplifyGpuName(name: string | null | undefined) {
   return normalized || "GPU nije dostupan";
 }
 
+function formatContext(value: number | null | undefined) {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+    return "--";
+  }
+  return String(Math.round(value));
+}
+
 function buildModeTone(modeId: string | undefined) {
   if (modeId === "gpu-vram") {
     return "resource-chip-tone-good";
@@ -88,6 +104,44 @@ function buildModeTone(modeId: string | undefined) {
     return "resource-chip-tone-muted";
   }
   return "resource-chip-tone-neutral";
+}
+
+function buildContextTone(
+  contextMismatch: boolean | null | undefined,
+  configuredContext: number | null | undefined,
+  effectiveProcessContext: number | null | undefined,
+) {
+  if (contextMismatch) {
+    return "resource-chip-tone-context-mismatch";
+  }
+  if (
+    typeof configuredContext === "number" &&
+    Number.isFinite(configuredContext) &&
+    typeof effectiveProcessContext === "number" &&
+    Number.isFinite(effectiveProcessContext)
+  ) {
+    return "resource-chip-tone-context-ok";
+  }
+  return "resource-chip-tone-neutral";
+}
+
+function buildContextStatusLabel(
+  contextMismatch: boolean | null | undefined,
+  configuredContext: number | null | undefined,
+  effectiveProcessContext: number | null | undefined,
+) {
+  if (contextMismatch) {
+    return "Restart potreban";
+  }
+  if (
+    typeof configuredContext === "number" &&
+    Number.isFinite(configuredContext) &&
+    typeof effectiveProcessContext === "number" &&
+    Number.isFinite(effectiveProcessContext)
+  ) {
+    return "Usklađeno";
+  }
+  return "Čeka proveru";
 }
 
 type LiveResourceStripProps = {
@@ -169,6 +223,18 @@ export function LiveResourceStrip({ onOpenSettingsSection }: LiveResourceStripPr
             hybridEstimate.estimatedAdditionalVramToFitMiB,
           )}`
         : observability.runtime.offloadLabel || "Čeka potvrdu";
+    const configuredContext = observability.runtime.runtimeDiagnostics?.configuredContext ?? null;
+    const effectiveProcessContext = observability.runtime.runtimeDiagnostics?.effectiveProcessContext ?? null;
+    const contextMismatch = observability.runtime.runtimeDiagnostics?.contextMismatch === true;
+    const contextAlignmentLabel = observability.runtime.runtimeDiagnostics?.contextAlignmentLabel || "Čeka proveru";
+    const contextAlignmentSummary =
+      observability.runtime.runtimeDiagnostics?.contextAlignmentSummary ||
+      "Ovde vidiš da li zapisani config i živi runtime proces zaista rade sa istim context brojem.";
+    const contextStatusLabel = buildContextStatusLabel(
+      contextMismatch,
+      configuredContext,
+      effectiveProcessContext,
+    );
 
     const result: ResourceMetric[] = [
       {
@@ -243,6 +309,22 @@ export function LiveResourceStrip({ onOpenSettingsSection }: LiveResourceStripPr
         toneClassName: buildModeTone(observability.runtime.executionModeId),
       },
       {
+        key: "context",
+        label: "Context",
+        value: `${contextStatusLabel} • ${formatContext(configuredContext)} / ${formatContext(
+          effectiveProcessContext,
+        )}`,
+        title: `Context: Config ctx ${formatContext(configuredContext)} | Živi ctx ${formatContext(
+          effectiveProcessContext,
+        )}`,
+        detailTitle: contextAlignmentLabel,
+        detailValue: `Config ctx ${formatContext(configuredContext)} • Živi ctx ${formatContext(
+          effectiveProcessContext,
+        )}`,
+        detailDescription: contextAlignmentSummary,
+        toneClassName: buildContextTone(contextMismatch, configuredContext, effectiveProcessContext),
+      },
+      {
         key: "process",
         label: "Model proces",
         value: formatMiB(observability.runtime.runtimeProcessRamMiB),
@@ -283,9 +365,9 @@ export function LiveResourceStrip({ onOpenSettingsSection }: LiveResourceStripPr
 
   const selectedMetric = metrics.find((metric) => metric.key === selectedMetricKey) ?? null;
   const showVramFitAction =
-    selectedMetric != null && ["vram", "mode", "offload", "process", "gpu"].includes(selectedMetric.key);
+    selectedMetric != null && ["vram", "mode", "offload", "context", "process", "gpu"].includes(selectedMetric.key);
   const detailHint =
-    selectedMetric?.key === "mode" || selectedMetric?.key === "offload"
+    selectedMetric?.key === "mode" || selectedMetric?.key === "offload" || selectedMetric?.key === "context"
       ? contextFitEstimate?.suggestedContext
         ? `Procena govori da bi context oko ${contextFitEstimate.suggestedContext} tokena bio sledeći razuman pokušaj za čistiji GPU fit.`
         : contextFitEstimate?.contextOnlyCanFit === false

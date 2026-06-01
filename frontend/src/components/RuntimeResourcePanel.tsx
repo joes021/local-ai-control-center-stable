@@ -22,6 +22,13 @@ function formatMiB(value: number | null | undefined) {
   return `${value.toFixed(value >= 100 ? 0 : 1)} MiB`;
 }
 
+function formatContext(value: number | null | undefined) {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+    return "--";
+  }
+  return String(Math.round(value));
+}
+
 function buildModeNote(modeId: string | undefined) {
   if (modeId === "gpu-vram") {
     return "Model je dominantno u GPU VRAM-u. RAM i dalje može da se koristi za mapiranje fajla i pomoćne bafere.";
@@ -109,6 +116,22 @@ export function RuntimeResourcePanel({ observability }: RuntimeResourcePanelProp
           <span className="helper-text">
             Približan dodatni VRAM koji bi bio potreban da isti model i isti context stanu potpuno na GPU, bez
             oslanjanja na RAM.
+          </span>
+        </article>
+        <article className="runtime-resource-card">
+          <span className="status-label">Context poravnanje</span>
+          <strong>{diagnostics?.contextAlignmentLabel || "Čeka proveru"}</strong>
+          <span className="helper-text">
+            Config context: {formatContext(diagnostics?.configuredContext)} | Živi process context:{" "}
+            {formatContext(diagnostics?.effectiveProcessContext)}
+          </span>
+          <span className="helper-text">
+            {diagnostics?.contextAlignmentSummary ||
+              "Ovde vidiš da li je zapisani ctx-size stvarno isti kao onaj sa kojim živi runtime proces trenutno radi."}
+          </span>
+          <span className="helper-text">
+            Kada ovde piše `Potreban restart runtime-a`, to znači da su config context i živi process context
+            različiti i da restart tek tada poravnava stvarno stanje.
           </span>
         </article>
       </div>

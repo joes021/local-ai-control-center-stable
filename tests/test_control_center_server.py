@@ -105,6 +105,91 @@ def test_server_status_route_reports_started_runtime_snapshot(
     assert any("Lokalni model" in note for note in payload["commandPreview"]["notes"])
 
 
+def test_server_status_route_reports_context_mismatch_between_config_and_live_process(
+    tmp_path: Path,
+    monkeypatch,
+):
+    install_root = tmp_path / "install-root"
+    runtime_root = install_root / "runtime" / "llama.cpp"
+    runtime_root.mkdir(parents=True)
+    (runtime_root / "llama-server.exe").write_text("llama", encoding="utf-8")
+    turbo_root = install_root / "tools" / "turboquant" / "windows-x64-cuda12.4"
+    turbo_root.mkdir(parents=True, exist_ok=True)
+    (turbo_root / "llama-server.exe").write_text("turbo", encoding="utf-8")
+    _write_active_model_config(
+        install_root,
+        filename="Qwen3.6-28B-REAP20-A3B-Q4_K_M.gguf",
+    )
+    _write_runtime_endpoint_config(
+        install_root / "config" / "runtime-endpoint.json",
+        port=39281,
+    )
+    _write_settings(
+        install_root,
+        {
+            "profile": "balanced",
+            "context": 262144,
+            "outputTokens": 8192,
+            "workingDirectory": str(install_root),
+            "thinkingMode": "mid",
+            "buildSteps": 140,
+            "planSteps": 100,
+            "generalSteps": 110,
+            "exploreSteps": 80,
+            "accessMode": "local-only",
+            "securityMode": "strict",
+            "capabilityMode": "confirm-commands",
+        },
+    )
+    _write_turboquant_config(
+        install_root,
+        {
+            "context": 16384,
+            "ctk": "turbo2",
+            "ctv": "turbo2",
+            "ncmoe": 20,
+            "flashAttention": True,
+            "mlock": True,
+            "mmapMode": "mmap",
+            "runtimePreference": "turboquant",
+        },
+    )
+    selection_path = install_root / "config" / "control-center" / "runtime-selection.json"
+    selection_path.parent.mkdir(parents=True, exist_ok=True)
+    selection_path.write_text(json.dumps({"runtime": "turboquant"}), encoding="utf-8")
+
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.server_service.probe_server_health",
+        lambda *args, **kwargs: "ready",
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.server_service.find_runtime_pid",
+        lambda *args, **kwargs: 5150,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.server_service.detect_tailscale_ip",
+        lambda: "",
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.server_service._read_runtime_process_context_size",
+        lambda pid: 19456,
+    )
+
+    client = TestClient(app)
+    response = client.get("/api/server/status")
+
+    assert response.status_code == 200
+    payload = response.json()
+    diagnostics = payload["runtimeDiagnostics"]
+    assert diagnostics["configuredContext"] == 16384
+    assert diagnostics["effectiveProcessContext"] == 19456
+    assert diagnostics["contextMismatch"] is True
+    assert diagnostics["contextAlignmentLabel"] == "Potreban restart runtime-a"
+    assert "16384" in diagnostics["contextAlignmentSummary"]
+    assert "19456" in diagnostics["contextAlignmentSummary"]
+
+
 def test_server_status_route_reports_warning_when_runtime_is_warming(
     tmp_path: Path,
     monkeypatch,
@@ -978,6 +1063,64 @@ def test_server_stop_route_cleans_orphaned_runtime_process_without_listener(
     payload = response.json()
     assert payload["status"] == "ok"
     assert "preostali runtime procesi" in payload["summary"]
+
+
+def test_server_restart_route_stops_then_starts_runtime(
+    tmp_path: Path,
+    monkeypatch,
+):
+    install_root = tmp_path / "install-root"
+    runtime_root = install_root / "runtime" / "llama.cpp"
+    runtime_root.mkdir(parents=True)
+    (runtime_root / "llama-server.exe").write_text("llama", encoding="utf-8")
+    _write_active_model_config(
+        install_root,
+        filename="gemma-4-E4B-it-Q4_K_M.gguf",
+    )
+    _write_runtime_endpoint_config(
+        install_root / "config" / "runtime-endpoint.json",
+        port=39281,
+    )
+
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    steps: list[str] = []
+
+    def fake_stop(config=None):
+        steps.append("stop")
+        return {
+            "status": "ok",
+            "action": "stop-server",
+            "summary": "Runtime server je zaustavljen.",
+            "details": {"returncode": 0, "stdout": "", "stderr": ""},
+        }
+
+    def fake_start(config=None):
+        steps.append("start")
+        return {
+            "status": "ok",
+            "action": "start-server",
+            "summary": "Runtime server je restartovan sa novim context podešavanjem.",
+            "details": {"returncode": 0, "stdout": "", "stderr": ""},
+        }
+
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.server_service.stop_server",
+        fake_stop,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.server_service.start_server",
+        fake_start,
+    )
+
+    client = TestClient(app)
+    response = client.post("/api/server/restart")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert steps == ["stop", "start"]
+    assert payload["status"] == "ok"
+    assert payload["action"] == "restart-server"
+    assert "restartovan" in payload["summary"]
 
 
 def test_server_open_web_route_returns_local_runtime_url(

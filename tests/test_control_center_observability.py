@@ -149,6 +149,122 @@ def test_observability_route_returns_runtime_system_and_log_summary(tmp_path: Pa
     assert payload["logSignals"][0]["message"] == "CUDA oom"
 
 
+def test_observability_route_keeps_runtime_context_alignment_signal(tmp_path: Path, monkeypatch):
+    install_root = tmp_path / "install-root"
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    _write_runtime_endpoint_config(install_root)
+    _write_active_model_config(install_root)
+
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.observability_service._detect_system_snapshot",
+        lambda config=None, selected_gpu_index=None: {
+            "hostname": "gpu-box",
+            "platformLabel": "Windows",
+            "cpuPercent": 19.4,
+            "ramTotalGiB": 32.0,
+            "ramUsedGiB": 14.2,
+            "ramFreeGiB": 17.8,
+            "gpuAvailable": True,
+            "gpuName": "RTX 3060",
+            "vramTotalGiB": 12.0,
+            "vramUsedGiB": 7.3,
+            "vramFreeGiB": 4.7,
+            "gpuDevices": [],
+        },
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.observability_service.load_runtime_state",
+        lambda config=None: {
+            "active_model": "Qwen3.6-35B-A3B-UD-IQ2_XXS.gguf",
+            "active_model_id": "qwen",
+            "active_runtime": "turboquant",
+            "runtime_live_status": "started",
+            "runtime_live_reason": "Runtime healthy.",
+            "base_url": "http://127.0.0.1:39281",
+            "port": 39281,
+        },
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.observability_service.load_benchmark_summary",
+        lambda config=None: {
+            "requestCount": 9,
+            "lastMeasuredAt": "2026-05-31T12:00:00+00:00",
+            "telemetry": {},
+            "activity": {
+                "averageTotalMs": 1402.0,
+                "stability": {
+                    "label": "stable",
+                    "score": 91,
+                    "reason": "steady",
+                },
+            },
+        },
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.observability_service._load_recent_log_signals",
+        lambda config=None: [],
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.observability_service._build_runtime_resource_snapshot",
+        lambda config, runtime_state: {
+            "activeRuntime": "turboquant",
+            "activeModel": "Qwen3.6-35B-A3B-UD-IQ2_XXS.gguf",
+            "runtimeLiveStatus": "started",
+            "runtimeLiveReason": "Runtime healthy.",
+            "baseUrl": "http://127.0.0.1:39281",
+            "port": 39281,
+            "executionModeId": "gpu-vram",
+            "executionModeLabel": "GPU VRAM dominantno",
+            "executionModeSummary": "Svi slojevi su potvrđeni na GPU-u.",
+            "offloadStatus": "confirmed",
+            "offloadLabel": "GPU offload potvrđen",
+            "offloadSummary": "Runtime log potvrđuje CUDA offload.",
+            "selectedGpuIndex": 0,
+            "selectedGpuName": "RTX 3060",
+            "selectedGpuTotalGiB": 12.0,
+            "runtimeProcessRamMiB": 6285.0,
+            "runtimeDiagnostics": {
+                "status": "confirmed",
+                "backend": "CUDA",
+                "deviceLabel": "RTX 3060",
+                "requestedGpuLayers": 41,
+                "requestedFlashAttention": "auto",
+                "requestedMainGpu": 0,
+                "requestedSplitMode": "none",
+                "projectedDeviceMemoryMiB": 17309,
+                "projectedHostMemoryMiB": 16154,
+                "confirmedGpuLayers": 41,
+                "confirmedTotalLayers": 41,
+                "cpuMappedModelBufferMiB": 272.81,
+                "modelBufferMiB": 16181.49,
+                "kvBufferMiB": 380.0,
+                "computeBufferMiB": 46.02,
+                "executionModeId": "gpu-vram",
+                "executionModeLabel": "GPU VRAM dominantno",
+                "executionModeSummary": "Svi slojevi su potvrđeni na GPU-u.",
+                "requestedSummary": "Launch komanda traži --n-gpu-layers 41",
+                "confirmedSummary": "Runtime log potvrđuje CUDA.",
+                "summary": "GPU offload je potvrđen kroz runtime log.",
+                "notes": [],
+                "configuredContext": 16384,
+                "effectiveProcessContext": 19456,
+                "contextMismatch": True,
+                "contextAlignmentLabel": "Potreban restart runtime-a",
+                "contextAlignmentSummary": "Config traži 16384, a živi proces i dalje radi sa 19456.",
+            },
+        },
+    )
+
+    client = TestClient(app)
+    response = client.get("/api/observability")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["runtime"]["runtimeDiagnostics"]["configuredContext"] == 16384
+    assert payload["runtime"]["runtimeDiagnostics"]["effectiveProcessContext"] == 19456
+    assert payload["runtime"]["runtimeDiagnostics"]["contextMismatch"] is True
+
+
 def test_observability_route_reads_current_benchmark_telemetry_field_names(tmp_path: Path, monkeypatch):
     install_root = tmp_path / "install-root"
     monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))

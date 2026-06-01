@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { ActionResultPanel } from "../components/ActionResultPanel";
 import { PageFlowCard } from "../components/PageFlowCard";
 import { StatusCard } from "../components/StatusCard";
-import { fetchServerStatus, startServer, stopServer } from "../lib/api";
+import { fetchServerStatus, restartServer, startServer, stopServer } from "../lib/api";
 import type { ActionResult, RuntimeDiagnostics, ServerStatusPayload } from "../lib/types";
 
 function formatRuntimeCommandMeta(
@@ -26,6 +26,13 @@ function formatMiB(value: number | null | undefined) {
     return "--";
   }
   return `${value.toFixed(value >= 100 ? 0 : 2)} MiB`;
+}
+
+function formatContext(value: number | null | undefined) {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+    return "--";
+  }
+  return String(Math.round(value));
 }
 
 function buildRuntimeDiagnosticsHighlights(diagnostics: RuntimeDiagnostics | undefined) {
@@ -256,6 +263,27 @@ export function ServerPage() {
                 Compute buffer: {formatMiB(serverStatus?.runtimeDiagnostics?.computeBufferMiB)}
               </span>
             </div>
+          </article>
+          <article className="command-preview-card">
+            <span className="status-label">Context poravnanje</span>
+            <strong className="status-value">
+              {serverStatus?.runtimeDiagnostics?.contextAlignmentLabel || "Čeka proveru"}
+            </strong>
+            <p className="helper-text">
+              Config context: {formatContext(serverStatus?.runtimeDiagnostics?.configuredContext)} | Živi process
+              context: {formatContext(serverStatus?.runtimeDiagnostics?.effectiveProcessContext)}
+            </p>
+            <p className="helper-text">
+              {serverStatus?.runtimeDiagnostics?.contextAlignmentSummary ||
+                "Ovde vidiš da li je ctx-size koji je upisan u config zaista isti kao onaj sa kojim živi runtime proces trenutno radi."}
+            </p>
+            {serverStatus?.runtimeDiagnostics?.contextMismatch ? (
+              <div className="inline-actions">
+                <button type="button" className="secondary-button" onClick={() => void runAction(restartServer)}>
+                  Restartuj runtime da poravnaš context
+                </button>
+              </div>
+            ) : null}
           </article>
         </div>
         {serverStatus?.runtimeDiagnostics?.notes?.length ? (

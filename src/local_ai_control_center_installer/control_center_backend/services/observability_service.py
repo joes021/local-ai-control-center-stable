@@ -16,6 +16,7 @@ from local_ai_control_center_installer.control_center_backend.services.benchmark
     load_benchmark_summary,
 )
 from local_ai_control_center_installer.control_center_backend.services.server_service import (
+    _attach_runtime_context_alignment,
     _detect_nvidia_gpu_inventory,
     _load_runtime_launch_argument_values,
     _select_preferred_gpu,
@@ -228,6 +229,13 @@ def _build_runtime_resource_snapshot(
         runtime_name=active_runtime,
         launch_arguments=launch_arguments,
         log_path=config.install_root / "logs" / "runtime-server.log",
+    )
+    runtime_diagnostics = _attach_runtime_context_alignment(
+        runtime_diagnostics,
+        config=config,
+        runtime_state=runtime_state,
+        runtime_name=active_runtime,
+        runtime_pid=runtime_pid,
     )
     selected_gpu_index = _coerce_int(runtime_diagnostics.get("requestedMainGpu"))
     selected_gpu_name = str(runtime_diagnostics.get("deviceLabel", "") or "")

@@ -878,6 +878,10 @@ export async function stopServer(): Promise<ActionResult> {
   return postJson("/api/server/stop", {});
 }
 
+export async function restartServer(): Promise<ActionResult> {
+  return postJson("/api/server/restart", {});
+}
+
 export async function openServerWeb(): Promise<ActionResult> {
   return postJson("/api/server/open-web", {});
 }

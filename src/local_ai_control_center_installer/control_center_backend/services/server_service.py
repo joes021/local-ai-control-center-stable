@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from functools import lru_cache
+import os
 from pathlib import Path
 import re
 import subprocess
@@ -75,6 +76,7 @@ _COMPUTE_BUFFER_RE = re.compile(
     r"compute buffer size =\s+(?P<value>\d+(?:\.\d+)?) MiB",
     re.IGNORECASE,
 )
+_CTX_SIZE_FLAG_RE = re.compile(r"(?:^|\s)--ctx-size\s+(?P<value>\d+)(?:\s|$)", re.IGNORECASE)
 
 
 def load_server_status(
@@ -100,6 +102,13 @@ def load_server_status(
     runtime_live_status, runtime_live_reason = _build_runtime_live_signal(
         health_status,
         pid,
+    )
+    runtime_diagnostics = _attach_runtime_context_alignment(
+        runtime_diagnostics,
+        config=config,
+        runtime_state=runtime_state,
+        runtime_name=active_runtime,
+        runtime_pid=pid,
     )
     if not bool(runtime_state.get("active_model_supported", True)) and pid is None:
         reason = str(runtime_state.get("active_model_reason", "") or reason)
@@ -362,6 +371,33 @@ def stop_server(
         "error",
         "stop-server",
         "Runtime server nije mogao bezbedno da se zaustavi.",
+    )
+
+
+def restart_server(
+    config: ControlCenterConfig | None = None,
+) -> dict[str, object]:
+    config = config or get_config()
+    stop_result = stop_server(config)
+    if str(stop_result.get("status", "")) != "ok":
+        return _result(
+            "error",
+            "restart-server",
+            str(stop_result.get("summary", "") or "Runtime server nije mogao da se zaustavi pre restarta."),
+        )
+
+    start_result = start_server(config)
+    if str(start_result.get("status", "")) != "ok":
+        return _result(
+            "error",
+            "restart-server",
+            str(start_result.get("summary", "") or "Runtime server nije mogao da se pokrene posle restarta."),
+        )
+
+    return _result(
+        "ok",
+        "restart-server",
+        "Runtime server je restartovan da poravna context sa sačuvanim podešavanjem.",
     )
 
 
@@ -1012,6 +1048,99 @@ def load_runtime_diagnostics(
         "summary": summary,
         "notes": notes,
     }
+
+
+def _attach_runtime_context_alignment(
+    runtime_diagnostics: dict[str, object],
+    *,
+    config: ControlCenterConfig,
+    runtime_state: dict[str, object],
+    runtime_name: str,
+    runtime_pid: int | None,
+) -> dict[str, object]:
+    payload = dict(runtime_diagnostics)
+    configured_context = _resolve_runtime_context_size_for_runtime(config, runtime_state, runtime_name)
+    effective_process_context = _read_runtime_process_context_size(runtime_pid)
+
+    context_alignment_label = "Čeka živ proces"
+    context_alignment_summary = "Config vrednost postoji, ali živi proces još nije potvrđen."
+    context_mismatch = False
+
+    if configured_context is not None and effective_process_context is not None:
+        if configured_context == effective_process_context:
+            context_alignment_label = "Config i živi proces su usklađeni"
+            context_alignment_summary = (
+                f"Config traži {configured_context}, a živi proces stvarno radi sa {effective_process_context}."
+            )
+        else:
+            context_mismatch = True
+            context_alignment_label = "Potreban restart runtime-a"
+            context_alignment_summary = (
+                f"Config traži {configured_context}, a živi proces i dalje radi sa {effective_process_context}. "
+                "Sačuvane promene neće važiti dok ne restartuješ runtime."
+            )
+    elif configured_context is not None:
+        context_alignment_label = "Čeka živ proces"
+        context_alignment_summary = (
+            f"Config traži {configured_context}, ali živi proces još nije potvrđen pa efektivni ctx-size nije poznat."
+        )
+    elif effective_process_context is not None:
+        context_alignment_label = "Živi proces bez config reference"
+        context_alignment_summary = (
+            f"Živi proces radi sa {effective_process_context}, ali config vrednost trenutno nije dostupna."
+        )
+
+    payload["configuredContext"] = configured_context
+    payload["effectiveProcessContext"] = effective_process_context
+    payload["contextMismatch"] = context_mismatch
+    payload["contextAlignmentLabel"] = context_alignment_label
+    payload["contextAlignmentSummary"] = context_alignment_summary
+
+    notes = list(payload.get("notes", []))
+    if context_alignment_summary and context_alignment_summary not in notes:
+        notes.append(context_alignment_summary)
+    payload["notes"] = notes
+    return payload
+
+
+def _read_runtime_process_context_size(runtime_pid: int | None) -> int | None:
+    command_line = _read_runtime_process_command_line(runtime_pid)
+    if not command_line:
+        return None
+    match = _CTX_SIZE_FLAG_RE.search(command_line)
+    if not match:
+        return None
+    try:
+        return int(match.group("value"))
+    except (TypeError, ValueError):
+        return None
+
+
+def _read_runtime_process_command_line(runtime_pid: int | None) -> str:
+    if not isinstance(runtime_pid, int) or runtime_pid <= 0:
+        return ""
+    if os.name != "nt":
+        return ""
+    powershell_command = (
+        f"$proc = Get-CimInstance Win32_Process -Filter \"ProcessId = {runtime_pid}\"; "
+        "if ($proc) { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8; $proc.CommandLine }"
+    )
+    try:
+        completed = subprocess.run(
+            ["powershell", "-NoProfile", "-Command", powershell_command],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+            timeout=8,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    if completed.returncode != 0:
+        return ""
+    return str(completed.stdout or "").strip()
 
 
 def _format_powershell_command(command: list[str]) -> str:

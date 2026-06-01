@@ -110,6 +110,11 @@ export type RuntimeDiagnostics = {
   requestedSummary: string;
   confirmedSummary: string;
   summary: string;
+  configuredContext?: number | null;
+  effectiveProcessContext?: number | null;
+  contextMismatch?: boolean;
+  contextAlignmentLabel?: string;
+  contextAlignmentSummary?: string;
   notes: string[];
 };
 

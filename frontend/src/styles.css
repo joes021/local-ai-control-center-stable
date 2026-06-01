@@ -2911,7 +2911,7 @@ select:-webkit-autofill {
 
 .live-resource-inline-row {
   display: grid;
-  grid-template-columns: minmax(0, 0.66fr) minmax(0, 1.08fr) minmax(0, 1.08fr) minmax(0, 1.22fr) minmax(0, 1.48fr) minmax(0, 0.9fr) minmax(0, 1.58fr);
+  grid-template-columns: minmax(0, 0.58fr) minmax(0, 0.94fr) minmax(0, 0.94fr) minmax(0, 0.96fr) minmax(0, 1.08fr) minmax(0, 1.08fr) minmax(0, 0.82fr) minmax(0, 1.28fr);
   gap: 8px;
   min-width: 0;
   align-items: stretch;
@@ -2991,9 +2991,19 @@ select:-webkit-autofill {
   background: color-mix(in srgb, #5bbd81 12%, var(--app-card-bg));
 }
 
+.resource-chip-tone-context-ok {
+  border-color: color-mix(in srgb, #5bbd81 24%, var(--app-card-soft-border));
+  background: color-mix(in srgb, #5bbd81 5%, var(--app-card-bg));
+}
+
 .resource-chip-tone-warm {
   border-color: color-mix(in srgb, #f2b84b 55%, var(--app-card-soft-border));
   background: color-mix(in srgb, #f2b84b 12%, var(--app-card-bg));
+}
+
+.resource-chip-tone-context-mismatch {
+  border-color: color-mix(in srgb, #f2b84b 68%, var(--app-card-soft-border));
+  background: color-mix(in srgb, #f2b84b 15%, var(--app-card-bg));
 }
 
 .resource-chip-tone-muted {
@@ -4020,7 +4030,7 @@ select:-webkit-autofill {
 
 @media (max-width: 1260px) {
   .live-resource-inline-row {
-    grid-template-columns: minmax(0, 0.68fr) minmax(0, 1.02fr) minmax(0, 1.02fr) minmax(0, 1.16fr) minmax(0, 1.32fr) minmax(0, 0.86fr) minmax(0, 1.44fr);
+    grid-template-columns: minmax(0, 0.56fr) minmax(0, 0.86fr) minmax(0, 0.86fr) minmax(0, 0.92fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 0.78fr) minmax(0, 1.16fr);
     gap: 6px;
   }
 

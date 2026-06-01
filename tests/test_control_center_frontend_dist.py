@@ -159,13 +159,17 @@ def test_live_resource_strip_source_and_packaged_frontend_use_compact_clickable_
     assert "aria-pressed" in strip_source
     assert "resource-chip-detail-panel" in strip_source
     assert "Otvori VRAM tuning" in strip_source
+    assert 'label: "Context"' in strip_source
+    assert "Restart potreban" in strip_source
+    assert "Usklađeno" in strip_source
     assert ".live-resource-inline-row" in styles_source
     assert ".live-resource-inline-item" in styles_source
-    assert "grid-template-columns: minmax(0, 0.66fr) minmax(0, 1.08fr) minmax(0, 1.08fr) minmax(0, 1.22fr) minmax(0, 1.48fr) minmax(0, 0.9fr) minmax(0, 1.58fr);" in styles_source
+    assert "grid-template-columns: minmax(0, 0.58fr) minmax(0, 0.94fr) minmax(0, 0.94fr) minmax(0, 0.96fr) minmax(0, 1.08fr) minmax(0, 1.08fr) minmax(0, 0.82fr) minmax(0, 1.28fr);" in styles_source
     assert "grid-template-rows: auto auto;" in styles_source
     assert "overflow-x: auto;" not in styles_source
     assert ".live-resource-inline-button" in styles_source
     assert ".resource-chip-detail-panel" in styles_source
+    assert ".live-resource-context-alert" not in styles_source
     assert js_assets
     assert css_assets
 
@@ -179,11 +183,17 @@ def test_live_resource_strip_source_and_packaged_frontend_use_compact_clickable_
     assert "Puni GPU fit" in bundled_js
     assert "Otvori VRAM tuning" in bundled_js
     assert "RTX 3060" in bundled_js
+    assert "Context" in bundled_js
+    assert "Restart potreban" in bundled_js
+    assert "Usklađeno" in bundled_js
+    assert "Potreban restart runtime-a" in bundled_js
+    assert "Config ctx" in bundled_js
+    assert "Živi ctx" in bundled_js
     assert ".live-resource-inline-row" in bundled_css
     assert ".live-resource-inline-item" in bundled_css
     assert ".live-resource-inline-button" in bundled_css
     assert ".resource-chip-detail-panel" in bundled_css
-    assert "grid-template-columns:minmax(0,.66fr) minmax(0,1.08fr) minmax(0,1.08fr) minmax(0,1.22fr) minmax(0,1.48fr) minmax(0,.9fr) minmax(0,1.58fr)" in bundled_css
+    assert "grid-template-columns:minmax(0,.58fr) minmax(0,.94fr) minmax(0,.94fr) minmax(0,.96fr) minmax(0,1.08fr) minmax(0,1.08fr) minmax(0,.82fr) minmax(0,1.28fr)" in bundled_css
 
 
 def test_runtime_resource_panel_source_explains_hybrid_ram_spill_and_full_gpu_fit():
@@ -192,6 +202,9 @@ def test_runtime_resource_panel_source_explains_hybrid_ram_spill_and_full_gpu_fi
     assert "Procena RAM preliva" in panel_source
     assert "Još VRAM-a za puni GPU fit" in panel_source
     assert "Ovo je procena na osnovu odnosa GPU slojeva" in panel_source
+    assert "Config context" in panel_source
+    assert "Živi process context" in panel_source
+    assert "Potreban restart runtime-a" in panel_source
 
 
 def test_settings_source_mentions_vram_fit_tuning_and_manual_gpu_layers_override():
@@ -1106,12 +1119,16 @@ def test_models_source_guides_local_gguf_import_into_local_group():
 
 def test_server_page_source_uses_runtime_generic_actions_and_labels():
     source = Path("frontend/src/pages/ServerPage.tsx").read_text(encoding="utf-8")
+    api_source = Path("frontend/src/lib/api.ts").read_text(encoding="utf-8")
 
     assert "Start runtime server" in source
     assert "Stop runtime server" in source
     assert "Otvori runtime veb" in source
+    assert "Restartuj runtime da poravnaš context" in source
     assert "serverStatus?.canStart === false" in source
     assert "serverStatus?.canOpenWeb === false" in source
+    assert "restartServer" in api_source
+    assert "/api/server/restart" in api_source
     assert "Start llama.cpp server" not in source
 
 
