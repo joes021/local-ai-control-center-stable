@@ -257,10 +257,10 @@ export function SearchPage({ onOpenSettings }: SearchPageProps) {
       />
       <section className="status-card wide-card">
         <span className="status-label">Radni prostor za pretragu</span>
-        <strong className="status-value">Zajednička veb pretraga + lokalni model + OpenCode local-lacc</strong>
+        <strong className="status-value">Zajednička RuntimePilot web pretraga + lokalni model + OpenCode local-lacc</strong>
         <p className="helper-text">{currentSettingsLine}</p>
         <p className="helper-text">
-          Ovaj tab koristi isti shared search sloj kao i OpenCode `local-lacc` provider. Cloud
+          Ovaj tab koristi isti RuntimePilot search sloj kao i OpenCode `local-lacc` provider. Cloud
           `opencode` modeli ne prolaze kroz ovaj lokalni proxy put.
         </p>
         {currentWorkflowPreset ? (

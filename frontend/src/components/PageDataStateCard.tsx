@@ -11,7 +11,7 @@ export function PageDataStateCard({ loadingText, error, onRetry }: PageDataState
       <strong className="status-value">{error || loadingText}</strong>
       <p className="helper-text">
         {error
-          ? "Portal je ostao u kontrolisanom stanju. Pokušaj ponovo ili sačekaj da lokalni servis vrati odgovor."
+          ? "RuntimePilot je ostao u kontrolisanom stanju. Pokušaj ponovo ili sačekaj da lokalni servis vrati odgovor."
           : "Sačekaj trenutak dok lokalni servis vrati potrebne podatke za ovu stranu."}
       </p>
       {error && onRetry ? (

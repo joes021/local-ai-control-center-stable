@@ -36,7 +36,7 @@ export function RepairPage() {
       {error ? <div className="error-panel wide-card">{error}</div> : null}
       <PageFlowCard
         title="Repair tok"
-        summary="Ovde prvo izabereš vrstu popravke, zatim sačekaš jasan rezultat, pa pratiš sledeći korak koji portal predloži."
+        summary="Ovde prvo izabereš vrstu popravke, zatim sačekaš jasan rezultat, pa pratiš sledeći korak koji RuntimePilot predloži."
         steps={[
           {
             title: "Izaberi jednu vrstu problema",

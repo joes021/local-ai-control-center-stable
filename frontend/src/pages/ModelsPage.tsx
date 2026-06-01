@@ -1160,7 +1160,7 @@ export function ModelsPage({
           <div className="model-import-callout">
             <strong>Kopiram lokalni GGUF u model folder.</strong>
             <p className="helper-text">
-              Za velike modele ovo može da traje neko vreme. Kada se kopiranje završi, portal će
+              Za velike modele ovo može da traje neko vreme. Kada se kopiranje završi, RuntimePilot će
               otvoriti grupu <strong>Lokalni modeli</strong> niže na strani.
             </p>
           </div>

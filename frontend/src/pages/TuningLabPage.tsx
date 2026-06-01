@@ -1238,7 +1238,7 @@ export function TuningLabPage() {
           {activeRun ? activeRun.name : "Tuning Lab trenutno miruje"}
         </strong>
         <p className="helper-text">
-          OpenCode sesija uživo je prikazana ovde u portalu kao stvarni `opencode.exe --pure run`
+          OpenCode sesija uživo je prikazana ovde u RuntimePilot-u kao stvarni `opencode.exe --pure run`
           proces nad izolovanim projektom. OpenCode u Tuning Lab-u radi u pozadini. Ne otvara dodatni terminal, pa ovaj cockpit možeš
           direktno da pratiš i snimaš.
         </p>
@@ -1290,7 +1290,7 @@ export function TuningLabPage() {
                   <strong>Spremno za snimanje ekrana</strong>
                   <p className="helper-text">
                     Ovaj prikaz možeš direktno da snimaš dok agent radi. OpenCode sesija uživo se vidi
-                    u portalu kroz PID, log signal, workspace, komande i runtime throughput.
+                    u RuntimePilot-u kroz PID, log signal, workspace, komande i runtime throughput.
                   </p>
                 </div>
               </div>
@@ -1306,11 +1306,11 @@ export function TuningLabPage() {
               ) : null}
               <p className="helper-text">
                 Ako vidiš `OpenCode PID`, `Runtime PID` i runtime prompt brzinu, to znači da stvarni
-                agent task zaista radi. Umesto zasebnog prozora, sesiju uživo gledaš ovde u portalu.
+                agent task zaista radi. Umesto zasebnog prozora, sesiju uživo gledaš ovde u RuntimePilot-u.
               </p>
               <p className="helper-text">
                 Dve `llama-server` sesije su normalne dok `Tuning Lab` radi: jedna je glavni runtime
-                portala, a druga je privremeni slot runtime za izolovani eksperiment.
+                RuntimePilot-a, a druga je privremeni slot runtime za izolovani eksperiment.
               </p>
             </article>
             <article className="status-card tuning-lab-diagnostics-card">
@@ -1521,7 +1521,7 @@ export function TuningLabPage() {
                 <summary>Napredni debug trag</summary>
                 <p className="helper-text">
                   Ovde je filtriran debug trag iz `opencode-output.jsonl` i `stderr` loga, bez ogromnog
-                  šuma koji nije koristan za čitanje u portalu.
+                  šuma koji nije koristan za čitanje u RuntimePilot-u.
                 </p>
                 <div className="tuning-lab-log-panel">
                   <pre>

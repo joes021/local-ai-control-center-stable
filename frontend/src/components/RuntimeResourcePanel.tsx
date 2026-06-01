@@ -39,7 +39,7 @@ function buildModeNote(modeId: string | undefined) {
   if (modeId === "cpu-ram") {
     return "Model trenutno nema potvrđen GPU offload i oslanja se na CPU + RAM.";
   }
-  return "Portal još čeka dovoljno signala da pouzdano razdvoji GPU, hibridni ili CPU-only režim.";
+  return "RuntimePilot još čeka dovoljno signala da pouzdano razdvoji GPU, hibridni ili CPU-only režim.";
 }
 
 type RuntimeResourcePanelProps = {

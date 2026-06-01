@@ -239,7 +239,7 @@ export function ServerPage() {
               {serverStatus?.runtimeDiagnostics?.requestedSummary || "--"}
             </strong>
             <p className="helper-text">
-              Ako ovde vidiš `--n-gpu-layers` i `--flash-attn`, portal je stvarno pokušao GPU
+              Ako ovde vidiš `--n-gpu-layers` i `--flash-attn`, RuntimePilot je stvarno pokušao GPU
               offload za izabrani runtime.
             </p>
           </article>
@@ -303,7 +303,7 @@ export function ServerPage() {
           {serverStatus?.commandPreview?.activeRuntimeLabel || "Runtime command preview"}
         </strong>
         <p className="helper-text">
-          Ovde vidiš ručni ekvivalent onoga što portal radi kada pokreće runtime server. Lokalni model
+          Ovde vidiš ručni ekvivalent onoga što RuntimePilot radi kada pokreće runtime server. Lokalni model
           se prosleđuje kroz `--model` argument, a najbitnije vrednosti za poređenje su `ctx-size` i
           sampling parametri.
         </p>

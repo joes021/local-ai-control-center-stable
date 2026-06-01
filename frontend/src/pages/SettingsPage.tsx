@@ -880,7 +880,7 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
         action: "save-and-apply-vram-tuning",
         summary: [
           `Trenutno VRAM tuning podešavanje je sačuvano i poslato na runtime.`,
-          `Ako je runtime već aktivan, portal ga restartuje; ako nije, pokreće ga sa novim vrednostima.`,
+          `Ako je runtime već aktivan, RuntimePilot ga restartuje; ako nije, pokreće ga sa novim vrednostima.`,
           `GPU layers režim: ${activeSettings.gpuLayersMode === "manual" ? `ručno ${activeSettings.gpuLayersOverride || 0}` : `auto ${autoGpuLayersRecommendation || 0}`}.`,
           observability?.runtime.activeRuntime === "turboquant"
             ? `TurboQuant context: ${activeTurboConfig.context}.`
@@ -1162,7 +1162,7 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
         <div className="section-header settings-cluster-header">
           <div>
             <span className="status-label">Opšta podešavanja</span>
-            <strong className="status-value">Glavni radni profil za portal i lokalni model</strong>
+            <strong className="status-value">Glavni radni profil za RuntimePilot i lokalni model</strong>
           </div>
         </div>
         <div className="settings-cluster-grid settings-cluster-grid-core">
@@ -1497,7 +1497,7 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
               </button>
             </div>
             <p className="helper-text">
-              Ovo važi za opšti radni kontekst portala, OpenCode integraciju i lokalne workflow tokove.
+              Ovo važi za opšti radni kontekst RuntimePilot-a, OpenCode integraciju i lokalne workflow tokove.
             </p>
           </article>
         </div>
@@ -1703,7 +1703,7 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
               `Try to fit in VRAM` samo popunjava editor smislenijim VRAM-fit vrednostima: puni GPU layers,
               manji context po proceni i, kod TurboQuant-a, jaču KV kompresiju kada izgleda korisno.
               Runtime se tada još ne restartuje. `Sačuvaj i primeni na runtime` je zaseban korak koji tek tada stvarno
-              snima i primenjuje ono što vidiš. Ako je runtime već aktivan, portal ga restartuje; ako nije, pokreće ga.
+              snima i primenjuje ono što vidiš. Ako je runtime već aktivan, RuntimePilot ga restartuje; ako nije, pokreće ga.
             </p>
             {vramFitLocalResult ? (
               <div className="compat-empty-state settings-vram-local-status">

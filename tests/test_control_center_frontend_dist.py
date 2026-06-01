@@ -228,7 +228,7 @@ def test_settings_source_mentions_vram_fit_tuning_and_manual_gpu_layers_override
     assert "Poslednji VRAM fit predlog" in settings_source
     assert "Ovo još nije sačuvano ni aktivno u runtime-u." in settings_source
     assert "Poslednja primena runtime-a" in settings_source
-    assert "Ako je runtime već aktivan, portal ga restartuje" in settings_source
+    assert "Ako je runtime već aktivan, RuntimePilot ga restartuje" in settings_source
     assert "TurboQuant smernice za čistiji VRAM fit" in settings_source
     assert js_assets
 
@@ -866,7 +866,7 @@ def test_settings_and_opencode_source_include_web_search_controls_and_guidance()
     assert "On-demand prefix" in settings_source
     assert "local-lacc" in settings_source
     assert "local-lacc" in opencode_source
-    assert "shared search sloj" in opencode_source
+    assert "RuntimePilot search sloj" in opencode_source
 
 
 def test_search_page_source_makes_web_results_clickable_and_guides_toward_answer():
@@ -1347,3 +1347,69 @@ def test_shared_ux_components_and_guided_flow_copy_are_present_in_core_pages():
     assert ".page-flow-grid" in styles_source
     assert ".page-flow-step" in styles_source
     assert ".page-data-state-card" in styles_source
+
+
+def test_runtimepilot_phase_two_copy_is_present_in_source_and_bundle():
+    def normalize_runtimepilot_copy(text: str) -> str:
+        return " ".join(text.split())
+
+    server_source = normalize_runtimepilot_copy(
+        Path("frontend/src/pages/ServerPage.tsx").read_text(encoding="utf-8")
+    )
+    opencode_source = normalize_runtimepilot_copy(
+        Path("frontend/src/pages/OpenCodePage.tsx").read_text(encoding="utf-8")
+    )
+    search_source = normalize_runtimepilot_copy(
+        Path("frontend/src/pages/SearchPage.tsx").read_text(encoding="utf-8")
+    )
+    settings_source = normalize_runtimepilot_copy(
+        Path("frontend/src/pages/SettingsPage.tsx").read_text(encoding="utf-8")
+    )
+    tuning_lab_source = normalize_runtimepilot_copy(
+        Path("frontend/src/pages/TuningLabPage.tsx").read_text(encoding="utf-8")
+    )
+    workflows_source = normalize_runtimepilot_copy(
+        Path("frontend/src/pages/WorkflowsPage.tsx").read_text(encoding="utf-8")
+    )
+    models_source = normalize_runtimepilot_copy(
+        Path("frontend/src/pages/ModelsPage.tsx").read_text(encoding="utf-8")
+    )
+    repair_source = normalize_runtimepilot_copy(
+        Path("frontend/src/pages/RepairPage.tsx").read_text(encoding="utf-8")
+    )
+    updates_source = normalize_runtimepilot_copy(
+        Path("frontend/src/pages/UpdatesPage.tsx").read_text(encoding="utf-8")
+    )
+    dist_root = Path(
+        "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
+    )
+    js_assets = list((dist_root / "assets").glob("index-*.js"))
+
+    assert "RuntimePilot je stvarno pokušao GPU offload" in server_source
+    assert "ručni ekvivalent onoga što RuntimePilot radi" in server_source
+    assert "isti RuntimePilot search sloj" in opencode_source
+    assert "što RuntimePilot radi kada otvara OpenCode" in opencode_source
+    assert "iz trenutnog RuntimePilot okruženja" in opencode_source
+    assert "Zajednička RuntimePilot web pretraga" in search_source
+    assert "isti RuntimePilot search sloj" in search_source
+    assert "Glavni radni profil za RuntimePilot i lokalni model" in settings_source
+    assert "opšti radni kontekst RuntimePilot-a" in settings_source
+    assert "RuntimePilot ga restartuje" in settings_source
+    assert "ovde u RuntimePilot-u" in tuning_lab_source
+    assert "sesiju uživo gledaš ovde u RuntimePilot-u" in tuning_lab_source
+    assert "preset vodi RuntimePilot odmah" in workflows_source
+    assert "za ceo RuntimePilot" in workflows_source
+    assert "kada preset aktiviraš kroz RuntimePilot" in workflows_source
+    assert "RuntimePilot će otvoriti grupu" in models_source
+    assert "koji RuntimePilot predloži" in repair_source
+    assert "šta RuntimePilot zna o njoj" in updates_source
+    assert js_assets
+
+    bundled_js = normalize_runtimepilot_copy(
+        "\n".join(path.read_text(encoding="utf-8") for path in js_assets)
+    )
+
+    assert "RuntimePilot" in bundled_js
+    assert "search sloj" in bundled_js
+    assert "Glavni radni profil" in bundled_js
+    assert "OpenCode" in bundled_js

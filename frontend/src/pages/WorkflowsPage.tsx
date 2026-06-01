@@ -413,7 +413,7 @@ export function WorkflowsPage({
           },
           {
             title: "Aktiviraj ili sa\u010duvaj",
-            detail: "Aktiviraj kada ho\u0107e\u0161 da preset vodi portal odmah, ili ga sa\u010duvaj kao novu korisni\u010dku varijantu.",
+            detail: "Aktiviraj kada ho\u0107e\u0161 da preset vodi RuntimePilot odmah, ili ga sa\u010duvaj kao novu korisni\u010dku varijantu.",
           },
         ]}
         actions={
@@ -434,7 +434,7 @@ export function WorkflowsPage({
         <span className="status-label">Radni tokovi</span>
         <strong className="status-value">Radni prostor za radne tokove</strong>
         <p className="helper-text">
-          Ovde vidiš ugrađene workflow preset-e, možeš da ih aktiviraš za ceo portal i da
+          Ovde vidiš ugrađene workflow preset-e, možeš da ih aktiviraš za ceo RuntimePilot i da
           napraviš svoje korisničke varijante bez ručnog lutanja kroz Podešavanja.
         </p>
       </section>
@@ -663,7 +663,7 @@ export function WorkflowsPage({
             <span className="settings-field-label">Inference i sampling</span>
             <p className="helper-text">
               Ove vrednosti se čuvaju unutar workflow preseta i mogu da preuzmu runtime komande,
-              lokalni model i `OpenCode local-lacc` fallback kada preset aktiviraš kroz portal.
+              lokalni model i `OpenCode local-lacc` fallback kada preset aktiviraš kroz RuntimePilot.
             </p>
             <div className="workflow-editor-grid">
               <article className="settings-field">

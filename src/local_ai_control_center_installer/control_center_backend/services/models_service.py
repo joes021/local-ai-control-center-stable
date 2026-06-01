@@ -1148,7 +1148,7 @@ def _annotate_model_entry_lifecycle(
         if download_active
         else "Download je dostupan za ovaj model."
         if download_url
-        else "Ovaj model nema direktan download put iz panela."
+        else "Ovaj model nema direktan download put iz RuntimePilot-a."
     )
     return annotated
 

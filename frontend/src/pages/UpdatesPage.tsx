@@ -187,7 +187,7 @@ export function UpdatesPage() {
         steps={[
           {
             title: "Proveri ažuriranja",
-            detail: "Prvi korak je proverna akcija da vidiš da li nova verzija postoji i šta portal zna o njoj.",
+            detail: "Prvi korak je proverna akcija da vidiš da li nova verzija postoji i šta RuntimePilot zna o njoj.",
           },
           {
             title: "Pokreni instalaciju",

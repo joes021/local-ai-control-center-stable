@@ -218,7 +218,7 @@ export function OpenCodePage() {
         ) : null}
         <p className="helper-text">
           {opencode.localProviderSearchSummary ||
-            "local-lacc provider koristi isti shared search sloj kao i Search tab kada je to uključeno."}
+            "local-lacc provider koristi isti RuntimePilot search sloj kao i Search tab kada je to uključeno."}
         </p>
       </section>
 
@@ -238,8 +238,8 @@ export function OpenCodePage() {
         <span className="status-label">Ekvivalentna OpenCode komanda</span>
         <strong className="status-value">{opencode.launchPreview.shellLabel}</strong>
         <p className="helper-text">
-          Ovo je najbliži ručni prikaz onoga što portal radi kada otvara OpenCode. Managed config
-          određuje provider i model, a `local-lacc` zatim koristi trenutni runtime i aktivni model iz panela.
+          Ovo je najbliži ručni prikaz onoga što RuntimePilot radi kada otvara OpenCode. Managed config
+          određuje provider i model, a `local-lacc` zatim koristi trenutni runtime i aktivni model iz trenutnog RuntimePilot okruženja.
         </p>
         <p className="helper-text">
           Ako želiš ručno da ga startuješ iz običnog `cmd.exe`, koristi launcher `.cmd`. PowerShell

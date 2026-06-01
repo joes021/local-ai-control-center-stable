@@ -281,7 +281,9 @@ export function LiveResourceStrip({ onOpenSettingsSection }: LiveResourceStripPr
             ? `Procena RAM preliva je oko ${formatCompactMemoryMiB(
                 hybridEstimate.estimatedRamSpillMiB,
               )}. To je aproksimacija na osnovu odnosa GPU slojeva i učitanog model buffer-a.`
-            : observability.runtime.executionModeSummary || "Portal još čeka dovoljno signala za preciznu klasifikaciju.",
+            :
+              observability.runtime.executionModeSummary ||
+              "RuntimePilot još čeka dovoljno signala za preciznu klasifikaciju.",
         toneClassName: buildModeTone(observability.runtime.executionModeId),
       },
       {
