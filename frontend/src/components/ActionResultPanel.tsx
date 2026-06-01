@@ -15,7 +15,7 @@ export function ActionResultPanel({ result }: { result: ActionResult | null }) {
   }
 
   return (
-    <section className="status-card wide-card">
+    <section className="status-card wide-card runtimepilot-section-shell runtimepilot-action-shell">
       <span className="status-label">
         Rezultat: {result.action} / {result.status}
       </span>

@@ -31,7 +31,7 @@ def test_deploy_control_center_runtime_copies_current_frozen_executable_for_pane
     monkeypatch: pytest.MonkeyPatch,
 ):
     install_root = tmp_path / "install-root"
-    current_executable = tmp_path / "LocalAIControlCenterSetup-v0.1.13.exe"
+    current_executable = tmp_path / "RuntimePilotSetup-v0.1.13.exe"
     current_executable.write_bytes(b"panel-runtime")
     monkeypatch.setattr(
         "local_ai_control_center_installer.control_center_runtime._ensure_windows_shell_assets",
@@ -64,7 +64,7 @@ def test_launch_control_center_fails_fast_when_foreign_listener_occupies_ui_port
         install_root=install_root,
         panel_root=install_root / "control-center",
         executable_path=install_root / "control-center" / PANEL_EXECUTABLE_NAME,
-        launcher_path=install_root / "control-center" / "Open-Control-Center.cmd",
+        launcher_path=install_root / "control-center" / "Open-RuntimePilot.cmd",
         command=("fake-panel.exe", "--panel"),
         url="http://127.0.0.1:3210/",
         port=3210,
@@ -101,7 +101,7 @@ def test_launch_control_center_reclaims_foreign_lacc_panel_port_and_starts_curre
         install_root=install_root,
         panel_root=install_root / "control-center",
         executable_path=install_root / "control-center" / PANEL_EXECUTABLE_NAME,
-        launcher_path=install_root / "control-center" / "Open-Control-Center.cmd",
+        launcher_path=install_root / "control-center" / "Open-RuntimePilot.cmd",
         command=("fake-panel.exe", "--panel"),
         url="http://127.0.0.1:3210/",
         port=3210,
@@ -160,7 +160,7 @@ def test_launch_control_center_uses_detached_windows_flags_for_panel_process(
         install_root=install_root,
         panel_root=install_root / "control-center",
         executable_path=install_root / "control-center" / PANEL_EXECUTABLE_NAME,
-        launcher_path=install_root / "control-center" / "Open-Control-Center.cmd",
+        launcher_path=install_root / "control-center" / "Open-RuntimePilot.cmd",
         command=("fake-panel.exe", "--panel"),
         url="http://127.0.0.1:3210/",
         port=3210,
@@ -215,7 +215,7 @@ def test_launch_control_center_does_not_open_browser_when_panel_is_already_healt
         install_root=install_root,
         panel_root=install_root / "control-center",
         executable_path=install_root / "control-center" / PANEL_EXECUTABLE_NAME,
-        launcher_path=install_root / "control-center" / "Open-Control-Center.cmd",
+        launcher_path=install_root / "control-center" / "Open-RuntimePilot.cmd",
         command=("fake-panel.exe", "--panel"),
         url="http://127.0.0.1:3210/",
         port=3210,
@@ -261,7 +261,7 @@ def test_deploy_control_center_runtime_stops_existing_panel_before_replacing_exe
     monkeypatch: pytest.MonkeyPatch,
 ):
     install_root = tmp_path / "install-root"
-    current_executable = tmp_path / "LocalAIControlCenterSetup-v0.3.1.exe"
+    current_executable = tmp_path / "RuntimePilotSetup-v0.3.1.exe"
     current_executable.write_bytes(b"panel-runtime")
     copied_executable = install_root / "control-center" / PANEL_EXECUTABLE_NAME
     copied_executable.parent.mkdir(parents=True, exist_ok=True)
@@ -315,7 +315,7 @@ def test_deploy_control_center_runtime_retries_copy_after_panel_executable_unloc
     monkeypatch: pytest.MonkeyPatch,
 ):
     install_root = tmp_path / "install-root"
-    current_executable = tmp_path / "LocalAIControlCenterSetup-v0.3.1.exe"
+    current_executable = tmp_path / "RuntimePilotSetup-v0.3.1.exe"
     current_executable.write_bytes(b"panel-runtime")
     copied_executable = install_root / "control-center" / PANEL_EXECUTABLE_NAME
     copied_executable.parent.mkdir(parents=True, exist_ok=True)
@@ -379,7 +379,7 @@ def test_deploy_control_center_runtime_tolerates_panel_process_already_gone(
     monkeypatch: pytest.MonkeyPatch,
 ):
     install_root = tmp_path / "install-root"
-    current_executable = tmp_path / "LocalAIControlCenterSetup-v0.4.31.exe"
+    current_executable = tmp_path / "RuntimePilotSetup-v0.4.31.exe"
     current_executable.write_bytes(b"panel-runtime")
     copied_executable = install_root / "control-center" / PANEL_EXECUTABLE_NAME
     copied_executable.parent.mkdir(parents=True, exist_ok=True)
@@ -422,7 +422,7 @@ def test_deploy_control_center_runtime_reuses_healthy_running_panel_when_binary_
     monkeypatch: pytest.MonkeyPatch,
 ):
     install_root = tmp_path / "install-root"
-    current_executable = tmp_path / "LocalAIControlCenterSetup-v0.4.30.exe"
+    current_executable = tmp_path / "RuntimePilotSetup-v0.4.30.exe"
     current_executable.write_bytes(b"panel-runtime")
     copied_executable = install_root / "control-center" / PANEL_EXECUTABLE_NAME
     copied_executable.parent.mkdir(parents=True, exist_ok=True)
@@ -479,7 +479,7 @@ def test_deploy_control_center_runtime_creates_shell_shortcuts_and_uninstall_ent
     monkeypatch: pytest.MonkeyPatch,
 ):
     install_root = tmp_path / "install-root"
-    current_executable = tmp_path / "LocalAIControlCenterSetup-v0.3.5.exe"
+    current_executable = tmp_path / "RuntimePilotSetup-v0.3.5.exe"
     current_executable.write_bytes(b"panel-runtime")
 
     start_menu_dir = tmp_path / "Start Menu" / "Programs" / "RuntimePilot"
@@ -558,7 +558,7 @@ def test_deploy_control_center_runtime_creates_shell_shortcuts_and_uninstall_ent
     }
     installed_icon_path = install_root / "control-center" / "RuntimePilot.ico"
     opencode_icon_path = install_root / "control-center" / "RuntimePilot-OpenCode.ico"
-    hidden_panel_launcher_path = install_root / "control-center" / "Open-Control-Center.vbs"
+    hidden_panel_launcher_path = install_root / "control-center" / "Open-RuntimePilot.vbs"
     assert installed_icon_path.is_file()
     assert opencode_icon_path.is_file()
     assert hidden_panel_launcher_path.is_file()
@@ -602,7 +602,7 @@ def test_deploy_control_center_runtime_creates_linux_python_host_and_launcher(
     )
 
     host_path = install_root / "control-center" / "local-ai-control-center-panel"
-    launcher_path = install_root / "control-center" / "Open-Control-Center.sh"
+    launcher_path = install_root / "control-center" / "Open-RuntimePilot.sh"
     host_text = host_path.read_text(encoding="utf-8")
     launcher_text = launcher_path.read_text(encoding="utf-8")
 
@@ -628,7 +628,7 @@ def test_deploy_control_center_runtime_does_not_emit_open_browser_in_launcher(
     monkeypatch: pytest.MonkeyPatch,
 ):
     install_root = tmp_path / "install-root"
-    current_executable = tmp_path / "LocalAIControlCenterSetup-v0.4.68.exe"
+    current_executable = tmp_path / "RuntimePilotSetup-v0.4.68.exe"
     current_executable.write_bytes(b"panel-runtime")
     monkeypatch.setattr(
         "local_ai_control_center_installer.control_center_runtime._ensure_windows_shell_assets",
@@ -652,7 +652,7 @@ def test_deploy_control_center_runtime_emits_existing_panel_guard_in_windows_lau
     monkeypatch: pytest.MonkeyPatch,
 ):
     install_root = tmp_path / "install-root"
-    current_executable = tmp_path / "LocalAIControlCenterSetup-v0.4.76.exe"
+    current_executable = tmp_path / "RuntimePilotSetup-v0.4.76.exe"
     current_executable.write_bytes(b"panel-runtime")
     monkeypatch.setattr(
         "local_ai_control_center_installer.control_center_runtime._ensure_windows_shell_assets",
@@ -749,4 +749,4 @@ def test_deploy_control_center_runtime_copies_linux_frozen_host_binary(
     assert copied_executable.read_bytes() == b"panel-runtime"
     assert deployment.command[0] == str(copied_executable)
     assert deployment.command[1] == "--panel"
-    assert deployment.launcher_path.name == "Open-Control-Center.sh"
+    assert deployment.launcher_path.name == "Open-RuntimePilot.sh"

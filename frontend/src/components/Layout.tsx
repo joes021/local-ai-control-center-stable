@@ -5,6 +5,8 @@ import { LiveResourceStrip } from "./LiveResourceStrip";
 type LayoutProps = PropsWithChildren<{
   title: string;
   subtitle: ReactNode;
+  deckTitle?: ReactNode;
+  deckSummary?: ReactNode;
   eyebrow?: ReactNode;
   nav?: ReactNode;
   brand?: ReactNode;
@@ -16,6 +18,8 @@ type LayoutProps = PropsWithChildren<{
 export function Layout({
   title,
   subtitle,
+  deckTitle,
+  deckSummary,
   eyebrow,
   nav,
   brand,
@@ -56,7 +60,21 @@ export function Layout({
         </nav>
       ) : null}
       <LiveResourceStrip onOpenSettingsSection={onOpenSettingsSection} />
-      <main className="content-grid">{children}</main>
+      <section className="runtimepilot-page-shell">
+        <div className="runtimepilot-page-shell-header">
+          <div className="runtimepilot-page-shell-copy">
+            <span className="status-label">{deckTitle ?? "RuntimePilot Control Deck"}</span>
+            <strong className="runtimepilot-page-shell-title">
+              Jedinstven pregled lokalnog AI sistema
+            </strong>
+          </div>
+          <p className="helper-text runtimepilot-page-shell-summary">
+            {deckSummary ??
+              "Svaka strana sada ostaje u istom komandnom okviru, sa jasnijim ritmom između navigacije, resursa i radnog sadržaja."}
+          </p>
+        </div>
+        <main className="content-grid runtimepilot-content-grid">{children}</main>
+      </section>
     </div>
   );
 }

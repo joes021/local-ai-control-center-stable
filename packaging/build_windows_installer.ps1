@@ -155,7 +155,7 @@ try {
         throw "Versioned setup file was not produced."
     }
 
-    $latestSetupPath = Join-Path $distRoot "LocalAIControlCenterSetup-latest.exe"
+    $latestSetupPath = Join-Path $distRoot "RuntimePilotSetup-latest.exe"
     Copy-Item $versionedSetupPath $latestSetupPath -Force
 
     Write-Host "Built installer:"

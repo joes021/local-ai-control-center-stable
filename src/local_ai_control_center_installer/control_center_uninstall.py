@@ -28,7 +28,7 @@ def run_control_center_uninstall_entry(
         output_fn("Linux uninstall launcher još nije implementiran.")
         return 1
 
-    parser = ArgumentParser(prog="LocalAIControlCenterPanel.exe --uninstall")
+    parser = ArgumentParser(prog="RuntimePilotPanel.exe --uninstall")
     parser.add_argument("--install-root", required=True)
     args = parser.parse_args(argv)
 
@@ -102,6 +102,7 @@ def _stop_managed_processes(install_root: Path, *, current_pid: int) -> None:
     opencode_root = install_root / "tools" / "opencode"
     turboquant_root = install_root / "tools" / "turboquant"
     executable_targets = [
+        panel_root / "RuntimePilotPanel.exe",
         panel_root / "LocalAIControlCenterPanel.exe",
         runtime_root / "llama-server.exe",
         opencode_root / "opencode.exe",

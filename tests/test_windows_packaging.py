@@ -49,7 +49,7 @@ def test_windows_installer_entry_prefers_repo_src_before_importing_package():
 def test_build_windows_installer_script_creates_latest_setup_alias():
     script = Path("packaging/build_windows_installer.ps1").read_text(encoding="utf-8")
 
-    assert "LocalAIControlCenterSetup-latest.exe" in script
+    assert "RuntimePilotSetup-latest.exe" in script
     assert "Copy-Item $versionedSetupPath $latestSetupPath -Force" in script
 
 
@@ -64,16 +64,16 @@ def test_build_windows_installer_script_can_skip_npm_when_node_modules_are_alrea
 def test_publish_github_release_script_uploads_latest_setup_alias():
     script = Path("packaging/publish_github_release.ps1").read_text(encoding="utf-8")
 
-    assert "LocalAIControlCenterSetup-latest.exe" in script
+    assert "RuntimePilotSetup-latest.exe" in script
     assert "gh release" in script
     assert 'cmd /c "gh release view $tag --repo $Repository 1>nul 2>nul"' in script
     assert "$releaseExists = $LASTEXITCODE -eq 0" in script
-    assert "releases/latest/download/LocalAIControlCenterSetup-latest.exe" not in script
+    assert "releases/latest/download/RuntimePilotSetup-latest.exe" not in script
 
 
 def test_readme_promotes_direct_latest_setup_download():
     readme = Path("README.md").read_text(encoding="utf-8")
 
-    assert "LocalAIControlCenterSetup-latest.exe" in readme
-    assert "releases/latest/download/LocalAIControlCenterSetup-latest.exe" in readme
-    assert "LocalAIControlCenterSetup-v0.4.37.exe" not in readme
+    assert "RuntimePilotSetup-latest.exe" in readme
+    assert "releases/latest/download/RuntimePilotSetup-latest.exe" in readme
+    assert "RuntimePilotSetup-v0.4.37.exe" not in readme

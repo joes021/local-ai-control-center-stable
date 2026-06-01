@@ -7,11 +7,11 @@ from local_ai_control_center_installer.windows_release import (
 
 
 def test_build_versioned_setup_name_embeds_version_number():
-    assert build_versioned_setup_name("0.1.2") == "LocalAIControlCenterSetup-v0.1.2.exe"
+    assert build_versioned_setup_name("0.1.2") == "RuntimePilotSetup-v0.1.2.exe"
 
 
 def test_build_versioned_setup_name_normalizes_existing_v_prefix():
-    assert build_versioned_setup_name(" v0.1.2 ") == "LocalAIControlCenterSetup-v0.1.2.exe"
+    assert build_versioned_setup_name(" v0.1.2 ") == "RuntimePilotSetup-v0.1.2.exe"
 
 
 def test_build_versioned_setup_name_rejects_blank_version():
@@ -68,7 +68,7 @@ def test_run_windows_installer_entry_dispatches_panel_mode_without_pause():
     exit_code = run_windows_installer_entry(
         main_fn=lambda: calls.append("installer") or 1,
         panel_main_fn=lambda argv=None: calls.append("panel") or 0,
-        argv=["LocalAIControlCenterPanel.exe", "--panel", "--install-root", "C:\\AI"],
+        argv=["RuntimePilotPanel.exe", "--panel", "--install-root", "C:\\AI"],
         pause_fn=lambda prompt: prompts.append(prompt) or "",
         frozen=True,
     )
@@ -86,7 +86,7 @@ def test_run_windows_installer_entry_dispatches_uninstall_mode_without_pause():
         main_fn=lambda: 1,
         panel_main_fn=lambda argv=None: calls.append(("panel", argv)) or 0,
         uninstall_main_fn=lambda argv=None: calls.append(("uninstall", argv)) or 0,
-        argv=["LocalAIControlCenterPanel.exe", "--uninstall", "--install-root", "C:\\AI"],
+        argv=["RuntimePilotPanel.exe", "--uninstall", "--install-root", "C:\\AI"],
         pause_fn=lambda prompt: prompts.append(prompt) or "",
         frozen=True,
     )
@@ -104,7 +104,7 @@ def test_run_windows_installer_entry_dispatches_update_worker_mode_without_pause
         main_fn=lambda: 1,
         update_worker_main_fn=lambda argv=None: calls.append(("update", argv)) or 0,
         argv=[
-            "LocalAIControlCenterPanel.exe",
+            "RuntimePilotPanel.exe",
             "--update-install-worker",
             "--install-root",
             "C:\\AI",
@@ -128,7 +128,7 @@ def test_run_windows_installer_entry_dispatches_model_download_worker_mode_witho
         main_fn=lambda: 1,
         model_download_worker_main_fn=lambda argv=None: calls.append(("download", argv)) or 0,
         argv=[
-            "LocalAIControlCenterPanel.exe",
+            "RuntimePilotPanel.exe",
             "--model-download-worker",
             "--install-root",
             "C:\\AI",

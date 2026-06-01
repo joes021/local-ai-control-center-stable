@@ -415,6 +415,56 @@ code {
   gap: 16px;
 }
 
+.runtimepilot-page-shell {
+  display: grid;
+  gap: 18px;
+  margin-top: 18px;
+  padding: 18px;
+  border-radius: 28px;
+  border: 1px solid var(--app-panel-elevated-border);
+  background:
+    radial-gradient(circle at top left, rgba(242, 184, 75, 0.08), transparent 24%),
+    radial-gradient(circle at top right, rgba(77, 220, 192, 0.08), transparent 28%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.018)),
+    color-mix(in srgb, var(--app-card-bg) 90%, transparent);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 24px 60px rgba(0, 0, 0, 0.16);
+}
+
+.runtimepilot-page-shell-header {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(0, 1.15fr) minmax(260px, 0.85fr);
+  align-items: start;
+  padding: 14px 16px;
+  border-radius: 20px;
+  border: 1px solid var(--app-card-soft-border);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.015)),
+    color-mix(in srgb, var(--app-card-soft-bg) 88%, transparent);
+}
+
+.runtimepilot-page-shell-copy {
+  display: grid;
+  gap: 4px;
+}
+
+.runtimepilot-page-shell-title {
+  display: block;
+  font-size: clamp(1.05rem, 2vw, 1.4rem);
+  line-height: 1.2;
+}
+
+.runtimepilot-page-shell-summary {
+  margin: 0;
+  align-self: center;
+}
+
+.runtimepilot-content-grid {
+  gap: 18px;
+}
+
 .top-nav {
   display: flex;
   justify-content: space-between;
@@ -697,6 +747,31 @@ code {
   background: var(--app-panel-elevated-bg);
 }
 
+.runtimepilot-section-shell,
+.runtimepilot-data-state-shell,
+.runtimepilot-telemetry-shell {
+  border-color: var(--app-panel-elevated-border);
+  background:
+    radial-gradient(circle at top left, rgba(242, 184, 75, 0.08), transparent 24%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.018)),
+    var(--app-panel-elevated-bg);
+}
+
+.runtimepilot-section-shell::after,
+.runtimepilot-data-state-shell::after,
+.runtimepilot-telemetry-shell::after {
+  content: "";
+  position: absolute;
+  inset: auto 18px 0 18px;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(77, 220, 192, 0.24), rgba(242, 184, 75, 0.14), transparent 82%);
+  pointer-events: none;
+}
+
+.runtimepilot-action-shell .details-block {
+  background: color-mix(in srgb, var(--app-card-soft-bg) 86%, transparent);
+}
+
 .page-flow-header {
   align-items: flex-start;
   gap: 16px;
@@ -809,6 +884,15 @@ code {
   }
 
   .page-flow-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .runtimepilot-page-shell {
+    padding: 14px;
+    border-radius: 24px;
+  }
+
+  .runtimepilot-page-shell-header {
     grid-template-columns: 1fr;
   }
 }
@@ -3049,6 +3133,20 @@ select:-webkit-autofill {
   border-radius: 18px;
   border: 1px solid var(--app-card-soft-border);
   background: color-mix(in srgb, var(--app-card-soft-bg) 84%, transparent);
+}
+
+.runtimepilot-command-deck {
+  position: sticky;
+  top: 10px;
+  z-index: 25;
+  border-color: var(--app-panel-elevated-border);
+  background:
+    radial-gradient(circle at top left, rgba(111, 143, 216, 0.12), transparent 28%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.02)),
+    color-mix(in srgb, var(--app-card-soft-bg) 90%, transparent);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 18px 34px rgba(0, 0, 0, 0.16);
 }
 
 .live-resource-strip-heading {

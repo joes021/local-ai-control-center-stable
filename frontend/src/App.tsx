@@ -74,6 +74,10 @@ const shellMarkers = [
   { label: "PRIVACY", value: "Bez clouda" },
 ];
 
+const runtimePilotDeckTitle = "RuntimePilot Control Deck";
+const runtimePilotDeckSummary =
+  "Jedan komandni most za runtime, modele, OpenCode, telemetriju i tuning bez lutanja po zasebnim alatima.";
+
 export default function App() {
   const [page, setPage] = useState<PageKey>("home");
   const [settingsFocusSection, setSettingsFocusSection] = useState<string | null>(null);
@@ -229,6 +233,8 @@ export default function App() {
   return (
     <Layout
       brand={<BrandLockup version={status?.version ?? null} />}
+      deckSummary={runtimePilotDeckSummary}
+      deckTitle={runtimePilotDeckTitle}
       eyebrow="LOCAL AI RUNTIME CONTROL CENTER"
       nav={nav}
       shellMarkers={shellMarkers}

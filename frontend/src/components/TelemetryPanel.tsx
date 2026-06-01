@@ -99,7 +99,9 @@ export function TelemetryPanel({
   const outputSplitWidth = telemetry?.outputSharePercent ?? 0;
 
   return (
-    <section className={`status-card wide-card telemetry-panel telemetry-panel-${variant}`}>
+    <section
+      className={`status-card wide-card telemetry-panel runtimepilot-telemetry-shell telemetry-panel-${variant}`}
+    >
       {variant === "benchmark" ? (
         <div className="telemetry-page-header">
           <div>

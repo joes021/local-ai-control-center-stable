@@ -25,7 +25,7 @@ def build_versioned_setup_name(version: str) -> str:
         normalized = normalized[1:].strip()
     if not normalized:
         raise ValueError("version is required")
-    return f"LocalAIControlCenterSetup-v{normalized}.exe"
+    return f"RuntimePilotSetup-v{normalized}.exe"
 
 
 def run_windows_installer_entry(

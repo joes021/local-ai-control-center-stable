@@ -382,7 +382,7 @@ export function LiveResourceStrip({ onOpenSettingsSection }: LiveResourceStripPr
   }
 
   return (
-    <section className="live-resource-strip" aria-label="Živi resursi sistema">
+    <section className="live-resource-strip runtimepilot-command-deck" aria-label="Živi resursi sistema">
       <span className="status-label live-resource-strip-heading">Živi resursi</span>
       <div className="live-resource-inline-row">
         {metrics.map((metric) => {

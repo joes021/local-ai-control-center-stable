@@ -42,11 +42,11 @@ from local_ai_control_center_installer.platform_paths import (
 from local_ai_control_center_installer.session import InstallerSession
 
 
-WINDOWS_PANEL_EXECUTABLE_NAME = "LocalAIControlCenterPanel.exe"
-WINDOWS_PANEL_HIDDEN_LAUNCHER_NAME = "Open-Control-Center.vbs"
+WINDOWS_PANEL_EXECUTABLE_NAME = "RuntimePilotPanel.exe"
+WINDOWS_PANEL_HIDDEN_LAUNCHER_NAME = "Open-RuntimePilot.vbs"
 LINUX_PANEL_HOST_NAME = "local-ai-control-center-panel"
-WINDOWS_UNINSTALL_LAUNCHER_NAME = "Uninstall-LocalAIControlCenter.cmd"
-LINUX_UNINSTALL_LAUNCHER_NAME = "Uninstall-LocalAIControlCenter.sh"
+WINDOWS_UNINSTALL_LAUNCHER_NAME = "Uninstall-RuntimePilot.cmd"
+LINUX_UNINSTALL_LAUNCHER_NAME = "Uninstall-RuntimePilot.sh"
 PANEL_EXECUTABLE_NAME = WINDOWS_PANEL_EXECUTABLE_NAME
 UNINSTALL_LAUNCHER_NAME = WINDOWS_UNINSTALL_LAUNCHER_NAME
 DEFAULT_PANEL_PORT = 3210
@@ -93,8 +93,8 @@ def _panel_host_name_for_platform(platform: str | None = None) -> str:
 
 def _panel_launcher_name_for_platform(platform: str | None = None) -> str:
     if _is_windows_runtime_platform(platform):
-        return "Open-Control-Center.cmd"
-    return "Open-Control-Center.sh"
+        return "Open-RuntimePilot.cmd"
+    return "Open-RuntimePilot.sh"
 
 
 def _uninstall_launcher_name_for_platform(platform: str | None = None) -> str:
@@ -1031,7 +1031,7 @@ def _resolve_installer_version() -> str:
 
 def _resolve_display_version(source_executable_path: Path) -> str:
     file_name = source_executable_path.name
-    marker = "LocalAIControlCenterSetup-v"
+    marker = "RuntimePilotSetup-v"
     if file_name.lower().startswith(marker.lower()) and file_name.lower().endswith(".exe"):
         return file_name[len(marker) : -4]
     return _resolve_installer_version()

@@ -26,8 +26,8 @@ def _latest_release(version: str = "0.4.5") -> dict[str, object]:
         "version": version,
         "tag_name": f"v{version}",
         "html_url": f"https://github.com/joes021/local-ai-control-center-stable/releases/tag/v{version}",
-        "installer_asset_name": f"LocalAIControlCenterSetup-v{version}.exe",
-        "installer_download_url": f"https://github.com/joes021/local-ai-control-center-stable/releases/download/v{version}/LocalAIControlCenterSetup-v{version}.exe",
+        "installer_asset_name": f"RuntimePilotSetup-v{version}.exe",
+        "installer_download_url": f"https://github.com/joes021/local-ai-control-center-stable/releases/download/v{version}/RuntimePilotSetup-v{version}.exe",
         "installer_size_bytes": 2 * 1024 * 1024 * 1024,
     }
 
@@ -56,7 +56,7 @@ def test_updates_check_route_reports_available_update_and_persists_progress(
     assert progress["status"] == "available"
     assert progress["latestVersion"] == "0.4.6"
     assert progress["currentVersion"] == "0.4.4"
-    assert progress["targetPath"].endswith("LocalAIControlCenterSetup-v0.4.6.exe")
+    assert progress["targetPath"].endswith("RuntimePilotSetup-v0.4.6.exe")
 
 
 def test_updates_check_route_reports_up_to_date_when_latest_matches_current(
@@ -130,7 +130,7 @@ def test_updates_install_route_spawns_worker_and_writes_starting_progress(
     assert progress["isActive"] is True
     assert progress["workerPid"] == 4321
     assert progress["latestVersion"] == "0.4.6"
-    assert progress["targetPath"].endswith("LocalAIControlCenterSetup-v0.4.6.exe")
+    assert progress["targetPath"].endswith("RuntimePilotSetup-v0.4.6.exe")
 
     command = captured["command"]
     assert "-m" in command
@@ -214,7 +214,7 @@ def test_updates_progress_route_marks_dead_active_worker_as_error(
                 "currentVersion": "0.4.4",
                 "latestVersion": "0.4.5",
                 "releaseUrl": "https://example.invalid/release",
-                "targetPath": str(install_root / "updates" / "LocalAIControlCenterSetup-v0.4.5.exe"),
+                "targetPath": str(install_root / "updates" / "RuntimePilotSetup-v0.4.5.exe"),
                 "percent": 12.5,
                 "downloadedGiB": 0.5,
                 "totalGiB": 4.0,
@@ -321,7 +321,7 @@ def test_launch_installer_opens_visible_console_window(
     _write_install_report(install_root, "0.4.4")
     monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
 
-    installer_path = install_root / "updates" / "LocalAIControlCenterSetup-v0.4.13.exe"
+    installer_path = install_root / "updates" / "RuntimePilotSetup-v0.4.13.exe"
     installer_path.parent.mkdir(parents=True, exist_ok=True)
     installer_path.write_bytes(b"exe")
 

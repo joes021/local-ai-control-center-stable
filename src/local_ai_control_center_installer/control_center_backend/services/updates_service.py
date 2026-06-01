@@ -698,7 +698,7 @@ def _build_versioned_setup_name(version: str) -> str:
     normalized = _normalize_version(version)
     if not normalized:
         raise ValueError("version is required")
-    return f"LocalAIControlCenterSetup-v{normalized}.exe"
+    return f"RuntimePilotSetup-v{normalized}.exe"
 
 
 def _calculate_percent(downloaded_bytes: int, total_bytes: int | None) -> float | None:

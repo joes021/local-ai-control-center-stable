@@ -3,7 +3,7 @@
 Installer-managed local control panel for running `llama.cpp`, `TurboQuant`, GGUF models, and `OpenCode`, with a finished Windows path and an Ubuntu x86_64 port in progress.
 
 [![Latest release](https://img.shields.io/github/v/release/joes021/local-ai-control-center-stable?display_name=tag&label=latest%20release)](https://github.com/joes021/local-ai-control-center-stable/releases/latest)
-[![Latest setup](https://img.shields.io/badge/download-latest%20setup.exe-2ea043)](https://github.com/joes021/local-ai-control-center-stable/releases/latest/download/LocalAIControlCenterSetup-latest.exe)
+[![Latest setup](https://img.shields.io/badge/download-latest%20setup.exe-2ea043)](https://github.com/joes021/local-ai-control-center-stable/releases/latest/download/RuntimePilotSetup-latest.exe)
 [![Windows](https://img.shields.io/badge/platform-Windows-2ea043)](https://github.com/joes021/local-ai-control-center-stable/releases/latest)
 [![Ubuntu x86_64](https://img.shields.io/badge/platform-Ubuntu%20x86__64%20(in%20progress)-d29922)](https://github.com/joes021/local-ai-control-center-stable)
 [![Repository scope](https://img.shields.io/badge/scope-installer%20%2B%20control%20panel-c58a1f)](https://github.com/joes021/local-ai-control-center-stable)
@@ -12,7 +12,7 @@ Installer-managed local control panel for running `llama.cpp`, `TurboQuant`, GGU
 
 Start here:
 
-- [Download the latest Windows setup directly](https://github.com/joes021/local-ai-control-center-stable/releases/latest/download/LocalAIControlCenterSetup-latest.exe)
+- [Download the latest Windows setup directly](https://github.com/joes021/local-ai-control-center-stable/releases/latest/download/RuntimePilotSetup-latest.exe)
 - [Open the latest release page](https://github.com/joes021/local-ai-control-center-stable/releases/latest)
 - [Browse all releases](https://github.com/joes021/local-ai-control-center-stable/releases)
 
@@ -80,8 +80,8 @@ After a successful Windows install, the product provides:
 
 - control panel URL: `http://127.0.0.1:3210/`
 - runtime endpoint: installer-managed local endpoint
-- panel launcher: `control-center/Open-Control-Center.cmd`
-- panel host: `control-center/LocalAIControlCenterPanel.exe`
+- panel launcher: `control-center/Open-RuntimePilot.cmd`
+- panel host: `control-center/RuntimePilotPanel.exe`
 - `OpenCode` launcher: `control-center/Open-OpenCode.cmd`
 - Start Menu folder: `RuntimePilot`
 
@@ -175,7 +175,7 @@ chmod +x ./bootstrap/install.sh
 
 Ubuntu x86_64 shell launcher truth currently provided by the source-bootstrap path:
 
-- panel launcher: `control-center/Open-Control-Center.sh`
+- panel launcher: `control-center/Open-RuntimePilot.sh`
 - panel host wrapper: `control-center/local-ai-control-center-panel`
 - `OpenCode` launcher: `control-center/Open-OpenCode.sh`
 

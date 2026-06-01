@@ -1447,3 +1447,40 @@ def test_runtimepilot_phase_three_visual_shell_and_diacritics_are_present():
 
     assert ".runtimepilot-hero-panel" in bundled_css
     assert ".runtimepilot-nav-surface" in bundled_css
+
+
+def test_runtimepilot_phase_four_and_five_shared_shell_is_present():
+    app_source = Path("frontend/src/App.tsx").read_text(encoding="utf-8")
+    layout_source = Path("frontend/src/components/Layout.tsx").read_text(encoding="utf-8")
+    live_strip_source = Path("frontend/src/components/LiveResourceStrip.tsx").read_text(encoding="utf-8")
+    flow_source = Path("frontend/src/components/PageFlowCard.tsx").read_text(encoding="utf-8")
+    data_state_source = Path("frontend/src/components/PageDataStateCard.tsx").read_text(encoding="utf-8")
+    telemetry_source = Path("frontend/src/components/TelemetryPanel.tsx").read_text(encoding="utf-8")
+    styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
+    dist_root = Path(
+        "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
+    )
+    css_assets = list((dist_root / "assets").glob("index-*.css"))
+
+    assert css_assets
+
+    bundled_css = "\n".join(path.read_text(encoding="utf-8") for path in css_assets)
+
+    assert "runtimepilot-page-shell" in layout_source
+    assert "runtimepilot-command-deck" in live_strip_source
+    assert "runtimepilot-section-shell" in flow_source
+    assert "runtimepilot-data-state-shell" in data_state_source
+    assert "runtimepilot-telemetry-shell" in telemetry_source
+    assert "RuntimePilot Control Deck" in app_source
+
+    assert ".runtimepilot-page-shell" in styles_source
+    assert ".runtimepilot-command-deck" in styles_source
+    assert ".runtimepilot-section-shell" in styles_source
+    assert ".runtimepilot-data-state-shell" in styles_source
+    assert ".runtimepilot-telemetry-shell" in styles_source
+
+    assert ".runtimepilot-page-shell" in bundled_css
+    assert ".runtimepilot-command-deck" in bundled_css
+    assert ".runtimepilot-section-shell" in bundled_css
+    assert ".runtimepilot-data-state-shell" in bundled_css
+    assert ".runtimepilot-telemetry-shell" in bundled_css

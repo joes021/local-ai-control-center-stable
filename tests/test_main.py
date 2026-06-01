@@ -1166,10 +1166,10 @@ def _mark_control_center_ready(
     session.control_center_runtime_status = "ready"
     session.control_center_launch_status = "ready"
     session.control_center_executable_path = str(
-        install_root / "control-center" / "LocalAIControlCenterPanel.exe"
+        install_root / "control-center" / "RuntimePilotPanel.exe"
     )
     session.control_center_launcher_path = str(
-        install_root / "control-center" / "Open-Control-Center.cmd"
+        install_root / "control-center" / "Open-RuntimePilot.cmd"
     )
     session.control_center_url = "http://127.0.0.1:3210/"
     session.control_center_port = 3210

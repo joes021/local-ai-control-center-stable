@@ -6,7 +6,7 @@ type PageDataStateCardProps = {
 
 export function PageDataStateCard({ loadingText, error, onRetry }: PageDataStateCardProps) {
   return (
-    <section className="status-card wide-card page-data-state-card">
+    <section className="status-card wide-card page-data-state-card runtimepilot-data-state-shell">
       <span className="status-label">{error ? "Problem pri učitavanju" : "Učitavanje"}</span>
       <strong className="status-value">{error || loadingText}</strong>
       <p className="helper-text">

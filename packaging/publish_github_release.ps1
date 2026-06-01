@@ -26,8 +26,8 @@ try {
         $Title = "$tag"
     }
 
-    $versionedSetupName = "LocalAIControlCenterSetup-$tag.exe"
-    $latestSetupName = "LocalAIControlCenterSetup-latest.exe"
+    $versionedSetupName = "RuntimePilotSetup-$tag.exe"
+    $latestSetupName = "RuntimePilotSetup-latest.exe"
     $checksumName = "SHA256SUMS-$tag.txt"
     $wheelName = "local_ai_control_center_installer-$Version-py3-none-any.whl"
     $sdistName = "local_ai_control_center_installer-$Version.tar.gz"

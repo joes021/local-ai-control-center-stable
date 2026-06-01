@@ -14,7 +14,7 @@ type PageFlowCardProps = {
 
 export function PageFlowCard({ title, summary, steps, actions }: PageFlowCardProps) {
   return (
-    <section className="status-card wide-card page-flow-card">
+    <section className="status-card wide-card page-flow-card runtimepilot-section-shell">
       <div className="section-header page-flow-header">
         <div>
           <span className="status-label">Prirodan tok rada</span>
