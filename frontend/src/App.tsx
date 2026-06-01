@@ -67,6 +67,13 @@ const MORE_PAGE_SECTIONS: Array<{ label: string; pages: PageKey[] }> = [
 
 const MORE_PAGES = MORE_PAGE_SECTIONS.flatMap((section) => section.pages);
 
+const shellMarkers = [
+  { label: "CONTROL", value: "Lokalno" },
+  { label: "RUNTIME", value: "Pod nadzorom" },
+  { label: "MODELS", value: "Spremni za rad" },
+  { label: "PRIVACY", value: "Bez clouda" },
+];
+
 export default function App() {
   const [page, setPage] = useState<PageKey>("home");
   const [settingsFocusSection, setSettingsFocusSection] = useState<string | null>(null);
@@ -224,6 +231,7 @@ export default function App() {
       brand={<BrandLockup version={status?.version ?? null} />}
       eyebrow="LOCAL AI RUNTIME CONTROL CENTER"
       nav={nav}
+      shellMarkers={shellMarkers}
       subtitle={
         <>
           <strong>Control. Monitor. Optimize.</strong>

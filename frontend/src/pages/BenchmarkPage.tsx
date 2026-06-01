@@ -332,7 +332,7 @@ function buildChartStatus(
   metricLabel: string,
 ) {
   if (!lastSample) {
-    return `cekam prve benchmark uzorke | poslednji ${metricLabel.toLowerCase()}: --`;
+    return `čekam prve benchmark uzorke | poslednji ${metricLabel.toLowerCase()}: --`;
   }
 
   const inactiveForMs = Math.max(0, nowTickMs - lastSample.timestampMs);

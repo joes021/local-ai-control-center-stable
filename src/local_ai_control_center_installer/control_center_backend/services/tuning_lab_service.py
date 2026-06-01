@@ -365,7 +365,7 @@ _BATCH_PRESETS: list[dict[str, Any]] = [
                     },
                     {
                         "label": "Ključni stringovi postoje",
-                        "command": "if ((Select-String -Path index.html -Pattern 'Balloon Blaster' -Quiet) -and (Select-String -Path index.html -Pattern 'Combo|combo' -Quiet) -and (Select-String -Path index.html -Pattern 'High Score|high score|highScore' -Quiet) -and (Select-String -Path index.html -Pattern 'power[- ]?up|PowerUp|powerUp' -Quiet) -and (Select-String -Path index.html -Pattern 'difficulty|tezin|teÅ¾in|level' -Quiet) -and (Select-String -Path index.html -Pattern 'Start|start' -Quiet) -and (Select-String -Path index.html -Pattern 'pause|Pause|Game Over|game over|restart' -Quiet) -and (Select-String -Path index.html -Pattern 'keydown|addEventListener' -Quiet) -and (Select-String -Path index.html -Pattern 'localStorage' -Quiet)) { exit 0 } else { exit 1 }",
+                        "command": "if ((Select-String -Path index.html -Pattern 'Balloon Blaster' -Quiet) -and (Select-String -Path index.html -Pattern 'Combo|combo' -Quiet) -and (Select-String -Path index.html -Pattern 'High Score|high score|highScore' -Quiet) -and (Select-String -Path index.html -Pattern 'power[- ]?up|PowerUp|powerUp' -Quiet) -and (Select-String -Path index.html -Pattern 'difficulty|tezin|težin|level' -Quiet) -and (Select-String -Path index.html -Pattern 'Start|start' -Quiet) -and (Select-String -Path index.html -Pattern 'pause|Pause|Game Over|game over|restart' -Quiet) -and (Select-String -Path index.html -Pattern 'keydown|addEventListener' -Quiet) -and (Select-String -Path index.html -Pattern 'localStorage' -Quiet)) { exit 0 } else { exit 1 }",
                         "kind": "custom",
                     },
                 ],
@@ -565,7 +565,7 @@ def _reconcile_orphaned_active_run(config: ControlCenterConfig) -> None:
             if slot_status in {"completed", "failed"}:
                 continue
             slot["status"] = "failed"
-            slot["summary"] = "Run je prekinut pre nego Å¡to je ovaj slot zavrÅ¡io."
+            slot["summary"] = "Run je prekinut pre nego što je ovaj slot završio."
         history = _load_history(config)
         history.insert(0, reconciled)
         _save_history(config, history)
@@ -1259,10 +1259,10 @@ def _run_tuning_slot(
             success_checks = reused_live_checks
             update_progress(
                 "checks-finished",
-                "Success check je potvrden tokom zive sesije",
+                "Success check je potvrđen tokom žive sesije",
                 str(
                     opencode_result.get("completionSummary", "")
-                    or f"{slot_label} je zavrsio OpenCode task i success check je vec potvrdjen."
+                    or f"{slot_label} je završio OpenCode task i success check je već potvrđen."
                 ),
                 log_excerpt=str(
                     opencode_result.get("completionSummary", "")
@@ -1994,12 +1994,12 @@ def _run_slot_opencode_task(
                         stable_success_live = True
                         stable_success_summary = (
                             "OpenCode je napravio rezultat, success check prolazi i workspace je miran "
-                            f"oko {quiet_seconds} s. Run se bezbedno zatvara bez dodatnog cekanja."
+                            f"oko {quiet_seconds} s. Run se bezbedno zatvara bez dodatnog čekanja."
                         )
                         if progress_callback is not None:
                             progress_callback(
                                 "opencode-stable-success",
-                                "OpenCode task je prakticno gotov",
+                                "OpenCode task je praktično gotov",
                                 stable_success_summary,
                                 log_excerpt=stable_success_summary,
                                 slot_patch={
@@ -2985,7 +2985,7 @@ def _summarize_opencode_stderr_activity(stderr_text: str) -> str:
     if has_build_session and ("type=message.part.updated" in lower or "type=message.part.delta" in lower):
         lines.append("OpenCode trenutno prima odgovor modela.")
     if "type=session.updated" in lower and lines:
-        lines.append("Sesija je ziva i ceka sledeci alat ili upis fajla.")
+        lines.append("Sesija je živa i čeka sledeći alat ili upis fajla.")
     deduped: list[str] = []
     for line in lines:
         if line not in deduped:

@@ -1413,3 +1413,37 @@ def test_runtimepilot_phase_two_copy_is_present_in_source_and_bundle():
     assert "search sloj" in bundled_js
     assert "Glavni radni profil" in bundled_js
     assert "OpenCode" in bundled_js
+
+
+def test_runtimepilot_phase_three_visual_shell_and_diacritics_are_present():
+    layout_source = Path("frontend/src/components/Layout.tsx").read_text(encoding="utf-8")
+    app_source = Path("frontend/src/App.tsx").read_text(encoding="utf-8")
+    styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
+    benchmark_source = Path("frontend/src/pages/BenchmarkPage.tsx").read_text(encoding="utf-8")
+    compatibility_source = Path("frontend/src/components/CompatibilityCalculatorPanel.tsx").read_text(
+        encoding="utf-8"
+    )
+    tuning_lab_service_source = Path(
+        "src/local_ai_control_center_installer/control_center_backend/services/tuning_lab_service.py"
+    ).read_text(encoding="utf-8")
+    dist_root = Path(
+        "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
+    )
+    css_assets = list((dist_root / "assets").glob("index-*.css"))
+
+    assert "runtimepilot-hero-panel" in layout_source
+    assert "runtimepilot-shell-markers" in layout_source
+    assert "shellMarkers" in app_source
+    assert ".runtimepilot-hero-panel" in styles_source
+    assert ".runtimepilot-nav-surface" in styles_source
+    assert ".runtimepilot-shell-markers" in styles_source
+    assert "čekam prve benchmark uzorke" in benchmark_source
+    assert "više važnih podešavanja" in compatibility_source
+    assert "Run je prekinut pre nego što je ovaj slot završio." in tuning_lab_service_source
+    assert "Sesija je živa i čeka sledeći alat ili upis fajla." in tuning_lab_service_source
+    assert css_assets
+
+    bundled_css = "\n".join(path.read_text(encoding="utf-8") for path in css_assets)
+
+    assert ".runtimepilot-hero-panel" in bundled_css
+    assert ".runtimepilot-nav-surface" in bundled_css

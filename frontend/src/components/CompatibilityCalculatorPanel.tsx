@@ -218,7 +218,7 @@ export function CompatibilityCalculatorPanel({
     if (
       action.requiresConfirmation &&
       !window.confirm(
-        "Ova akcija menja više vaznih podešavanja. Nastaviti?",
+        "Ova akcija menja više važnih podešavanja. Nastaviti?",
       )
     ) {
       return;

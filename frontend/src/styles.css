@@ -282,6 +282,26 @@ code {
   margin-bottom: 28px;
 }
 
+.runtimepilot-hero-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(250px, 0.85fr);
+  gap: 18px;
+  padding: 20px 22px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 28px;
+  background:
+    radial-gradient(circle at top left, rgba(242, 184, 75, 0.15), transparent 30%),
+    radial-gradient(circle at top right, rgba(111, 143, 216, 0.12), transparent 36%),
+    linear-gradient(145deg, rgba(9, 12, 18, 0.96), rgba(20, 16, 12, 0.98) 62%, rgba(11, 9, 8, 0.99));
+  box-shadow:
+    0 22px 60px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.runtimepilot-hero-main {
+  min-width: 0;
+}
+
 .hero-brand {
   display: flex;
   align-items: center;
@@ -310,6 +330,36 @@ code {
 .subtitle strong {
   color: var(--app-text);
   font-weight: 600;
+}
+
+.runtimepilot-shell-markers {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  align-content: start;
+}
+
+.runtimepilot-shell-marker {
+  display: grid;
+  gap: 6px;
+  min-height: 82px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.025)),
+    rgba(6, 8, 12, 0.42);
+}
+
+.runtimepilot-shell-marker-label {
+  font-size: 0.72rem;
+  letter-spacing: 0.16em;
+  color: var(--app-text-soft);
+}
+
+.runtimepilot-shell-marker-value {
+  font-size: 1rem;
+  color: var(--app-text);
 }
 
 .brand-lockup {
@@ -372,6 +422,17 @@ code {
   gap: 12px;
   flex-wrap: wrap;
   margin-bottom: 20px;
+}
+
+.runtimepilot-nav-surface {
+  padding: 14px 16px;
+  border-radius: 22px;
+  border: 1px solid var(--app-card-border);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02)),
+    var(--app-card-bg);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.14);
 }
 
 .top-nav-primary {
@@ -495,6 +556,21 @@ code {
   backdrop-filter: blur(14px);
   border-radius: 20px;
   padding: 18px;
+  box-shadow:
+    0 16px 34px rgba(0, 0, 0, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+.status-card::before,
+.error-panel::before {
+  content: "";
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  top: 0;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(242, 184, 75, 0.45), rgba(77, 220, 192, 0.22), transparent 88%);
+  pointer-events: none;
 }
 
 .status-card:has(.custom-select-open) {
@@ -676,6 +752,14 @@ code {
     align-items: stretch;
   }
 
+  .runtimepilot-hero-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .runtimepilot-shell-markers {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .top-nav-primary {
     flex-basis: auto;
   }
@@ -686,6 +770,10 @@ code {
 
   .nav-more-button {
     width: 100%;
+  }
+
+  .runtimepilot-nav-surface {
+    padding: 12px;
   }
 
   .nav-menu-panel {

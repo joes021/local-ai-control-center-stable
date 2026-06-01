@@ -863,7 +863,7 @@ def _write_uninstall_launcher(
         'set "LACC_UNINSTALL_EXIT_CODE=%ERRORLEVEL%"',
         'if not "%LACC_UNINSTALL_EXIT_CODE%"=="0" (',
         "  echo.",
-        "  echo Deinstalacija nije zavrsena uspesno.",
+        "  echo Deinstalacija nije završena uspešno.",
         "  pause",
         ")",
         "endlocal",

@@ -977,7 +977,7 @@ def _run_selected_worker(config: ControlCenterConfig, run_id: str, scenario: dic
     run_state["status"] = "running"
     run_state["percent"] = 5
     run_state["scenarioStatuses"][0]["status"] = "running"
-    run_state["scenarioStatuses"][0]["summary"] = "Scenario se izvrsava."
+    run_state["scenarioStatuses"][0]["summary"] = "Scenario se izvršava."
     _save_run_state(config, run_state)
 
     result = _execute_benchmark_prompt(config, str(scenario.get("prompt", "")), label=f"benchmark-{scenario.get('id', 'scenario')}")
@@ -1038,7 +1038,7 @@ def _run_battery_worker(
         run_state["percent"] = round(((index - 1) / max(len(scenarios), 1)) * 100)
         run_state["message"] = f"Pokrećem scenario {index}/{len(scenarios)}: {scenario.get('name', '')}"
         run_state["scenarioStatuses"][index - 1]["status"] = "running"
-        run_state["scenarioStatuses"][index - 1]["summary"] = "Scenario se izvrsava."
+        run_state["scenarioStatuses"][index - 1]["summary"] = "Scenario se izvršava."
         _save_run_state(config, run_state)
 
         result = _execute_benchmark_prompt(config, str(scenario.get("prompt", "")), label=f"benchmark-{scenario.get('id', 'scenario')}")

@@ -578,7 +578,7 @@ def _estimate_budget(model: dict[str, object], system: dict[str, object], *, run
         "contextPressureLevel": context_level,
         "contextPressureLabel": {"low": "Nizak", "medium": "Srednji", "high": "Visok"}[context_level],
         "contextPressureReason": (
-            f"Context {context} koristi efektivni kapacitet oko {effective_context_capacity} tokena u {runtime_kind} rezimu "
+            f"Context {context} koristi efektivni kapacitet oko {effective_context_capacity} tokena u {runtime_kind} režimu "
             f"uz {ctk}/{ctv} i ncmoe={ncmoe}."
         ),
         "effectiveContextCapacity": effective_context_capacity,
@@ -895,7 +895,7 @@ def _build_apply_package(recommendations: list[dict[str, object]]) -> dict[str, 
     return {
         "id": "apply-package",
         "title": "Primeni paket preporuka",
-        "summary": "Primeni najvaznije preporuke redom i odmah uradi novu proveru.",
+        "summary": "Primeni najvažnije preporuke redom i odmah uradi novu proveru.",
         "tradeoff": "Menja više runtime/model settings stavki odjednom.",
         "severity": "warn",
         "action": {
