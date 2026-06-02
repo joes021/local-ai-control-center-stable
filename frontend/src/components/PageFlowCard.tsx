@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 
+import { RuntimePilotIcon } from "./RuntimePilotIcon";
+
 type PageFlowStep = {
   title: string;
   detail: string;
@@ -16,9 +18,14 @@ export function PageFlowCard({ title, summary, steps, actions }: PageFlowCardPro
   return (
     <section className="status-card wide-card page-flow-card runtimepilot-section-shell">
       <div className="section-header page-flow-header">
-        <div>
-          <span className="status-label">Prirodan tok rada</span>
-          <strong className="status-value">{title}</strong>
+        <div className="runtimepilot-section-heading">
+          <span className="runtimepilot-section-glyph">
+            <RuntimePilotIcon className="runtimepilot-section-glyph-icon" name="control" />
+          </span>
+          <div>
+            <span className="status-label">Prirodan tok rada</span>
+            <strong className="status-value">{title}</strong>
+          </div>
         </div>
         {actions ? <div className="inline-actions compact-actions page-flow-actions">{actions}</div> : null}
       </div>

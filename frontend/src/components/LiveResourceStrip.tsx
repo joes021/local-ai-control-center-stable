@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 
+import { RuntimePilotIcon } from "./RuntimePilotIcon";
 import { fetchObservability } from "../lib/api";
 import { estimateContextFitFromKvBuffer, estimateHybridRuntimeUsage } from "../lib/runtimeDiagnostics";
 import type { ObservabilityPayload } from "../lib/types";
@@ -20,6 +21,7 @@ type ResourceMetricKey =
 type ResourceMetric = {
   key: ResourceMetricKey;
   label: string;
+  icon: "cpu" | "memory" | "telemetry" | "runtime" | "control" | "models";
   value: string;
   title: string;
   detailTitle: string;
@@ -240,6 +242,7 @@ export function LiveResourceStrip({ onOpenSettingsSection }: LiveResourceStripPr
       {
         key: "cpu",
         label: "CPU",
+        icon: "cpu",
         value: formatPercentCompact(observability.system.cpuPercent),
         title: `CPU: ${formatPercent(observability.system.cpuPercent)}`,
         detailTitle: "CPU uživo",
@@ -249,6 +252,7 @@ export function LiveResourceStrip({ onOpenSettingsSection }: LiveResourceStripPr
       {
         key: "ram",
         label: "RAM",
+        icon: "memory",
         value: formatUsedTotalGiBCompact(observability.system.ramUsedGiB, observability.system.ramTotalGiB),
         title: `RAM: ${formatGiB(observability.system.ramUsedGiB)} / ${formatGiB(observability.system.ramTotalGiB)}`,
         detailTitle: "Sistemski RAM",
@@ -258,6 +262,7 @@ export function LiveResourceStrip({ onOpenSettingsSection }: LiveResourceStripPr
       {
         key: "vram",
         label: "VRAM",
+        icon: "memory",
         value: formatUsedTotalGiBCompact(observability.system.vramUsedGiB, observability.system.vramTotalGiB),
         title: `VRAM: ${formatGiB(observability.system.vramUsedGiB)} / ${formatGiB(observability.system.vramTotalGiB)}`,
         detailTitle: "Dedicated GPU memorija",
@@ -267,6 +272,7 @@ export function LiveResourceStrip({ onOpenSettingsSection }: LiveResourceStripPr
       {
         key: "mode",
         label: "Režim",
+        icon: "runtime",
         value: modeValue,
         title:
           observability.runtime.executionModeId === "hybrid-vram-ram" && hybridEstimate
@@ -289,6 +295,7 @@ export function LiveResourceStrip({ onOpenSettingsSection }: LiveResourceStripPr
       {
         key: "offload",
         label: "Offload",
+        icon: "control",
         value: offloadValue,
         title:
           observability.runtime.executionModeId === "hybrid-vram-ram" &&
@@ -313,6 +320,7 @@ export function LiveResourceStrip({ onOpenSettingsSection }: LiveResourceStripPr
       {
         key: "context",
         label: "Context",
+        icon: "control",
         value: `${contextStatusLabel} • ${formatContext(configuredContext)} / ${formatContext(
           effectiveProcessContext,
         )}`,
@@ -329,6 +337,7 @@ export function LiveResourceStrip({ onOpenSettingsSection }: LiveResourceStripPr
       {
         key: "process",
         label: "Model proces",
+        icon: "models",
         value: formatMiB(observability.runtime.runtimeProcessRamMiB),
         title: `Model proces: ${formatMiB(observability.runtime.runtimeProcessRamMiB)}`,
         detailTitle: "RAM aktivnog model procesa",
@@ -338,6 +347,7 @@ export function LiveResourceStrip({ onOpenSettingsSection }: LiveResourceStripPr
       {
         key: "gpu",
         label: "GPU",
+        icon: "telemetry",
         value: `${simplifiedGpuName} • ${formatGiB(selectedGpu?.totalGiB ?? null)}`,
         title: `${detailedGpuName} | ${formatGiB(selectedGpu?.totalGiB ?? null)} ukupno`,
         detailTitle: detailedGpuName,
@@ -353,6 +363,7 @@ export function LiveResourceStrip({ onOpenSettingsSection }: LiveResourceStripPr
       result.push({
         key: "signal",
         label: "Signal",
+        icon: "telemetry",
         value: "Problem",
         title: error,
         detailTitle: "Signal greške",
@@ -400,7 +411,10 @@ export function LiveResourceStrip({ onOpenSettingsSection }: LiveResourceStripPr
                 setSelectedMetricKey((current) => (current === metric.key ? null : metric.key));
               }}
             >
-              <span className="live-resource-inline-label">{metric.label}</span>
+              <span className="live-resource-inline-label">
+                <RuntimePilotIcon className="live-resource-inline-icon" name={metric.icon} />
+                <span>{metric.label}</span>
+              </span>
               <strong className="live-resource-inline-value">{metric.value}</strong>
             </button>
           );

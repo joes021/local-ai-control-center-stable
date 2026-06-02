@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import { ActionResultPanel } from "../components/ActionResultPanel";
 import { PageFlowCard } from "../components/PageFlowCard";
+import { RuntimePilotIcon } from "../components/RuntimePilotIcon";
 import { TelemetryPanel } from "../components/TelemetryPanel";
 import {
   fetchBenchmark,
@@ -196,6 +197,51 @@ export function HomePage({
           </>
         }
       />
+      <section className="status-card wide-card mission-control-shell runtimepilot-section-shell">
+        <div className="section-header page-flow-header">
+          <div className="runtimepilot-section-heading">
+            <span className="runtimepilot-section-glyph">
+              <RuntimePilotIcon className="runtimepilot-section-glyph-icon" name="runtime" />
+            </span>
+            <div>
+              <span className="status-label">Mission control</span>
+              <strong className="status-value">Brzi pregled svega što sada zaista upravlja mašinom</strong>
+            </div>
+          </div>
+        </div>
+        <div className="mission-control-grid">
+          <article className="mission-control-card mission-control-card-runtime">
+            <span className="mission-control-card-icon">
+              <RuntimePilotIcon className="mission-control-card-icon-svg" name="server" />
+            </span>
+            <span className="mission-control-card-label">Runtime stanje</span>
+            <strong className="mission-control-card-value">{status?.runtimeLiveStatus ?? "--"}</strong>
+            <p className="helper-text">
+              {status?.runtimeSummary || "RuntimePilot još čeka svež signal runtime procesa."}
+            </p>
+          </article>
+          <article className="mission-control-card mission-control-card-model">
+            <span className="mission-control-card-icon">
+              <RuntimePilotIcon className="mission-control-card-icon-svg" name="models" />
+            </span>
+            <span className="mission-control-card-label">Aktivni model</span>
+            <strong className="mission-control-card-value">{status?.activeModel ?? "--"}</strong>
+            <p className="helper-text">
+              Runtime: {status?.activeRuntimeLabel ?? "--"} | Profil: {status?.profile ?? "--"}
+            </p>
+          </article>
+          <article className="mission-control-card mission-control-card-agent">
+            <span className="mission-control-card-icon">
+              <RuntimePilotIcon className="mission-control-card-icon-svg" name="opencode" />
+            </span>
+            <span className="mission-control-card-label">OpenCode sesija</span>
+            <strong className="mission-control-card-value">{renderOpenCodeState(opencode)}</strong>
+            <p className="helper-text">
+              {opencode?.sessionSummary || "Agent je spreman čim runtime i model ostanu zdravi."}
+            </p>
+          </article>
+        </div>
+      </section>
       <div className="home-layout wide-card">
         <TelemetryPanel benchmark={benchmark} variant="home" />
         <section className="status-card system-overview-card wide-card">

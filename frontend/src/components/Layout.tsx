@@ -1,6 +1,8 @@
 import type { PropsWithChildren, ReactNode } from "react";
 
 import { LiveResourceStrip } from "./LiveResourceStrip";
+import type { RuntimePilotIconName } from "./RuntimePilotIcon";
+import { RuntimePilotIcon } from "./RuntimePilotIcon";
 
 type LayoutProps = PropsWithChildren<{
   title: string;
@@ -10,7 +12,7 @@ type LayoutProps = PropsWithChildren<{
   eyebrow?: ReactNode;
   nav?: ReactNode;
   brand?: ReactNode;
-  shellMarkers?: Array<{ label: string; value: string }>;
+  shellMarkers?: Array<{ label: string; value: string; icon?: RuntimePilotIconName }>;
   themeId?: string;
   onOpenSettingsSection?: (sectionId: string) => void;
 }>;
@@ -47,6 +49,9 @@ export function Layout({
           <div className="runtimepilot-shell-markers" aria-label="RuntimePilot fokus oblasti">
             {shellMarkers.map((item) => (
               <article className="runtimepilot-shell-marker" key={item.label}>
+                <span className="runtimepilot-shell-marker-icon">
+                  <RuntimePilotIcon className="runtimepilot-shell-marker-svg" name={item.icon || "control"} />
+                </span>
                 <span className="runtimepilot-shell-marker-label">{item.label}</span>
                 <strong className="runtimepilot-shell-marker-value">{item.value}</strong>
               </article>
@@ -63,10 +68,20 @@ export function Layout({
       <section className="runtimepilot-page-shell">
         <div className="runtimepilot-page-shell-header">
           <div className="runtimepilot-page-shell-copy">
-            <span className="status-label">{deckTitle ?? "RuntimePilot Control Deck"}</span>
-            <strong className="runtimepilot-page-shell-title">
-              Jedinstven pregled lokalnog AI sistema
-            </strong>
+            <div className="runtimepilot-page-shell-signal" aria-hidden="true">
+              <span className="runtimepilot-page-shell-signal-core">
+                <RuntimePilotIcon className="runtimepilot-page-shell-signal-icon" name="control" />
+              </span>
+              <span className="runtimepilot-page-shell-signal-line" />
+              <span className="runtimepilot-page-shell-signal-dot runtimepilot-page-shell-signal-dot-primary" />
+              <span className="runtimepilot-page-shell-signal-dot" />
+            </div>
+            <div>
+              <span className="status-label">{deckTitle ?? "RuntimePilot Control Deck"}</span>
+              <strong className="runtimepilot-page-shell-title">
+                Jedinstven pregled lokalnog AI sistema
+              </strong>
+            </div>
           </div>
           <p className="helper-text runtimepilot-page-shell-summary">
             {deckSummary ??

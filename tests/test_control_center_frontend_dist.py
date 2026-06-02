@@ -745,7 +745,7 @@ def test_download_progress_card_source_supports_indeterminate_progress_when_perc
 def test_app_source_and_packaged_frontend_include_updates_navigation():
     source = Path("frontend/src/App.tsx").read_text(encoding="utf-8")
 
-    assert 'updates: "Ažuriranja"' in source
+    assert 'updates: { label: "Ažuriranja"' in source
     assert "UpdatesPage" in source
 
     dist_root = Path(
@@ -769,7 +769,7 @@ def test_api_source_disables_cache_for_update_progress_polling():
 def test_app_source_and_packaged_frontend_include_benchmark_navigation():
     source = Path("frontend/src/App.tsx").read_text(encoding="utf-8")
 
-    assert 'benchmark: "Benchmark"' in source
+    assert 'benchmark: { label: "Benchmark"' in source
     assert "BenchmarkPage" in source
 
     dist_root = Path(
@@ -788,7 +788,7 @@ def test_app_source_and_packaged_frontend_include_benchmark_navigation():
 def test_app_source_and_packaged_frontend_include_search_navigation():
     source = Path("frontend/src/App.tsx").read_text(encoding="utf-8")
 
-    assert 'search: "Pretraga"' in source
+    assert 'search: { label: "Pretraga"' in source
     assert "SearchPage" in source
 
     dist_root = Path(
@@ -818,7 +818,7 @@ def test_app_source_and_packaged_frontend_include_knowledge_navigation():
     source = Path("frontend/src/App.tsx").read_text(encoding="utf-8")
     knowledge_source = Path("frontend/src/pages/KnowledgePage.tsx").read_text(encoding="utf-8")
 
-    assert 'knowledge: "Znanje"' in source
+    assert 'knowledge: { label: "Znanje"' in source
     assert "KnowledgePage" in source
     assert "pickWorkingDirectory" in knowledge_source
     assert "Pregledaj" in knowledge_source
@@ -1070,7 +1070,7 @@ def test_compatibility_modal_source_and_packaged_frontend_include_runtime_breakd
 def test_app_source_and_packaged_frontend_include_compatibility_navigation():
     source = Path("frontend/src/App.tsx").read_text(encoding="utf-8")
 
-    assert 'compatibility: "Kompatibilnost"' in source
+    assert 'compatibility: { label: "Kompatibilnost"' in source
     assert "CompatibilityPage" in source
 
     dist_root = Path(
@@ -1484,3 +1484,42 @@ def test_runtimepilot_phase_four_and_five_shared_shell_is_present():
     assert ".runtimepilot-section-shell" in bundled_css
     assert ".runtimepilot-data-state-shell" in bundled_css
     assert ".runtimepilot-telemetry-shell" in bundled_css
+
+
+def test_runtimepilot_phase_six_visual_redesign_surfaces_icons_and_control_deck_elements():
+    app_source = Path("frontend/src/App.tsx").read_text(encoding="utf-8")
+    layout_source = Path("frontend/src/components/Layout.tsx").read_text(encoding="utf-8")
+    flow_source = Path("frontend/src/components/PageFlowCard.tsx").read_text(encoding="utf-8")
+    telemetry_source = Path("frontend/src/components/TelemetryPanel.tsx").read_text(encoding="utf-8")
+    home_source = Path("frontend/src/pages/HomePage.tsx").read_text(encoding="utf-8")
+    styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
+    dist_root = Path(
+        "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
+    )
+    js_assets = list((dist_root / "assets").glob("index-*.js"))
+    css_assets = list((dist_root / "assets").glob("index-*.css"))
+
+    assert "runtimepilot-nav-button-glyph" in app_source
+    assert "runtimepilot-shell-marker-icon" in layout_source
+    assert "runtimepilot-page-shell-signal" in layout_source
+    assert "runtimepilot-section-glyph" in flow_source
+    assert "telemetry-radar-shell" in telemetry_source
+    assert "Mission control" in home_source
+    assert ".runtimepilot-nav-button-glyph" in styles_source
+    assert ".runtimepilot-shell-marker-icon" in styles_source
+    assert ".runtimepilot-page-shell-signal" in styles_source
+    assert ".runtimepilot-section-glyph" in styles_source
+    assert ".telemetry-radar-shell" in styles_source
+    assert ".mission-control-grid" in styles_source
+    assert js_assets
+    assert css_assets
+
+    bundled_js = "\n".join(path.read_text(encoding="utf-8") for path in js_assets)
+    bundled_css = "\n".join(path.read_text(encoding="utf-8") for path in css_assets)
+
+    assert "Mission control" in bundled_js
+    assert ".runtimepilot-shell-marker-icon" in bundled_css
+    assert ".runtimepilot-page-shell-signal" in bundled_css
+    assert ".runtimepilot-section-glyph" in bundled_css
+    assert ".telemetry-radar-shell" in bundled_css
+    assert ".mission-control-grid" in bundled_css

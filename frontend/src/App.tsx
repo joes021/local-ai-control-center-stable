@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { BrandLockup } from "./components/BrandLockup";
 import { Layout } from "./components/Layout";
+import type { RuntimePilotIconName } from "./components/RuntimePilotIcon";
+import { RuntimePilotIcon } from "./components/RuntimePilotIcon";
 import { fetchSettings, fetchStatus } from "./lib/api";
 import type { CompatibilityLaunchTarget } from "./lib/compatibility";
 import { applyTheme, readStoredTheme, THEME_CHANGED_EVENT } from "./lib/theme";
@@ -25,28 +27,32 @@ import { TuningLabPage } from "./pages/TuningLabPage";
 import { UpdatesPage } from "./pages/UpdatesPage";
 import { WorkflowsPage } from "./pages/WorkflowsPage";
 
-const PAGE_LABELS = {
-  home: "Početna",
-  server: "Server",
-  fleet: "Flota",
-  jobs: "Poslovi",
-  workflows: "Radni tokovi",
-  opencode: "OpenCode",
-  models: "Modeli",
-  browser: "Browser",
-  knowledge: "Znanje",
-  search: "Pretraga",
-  compatibility: "Kompatibilnost",
-  observability: "Telemetrija",
-  benchmark: "Benchmark",
-  tuningLab: "Tuning Lab",
-  settings: "Podešavanja",
-  logs: "Logovi",
-  repair: "Popravka",
-  updates: "Ažuriranja",
-} as const;
+const PAGE_META = {
+  home: { label: "Početna", cue: "Pregled", icon: "home" },
+  server: { label: "Server", cue: "Runtime", icon: "server" },
+  fleet: { label: "Flota", cue: "Mašine", icon: "fleet" },
+  jobs: { label: "Poslovi", cue: "Queue", icon: "jobs" },
+  workflows: { label: "Radni tokovi", cue: "Automatika", icon: "workflows" },
+  opencode: { label: "OpenCode", cue: "Agent", icon: "opencode" },
+  models: { label: "Modeli", cue: "Biblioteka", icon: "models" },
+  browser: { label: "Browser", cue: "Katalog", icon: "browser" },
+  knowledge: { label: "Znanje", cue: "Dokovi", icon: "knowledge" },
+  search: { label: "Pretraga", cue: "Web + lokalno", icon: "search" },
+  compatibility: { label: "Kompatibilnost", cue: "Fit", icon: "compatibility" },
+  observability: { label: "Telemetrija", cue: "Signal", icon: "observability" },
+  benchmark: { label: "Benchmark", cue: "Brzina", icon: "benchmark" },
+  tuningLab: { label: "Tuning Lab", cue: "Parametri", icon: "tuning" },
+  settings: { label: "Podešavanja", cue: "Kontrola", icon: "settings" },
+  logs: { label: "Logovi", cue: "Tragovi", icon: "logs" },
+  repair: { label: "Popravka", cue: "Oporavak", icon: "repair" },
+  updates: { label: "Ažuriranja", cue: "Release", icon: "updates" },
+} as const satisfies Record<string, { label: string; cue: string; icon: RuntimePilotIconName }>;
 
-type PageKey = keyof typeof PAGE_LABELS;
+type PageKey = keyof typeof PAGE_META;
+
+const PAGE_LABELS = Object.fromEntries(
+  Object.entries(PAGE_META).map(([key, value]) => [key, value.label]),
+) as Record<PageKey, string>;
 
 const PRIMARY_PAGES: PageKey[] = ["home", "server", "models", "opencode", "search", "settings"];
 
@@ -68,10 +74,10 @@ const MORE_PAGE_SECTIONS: Array<{ label: string; pages: PageKey[] }> = [
 const MORE_PAGES = MORE_PAGE_SECTIONS.flatMap((section) => section.pages);
 
 const shellMarkers = [
-  { label: "CONTROL", value: "Lokalno" },
-  { label: "RUNTIME", value: "Pod nadzorom" },
-  { label: "MODELS", value: "Spremni za rad" },
-  { label: "PRIVACY", value: "Bez clouda" },
+  { label: "CONTROL", value: "Lokalno", icon: "control" as const },
+  { label: "RUNTIME", value: "Pod nadzorom", icon: "runtime" as const },
+  { label: "MODELS", value: "Spremni za rad", icon: "models" as const },
+  { label: "PRIVACY", value: "Bez clouda", icon: "privacy" as const },
 ];
 
 const runtimePilotDeckTitle = "RuntimePilot Control Deck";
@@ -183,7 +189,13 @@ export default function App() {
             onClick={() => setPage(key)}
             type="button"
           >
-            {PAGE_LABELS[key]}
+            <span className="runtimepilot-nav-button-glyph">
+              <RuntimePilotIcon className="runtimepilot-nav-icon" name={PAGE_META[key].icon} />
+            </span>
+            <span className="runtimepilot-nav-button-copy">
+              <span className="runtimepilot-nav-button-label">{PAGE_META[key].label}</span>
+              <span className="runtimepilot-nav-button-cue">{PAGE_META[key].cue}</span>
+            </span>
           </button>
         ))}
       </div>
@@ -195,7 +207,13 @@ export default function App() {
           onClick={() => setIsMoreOpen((current) => !current)}
           type="button"
         >
-          <span>Više</span>
+          <span className="runtimepilot-nav-button-glyph">
+            <RuntimePilotIcon className="runtimepilot-nav-icon" name="control" />
+          </span>
+          <span className="runtimepilot-nav-button-copy">
+            <span className="runtimepilot-nav-button-label">Više</span>
+            <span className="runtimepilot-nav-button-cue">{activeMoreLabel ?? "Analiza + alati"}</span>
+          </span>
           <span aria-hidden="true" className={`nav-more-chevron ${isMoreOpen ? "nav-more-chevron-open" : ""}`}>
             ▾
           </span>
@@ -218,7 +236,13 @@ export default function App() {
                       role="menuitem"
                       type="button"
                     >
-                      {PAGE_LABELS[key]}
+                      <span className="runtimepilot-nav-menu-glyph">
+                        <RuntimePilotIcon className="runtimepilot-nav-menu-icon" name={PAGE_META[key].icon} />
+                      </span>
+                      <span className="runtimepilot-nav-menu-copy">
+                        <span className="runtimepilot-nav-menu-label">{PAGE_META[key].label}</span>
+                        <span className="runtimepilot-nav-menu-cue">{PAGE_META[key].cue}</span>
+                      </span>
                     </button>
                   ))}
                 </div>

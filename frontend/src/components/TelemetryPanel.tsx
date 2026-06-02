@@ -1,4 +1,5 @@
 import type { BenchmarkPayload } from "../lib/types";
+import { RuntimePilotIcon } from "./RuntimePilotIcon";
 
 type TelemetryPanelProps = {
   benchmark: BenchmarkPayload | null;
@@ -151,6 +152,15 @@ export function TelemetryPanel({
 
         <div className="telemetry-live-panel">
           <span className="telemetry-live-label">Uživo sada</span>
+          <div className="telemetry-radar-shell" aria-hidden="true">
+            <span className="telemetry-radar-ring telemetry-radar-ring-outer" />
+            <span className="telemetry-radar-ring telemetry-radar-ring-middle" />
+            <span className="telemetry-radar-ring telemetry-radar-ring-inner" />
+            <span className="telemetry-radar-sweep" />
+            <span className="telemetry-radar-core">
+              <RuntimePilotIcon className="telemetry-radar-icon" name="telemetry" />
+            </span>
+          </div>
           <div className="telemetry-live-shell">
             <strong
               className={`telemetry-live-value ${
