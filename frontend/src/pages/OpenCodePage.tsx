@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 
 import { ActionResultPanel } from "../components/ActionResultPanel";
 import { CustomSelect } from "../components/CustomSelect";
@@ -298,7 +298,7 @@ export function OpenCodePage() {
                 </strong>
               </article>
               <article className="opencode-config-item">
-                <span className="opencode-config-label">Base URL</span>
+                <span className="opencode-config-label">Osnovni URL</span>
                 <strong className="opencode-config-value opencode-config-value-break">
                   {opencode.launchPreview.managedConfig.localProviderBaseUrl || "nije pronađen"}
                 </strong>
@@ -420,7 +420,7 @@ export function OpenCodePage() {
 
         <div className="form-grid">
           <label>
-            Build
+            Izrada
             <input
               type="number"
               value={stepEditor.buildSteps}
@@ -446,7 +446,7 @@ export function OpenCodePage() {
             />
           </label>
           <label>
-            General
+            Opšte
             <input
               type="number"
               value={stepEditor.generalSteps}
@@ -459,7 +459,7 @@ export function OpenCodePage() {
             />
           </label>
           <label>
-            Explore
+            Istraživanje
             <input
               type="number"
               value={stepEditor.exploreSteps}
@@ -493,7 +493,7 @@ export function OpenCodePage() {
               await loadStatus();
             }}
           >
-            Save preset
+            Sačuvaj preset
           </button>
           <button
             type="button"
@@ -514,7 +514,7 @@ export function OpenCodePage() {
       </section>
 
       <section className="status-card wide-card">
-        <span className="status-label">OpenCode settings</span>
+        <span className="status-label">OpenCode podešavanja</span>
         <div className="form-grid">
           <label>
             Bezbednosni režim
@@ -537,7 +537,7 @@ export function OpenCodePage() {
                         : "Strogo ograničen agent",
                 })
               }
-              ariaLabel="Izaberi OpenCode security mode"
+              ariaLabel="Izaberi bezbednosni režim OpenCode-a"
             />
           </label>
           <label>
@@ -564,7 +564,7 @@ export function OpenCodePage() {
                           : "3. Čitanje + izmena + komande uz potvrdu",
                 })
               }
-              ariaLabel="Izaberi OpenCode capability mode"
+              ariaLabel="Izaberi režim autonomije OpenCode-a"
             />
           </label>
           <button
@@ -586,7 +586,7 @@ export function OpenCodePage() {
               await loadStatus();
             }}
           >
-            Save OpenCode settings
+            Sačuvaj OpenCode podešavanja
           </button>
         </div>
       </section>

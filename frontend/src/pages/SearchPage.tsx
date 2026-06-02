@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 
 import { CustomSelect } from "../components/CustomSelect";
 import { PageDataStateCard } from "../components/PageDataStateCard";
@@ -176,7 +176,7 @@ export function SearchPage({ onOpenSettings }: SearchPageProps) {
       await loadSummary();
       await refreshSelectedProviderStatus(selectedProvider);
     } catch (reason: unknown) {
-      setError(reason instanceof Error ? reason.message : "Compare provider upit nije uspeo.");
+      setError(reason instanceof Error ? reason.message : "Uporedni upit po providerima nije uspeo.");
     } finally {
       setLoadingCompare(false);
     }
@@ -201,7 +201,7 @@ export function SearchPage({ onOpenSettings }: SearchPageProps) {
     if (!summary || !providerStatus) {
       return "";
     }
-    return `Mode: ${renderSearchModeLabel(summary.settings.mode, summary.settings.promptPrefix)} | Default provider: ${providerLabel(summary.settings.provider, summary.availableProviders)} | Trenutni provider: ${providerLabel(selectedProvider || summary.settings.provider, summary.availableProviders)} | Aktivni endpoint: ${providerStatus.effectiveBaseUrl || "nije potreban"}`;
+    return `Režim: ${renderSearchModeLabel(summary.settings.mode, summary.settings.promptPrefix)} | Podrazumevani provider: ${providerLabel(summary.settings.provider, summary.availableProviders)} | Trenutni provider: ${providerLabel(selectedProvider || summary.settings.provider, summary.availableProviders)} | Aktivni endpoint: ${providerStatus.effectiveBaseUrl || "nije potreban"}`;
   }, [providerStatus, selectedProvider, summary]);
   const currentWorkflowPreset = useMemo(
     () => resolveSelectedWorkflowPreset(settingsPayload),
@@ -212,7 +212,7 @@ export function SearchPage({ onOpenSettings }: SearchPageProps) {
     return (
       <PageDataStateCard
         error={error}
-        loadingText="Učitavam Search workspace..."
+        loadingText="Učitavam radni prostor pretrage..."
         onRetry={() => {
           setError(null);
           void loadSummary().catch((reason: unknown) => {
@@ -231,7 +231,7 @@ export function SearchPage({ onOpenSettings }: SearchPageProps) {
     <>
       {error ? <div className="error-panel wide-card">{error}</div> : null}
       <PageFlowCard
-        title="Search tok"
+        title="Tok pretrage"
         summary="Ova strana vodi kroz jednostavan redosled: proveri provider, unesi upit, pa odluči da li želiš izvore, lokalni odgovor ili poređenje."
         steps={[
           {
@@ -239,8 +239,8 @@ export function SearchPage({ onOpenSettings }: SearchPageProps) {
             detail: "Prvo proveri koji provider koristiš i da li je njegov status zdrav i jasan.",
           },
           {
-            title: "Pokreni search, answer ili compare",
-            detail: "Search vraća izvore, Answer pravi lokalni sažetak, a Compare služi da uporediš više provider-a.",
+            title: "Pokreni pretragu, odgovor ili poređenje",
+            detail: "Pretraga vraća izvore, Odgovor pravi lokalni sažetak, a Poređenje služi da uporediš više provider-a.",
           },
           {
             title: "Ako provider škripi, idi u Podešavanja",
@@ -288,7 +288,7 @@ export function SearchPage({ onOpenSettings }: SearchPageProps) {
                 setSelectedProvider(value);
                 setProviderNotice(null);
               }}
-              ariaLabel="Izaberi search provider"
+              ariaLabel="Izaberi provider pretrage"
             />
           </div>
           <button
@@ -427,7 +427,7 @@ export function SearchPage({ onOpenSettings }: SearchPageProps) {
           konačan odgovor.
         </p>
         <p className="helper-text">
-          `Compare providers` paralelno prikazuje kako isti upit izgleda kroz SearxNG i DuckDuckGo.
+          `Uporedi providere` paralelno prikazuje kako isti upit izgleda kroz SearxNG i DuckDuckGo.
         </p>
         {providerStatus.canQuery === false ? (
           <p className="helper-text">

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 
 import { ActionResultPanel } from "../components/ActionResultPanel";
 import { PageFlowCard } from "../components/PageFlowCard";
@@ -201,10 +201,10 @@ export function HomePage({
         <div className="section-header page-flow-header">
           <div className="runtimepilot-section-heading">
             <span className="runtimepilot-section-glyph">
-              <RuntimePilotIcon className="runtimepilot-section-glyph-icon" name="runtime" />
+                <RuntimePilotIcon className="runtimepilot-section-glyph-icon" name="server" />
             </span>
             <div>
-              <span className="status-label">Mission control</span>
+              <span className="status-label">Komandni pregled</span>
               <strong className="status-value">Brzi pregled svega što sada zaista upravlja mašinom</strong>
             </div>
           </div>

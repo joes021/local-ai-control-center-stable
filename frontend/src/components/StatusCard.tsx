@@ -1,4 +1,4 @@
-type StatusCardProps = {
+﻿type StatusCardProps = {
   label: string;
   value: string;
 };

@@ -1,4 +1,4 @@
-import type {
+﻿import type {
   CompatibilityCheckRequest,
   ModelEntry,
   ModelsPayload,

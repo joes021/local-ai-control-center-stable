@@ -1,11 +1,11 @@
-import type { SettingsPayload, WorkflowPreset } from "./types";
+﻿import type { SettingsPayload, WorkflowPreset } from "./types";
 
 export const FALLBACK_WORKFLOW_PRESETS: WorkflowPreset[] = [
   {
     id: "research",
-    name: "Research",
+    name: "Istraživanje",
     kind: "built-in",
-    label: "Research",
+    label: "Istraživanje",
     summary: "Web + docs tok za istraživanje i sintezu.",
     badges: ["web", "docs", "balanced"],
     settingsPatch: {
@@ -42,9 +42,9 @@ export const FALLBACK_WORKFLOW_PRESETS: WorkflowPreset[] = [
   },
   {
     id: "code",
-    name: "Code",
+    name: "Kod",
     kind: "built-in",
-    label: "Code",
+    label: "Kod",
     summary: "Kraći output i fokus na kod, bez agresivnog veb sloja.",
     badges: ["code", "fast", "docs"],
     settingsPatch: {
@@ -81,9 +81,9 @@ export const FALLBACK_WORKFLOW_PRESETS: WorkflowPreset[] = [
   },
   {
     id: "low-vram",
-    name: "Low VRAM",
+    name: "Nizak VRAM",
     kind: "built-in",
-    label: "Low VRAM",
+    label: "Nizak VRAM",
     summary: "Štedljiv preset za manje GPU budžete i lakši runtime.",
     badges: ["safe", "low-vram", "fast"],
     settingsPatch: {
@@ -120,9 +120,9 @@ export const FALLBACK_WORKFLOW_PRESETS: WorkflowPreset[] = [
   },
   {
     id: "long-context",
-    name: "Long context",
+    name: "Dug kontekst",
     kind: "built-in",
-    label: "Long context",
+    label: "Dug kontekst",
     summary: "Naglasak na velikom context-u i dužem kontinuitetu.",
     badges: ["262k", "analysis", "balanced"],
     settingsPatch: {
@@ -159,9 +159,9 @@ export const FALLBACK_WORKFLOW_PRESETS: WorkflowPreset[] = [
   },
   {
     id: "docs-plus-web",
-    name: "Docs + web",
+    name: "Dokumenti + veb",
     kind: "built-in",
-    label: "Docs + web",
+    label: "Dokumenti + veb",
     summary: "Knowledge-first tok sa obaveznim čitanjem lokalnih izvora i veb dopunom.",
     badges: ["knowledge", "citations", "web"],
     settingsPatch: {
@@ -198,9 +198,9 @@ export const FALLBACK_WORKFLOW_PRESETS: WorkflowPreset[] = [
   },
   {
     id: "benchmark-battery",
-    name: "Benchmark battery",
+    name: "Benchmark baterija",
     kind: "built-in",
-    label: "Benchmark battery",
+    label: "Benchmark baterija",
     summary: "Preset za telemetriju, merenje i ponovljiv benchmark tok.",
     badges: ["benchmark", "telemetry", "compare"],
     settingsPatch: {

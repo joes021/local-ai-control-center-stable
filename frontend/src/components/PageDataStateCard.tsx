@@ -1,4 +1,4 @@
-type PageDataStateCardProps = {
+﻿type PageDataStateCardProps = {
   loadingText: string;
   error?: string | null;
   onRetry?: () => void;

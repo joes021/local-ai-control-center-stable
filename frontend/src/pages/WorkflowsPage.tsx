@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 
 import { ActionResultPanel } from "../components/ActionResultPanel";
 import { CustomSelect } from "../components/CustomSelect";
@@ -655,7 +655,7 @@ export function WorkflowsPage({
                   thinkingMode: value,
                 })
               }
-              ariaLabel="Izaberi thinking mode workflow preseta"
+              ariaLabel="Izaberi thinking režim workflow preseta"
             />
           </article>
 
@@ -827,7 +827,7 @@ export function WorkflowsPage({
           </article>
 
           <article className="settings-field">
-            <span className="settings-field-label">Search provider</span>
+            <span className="settings-field-label">Provider pretrage</span>
             <CustomSelect
               value={editorDraft.searchProvider}
               options={searchProviderOptions}
@@ -857,7 +857,7 @@ export function WorkflowsPage({
           </article>
 
           <article className="settings-field settings-field-wide">
-            <span className="settings-field-label">Search query hint</span>
+            <span className="settings-field-label">Hint upita za pretragu</span>
             <textarea
               value={editorDraft.searchQueryHint}
               onChange={(event) =>
@@ -870,7 +870,7 @@ export function WorkflowsPage({
           </article>
 
           <article className="settings-field">
-            <span className="settings-field-label">Knowledge mode</span>
+            <span className="settings-field-label">Knowledge režim</span>
             <CustomSelect
               value={editorDraft.knowledgeMode}
               options={KNOWLEDGE_MODE_OPTIONS}
@@ -880,7 +880,7 @@ export function WorkflowsPage({
                   knowledgeMode: value as WorkflowPresetDraft["knowledgeMode"],
                 })
               }
-              ariaLabel="Izaberi Knowledge mode"
+              ariaLabel="Izaberi Knowledge režim"
             />
           </article>
 
@@ -898,7 +898,7 @@ export function WorkflowsPage({
           </article>
 
           <article className="settings-field">
-            <span className="settings-field-label">Benchmark battery ID</span>
+            <span className="settings-field-label">ID benchmark baterije</span>
             <input
               type="text"
               value={editorDraft.benchmarkBatteryId}
@@ -912,7 +912,7 @@ export function WorkflowsPage({
           </article>
 
           <article className="settings-field">
-            <span className="settings-field-label">Benchmark launch target</span>
+            <span className="settings-field-label">Cilj pokretanja benchmark-a</span>
             <CustomSelect
               value={editorDraft.benchmarkLaunchTarget}
               options={BENCHMARK_TARGET_OPTIONS}
@@ -927,7 +927,7 @@ export function WorkflowsPage({
           </article>
 
           <article className="settings-field settings-field-wide">
-            <span className="settings-field-label">Benchmark run label</span>
+            <span className="settings-field-label">Oznaka benchmark run-a</span>
             <input
               type="text"
               value={editorDraft.benchmarkRunLabel}

@@ -1,4 +1,4 @@
-export const DEFAULT_THEME_ID = "dark-chocolate";
+﻿export const DEFAULT_THEME_ID = "dark-chocolate";
 export const THEME_STORAGE_KEY = "local-ai-control-center:theme";
 export const THEME_CHANGED_EVENT = "lacc-theme-changed";
 

@@ -1,4 +1,4 @@
-import type {
+﻿import type {
   ActionResult,
   BrowserAddToLocalResult,
   BrowserCatalogPayload,
@@ -53,6 +53,13 @@ export type BrowserCatalogQuery = {
   sort?: string;
   limit?: number;
 };
+
+let serverStatusCache: ServerStatusPayload | null = null;
+let serverStatusPromise: Promise<ServerStatusPayload> | null = null;
+let modelsCache: ModelsPayload | null = null;
+let modelsPromise: Promise<ModelsPayload> | null = null;
+let settingsCache: SettingsPayload | null = null;
+let settingsPromise: Promise<SettingsPayload> | null = null;
 
 export async function fetchStatus(): Promise<StatusPayload> {
   const response = await fetch("/api/status");
@@ -189,7 +196,7 @@ export async function clearBenchmarkHistory(): Promise<{ status: string; summary
   return postJson("/api/benchmark/clear-history", {});
 }
 
-export async function fetchServerStatus(): Promise<ServerStatusPayload> {
+async function requestServerStatus(): Promise<ServerStatusPayload> {
   const response = await fetch("/api/server/status");
   if (!response.ok) {
     throw new Error(`Server status request failed: ${response.status}`);
@@ -197,12 +204,78 @@ export async function fetchServerStatus(): Promise<ServerStatusPayload> {
   return response.json() as Promise<ServerStatusPayload>;
 }
 
-export async function fetchModels(): Promise<ModelsPayload> {
+function startServerStatusFetch(force = false): Promise<ServerStatusPayload> {
+  if (!force && serverStatusPromise) {
+    return serverStatusPromise;
+  }
+  serverStatusPromise = requestServerStatus()
+    .then((payload) => {
+      serverStatusCache = payload;
+      return payload;
+    })
+    .finally(() => {
+      serverStatusPromise = null;
+    });
+  return serverStatusPromise;
+}
+
+export function peekServerStatusCache(): ServerStatusPayload | null {
+  return serverStatusCache;
+}
+
+export function primeServerStatusCache(): Promise<ServerStatusPayload> {
+  return startServerStatusFetch(false);
+}
+
+export async function fetchServerStatus(options: { force?: boolean; preferCache?: boolean } = {}): Promise<ServerStatusPayload> {
+  if (options.preferCache && serverStatusCache) {
+    return serverStatusCache;
+  }
+  if (serverStatusCache && !options.force) {
+    return serverStatusCache;
+  }
+  return startServerStatusFetch(Boolean(options.force));
+}
+
+async function requestModels(): Promise<ModelsPayload> {
   const response = await fetch("/api/models");
   if (!response.ok) {
     throw new Error(`Models request failed: ${response.status}`);
   }
   return response.json() as Promise<ModelsPayload>;
+}
+
+function startModelsFetch(force = false): Promise<ModelsPayload> {
+  if (!force && modelsPromise) {
+    return modelsPromise;
+  }
+  modelsPromise = requestModels()
+    .then((payload) => {
+      modelsCache = payload;
+      return payload;
+    })
+    .finally(() => {
+      modelsPromise = null;
+    });
+  return modelsPromise;
+}
+
+export function peekModelsCache(): ModelsPayload | null {
+  return modelsCache;
+}
+
+export function primeModelsCache(): Promise<ModelsPayload> {
+  return startModelsFetch(false);
+}
+
+export async function fetchModels(options: { force?: boolean; preferCache?: boolean } = {}): Promise<ModelsPayload> {
+  if (options.preferCache && modelsCache) {
+    return modelsCache;
+  }
+  if (modelsCache && !options.force) {
+    return modelsCache;
+  }
+  return startModelsFetch(Boolean(options.force));
 }
 
 export async function fetchBrowserCatalog(query?: BrowserCatalogQuery): Promise<BrowserCatalogPayload> {
@@ -403,12 +476,47 @@ export async function awaitModelActionResult(
   };
 }
 
-export async function fetchSettings(): Promise<SettingsPayload> {
+async function requestSettings(): Promise<SettingsPayload> {
   const response = await fetch("/api/settings");
   if (!response.ok) {
     throw new Error(`Settings request failed: ${response.status}`);
   }
   return response.json() as Promise<SettingsPayload>;
+}
+
+function startSettingsFetch(force = false): Promise<SettingsPayload> {
+  if (!force && settingsPromise) {
+    return settingsPromise;
+  }
+  settingsPromise = requestSettings()
+    .then((payload) => {
+      settingsCache = payload;
+      return payload;
+    })
+    .finally(() => {
+      settingsPromise = null;
+    });
+  return settingsPromise;
+}
+
+export function peekSettingsCache(): SettingsPayload | null {
+  return settingsCache;
+}
+
+export function primeSettingsCache(): Promise<SettingsPayload> {
+  return startSettingsFetch();
+}
+
+export async function fetchSettings(
+  options: { force?: boolean; preferCache?: boolean } = {},
+): Promise<SettingsPayload> {
+  if (options.preferCache && settingsCache) {
+    return settingsCache;
+  }
+  if (settingsCache && !options.force) {
+    return settingsCache;
+  }
+  return startSettingsFetch(options.force);
 }
 
 export async function fetchSearchSummary(): Promise<SearchSummaryPayload> {

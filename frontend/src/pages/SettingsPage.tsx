@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+﻿import { useEffect, useMemo, useRef, useState } from "react";
 
 import { ActionResultPanel } from "../components/ActionResultPanel";
 import { CustomSelect } from "../components/CustomSelect";
@@ -13,6 +13,7 @@ import {
   fetchSearchProviderStatus,
   fetchSettings,
   fetchTurboQuantSchema,
+  peekSettingsCache,
   pickWorkingDirectory,
   saveSettingsProfile,
   saveTurboQuantConfig,
@@ -450,8 +451,10 @@ type SettingsPageProps = {
 };
 
 export function SettingsPage({ focusSectionId = null, onFocusHandled }: SettingsPageProps) {
-  const [settings, setSettings] = useState<SettingsPayload | null>(null);
-  const [settingsDefaults, setSettingsDefaults] = useState<SettingsPayload | null>(null);
+  const [settings, setSettings] = useState<SettingsPayload | null>(() => peekSettingsCache());
+  const [settingsDefaults, setSettingsDefaults] = useState<SettingsPayload | null>(() =>
+    peekSettingsCache(),
+  );
   const [schema, setSchema] = useState<TurboQuantSchemaPayload | null>(null);
   const [turboConfig, setTurboConfig] = useState<TurboQuantConfig | null>(null);
   const [turboConfigDefaults, setTurboConfigDefaults] = useState<TurboQuantConfig | null>(null);
@@ -470,7 +473,7 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
 
   async function reload() {
     const [settingsPayload, schemaPayload, observabilityPayload] = await Promise.all([
-      fetchSettings(),
+      fetchSettings({ preferCache: true }),
       fetchTurboQuantSchema(),
       fetchObservability(),
     ]);
@@ -558,7 +561,7 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
     return (
       <PageDataStateCard
         error={error}
-        loadingText="Učitavam settings..."
+        loadingText="Učitavam podešavanja..."
         onRetry={() => {
           setError(null);
           void reload();
@@ -577,7 +580,7 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
       value: profile.id,
       label: `${profile.name} (${profile.summary})`,
     })),
-    { value: "custom", label: "custom (trenutne vrednosti)" },
+    { value: "custom", label: "Prilagođeno (trenutne vrednosti)" },
   ];
   const contextChoice = resolveTokenChoice(settings.context);
   const outputTokensChoice = resolveTokenChoice(settings.outputTokens);
@@ -1017,7 +1020,7 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
                     settingsScope: value,
                   })
                 }
-                ariaLabel="Izaberi settings scope"
+                ariaLabel="Izaberi opseg podešavanja"
               />
             </div>
             <p className="helper-text">
@@ -1038,7 +1041,7 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
                     setResult({
                       status: "ok",
                       action: "select-settings-profile",
-                      summary: "Editor je ostao na custom vrednostima.",
+                      summary: "Editor je ostao na prilagođenim vrednostima.",
                       details: { returncode: 0, stdout: "", stderr: "" },
                     });
                     return;
@@ -1059,12 +1062,12 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
               />
             </div>
             <p className="helper-text">
-              Profil puni editor za context, output tokens, access mode i OpenCode profil.
+              Profil puni editor za context, output tokens, režim pristupa i OpenCode profil.
             </p>
           </article>
 
           <article className="settings-field settings-field-wide">
-            <span className="settings-field-label">Workflow presets</span>
+            <span className="settings-field-label">Radni preseti</span>
             <div className="settings-option-grid">
               {workflowPresets.map((preset) => {
                 const active = currentWorkflowPreset?.id === preset.id;
@@ -1105,7 +1108,7 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
               })}
             </div>
             <p className="helper-text">
-              Aktivni workflow preset: {currentWorkflowPreset?.label || "Research"}.
+              Aktivni radni preset: {currentWorkflowPreset?.label || "Istraživanje"}.
             </p>
           </article>
 
@@ -1221,12 +1224,12 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
           </article>
 
           <article className="settings-field">
-            <span className="settings-field-label">Access mode</span>
+            <span className="settings-field-label">Režim pristupa</span>
             <div className="settings-control-block">
               <CustomSelect
                 value={settings.accessMode}
                 options={[
-                  { value: "local-only", label: "Local only" },
+                  { value: "local-only", label: "Samo lokalno" },
                   { value: "tailscale", label: "Tailscale" },
                 ]}
                 onChange={(value) =>
@@ -1235,14 +1238,14 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
                     accessMode: value,
                   })
                 }
-                ariaLabel="Izaberi access mode"
+                ariaLabel="Izaberi režim pristupa"
               />
             </div>
             <p className="helper-text">Lokalno ili Tailscale izlaganje backend-a.</p>
           </article>
 
           <article className="settings-field settings-field-wide">
-            <span className="settings-field-label">Color theme</span>
+            <span className="settings-field-label">Tema boja</span>
             <div className="settings-option-grid">
               {availableThemeOptions.map((theme) => {
                 const active = settings.themeId === theme.id;
@@ -1297,16 +1300,16 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
           </article>
 
           <article className="settings-field">
-            <span className="settings-field-label">Thinking mode</span>
+            <span className="settings-field-label">Thinking režim</span>
             <div className="settings-control-block">
               <CustomSelect
                 value={settings.thinkingMode}
                 options={[
-                  { value: "no-thinking", label: "No thinking" },
-                  { value: "low", label: "Low" },
-                  { value: "mid", label: "Mid" },
-                  { value: "high", label: "High" },
-                  { value: "extra-high", label: "Extra high" },
+                  { value: "no-thinking", label: "Bez thinking-a" },
+                  { value: "low", label: "Nisko" },
+                  { value: "mid", label: "Srednje" },
+                  { value: "high", label: "Visoko" },
+                  { value: "extra-high", label: "Vrlo visoko" },
                 ]}
                 onChange={(value) =>
                   setSettings({
@@ -1314,7 +1317,7 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
                     thinkingMode: value,
                   })
                 }
-                ariaLabel="Izaberi thinking mode"
+                ariaLabel="Izaberi thinking režim"
               />
             </div>
           </article>
@@ -1650,7 +1653,7 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
                 : "Editor je usklađen sa poslednjim sačuvanim VRAM tuning stanjem"}
             </strong>
             <p className="helper-text">
-              Ovde odmah vidiš stare i nove vrednosti. Kada klikneš `Try to fit in VRAM`, promene se
+              Ovde odmah vidiš stare i nove vrednosti. Kada klikneš `Pokušaj VRAM fit`, promene se
               prvo vide ovde, pa tek posle `Sačuvaj i primeni na runtime` postaju aktivne.
             </p>
             <div className="settings-vram-compare-grid">
@@ -1672,6 +1675,7 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
             <div className="inline-actions">
               <button
                 type="button"
+                className="action-button"
                 onClick={() => {
                   void saveAndApplyCurrentVramTuning();
                 }}
@@ -1681,13 +1685,13 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
               </button>
               <button
                 type="button"
-                title="Try to fit in VRAM"
-                aria-label="Try to fit in VRAM"
+                title="Pokušaj VRAM fit"
+                aria-label="Pokušaj VRAM fit"
                 className="secondary-button"
                 onClick={tryToFitInVramInEditor}
                 disabled={!canTryToFitInVram}
               >
-                Try to fit in VRAM
+                Pokušaj VRAM fit
               </button>
               {observability?.runtime.activeRuntime === "turboquant" ? (
                 <button
@@ -1700,7 +1704,7 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
               ) : null}
             </div>
             <p className="helper-text">
-              `Try to fit in VRAM` samo popunjava editor smislenijim VRAM-fit vrednostima: puni GPU layers,
+              `Pokušaj VRAM fit` samo popunjava editor smislenijim VRAM-fit vrednostima: puni GPU layers,
               manji context po proceni i, kod TurboQuant-a, jaču KV kompresiju kada izgleda korisno.
               Runtime se tada još ne restartuje. `Sačuvaj i primeni na runtime` je zaseban korak koji tek tada stvarno
               snima i primenjuje ono što vidiš. Ako je runtime već aktivan, RuntimePilot ga restartuje; ako nije, pokreće ga.
@@ -1782,11 +1786,11 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
                   setSettings(nextSettings);
                   void fetchSearchProviderStatus(value).then(updateProviderStatus);
                 }}
-                ariaLabel="Izaberi search provider"
+                ariaLabel="Izaberi provider pretrage"
               />
             </div>
             <p className="helper-text">
-              {currentSearchProviderOption?.summary || "Izaberi provider za Search, Knowledge i local-lacc search augmentation."}
+              {currentSearchProviderOption?.summary || "Izaberi provider za Pretragu, Znanje i local-lacc sloj pretrage."}
             </p>
             <p className="helper-text">
               Ako hoćeš javni provider bez API ključa, biraj DuckDuckGo (public web, no key).
@@ -1796,18 +1800,18 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
           <article className="settings-field settings-field-wide">
             <span className="settings-field-label">
               {settings.webSearchProvider === "searxng"
-                ? "Managed local SearxNG (Windows + WSL)"
-                : "DuckDuckGo public web (no key)"}
+                ? "Managed lokalni SearxNG (Windows + WSL)"
+                : "DuckDuckGo javni veb (bez ključa)"}
             </span>
             <strong className="status-value">
               {settings.searchProviderStatus.providerLabel}: {settings.searchProviderStatus.label}
             </strong>
             <p className="helper-text">{settings.searchProviderStatus.summary}</p>
             <div className="summary-metrics">
-              <span>Source: {settings.searchProviderStatus.source || "--"}</span>
-              <span>Configured URL: {settings.searchProviderStatus.configuredBaseUrl || "--"}</span>
-              <span>Effective URL: {settings.searchProviderStatus.effectiveBaseUrl || "--"}</span>
-              <span>Service: {settings.searchProviderStatus.serviceLabel || "--"}</span>
+              <span>Izvor: {settings.searchProviderStatus.source || "--"}</span>
+              <span>Podešeni URL: {settings.searchProviderStatus.configuredBaseUrl || "--"}</span>
+              <span>Efektivni URL: {settings.searchProviderStatus.effectiveBaseUrl || "--"}</span>
+              <span>Servis: {settings.searchProviderStatus.serviceLabel || "--"}</span>
             </div>
             <div className="settings-action-row">
               <button
@@ -1833,7 +1837,7 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
                   }
                 }}
               >
-                {providerBusy === "check" ? "Checking..." : "Check health"}
+                {providerBusy === "check" ? "Proveravam..." : "Proveri stanje"}
               </button>
               {settings.webSearchProvider === "searxng" ? (
                 <button
@@ -1857,8 +1861,8 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
                   }}
                 >
                   {providerBusy === "setup"
-                    ? "Setting up managed SearxNG..."
-                    : "Setup managed SearxNG (Windows + WSL)"}
+                    ? "Podešavam managed SearxNG..."
+                    : "Podesi managed SearxNG (Windows + WSL)"}
                 </button>
               ) : null}
             </div>
@@ -1875,14 +1879,14 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
           </article>
 
           <article className="settings-field settings-field-wide">
-            <span className="settings-field-label">Web search mode</span>
+            <span className="settings-field-label">Režim veb pretrage</span>
             <div className="settings-control-block">
               <CustomSelect
                 value={settings.webSearchMode}
                 options={[
-                  { value: "off", label: "Off" },
-                  { value: "on-demand", label: "On-demand" },
-                  { value: "always", label: "Always" },
+                  { value: "off", label: "Isključeno" },
+                  { value: "on-demand", label: "Na zahtev" },
+                  { value: "always", label: "Uvek" },
                 ]}
                 onChange={(value) =>
                   setSettings({
@@ -1890,7 +1894,7 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
                     webSearchMode: value,
                   })
                 }
-                ariaLabel="Izaberi web search mode"
+                ariaLabel="Izaberi režim veb pretrage"
               />
             </div>
             <p className="helper-text">
@@ -1901,7 +1905,7 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
 
           {settings.webSearchProvider === "searxng" ? (
             <article className="settings-field settings-field-wide">
-              <span className="settings-field-label">Manual SearxNG base URL (optional, no WSL)</span>
+              <span className="settings-field-label">Ručni SearxNG base URL (opciono, bez WSL-a)</span>
               <div className="settings-path-row">
                 <input
                   className="settings-path-input"
@@ -1922,7 +1926,7 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
           ) : null}
 
           <article className="settings-field">
-            <span className="settings-field-label">Search results limit</span>
+            <span className="settings-field-label">Limit rezultata pretrage</span>
             <div className="settings-number-row">
               <input
                 type="number"
@@ -1938,7 +1942,7 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
           </article>
 
           <article className="settings-field">
-            <span className="settings-field-label">Search timeout (s)</span>
+            <span className="settings-field-label">Timeout pretrage (s)</span>
             <div className="settings-number-row">
               <input
                 type="number"
@@ -1954,7 +1958,7 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
           </article>
 
           <article className="settings-field">
-            <span className="settings-field-label">On-demand prefix</span>
+            <span className="settings-field-label">Prefiks za zahtev</span>
             <div className="settings-number-row">
               <input
                 value={settings.webSearchPromptPrefix}

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+﻿import { useEffect, useMemo, useRef, useState } from "react";
 
 import { ActionResultPanel } from "../components/ActionResultPanel";
 import { PageDataStateCard } from "../components/PageDataStateCard";
@@ -1188,6 +1188,38 @@ export function TuningLabPage() {
           Ovaj lab pokreće stvarni OpenCode task nad izolovanim radnim prostorom i poredi tri seta
           podešavanja: `Baseline`, `Recommended` i `Custom`.
         </p>
+        <div className="tuning-lab-overview-grid">
+          <article className="tuning-lab-overview-card">
+            <span className="status-label">OpenCode</span>
+            <strong>{hasOpenCode ? "Spreman za rad" : "Treba popravku ili instalaciju"}</strong>
+            <p className="helper-text">
+              {hasOpenCode
+                ? "Agent task može da se pokrene čim nema blokera u run toku."
+                : "Bez OpenCode-a Tuning Lab ne može da napravi stvarni agent run."}
+            </p>
+          </article>
+          <article className="tuning-lab-overview-card">
+            <span className="status-label">Runtime</span>
+            <strong>{summary.context.activeRuntime || "--"}</strong>
+            <p className="helper-text">
+              Aktivni model: {summary.context.activeModel || "--"}
+            </p>
+          </article>
+          <article className="tuning-lab-overview-card">
+            <span className="status-label">Workspace</span>
+            <strong>{summary.context.workingDirectory ? compactPathLike(summary.context.workingDirectory, 2) : "--"}</strong>
+            <p className="helper-text">
+              Run radi nad izolovanim radnim prostorom, a ne nad install root-om.
+            </p>
+          </article>
+          <article className="tuning-lab-overview-card">
+            <span className="status-label">Recommended izvor</span>
+            <strong>{recommendedSourceLabel}</strong>
+            <p className="helper-text">
+              To je polazna tačka za `Recommended` slot pre poređenja sa `Baseline` i `Custom`.
+            </p>
+          </article>
+        </div>
         <div className="summary-metrics">
           <span>Aktivni model: {summary.context.activeModel || "--"}</span>
           <span>Runtime: {summary.context.activeRuntime || "--"}</span>
@@ -1225,7 +1257,7 @@ export function TuningLabPage() {
         ) : (
           <p className="helper-text">
             Napredak run-a sada vidiš odmah u gornjem `Aktivni run cockpit` bloku, a detaljniji trag
-            ostaje i u panelu `Queue i aktivni run` niže na strani.
+            ostaje i u panelu `Aktivni run i red čekanja` niže na strani.
           </p>
         )}
       </section>
@@ -1243,11 +1275,16 @@ export function TuningLabPage() {
           direktno da pratiš i snimaš.
         </p>
         <div className="summary-metrics tuning-lab-cockpit-strip">
-          <span>Queue radi sekvencijalno: jedan run po jedan, jedan slot po jedan.</span>
+          <span>Red čekanja radi sekvencijalno: jedan run po jedan, jedan slot po jedan.</span>
           <span>Aktivni run: {activeRun ? "da" : "ne"}</span>
           <span>Na čekanju: {summary.queue.length}</span>
           <span>Aktivni model: {summary.context.activeModel || "--"}</span>
           <span>Runtime: {summary.context.activeRuntime || "--"}</span>
+        </div>
+        <div className="tuning-lab-cockpit-tip-strip">
+          <span>PID + workspace + log signal = stvarni agent run, ne simulacija.</span>
+          <span>Red čekanja znači sekvencijalno izvršavanje, ne tri paralelna taska.</span>
+          <span>Playable rezultat dolazi tek kada slot stvarno prođe success check.</span>
         </div>
         {activeRun ? (
           <div className="tuning-lab-cockpit-grid">
@@ -1304,10 +1341,6 @@ export function TuningLabPage() {
                   ) : null}
                 </div>
               ) : null}
-              <p className="helper-text">
-                Ako vidiš `OpenCode PID`, `Runtime PID` i runtime prompt brzinu, to znači da stvarni
-                agent task zaista radi. Umesto zasebnog prozora, sesiju uživo gledaš ovde u RuntimePilot-u.
-              </p>
               <p className="helper-text">
                 Dve `llama-server` sesije su normalne dok `Tuning Lab` radi: jedna je glavni runtime
                 RuntimePilot-a, a druga je privremeni slot runtime za izolovani eksperiment.
@@ -1592,7 +1625,7 @@ export function TuningLabPage() {
                       Osnovni tok sada ostaje u istoj kartici: `Učitaj` → `Pokreni task` → `Otvori rezultat`.
                     </p>
                     <p className="helper-text">
-                      Queue radi sekvencijalno: prvo jedan task, a unutar njega `Baseline` →
+                      Red čekanja radi sekvencijalno: prvo jedan task, a unutar njega `Baseline` →
                       `Recommended` → `Custom`.
                     </p>
                     {loadedTask ? (
@@ -1747,7 +1780,7 @@ export function TuningLabPage() {
                               </p>
                               <button
                                 type="button"
-                                className={taskLoaded ? "secondary-button" : undefined}
+                                className="action-button-soft"
                                 onClick={() => {
                                   setDraft(buildDraftForBatchTask(draft, preset, task));
                                   setResult({
@@ -1773,6 +1806,7 @@ export function TuningLabPage() {
                               </p>
                               <button
                                 type="button"
+                                className="action-button"
                                 disabled={!canQueueRuns || !draft.workingDirectory.trim() || isQueueing}
                                 onClick={() =>
                                   void (async () => {
@@ -1813,6 +1847,7 @@ export function TuningLabPage() {
                 <div className="inline-actions">
                   <button
                     type="button"
+                    className="action-button"
                     disabled={!canQueueRuns || !draft.workingDirectory.trim() || isQueueing}
                     onClick={() => void queueBatchPreset(preset.id, draft)}
                   >
@@ -2020,6 +2055,7 @@ export function TuningLabPage() {
         <div className="inline-actions">
           <button
             type="button"
+            className="action-button"
             disabled={!canQueueCurrentDraft}
             onClick={() => void queueDraftExperiment(draft)}
           >
@@ -2158,7 +2194,7 @@ export function TuningLabPage() {
       </section>
 
       <section className="status-card wide-card" ref={progressRef}>
-        <span className="status-label">Queue i aktivni run</span>
+        <span className="status-label">Aktivni run i red čekanja</span>
         <div className="tuning-lab-progress-grid">
           <article className="status-card">
             <strong className="status-value">Aktivni run</strong>
@@ -2205,7 +2241,7 @@ export function TuningLabPage() {
             )}
           </article>
           <article className="status-card">
-            <strong className="status-value">Queue</strong>
+            <strong className="status-value">Red čekanja</strong>
             {summary.queue.length ? (
               <>
                 <ul className="tuning-lab-queue-list">
@@ -2219,7 +2255,7 @@ export function TuningLabPage() {
                   ))}
                 </ul>
                 <p className="helper-text">
-                  Ovi taskovi ne rade istovremeno. Queue znači da čekaju red, a Tuning Lab izvršava
+                  Ovi taskovi ne rade istovremeno. Red čekanja znači da čekaju red, a Tuning Lab izvršava
                   jedan run po jedan i jedan slot po jedan.
                 </p>
               </>
@@ -2288,8 +2324,8 @@ export function TuningLabPage() {
               <option value="all">Svi statusi</option>
               <option value="completed">Uspešni</option>
               <option value="failed">Neuspešni</option>
-              <option value="running">Running</option>
-              <option value="queued">Queued</option>
+              <option value="running">U toku</option>
+              <option value="queued">Na čekanju</option>
             </select>
           </label>
         </div>
@@ -2300,7 +2336,7 @@ export function TuningLabPage() {
                 <strong>Istorija run-ova</strong>
                 <span className="helper-text">
                   Otvoreno detalja: {expandedHistoryDetailCount}. Kada istorija postane predugačka,
-                  `Collapse all` odmah vraća pregledan prikaz.
+                  `Skupi sve` odmah vraća pregledan prikaz.
                 </span>
               </div>
               <div className="inline-actions">
@@ -2310,14 +2346,14 @@ export function TuningLabPage() {
                   disabled={!expandedHistoryDetailCount}
                   onClick={collapseAllHistoryDetails}
                 >
-                  Collapse all
+                  Skupi sve
                 </button>
                 <button
                   type="button"
                   className="secondary-button"
                   onClick={expandAllHistoryDetails}
                 >
-                  Expand all
+                  Proširi sve
                 </button>
               </div>
             </div>
@@ -2356,7 +2392,7 @@ export function TuningLabPage() {
                   disabled={!summary?.historyFailedItems}
                   onClick={() => void deleteHistory("failed")}
                 >
-                  Obriši sve failed
+                  Obriši sve neuspešne
                 </button>
                 <button
                   type="button"
@@ -2402,6 +2438,7 @@ export function TuningLabPage() {
                     <div className="inline-actions">
                       <button
                         type="button"
+                        className="action-button"
                         onClick={() =>
                           void runMutation(() =>
                             applyTuningLabWinner(run.runId, run.suggestedWinnerSlotId || undefined),
@@ -2421,7 +2458,7 @@ export function TuningLabPage() {
                           })
                         }
                       >
-                        Export / share
+                        Izvezi / podeli
                       </button>
                     </div>
 

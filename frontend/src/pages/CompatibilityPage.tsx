@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 
 import { CompatibilityCalculatorPanel } from "../components/CompatibilityCalculatorPanel";
 import { CustomSelect } from "../components/CustomSelect";
@@ -71,7 +71,7 @@ function normalizeSource(value: string): BrowserCatalogItem["source"] {
 }
 
 function normalizeQuantFilterKey(value: string): string {
-  const upper = readString(value, "Unknown").trim().toUpperCase();
+  const upper = readString(value, "Nepoznato").trim().toUpperCase();
   if (!upper) {
     return "UNKNOWN";
   }
@@ -131,7 +131,7 @@ function mtpLabel(status: BrowserMtpStatus): string {
   if (status === "no-mtp") {
     return "No MTP";
   }
-  return "Unknown";
+  return "Nepoznato";
 }
 
 function sourceLabel(source: string): string {
@@ -156,15 +156,15 @@ function buildBrowserCatalogItem(record: Record<string, unknown>): BrowserCatalo
   );
   const model = readString(
     record.model || record.label || record.name || record.title,
-    "Unknown model",
+    "Nepoznat model",
   );
   const family = readString(
     record.family || record.modelFamily || record.architecture,
-    "Unknown",
+    "Nepoznato",
   );
   const quantization = readString(
     record.quantization || record.quant || record.gguf || record.variant,
-    "Unknown",
+    "Nepoznato",
   );
   const sizeBytesGiB = readNumber(record.approxSizeGiB || record.sizeGiB);
   const sizeBytes =
@@ -183,7 +183,7 @@ function buildBrowserCatalogItem(record: Record<string, unknown>): BrowserCatalo
         record.size,
       "",
     ) ||
-    (sizeBytes === null ? "Unknown" : `${(sizeBytes / 1024 ** 3).toFixed(1)} GiB`);
+    (sizeBytes === null ? "Nepoznato" : `${(sizeBytes / 1024 ** 3).toFixed(1)} GiB`);
   const mtpStatus = normalizeMtpStatus(record.mtpStatus || record.mtp || record.mtp_state);
   const fitStatus = normalizeFitStatus(record.fitStatus || asRecord(record.fit).status || record.compatibility);
   const repo = readString(record.repo || record.repoId || record.repository || record.slug);

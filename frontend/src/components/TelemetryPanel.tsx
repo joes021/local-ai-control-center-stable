@@ -1,4 +1,4 @@
-import type { BenchmarkPayload } from "../lib/types";
+﻿import type { BenchmarkPayload } from "../lib/types";
 import { RuntimePilotIcon } from "./RuntimePilotIcon";
 
 type TelemetryPanelProps = {

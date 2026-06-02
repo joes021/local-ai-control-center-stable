@@ -1,4 +1,4 @@
-import type { CompatibilityCheckRequest } from "../lib/types";
+﻿import type { CompatibilityCheckRequest } from "../lib/types";
 import type { ReactNode } from "react";
 import { CompatibilityCalculatorPanel } from "./CompatibilityCalculatorPanel";
 

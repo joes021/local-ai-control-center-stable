@@ -1,4 +1,4 @@
-export type StatusPayload = {
+﻿export type StatusPayload = {
   hostPlatform: string;
   hostPlatformLabel: string;
   hostShellLabel: string;

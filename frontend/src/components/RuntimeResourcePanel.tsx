@@ -1,4 +1,4 @@
-import { estimateHybridRuntimeUsage } from "../lib/runtimeDiagnostics";
+﻿import { estimateHybridRuntimeUsage } from "../lib/runtimeDiagnostics";
 import type { ObservabilityPayload } from "../lib/types";
 
 function formatPercent(value: number | null | undefined) {

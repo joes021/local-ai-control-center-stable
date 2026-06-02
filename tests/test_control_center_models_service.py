@@ -1015,3 +1015,31 @@ def test_models_route_marks_installed_mtp_variants_as_runtime_ready_when_llama_s
     assert model["lifecycleLabel"] == "Spreman"
     assert "spreman za aktivaciju" in model["lifecycleSummary"].lower()
     assert "draft-mtp" in model["activationSummary"].lower()
+
+
+def test_delete_model_route_hides_curated_model_without_local_file_from_list(
+    tmp_path: Path,
+    monkeypatch,
+):
+    install_root = tmp_path / "install-root"
+    _write_runtime_endpoint_config(
+        install_root / "config" / "runtime-endpoint.json",
+        port=39281,
+    )
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+
+    client = TestClient(app)
+    response = client.post(
+        "/api/models/delete",
+        json={"modelId": "recommended-24gb", "removeFile": False, "removeRegistry": True},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "ok"
+    assert "sakriven iz liste" in payload["summary"]
+
+    models_response = client.get("/api/models")
+    assert models_response.status_code == 200
+    models_payload = models_response.json()
+    assert "recommended-24gb" not in [item["id"] for item in models_payload["curated"]]

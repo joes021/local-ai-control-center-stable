@@ -1,4 +1,4 @@
-import type { DownloadProgressPayload } from "../lib/types";
+﻿import type { DownloadProgressPayload } from "../lib/types";
 
 function formatGiB(value: number | null) {
   if (value === null || Number.isNaN(value)) {
@@ -56,15 +56,15 @@ export function ModelDownloadProgressCard({ progress }: { progress: DownloadProg
       : `${formatGiB(progress.downloadedGiB)} / ${formatGiB(progress.totalGiB)}`;
   const nextStepNote =
     progress.status === "error"
-      ? "Posle greške možeš odmah ponovo kliknuti Download. Resume nije podržan; pravi se nov pokušaj od početka."
+      ? "Posle greške možeš odmah ponovo kliknuti Preuzmi. Resume nije podržan; pravi se nov pokušaj od početka."
       : progress.status === "completed" || progress.status === "already-installed"
-        ? "Ako želiš novi pokušaj, klik na Download pokreće novi provereni tok za izabrani model."
-        : "Add HF i Add Unsloth samo dodaju model u spisak. Pravo skidanje kreće tek na Download.";
+        ? "Ako želiš novi pokušaj, klik na Preuzmi pokreće novi provereni tok za izabrani model."
+        : "Dodaj HF i Dodaj Unsloth samo dodaju model u spisak. Pravo skidanje kreće tek na Preuzmi.";
 
   return (
     <section className="status-card wide-card">
       <div className="section-header">
-        <span className="status-label">Download status</span>
+        <span className="status-label">Status preuzimanja</span>
         <strong className="status-value">{progress.status}</strong>
       </div>
       <div className="download-progress-track" aria-hidden="true">

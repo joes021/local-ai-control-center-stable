@@ -1,4 +1,4 @@
-import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+﻿import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 
 import { ActionResultPanel } from "../components/ActionResultPanel";
 import { CompatibilityCalculatorModal } from "../components/CompatibilityCalculatorModal";
@@ -105,7 +105,7 @@ function mtpLabel(status: BrowserMtpStatus): string {
   if (status === "no-mtp") {
     return "No MTP";
   }
-  return "Unknown";
+  return "Nepoznato";
 }
 
 function sourceLabel(source: string): string {
@@ -122,7 +122,7 @@ function sourceLabel(source: string): string {
 }
 
 function normalizeQuantFilterKey(value: string): string {
-  const upper = readString(value, "Unknown").trim().toUpperCase();
+  const upper = readString(value, "Nepoznato").trim().toUpperCase();
   if (!upper) {
     return "UNKNOWN";
   }
@@ -193,7 +193,7 @@ function mtpDownloadOnlyGuidance(item: BrowserCatalogItem): string | null {
 
 function formatDate(value: string | null): string {
   if (!value) {
-    return "Unknown";
+    return "Nepoznato";
   }
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) {
@@ -211,14 +211,14 @@ function formatSize(item: BrowserCatalogItem): string {
     return item.sizeLabel;
   }
   if (item.sizeBytes === null) {
-    return "Unknown";
+    return "Nepoznato";
   }
   return `${(item.sizeBytes / 1024 ** 3).toFixed(1)} GiB`;
 }
 
 function formatCount(value: number | null): string {
   if (value === null) {
-    return "Unknown";
+    return "Nepoznato";
   }
   return new Intl.NumberFormat("en-US").format(value);
 }
@@ -259,16 +259,16 @@ function buildItem(record: Record<string, unknown>): BrowserCatalogItem {
   const source = normalizeSource(
     readString(record.source || record.provider || record.catalogSource || record.origin, "other"),
   );
-  const model = readString(record.model || record.label || record.name || record.title, "Unknown model");
-  const family = readString(record.family || record.modelFamily || record.architecture, "Unknown");
-  const quantization = readString(record.quantization || record.quant || record.gguf || record.variant, "Unknown");
+  const model = readString(record.model || record.label || record.name || record.title, "Nepoznat model");
+  const family = readString(record.family || record.modelFamily || record.architecture, "Nepoznato");
+  const quantization = readString(record.quantization || record.quant || record.gguf || record.variant, "Nepoznato");
   const sizeBytesGiB = readNumber(record.approxSizeGiB || record.sizeGiB);
   const sizeBytes =
     readNumber(record.sizeBytes || record.fileSizeBytes || record.bytes || record.approxSizeBytes) ??
     (sizeBytesGiB === null ? null : Math.round(sizeBytesGiB * 1024 ** 3));
   const sizeLabel =
     readString(record.sizeLabel || record.fileSizeLabel || record.approxSize || record.size, "") ||
-    (sizeBytes === null ? "Unknown" : `${(sizeBytes / 1024 ** 3).toFixed(1)} GiB`);
+    (sizeBytes === null ? "Nepoznato" : `${(sizeBytes / 1024 ** 3).toFixed(1)} GiB`);
   const mtpStatus = normalizeMtpStatus(record.mtpStatus || record.mtp || record.mtp_state);
   const fit = asRecord(record.fit);
   const fitStatus = normalizeFitStatus(record.fitStatus || fit.status || record.compatibility);
@@ -600,7 +600,7 @@ export function BrowserPage({
     setResult({
       status: "pending",
       action: "browser-refresh",
-      summary: source ? `Refreshing ${source} catalog...` : "Refresh from internet...",
+      summary: source ? `Osvežavam ${source} katalog...` : "Osvežavam sa interneta...",
       details: { returncode: 0, stdout: "", stderr: "" },
     });
 
@@ -610,7 +610,7 @@ export function BrowserPage({
       setResult(buildRefreshActionResult(source, refreshPayload));
       setError(null);
     } catch (reason: unknown) {
-      const message = reason instanceof Error ? reason.message : "Refresh from internet failed.";
+      const message = reason instanceof Error ? reason.message : "Osvežavanje sa interneta nije uspelo.";
       setResult({
         status: "error",
         action: "browser-refresh",
@@ -627,7 +627,7 @@ export function BrowserPage({
     setResult({
       status: "pending",
       action: "browser-add",
-      summary: `Adding ${item.model} to local catalog...`,
+      summary: `Dodajem ${item.model} u lokalni katalog...`,
       details: { returncode: 0, stdout: "", stderr: "" },
     });
 
@@ -679,7 +679,7 @@ export function BrowserPage({
     setResult({
       status: "pending",
       action: "browser-download",
-      summary: `Starting download for ${label}...`,
+      summary: `Pokrećem preuzimanje za ${label}...`,
       details: { returncode: 0, stdout: "", stderr: "" },
     });
 
@@ -689,7 +689,7 @@ export function BrowserPage({
       setResult(finalResult);
       setDownloadOffer(null);
     } catch (reason: unknown) {
-      const message = reason instanceof Error ? reason.message : "Download failed.";
+      const message = reason instanceof Error ? reason.message : "Preuzimanje nije uspelo.";
       setResult({
         status: "error",
         action: "browser-download",
@@ -706,7 +706,7 @@ export function BrowserPage({
     setResult({
       status: "pending",
       action: "browser-download",
-      summary: `Starting download for ${item.model}...`,
+      summary: `Pokrećem preuzimanje za ${item.model}...`,
       details: { returncode: 0, stdout: "", stderr: "" },
     });
 
@@ -723,7 +723,7 @@ export function BrowserPage({
       setDownloadOffer(null);
       await loadCatalog();
     } catch (reason: unknown) {
-      const message = reason instanceof Error ? reason.message : "Download failed.";
+      const message = reason instanceof Error ? reason.message : "Preuzimanje nije uspelo.";
       setResult({
         status: "error",
         action: "browser-download",
@@ -753,47 +753,47 @@ export function BrowserPage({
   }
 
   const sourceOptions = [
-    { value: "all", label: "All sources" },
+    { value: "all", label: "Svi izvori" },
     { value: "huggingface", label: "Hugging Face" },
     { value: "unsloth", label: "Unsloth" },
-    { value: "other", label: "Other" },
+    { value: "other", label: "Drugo" },
   ];
   const familySelectOptions = [
-    { value: "all", label: "All families" },
+    { value: "all", label: "Sve familije" },
     ...familyOptions.map((family) => ({ value: family, label: family })),
   ];
   const quantSelectOptions = [
-    { value: "all", label: "All quantizations" },
+    { value: "all", label: "Sve kvantizacije" },
     ...quantOptions.map((quantization) => ({ value: quantization, label: quantization })),
   ];
   const sizeOptions = [
-    { value: "all", label: "All sizes" },
-    { value: "small", label: "Small (<4 GiB)" },
-    { value: "medium", label: "Medium (4-16 GiB)" },
-    { value: "large", label: "Large (>16 GiB)" },
+    { value: "all", label: "Sve veličine" },
+    { value: "small", label: "Malo (<4 GiB)" },
+    { value: "medium", label: "Srednje (4-16 GiB)" },
+    { value: "large", label: "Veliko (>16 GiB)" },
   ];
   const mtpOptions = [
-    { value: "all", label: "Any MTP" },
-    { value: "has-mtp", label: "Has MTP" },
-    { value: "no-mtp", label: "No MTP" },
-    { value: "unknown", label: "Unknown" },
+    { value: "all", label: "Bilo koji MTP" },
+    { value: "has-mtp", label: "Ima MTP" },
+    { value: "no-mtp", label: "Nema MTP" },
+    { value: "unknown", label: "Nepoznato" },
   ];
   const dateOptions = [
-    { value: "all", label: "Any time" },
-    { value: "7d", label: "Last 7 days" },
-    { value: "30d", label: "Last 30 days" },
-    { value: "90d", label: "Last 90 days" },
+    { value: "all", label: "Bilo kada" },
+    { value: "7d", label: "Poslednjih 7 dana" },
+    { value: "30d", label: "Poslednjih 30 dana" },
+    { value: "90d", label: "Poslednjih 90 dana" },
   ];
   const sortOptions = [
-    { value: "quant-asc", label: "Quant smallest first" },
-    { value: "quant-desc", label: "Quant largest first" },
-    { value: "updated-desc", label: "Latest first" },
-    { value: "updated-asc", label: "Oldest first" },
-    { value: "fit-desc", label: "Best Fit first" },
-    { value: "size-desc", label: "Largest first" },
-    { value: "size-asc", label: "Smallest first" },
-    { value: "family-asc", label: "Family A-Z" },
-    { value: "source-asc", label: "Source A-Z" },
+    { value: "quant-asc", label: "Manji quant prvo" },
+    { value: "quant-desc", label: "Veći quant prvo" },
+    { value: "updated-desc", label: "Najnovije prvo" },
+    { value: "updated-asc", label: "Najstarije prvo" },
+    { value: "fit-desc", label: "Najbolji fit prvo" },
+    { value: "size-desc", label: "Najveće prvo" },
+    { value: "size-asc", label: "Najmanje prvo" },
+    { value: "family-asc", label: "Familija A-Š" },
+    { value: "source-asc", label: "Izvor A-Š" },
   ];
 
   const refreshCounts = catalog.refresh.counts || {};
@@ -808,7 +808,7 @@ export function BrowserPage({
         summary="Najzdraviji redosled je da prvo osvežiš katalog, zatim filtriraš modele, pa tek onda dodaješ lokalno ili proveravaš fit za svoju mašinu."
         steps={[
           {
-            title: "Refresh katalog",
+            title: "Osveži katalog",
             detail: "Ako sumnjaš da su brojači zastareli, prvo povuci sveže modele sa interneta.",
           },
           {
@@ -817,19 +817,19 @@ export function BrowserPage({
           },
           {
             title: "Dodaj lokalno ili proveri fit",
-            detail: "Kada nađeš kandidata, dodaj ga u lokalni katalog ili idi na Compatibility tab za potvrdu.",
+            detail: "Kada nađeš kandidata, dodaj ga u lokalni katalog ili idi na tab kompatibilnosti za potvrdu.",
           },
         ]}
         actions={
           <>
             <button type="button" className="secondary-button" onClick={() => void handleRefresh()}>
-              Refresh katalog
+              Osveži katalog
             </button>
             <button type="button" className="secondary-button" onClick={() => void handleRefresh("huggingface")}>
-              Refresh HF
+              Osveži HF
             </button>
             <button type="button" className="secondary-button" onClick={() => void handleRefresh("unsloth")}>
-              Refresh Unsloth
+              Osveži Unsloth
             </button>
           </>
         }
@@ -838,20 +838,21 @@ export function BrowserPage({
         <div className="section-header">
           <div>
             <span className="status-label">Browser</span>
-            <strong className="status-value">Remote GGUF catalog</strong>
+            <strong className="status-value">Udaljeni GGUF katalog</strong>
             <p className="helper-text">
-              One table for Hugging Face and Unsloth GGUF models. Source stays a filter and badge, while Models remains the local catalog.
+              Jedna tabela za Hugging Face i Unsloth GGUF modele. Izvor ostaje filter i bedž, dok
+              Modeli ostaje lokalni katalog.
             </p>
           </div>
           <div className="inline-actions compact-actions browser-refresh-actions">
             <button type="button" className="secondary-button" disabled={Boolean(pendingAction)} onClick={() => void handleRefresh()}>
-              Refresh from internet
+              Osveži sa interneta
             </button>
             <button type="button" className="secondary-button" disabled={Boolean(pendingAction)} onClick={() => void handleRefresh("huggingface")}>
-              Refresh Hugging Face
+              Osveži Hugging Face
             </button>
             <button type="button" className="secondary-button" disabled={Boolean(pendingAction)} onClick={() => void handleRefresh("unsloth")}>
-              Refresh Unsloth
+              Osveži Unsloth
             </button>
             <button
               type="button"
@@ -867,26 +868,26 @@ export function BrowserPage({
                 });
               }}
             >
-              Compatibility tab
+              Tab kompatibilnosti
             </button>
           </div>
         </div>
         <div className="browser-toolbar">
           <label className="browser-field">
-            <span>Search</span>
+            <span>Pretraga</span>
             <input
               type="text"
-              placeholder="Search model, family, repo, quant..."
+              placeholder="Pretraži model, familiju, repo i kvantizaciju..."
               value={search}
               onChange={(event) => setSearch(event.target.value)}
             />
           </label>
           <label className="browser-field">
-            <span>Source</span>
+            <span>Izvor</span>
             <CustomSelect value={sourceFilter} options={sourceOptions} onChange={setSourceFilter} ariaLabel="Source filter" />
           </label>
           <label className="browser-field">
-            <span>Model family</span>
+            <span>Familija modela</span>
             <CustomSelect value={familyFilter} options={familySelectOptions} onChange={setFamilyFilter} ariaLabel="Family filter" />
           </label>
           <label className="browser-field">
@@ -894,7 +895,7 @@ export function BrowserPage({
             <CustomSelect value={quantFilter} options={quantSelectOptions} onChange={setQuantFilter} ariaLabel="Quant filter" />
           </label>
           <label className="browser-field">
-            <span>Size</span>
+            <span>Veličina</span>
             <CustomSelect value={sizeFilter} options={sizeOptions} onChange={setSizeFilter} ariaLabel="Size filter" />
           </label>
           <label className="browser-field">
@@ -902,7 +903,7 @@ export function BrowserPage({
             <CustomSelect value={mtpFilter} options={mtpOptions} onChange={setMtpFilter} ariaLabel="MTP filter" />
           </label>
           <label className="browser-field">
-            <span>Date</span>
+            <span>Datum</span>
             <CustomSelect value={dateFilter} options={dateOptions} onChange={setDateFilter} ariaLabel="Date filter" />
           </label>
           <label className="browser-field">
@@ -913,29 +914,29 @@ export function BrowserPage({
         <section className="browser-overview">
           <div className="browser-overview-main">
             <strong>
-              Showing {filteredItems.length} of {refreshCounts.all ?? filteredItems.length} models
+              Prikazano {filteredItems.length} od {refreshCounts.all ?? filteredItems.length} modela
             </strong>
-            <span>Last catalog update: {formatDate(catalog.refresh.lastRefresh || null)}</span>
+            <span>Poslednje osvežavanje kataloga: {formatDate(catalog.refresh.lastRefresh || null)}</span>
           </div>
           <div className="browser-overview-meta">
             <span>HF: {refreshCounts.huggingface ?? 0}</span>
             <span>Unsloth: {refreshCounts.unsloth ?? 0}</span>
-            {warningCount ? <span>Warnings: {warningCount}</span> : null}
-            {errorCount ? <span>Errors: {errorCount}</span> : null}
+            {warningCount ? <span>Upozorenja: {warningCount}</span> : null}
+            {errorCount ? <span>Greške: {errorCount}</span> : null}
           </div>
         </section>
         {warningCount ? (
           <section className="browser-notice browser-notice-warning">
             <div className="browser-notice-header">
               <div>
-                <strong>Catalog warnings</strong>
+                <strong>Upozorenja kataloga</strong>
                 <p className="helper-text">
                   Neki repozitorijumi imaju više GGUF fajlova nego što je trenutno prikazano. Ovo
                   ne blokira Browser, ali znači da je pregled skraćen.
                 </p>
               </div>
               <button type="button" className="secondary-button" onClick={() => setWarningsExpanded((current) => !current)}>
-                {warningsExpanded ? "Collapse warnings" : `Expand warnings (${warningCount})`}
+                {warningsExpanded ? "Skupi upozorenja" : `Proširi upozorenja (${warningCount})`}
               </button>
             </div>
             {warningsExpanded ? (
@@ -953,13 +954,13 @@ export function BrowserPage({
           <section className="browser-notice browser-notice-error">
             <div className="browser-notice-header">
               <div>
-                <strong>Catalog errors</strong>
+                <strong>Greške kataloga</strong>
                 <p className="helper-text">
                   Ove greške su sačuvane iz poslednjeg osvežavanja i mogu da objasne zašto deo kataloga nije kompletan.
                 </p>
               </div>
               <button type="button" className="secondary-button" onClick={() => setErrorsExpanded((current) => !current)}>
-                {errorsExpanded ? "Collapse errors" : `Expand errors (${errorCount})`}
+                {errorsExpanded ? "Skupi greške" : `Proširi greške (${errorCount})`}
               </button>
             </div>
             {errorsExpanded ? (
@@ -980,7 +981,7 @@ export function BrowserPage({
           <section className="browser-detail-top">
             <div className="browser-detail-header">
               <div>
-                <span className="status-label">Detail panel</span>
+                <span className="status-label">Panel detalja</span>
                 <h2>{selectedItem.model}</h2>
                 <p className="muted-line">
                   {selectedItem.family} | {selectedItem.quantization}
@@ -1001,7 +1002,7 @@ export function BrowserPage({
                 <strong className="status-value">{selectedItem.mtpLabel}</strong>
               </div>
               <div>
-                <span className="status-label">Size</span>
+                <span className="status-label">Veličina</span>
                 <strong className="status-value">{formatSize(selectedItem)}</strong>
               </div>
               <div>
@@ -1010,10 +1011,10 @@ export function BrowserPage({
               </div>
               <div>
                 <span className="status-label">Repo</span>
-                <strong className="status-value">{selectedItem.repo || "Unknown"}</strong>
+                <strong className="status-value">{selectedItem.repo || "Nepoznato"}</strong>
               </div>
               <div>
-                <span className="status-label">Downloads</span>
+                <span className="status-label">Preuzimanja</span>
                 <strong className="status-value">{formatCount(selectedItem.downloads)}</strong>
               </div>
             </div>
@@ -1039,7 +1040,7 @@ export function BrowserPage({
                 disabled={Boolean(pendingAction)}
                 onClick={() => void handleDirectBrowserDownload(selectedItem)}
               >
-                Download
+                Preuzmi
               </button>
               <button type="button" disabled={Boolean(pendingAction)} onClick={() => void handleAddToLocal(selectedItem)}>
                 Dodaj u lokalni katalog
@@ -1058,10 +1059,10 @@ export function BrowserPage({
 
             {downloadOffer && downloadOffer.label === selectedItem.model ? (
               <div className="browser-callout">
-                <strong>Dodato u lokalni katalog.</strong> Download je i dalje ručan. Ako želiš fajl odmah, pokreni ga sada.
+                <strong>Dodato u lokalni katalog.</strong> Preuzimanje je i dalje ručno. Ako želiš fajl odmah, pokreni ga sada.
                 <div className="inline-actions compact-actions">
                   <button type="button" onClick={() => void handleDownload(downloadOffer.modelId, downloadOffer.label)}>
-                    Download sada
+                    Preuzmi sada
                   </button>
                   <button type="button" className="secondary-button" onClick={() => setDownloadOffer(null)}>
                     Kasnije
@@ -1089,7 +1090,7 @@ export function BrowserPage({
                 <tr>
                   <th>Model</th>
                   <th>Family</th>
-                  <th>Source</th>
+                  <th>Izvor</th>
                   <th>
                     <button
                       type="button"
@@ -1108,7 +1109,7 @@ export function BrowserPage({
                       className={`browser-sort-button ${sortKey === "size-desc" || sortKey === "size-asc" ? "browser-sort-button-active" : ""}`}
                       onClick={() => setSortKey((current) => nextSortKey(current, "size"))}
                     >
-                      Size
+                      Veličina
                       <span className="browser-sort-indicator">
                         {sortKey === "size-desc" ? "↓" : sortKey === "size-asc" ? "↑" : "↕"}
                       </span>
@@ -1154,7 +1155,7 @@ export function BrowserPage({
                             void handleDirectBrowserDownload(item);
                           }}
                         >
-                          Download
+                          Preuzmi
                         </button>
                         {item.sourceUrl ? (
                           <a
@@ -1195,16 +1196,16 @@ export function BrowserPage({
                 ))}
               </tbody>
             </table>
-            {!filteredItems.length ? <div className="helper-text">No matching models in the Browser catalog.</div> : null}
+            {!filteredItems.length ? <div className="helper-text">Nema modela koji odgovaraju trenutnim filterima u Browser katalogu.</div> : null}
           </div>
           {filteredItems.length ? (
             <div className="browser-pagination">
               <span>
-                Page {currentPage} / {totalPages} | Rows {pageStart + 1}-{Math.min(pageStart + rowsPerPage, filteredItems.length)} of {filteredItems.length}
+                Strana {currentPage} / {totalPages} | Redovi {pageStart + 1}-{Math.min(pageStart + rowsPerPage, filteredItems.length)} od {filteredItems.length}
               </span>
               <div className="inline-actions compact-actions">
                 <button type="button" className="secondary-button" disabled={currentPage <= 1} onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}>
-                  Previous
+                  Prethodna
                 </button>
                 <button
                   type="button"
@@ -1212,7 +1213,7 @@ export function BrowserPage({
                   disabled={currentPage >= totalPages}
                   onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
                 >
-                  Next
+                  Sledeća
                 </button>
               </div>
             </div>
@@ -1237,7 +1238,7 @@ export function BrowserPage({
                 setCompatibilityRequest(null);
               }}
             >
-              Compatibility tab
+              Tab kompatibilnosti
             </button>
           ) : null
         }

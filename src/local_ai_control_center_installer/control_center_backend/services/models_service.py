@@ -80,6 +80,7 @@ def load_models_payload(
     active_model_id = str(active_model.get("model_id", "") or "")
     model_roots = _load_model_roots(config)
     registry = _load_custom_registry(config)
+    hidden_curated_ids = set(registry.get("hiddenCuratedModelIds", []))
     download_progress = load_download_progress_payload(config)
 
     entries: list[dict[str, object]] = []
@@ -92,6 +93,12 @@ def load_models_payload(
             starter_model,
             active_model_id=active_model_id,
         )
+        if (
+            entry["id"] in hidden_curated_ids
+            and not bool(entry.get("installed"))
+            and not bool(entry.get("active"))
+        ):
+            continue
         entries.append(entry)
         seen_ids.add(entry["id"])
 
@@ -401,6 +408,10 @@ def delete_model(
         return action_result("error", "delete-model", "Izaberi bar jednu delete akciju.", stderr="Izaberi bar jednu delete akciju.")
 
     active_model = _load_active_model_payload(config)
+    is_custom = bool(model.get("isCustom"))
+    model_path = Path(str(model.get("resolvedPath", "") or ""))
+    is_curated = str(model.get("source", "") or "") == "curated"
+
     if remove_file and str(active_model.get("model_id", "") or "") == model_id:
         return action_result(
             "error",
@@ -409,22 +420,41 @@ def delete_model(
             stderr="Aktivni model ne može da se obrise sa diska dok je aktivan.",
         )
 
+    if remove_registry and is_curated and str(active_model.get("model_id", "") or "") == model_id:
+        return action_result(
+            "error",
+            "delete-model",
+            "Aktivni kurirani model ne može da se sakrije iz liste dok je aktivan.",
+            stderr="Aktivni kurirani model ne može da se sakrije iz liste.",
+        )
+
+    if remove_file and not model_path.is_file() and not (remove_registry and (is_custom or is_curated)):
+        return action_result(
+            "error",
+            "delete-model",
+            "Model trenutno nema fajl na disku za brisanje.",
+            stderr="Model trenutno nema fajl na disku za brisanje.",
+        )
+
     removed_file = False
     removed_registry = False
-    model_path = Path(str(model.get("resolvedPath", "") or ""))
     if remove_file and model_path.is_file():
         model_path.unlink()
         removed_file = True
 
-    if remove_registry and bool(model.get("isCustom")):
+    if remove_registry and is_custom:
         removed_registry = _remove_custom_registry_entry(config, model_id)
+    elif remove_registry and is_curated:
+        removed_registry = _hide_curated_model_entry(config, model_id)
 
     summary_bits: list[str] = []
     if remove_file:
         summary_bits.append("fajl obrisan sa diska" if removed_file else "fajl nije postojao")
     if remove_registry:
-        if bool(model.get("isCustom")):
+        if is_custom:
             summary_bits.append("uklonjen iz kataloga" if removed_registry else "nije nadjen u katalogu")
+        elif is_curated:
+            summary_bits.append("sakriven iz liste" if removed_registry else "već je sakriven iz liste")
         else:
             summary_bits.append("kurirani modeli ostaju u katalogu")
 
@@ -866,21 +896,39 @@ def _spawn_model_download_worker(model_id: str, config: ControlCenterConfig):
     )
 
 
-def _load_custom_registry(config: ControlCenterConfig) -> dict[str, list[dict[str, object]]]:
+def _load_custom_registry(config: ControlCenterConfig) -> dict[str, object]:
     payload = read_json_object(config.custom_models_registry_path)
     models = payload.get("models")
+    hidden_curated_model_ids = payload.get("hiddenCuratedModelIds")
     if not isinstance(models, list):
-        return {"models": []}
+        models = []
+    if not isinstance(hidden_curated_model_ids, list):
+        hidden_curated_model_ids = []
     return {
         "models": [item for item in models if isinstance(item, dict)],
+        "hiddenCuratedModelIds": [
+            str(item).strip()
+            for item in hidden_curated_model_ids
+            if isinstance(item, str) and str(item).strip()
+        ],
     }
 
 
 def _write_custom_registry(
     config: ControlCenterConfig,
     models: list[dict[str, object]],
+    hidden_curated_model_ids: list[str] | None = None,
 ) -> Path:
-    return atomic_write_json(config.custom_models_registry_path, {"models": models})
+    payload: dict[str, object] = {"models": models}
+    if hidden_curated_model_ids:
+        payload["hiddenCuratedModelIds"] = sorted(
+            {
+                str(item).strip()
+                for item in hidden_curated_model_ids
+                if isinstance(item, str) and str(item).strip()
+            }
+        )
+    return atomic_write_json(config.custom_models_registry_path, payload)
 
 
 def _upsert_custom_registry_entry(
@@ -894,7 +942,11 @@ def _upsert_custom_registry_entry(
         if str(item.get("id", "") or "") != str(entry.get("id", "") or "")
     ]
     models.append(entry)
-    _write_custom_registry(config, models)
+    _write_custom_registry(
+        config,
+        models,
+        hidden_curated_model_ids=list(registry.get("hiddenCuratedModelIds", [])),
+    )
 
 
 def _remove_custom_registry_entry(
@@ -909,7 +961,11 @@ def _remove_custom_registry_entry(
     ]
     if len(filtered) == len(registry["models"]):
         return False
-    _write_custom_registry(config, filtered)
+    _write_custom_registry(
+        config,
+        filtered,
+        hidden_curated_model_ids=list(registry.get("hiddenCuratedModelIds", [])),
+    )
     return True
 
 
@@ -926,7 +982,28 @@ def _update_custom_model_installed_path(
         item["absolute_path"] = str(installed_path)
         updated = True
     if updated:
-        _write_custom_registry(config, registry["models"])
+        _write_custom_registry(
+            config,
+            registry["models"],
+            hidden_curated_model_ids=list(registry.get("hiddenCuratedModelIds", [])),
+        )
+
+
+def _hide_curated_model_entry(
+    config: ControlCenterConfig,
+    model_id: str,
+) -> bool:
+    registry = _load_custom_registry(config)
+    hidden = {
+        str(item).strip()
+        for item in registry.get("hiddenCuratedModelIds", [])
+        if isinstance(item, str) and str(item).strip()
+    }
+    if model_id in hidden:
+        return False
+    hidden.add(model_id)
+    _write_custom_registry(config, registry["models"], hidden_curated_model_ids=sorted(hidden))
+    return True
 
 
 def _load_active_model_payload(config: ControlCenterConfig) -> dict[str, Any]:

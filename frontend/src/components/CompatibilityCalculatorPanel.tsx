@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 
 import { applyCompatibilityAction, checkModelCompatibility } from "../lib/api";
@@ -443,6 +443,7 @@ export function CompatibilityCalculatorPanel({
                     {item.action ? (
                       <button
                         type="button"
+                        className="action-button"
                         disabled={pending}
                         onClick={() => void handleApply(item.action!)}
                       >

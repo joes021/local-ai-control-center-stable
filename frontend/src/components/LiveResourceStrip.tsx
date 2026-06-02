@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 
 import { RuntimePilotIcon } from "./RuntimePilotIcon";
 import { fetchObservability } from "../lib/api";
@@ -420,7 +420,11 @@ export function LiveResourceStrip({ onOpenSettingsSection }: LiveResourceStripPr
           );
         })}
       </div>
-      <div className="resource-chip-detail-panel">
+      <div
+        className={`resource-chip-detail-panel ${
+          selectedMetric ? "resource-chip-detail-panel-expanded" : "resource-chip-detail-panel-idle"
+        }`}
+      >
         {selectedMetric ? (
           <>
             <span className="status-label">Detalj izabrane stavke</span>
@@ -444,9 +448,8 @@ export function LiveResourceStrip({ onOpenSettingsSection }: LiveResourceStripPr
         ) : (
           <>
             <span className="status-label">Klikni stavku za pun detalj</span>
-            <p className="helper-text">
-              Gornji strip ostaje kompaktan, a pun kontekst za CPU, RAM, VRAM, režim, offload i GPU vidiš tek kada
-              klikneš željenu stavku.
+            <p className="helper-text resource-chip-detail-idle-copy">
+              Izaberi CPU, RAM, VRAM, režim, offload ili GPU kada želiš pun kontekst.
             </p>
           </>
         )}

@@ -1,9 +1,15 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 
 import { ActionResultPanel } from "../components/ActionResultPanel";
 import { PageFlowCard } from "../components/PageFlowCard";
 import { StatusCard } from "../components/StatusCard";
-import { fetchServerStatus, restartServer, startServer, stopServer } from "../lib/api";
+import {
+  fetchServerStatus,
+  peekServerStatusCache,
+  restartServer,
+  startServer,
+  stopServer,
+} from "../lib/api";
 import type { ActionResult, RuntimeDiagnostics, ServerStatusPayload } from "../lib/types";
 
 function formatRuntimeCommandMeta(
@@ -54,7 +60,9 @@ function buildRuntimeDiagnosticsHighlights(diagnostics: RuntimeDiagnostics | und
 }
 
 export function ServerPage() {
-  const [serverStatus, setServerStatus] = useState<ServerStatusPayload | null>(null);
+  const [serverStatus, setServerStatus] = useState<ServerStatusPayload | null>(() =>
+    peekServerStatusCache(),
+  );
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ActionResult | null>(null);
 

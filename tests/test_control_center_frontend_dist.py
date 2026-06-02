@@ -80,12 +80,12 @@ def test_workflow_preset_source_mentions_core_presets():
     knowledge_source = Path("frontend/src/pages/KnowledgePage.tsx").read_text(encoding="utf-8")
     benchmark_source = Path("frontend/src/pages/BenchmarkPage.tsx").read_text(encoding="utf-8")
 
-    assert "Research" in workflow_source
-    assert "Code" in workflow_source
-    assert "Low VRAM" in workflow_source
-    assert "Long context" in workflow_source
-    assert "Docs + web" in workflow_source
-    assert "Benchmark battery" in workflow_source
+    assert "Istraživanje" in workflow_source
+    assert "Kod" in workflow_source
+    assert "Nizak VRAM" in workflow_source
+    assert "Dug kontekst" in workflow_source
+    assert "Dokumenti + veb" in workflow_source
+    assert "Benchmark baterija" in workflow_source
     assert "Preset radnog toka" in search_source
     assert "Preset radnog toka" in knowledge_source
     assert "Preset radnog toka" in benchmark_source
@@ -158,6 +158,9 @@ def test_live_resource_strip_source_and_packaged_frontend_use_compact_clickable_
     assert "formatUsedTotalGiBCompact" in strip_source
     assert "aria-pressed" in strip_source
     assert "resource-chip-detail-panel" in strip_source
+    assert "resource-chip-detail-panel-idle" in strip_source
+    assert "resource-chip-detail-panel-expanded" in strip_source
+    assert "resource-chip-detail-idle-copy" in strip_source
     assert "Otvori VRAM tuning" in strip_source
     assert 'label: "Context"' in strip_source
     assert "Restart potreban" in strip_source
@@ -169,6 +172,8 @@ def test_live_resource_strip_source_and_packaged_frontend_use_compact_clickable_
     assert "overflow-x: auto;" not in styles_source
     assert ".live-resource-inline-button" in styles_source
     assert ".resource-chip-detail-panel" in styles_source
+    assert ".resource-chip-detail-panel-idle" in styles_source
+    assert ".resource-chip-detail-idle-copy" in styles_source
     assert ".live-resource-context-alert" not in styles_source
     assert js_assets
     assert css_assets
@@ -179,6 +184,7 @@ def test_live_resource_strip_source_and_packaged_frontend_use_compact_clickable_
     assert "Živi resursi" in bundled_js
     assert "Model proces" in bundled_js
     assert "Klikni stavku za pun detalj" in bundled_js
+    assert "Izaberi CPU, RAM, VRAM, režim, offload ili GPU kada želiš pun kontekst." in bundled_js
     assert "Hibrid" in bundled_js
     assert "Puni GPU fit" in bundled_js
     assert "Otvori VRAM tuning" in bundled_js
@@ -193,6 +199,7 @@ def test_live_resource_strip_source_and_packaged_frontend_use_compact_clickable_
     assert ".live-resource-inline-item" in bundled_css
     assert ".live-resource-inline-button" in bundled_css
     assert ".resource-chip-detail-panel" in bundled_css
+    assert ".resource-chip-detail-panel-idle" in bundled_css
     assert "grid-template-columns:minmax(0,.58fr) minmax(0,.94fr) minmax(0,.94fr) minmax(0,.96fr) minmax(0,1.08fr) minmax(0,1.08fr) minmax(0,.82fr) minmax(0,1.28fr)" in bundled_css
 
 
@@ -218,7 +225,7 @@ def test_settings_source_mentions_vram_fit_tuning_and_manual_gpu_layers_override
     assert "VRAM fit tuning" in settings_source
     assert "GPU layers override" in settings_source
     assert "Procenjeni context za puni GPU fit" in settings_source
-    assert "Try to fit in VRAM" in settings_source
+    assert "Pokušaj VRAM fit" in settings_source
     assert "estimateContextFitFromKvBuffer" in runtime_helper_source
     assert "Samo spuštanje context-a verovatno nije dovoljno" in settings_source
     assert "Auto trenutno cilja" in settings_source
@@ -236,7 +243,7 @@ def test_settings_source_mentions_vram_fit_tuning_and_manual_gpu_layers_override
 
     assert "VRAM fit tuning" in bundled_js
     assert "GPU layers override" in bundled_js
-    assert "Try to fit in VRAM" in bundled_js
+    assert "Pokušaj VRAM fit" in bundled_js
     assert "VRAM fit" in bundled_js
     assert "GPU layers" in bundled_js
     assert "TurboQuant smernice" in bundled_js
@@ -252,6 +259,35 @@ def test_fleet_source_and_navigation_are_present():
     assert "Udaljene mašine" in fleet_source
     assert "Osveži sve" in fleet_source
     assert "Dodaj mašinu" in fleet_source
+
+
+def test_models_and_nav_source_protect_local_model_layout_and_even_nav_card_heights():
+    models_source = Path("frontend/src/pages/ModelsPage.tsx").read_text(encoding="utf-8")
+    styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
+
+    assert 'className="model-item-copy"' in models_source
+    assert 'className="models-local-group-anchor"' in models_source
+    assert 'ref={localGroupRef}' in models_source
+    assert "showWhenEmpty = false" in models_source
+    assert "if (!items.length && !showWhenEmpty)" in models_source
+    assert ".model-item-copy" in styles_source
+    assert ".model-item-copy code" in styles_source
+    assert ".models-local-group-anchor" in styles_source
+    assert ".runtimepilot-nav-button-copy" in styles_source
+    assert "min-width: 0;" in styles_source
+    assert ".runtimepilot-nav-button-cue" in styles_source
+    assert "font-size: 0.85rem;" in styles_source
+    assert "overflow: visible;" in styles_source
+    assert "text-overflow: clip;" in styles_source
+    assert "overflow-wrap: normal;" in styles_source
+    assert "white-space: nowrap;" in styles_source
+    assert "text-overflow: ellipsis;" in styles_source
+    assert ".nav-more-shell" in styles_source
+    assert "flex: 0 0 194px;" in styles_source
+    assert "align-self: stretch;" in styles_source
+    assert "display: flex;" in styles_source
+    assert ".nav-more-button" in styles_source
+    assert "min-height: 100%;" in styles_source or "height: 100%;" in styles_source
 
 
 def test_jobs_source_and_navigation_are_present():
@@ -283,7 +319,11 @@ def test_app_source_and_packaged_frontend_use_primary_tabs_plus_more_menu():
     assert "nav-more-button" in app_source
     assert "nav-menu-panel" in app_source
     assert "nav-menu-section-label" in app_source
+    assert "LOCAL AI RUNTIME CONTROL CENTER" in app_source
+    assert "Control. Monitor. Optimize." in app_source
     assert ".top-nav-primary" in styles_source
+    assert "0.92fr" in styles_source
+    assert "1.1fr" in styles_source
     assert ".nav-more-shell" in styles_source
     assert ".nav-more-button" in styles_source
     assert ".nav-menu-panel" in styles_source
@@ -301,6 +341,8 @@ def test_app_source_and_packaged_frontend_use_primary_tabs_plus_more_menu():
     assert "nav-more-button" in bundled_js
     assert "nav-menu-panel" in bundled_js
     assert "nav-menu-section-label" in bundled_js
+    assert "LOCAL AI RUNTIME CONTROL CENTER" in bundled_js
+    assert "Control. Monitor. Optimize." in bundled_js
     assert ".top-nav-primary" in bundled_css
     assert ".nav-more-shell" in bundled_css
     assert ".nav-more-button" in bundled_css
@@ -343,6 +385,10 @@ def test_tuning_lab_source_and_navigation_are_present():
     app_source = Path("frontend/src/App.tsx").read_text(encoding="utf-8")
     api_source = Path("frontend/src/lib/api.ts").read_text(encoding="utf-8")
     page_source = Path("frontend/src/pages/TuningLabPage.tsx").read_text(encoding="utf-8")
+    compatibility_source = Path(
+        "frontend/src/components/CompatibilityCalculatorPanel.tsx"
+    ).read_text(encoding="utf-8")
+    settings_source = Path("frontend/src/pages/SettingsPage.tsx").read_text(encoding="utf-8")
     styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
 
     assert "Tuning Lab" in app_source
@@ -373,8 +419,21 @@ def test_tuning_lab_source_and_navigation_are_present():
     assert "Koristi trenutne slot postavke" in page_source
     assert "Dodaj u queue" in page_source
     assert "Primeni pobednički set" in page_source
-    assert "Export / share" in page_source
+    assert "Izvezi / podeli" in page_source
+    assert "tuning-lab-overview-grid" in page_source
+    assert "tuning-lab-cockpit-tip-strip" in page_source
     assert "Uvezi forum / Reddit snippet" in page_source
+    assert 'className="action-button-soft"' in page_source
+    assert page_source.count('className="action-button"') >= 4
+    assert 'className="action-button"' in compatibility_source
+    assert 'className="action-button"' in settings_source
+    assert ".action-button," in styles_source
+    assert ".action-button-soft" in styles_source
+    assert ".action-button:hover:not(:disabled)" in styles_source
+    assert ".tuning-lab-batch-action-card {\n  display: grid;\n  grid-template-rows: auto 1fr auto;" in styles_source
+    assert ".tuning-lab-batch-action-card button {\n  justify-self: stretch;\n  width: 100%;\n  min-height: 44px;" in styles_source
+    assert ".tuning-lab-overview-grid" in styles_source
+    assert ".tuning-lab-cockpit-tip-strip" in styles_source
 
 
 def test_server_and_tuning_lab_sources_show_runtime_gpu_diagnostics():
@@ -405,7 +464,7 @@ def test_server_and_tuning_lab_sources_show_runtime_gpu_diagnostics():
     assert "Aktivni korak" in tuning_source
     assert "Poslednji log signal" in tuning_source
     assert "OpenCode u Tuning Lab-u radi u pozadini" in tuning_source
-    assert "Queue radi sekvencijalno" in tuning_source
+    assert "Red čekanja radi sekvencijalno" in tuning_source
     assert "OpenCode PID" in tuning_source
     assert "Živa sesija i signal" in tuning_source
     assert "Workspace, logovi i komande" in tuning_source
@@ -432,8 +491,8 @@ def test_server_and_tuning_lab_sources_show_runtime_gpu_diagnostics():
     assert "Kopiraj OpenCode komandu" in tuning_source
     assert "Izmenjeni fajlovi" in tuning_source
     assert "Otvori diff" in tuning_source
-    assert "Collapse all" in tuning_source
-    assert "Expand all" in tuning_source
+    assert "Skupi sve" in tuning_source
+    assert "Proširi sve" in tuning_source
     assert ".tuning-lab-slot-grid" in styles_source
     assert ".tuning-lab-results-table" in styles_source
     assert ".tuning-lab-history-card" in styles_source
@@ -524,7 +583,7 @@ def test_server_and_opencode_source_include_equivalent_launch_command_panels():
     assert "Managed config ulazi" in opencode_source
     assert "Env promenljive" in opencode_source
     assert "Provider" in opencode_source
-    assert "Base URL" in opencode_source
+    assert "Osnovni URL" in opencode_source
     assert "command-preview-grid" in opencode_source
     assert "opencode-config-grid" in opencode_source
     assert "opencode-env-grid" in opencode_source
@@ -546,7 +605,7 @@ def test_server_and_opencode_source_include_equivalent_launch_command_panels():
     assert "Launcher .cmd" in bundled_text
     assert "Managed config ulazi" in bundled_text
     assert "Env promenljive" in bundled_text
-    assert "Base URL" in bundled_text
+    assert "Osnovni URL" in bundled_text
     assert "command-preview-grid" in bundled_text
     assert "opencode-config-grid" in bundled_text
     assert "opencode-env-grid" in bundled_text
@@ -688,6 +747,51 @@ def test_models_page_source_requires_explicit_confirmation_before_forced_risky_a
     assert "Ipak pokušaj aktivaciju" in bundled_text
 
 
+def test_models_page_source_only_offers_real_delete_actions_for_each_model_type():
+    source = Path("frontend/src/pages/ModelsPage.tsx").read_text(encoding="utf-8")
+    styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
+
+    assert "canRemoveModelFile" in source
+    assert "canRemoveModelRegistry" in source
+    assert "hasAnyDeleteAction" in source
+    assert "deleteActionHint" in source
+    assert "Kurirani model možeš da sakriješ iz liste" in source
+    assert 'item.isCustom ? "Ukloni iz liste" : "Sakrij sa liste"' in source
+    assert "Model trenutno nema fajl na disku za brisanje." in source
+    assert "(!removeFile && !removeRegistry)" in source
+    assert "Potvrdi brisanje" in source
+    assert "model-delete-panel" in source
+    assert "model-group-header-meta" in source
+    assert "model-fact-grid" in source
+    assert "models-summary-grid" in source
+    assert "models-toolbar-note-grid" in source
+    assert "models-import-grid" in source
+    assert "models-local-group-anchor" in source
+    assert ".model-group-header-meta" in styles_source
+    assert ".model-fact-grid" in styles_source
+    assert ".model-fact-card" in styles_source
+    assert ".model-delete-panel" in styles_source
+    assert ".models-summary-grid" in styles_source
+    assert ".models-toolbar-note-grid" in styles_source
+    assert ".models-import-grid" in styles_source
+    assert ".models-local-group-anchor" in styles_source
+
+
+def test_models_group_header_has_breathing_room_above_model_list():
+    styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
+    dist_root = Path(
+        "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
+    )
+    css_assets = list((dist_root / "assets").glob("index-*.css"))
+
+    assert ".model-list {" in styles_source
+    assert "margin-top: 14px;" in styles_source
+    assert css_assets
+
+    bundled_css = "\n".join(path.read_text(encoding="utf-8") for path in css_assets)
+    assert ".model-list" in bundled_css
+
+
 def test_packaged_browser_ui_contains_quant_sort_labels():
     dist_root = Path(
         "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
@@ -697,8 +801,8 @@ def test_packaged_browser_ui_contains_quant_sort_labels():
     assert js_assets
     bundled_text = "\n".join(path.read_text(encoding="utf-8") for path in js_assets)
 
-    assert "Quant smallest first" in bundled_text
-    assert "Quant largest first" in bundled_text
+    assert "Manji quant prvo" in bundled_text
+    assert "Veći quant prvo" in bundled_text
 
 
 def test_api_source_disables_cache_for_download_progress_polling():
@@ -729,7 +833,7 @@ def test_download_progress_card_source_explains_retry_without_resume():
     source = Path("frontend/src/components/ModelDownloadProgressCard.tsx").read_text(encoding="utf-8")
 
     assert "Resume nije podržan" in source
-    assert "ponovo kliknuti Download" in source
+    assert "ponovo kliknuti Preuzmi" in source
 
 
 def test_download_progress_card_source_supports_indeterminate_progress_when_percent_is_unknown():
@@ -802,12 +906,12 @@ def test_app_source_and_packaged_frontend_include_search_navigation():
     assert "Radni prostor za pretragu" in bundled_text
     assert "Pronađi veb izvore" in bundled_text
     assert "Pretraži i odgovori lokalno" in bundled_text
-    assert "Compare providers" in bundled_text
+    assert "Uporedi providere" in bundled_text
     assert "DuckDuckGo" in bundled_text
     assert "Konačan odgovor lokalnog modela" in bundled_text
-    assert "Setup managed SearxNG (Windows + WSL)" in bundled_text
+    assert "Podesi managed SearxNG (Windows + WSL)" in bundled_text
     assert "SearxNG nije podešen" in bundled_text
-    assert "Managed local SearxNG (Windows + WSL)" in bundled_text
+    assert "Managed lokalni SearxNG (Windows + WSL)" in bundled_text
     assert "Ovo su izvori, ne konačan odgovor." in bundled_text
     assert "Otvori izvor" in bundled_text
     assert "Kad pokreneš upit, ovde će se pojaviti normalizovani veb rezultati." in bundled_text
@@ -856,14 +960,16 @@ def test_settings_and_opencode_source_include_web_search_controls_and_guidance()
     settings_source = Path("frontend/src/pages/SettingsPage.tsx").read_text(encoding="utf-8")
     opencode_source = Path("frontend/src/pages/OpenCodePage.tsx").read_text(encoding="utf-8")
 
-    assert "Web search mode" in settings_source
+    assert "Režim veb pretrage" in settings_source
     assert "Provider pretrage" in settings_source
     assert "DuckDuckGo (public web, no key)" in settings_source
-    assert "Manual SearxNG base URL (optional, no WSL)" in settings_source
-    assert "Setup managed SearxNG (Windows + WSL)" in settings_source
-    assert "Managed local SearxNG (Windows + WSL)" in settings_source
-    assert "Search results limit" in settings_source
-    assert "On-demand prefix" in settings_source
+    assert "Ručni SearxNG base URL (opciono, bez WSL-a)" in settings_source
+    assert "Podesi managed SearxNG (Windows + WSL)" in settings_source
+    assert "Managed lokalni SearxNG (Windows + WSL)" in settings_source
+    assert "Limit rezultata pretrage" in settings_source
+    assert "Prefiks za zahtev" in settings_source
+    assert "Režim pristupa" in settings_source
+    assert "Tema boja" in settings_source
     assert "local-lacc" in settings_source
     assert "local-lacc" in opencode_source
     assert "RuntimePilot search sloj" in opencode_source
@@ -872,7 +978,7 @@ def test_settings_and_opencode_source_include_web_search_controls_and_guidance()
 def test_search_page_source_makes_web_results_clickable_and_guides_toward_answer():
     source = Path("frontend/src/pages/SearchPage.tsx").read_text(encoding="utf-8")
 
-    assert "Compare providers" in source
+    assert "Uporedi providere" in source
     assert "DuckDuckGo" in source
     assert "Provider pretrage" in source
     assert "Pronađi veb izvore" in source
@@ -1046,6 +1152,47 @@ def test_theme_sensitive_controls_and_browser_surfaces_use_theme_variables():
     assert "var(--app-accent-strong)" in bundled_css
 
 
+def test_overlay_surfaces_use_solid_fill_to_avoid_transparent_bleed():
+    styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
+
+    assert "--app-overlay-solid-fill" in styles_source
+    assert "--app-overlay-solid-fill: rgb(17, 15, 12);" in styles_source
+    assert "--app-overlay-solid-fill: rgb(255, 252, 246);" in styles_source
+    assert "--app-overlay-solid-fill: rgb(13, 17, 24);" in styles_source
+    assert "--app-overlay-solid-fill: rgb(8, 18, 11);" in styles_source
+    assert "--app-overlay-solid-fill: rgb(7, 19, 32);" in styles_source
+
+    nav_surface_match = re.search(r"\.runtimepilot-nav-surface \{(?P<body>.*?)\n\}", styles_source, re.S)
+    assert nav_surface_match is not None
+    nav_surface_block = nav_surface_match.group("body")
+    assert "position: relative;" in nav_surface_block
+    assert "z-index: 40;" in nav_surface_block
+    assert "isolation: isolate;" in nav_surface_block
+
+    nav_menu_match = re.search(r"\.nav-menu-panel \{(?P<body>.*?)\n\}", styles_source, re.S)
+    assert nav_menu_match is not None
+    nav_menu_block = nav_menu_match.group("body")
+    assert "background-color: var(--app-overlay-solid-fill);" in nav_menu_block
+    assert "isolation: isolate;" in nav_menu_block
+
+    command_deck_match = re.search(r"\.runtimepilot-command-deck \{(?P<body>.*?)\n\}", styles_source, re.S)
+    assert command_deck_match is not None
+    command_deck_block = command_deck_match.group("body")
+    assert "background-color: var(--app-overlay-solid-fill);" in command_deck_block
+    assert "isolation: isolate;" in command_deck_block
+
+    live_strip_match = re.search(r"\.live-resource-strip \{(?P<body>.*?)\n\}", styles_source, re.S)
+    assert live_strip_match is not None
+    live_strip_block = live_strip_match.group("body")
+    assert "background-color: var(--app-overlay-solid-fill);" in live_strip_block
+    assert "isolation: isolate;" in live_strip_block
+
+    live_item_match = re.search(r"\.live-resource-inline-item \{(?P<body>.*?)\n\}", styles_source, re.S)
+    assert live_item_match is not None
+    live_item_block = live_item_match.group("body")
+    assert "background-color:" in live_item_block
+
+
 def test_compatibility_modal_source_and_packaged_frontend_include_runtime_breakdown_copy():
     source = Path("frontend/src/components/CompatibilityCalculatorPanel.tsx").read_text(encoding="utf-8")
 
@@ -1086,6 +1233,41 @@ def test_app_source_and_packaged_frontend_include_compatibility_navigation():
     assert "Udaljeni katalog" in bundled_text
 
 
+def test_runtimepilot_primes_slow_server_and_models_payloads_for_warm_navigation():
+    app_source = Path("frontend/src/App.tsx").read_text(encoding="utf-8")
+    api_source = Path("frontend/src/lib/api.ts").read_text(encoding="utf-8")
+    server_page_source = Path("frontend/src/pages/ServerPage.tsx").read_text(encoding="utf-8")
+    models_page_source = Path("frontend/src/pages/ModelsPage.tsx").read_text(encoding="utf-8")
+    settings_page_source = Path("frontend/src/pages/SettingsPage.tsx").read_text(encoding="utf-8")
+
+    assert "primeServerStatusCache" in api_source
+    assert "primeModelsCache" in api_source
+    assert "primeSettingsCache" in api_source
+    assert "peekServerStatusCache" in api_source
+    assert "peekModelsCache" in api_source
+    assert "peekSettingsCache" in api_source
+
+    assert "primeServerStatusCache" in app_source
+    assert "primeModelsCache" in app_source
+    assert "primeSettingsCache" in app_source
+
+    assert "useState<ServerStatusPayload | null>(() =>" in server_page_source
+    assert "peekServerStatusCache()" in server_page_source
+    assert "useState<ModelsPayload | null>(() => peekModelsCache())" in models_page_source
+    assert "useState<SettingsPayload | null>(() => peekSettingsCache())" in settings_page_source
+    assert "fetchSettings({ preferCache: true })" in settings_page_source
+    assert 'loadingText="Učitavam podešavanja..."' in settings_page_source
+
+
+def test_runtimepilot_nav_compacts_secondary_cues_on_medium_widths():
+    styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
+
+    assert "@media (max-width: 1180px)" in styles_source
+    assert ".runtimepilot-nav-button-cue," in styles_source
+    assert ".runtimepilot-nav-menu-cue {" in styles_source or ".runtimepilot-nav-menu-cue," in styles_source
+    assert "display: none;" in styles_source
+
+
 def test_compatibility_page_source_uses_local_and_remote_model_inputs():
     source = Path("frontend/src/pages/CompatibilityPage.tsx").read_text(encoding="utf-8")
 
@@ -1101,8 +1283,8 @@ def test_models_and_browser_source_offer_compatibility_tab_handoff():
     models_source = Path("frontend/src/pages/ModelsPage.tsx").read_text(encoding="utf-8")
     browser_source = Path("frontend/src/pages/BrowserPage.tsx").read_text(encoding="utf-8")
 
-    assert "Compatibility tab" in models_source
-    assert "Compatibility tab" in browser_source
+    assert "Tab kompatibilnosti" in models_source
+    assert "Tab kompatibilnosti" in browser_source
 
 
 def test_compatibility_handoff_includes_installed_size_and_resolved_path_for_local_models():
@@ -1291,14 +1473,14 @@ def test_shared_ux_components_and_guided_flow_copy_are_present_in_core_pages():
     assert "PageDataStateCard" in models_source
 
     assert "Browser tok" in browser_source
-    assert "Refresh katalog" in browser_source
+    assert "Osveži katalog" in browser_source
     assert "Dodaj lokalno ili proveri fit" in browser_source
     assert "PageFlowCard" in browser_source
     assert "PageDataStateCard" in browser_source
 
-    assert "Search tok" in search_source
+    assert "Tok pretrage" in search_source
     assert "Izaberi provider" in search_source
-    assert "Pokreni search, answer ili compare" in search_source
+    assert "Pokreni pretragu, odgovor ili poređenje" in search_source
     assert "PageFlowCard" in search_source
     assert "PageDataStateCard" in search_source
 
@@ -1349,6 +1531,30 @@ def test_shared_ux_components_and_guided_flow_copy_are_present_in_core_pages():
     assert ".page-data-state-card" in styles_source
 
 
+def test_models_and_browser_copy_use_serbian_collapse_and_unknown_labels():
+    models_source = Path("frontend/src/pages/ModelsPage.tsx").read_text(encoding="utf-8")
+    browser_source = Path("frontend/src/pages/BrowserPage.tsx").read_text(encoding="utf-8")
+    compatibility_source = Path("frontend/src/pages/CompatibilityPage.tsx").read_text(
+        encoding="utf-8"
+    )
+    styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
+
+    assert '"Proširi"' in models_source
+    assert '"Skupi"' in models_source
+    assert '"nepoznato"' in models_source
+    assert '"Nepoznato"' in browser_source
+    assert '"Nepoznat model"' in browser_source
+    assert '"Svi izvori"' in browser_source
+    assert '"Sve familije"' in browser_source
+    assert '"Sve kvantizacije"' in browser_source
+    assert '"Bilo koji MTP"' in browser_source
+    assert '"Najnovije prvo"' in browser_source
+    assert '"Nepoznato"' in compatibility_source
+    assert '"Nepoznat model"' in compatibility_source
+    assert "@media (max-width: 760px)" in styles_source
+    assert "grid-template-columns: repeat(2, minmax(0, 1fr));" in styles_source
+
+
 def test_runtimepilot_phase_two_copy_is_present_in_source_and_bundle():
     def normalize_runtimepilot_copy(text: str) -> str:
         return " ".join(text.split())
@@ -1396,7 +1602,7 @@ def test_runtimepilot_phase_two_copy_is_present_in_source_and_bundle():
     assert "opšti radni kontekst RuntimePilot-a" in settings_source
     assert "RuntimePilot ga restartuje" in settings_source
     assert "ovde u RuntimePilot-u" in tuning_lab_source
-    assert "sesiju uživo gledaš ovde u RuntimePilot-u" in tuning_lab_source
+    assert "OpenCode sesija uživo je prikazana ovde u RuntimePilot-u" in tuning_lab_source
     assert "preset vodi RuntimePilot odmah" in workflows_source
     assert "za ceo RuntimePilot" in workflows_source
     assert "kada preset aktiviraš kroz RuntimePilot" in workflows_source
@@ -1432,11 +1638,13 @@ def test_runtimepilot_phase_three_visual_shell_and_diacritics_are_present():
     css_assets = list((dist_root / "assets").glob("index-*.css"))
 
     assert "runtimepilot-hero-panel" in layout_source
-    assert "runtimepilot-shell-markers" in layout_source
-    assert "shellMarkers" in app_source
+    assert "runtimepilot-hero-brandline" in layout_source
+    assert "runtimepilot-hero-copy" in layout_source
+    assert "shellMarkers" not in app_source
     assert ".runtimepilot-hero-panel" in styles_source
     assert ".runtimepilot-nav-surface" in styles_source
-    assert ".runtimepilot-shell-markers" in styles_source
+    assert ".runtimepilot-hero-brandline" in styles_source
+    assert ".runtimepilot-hero-copy" in styles_source
     assert "čekam prve benchmark uzorke" in benchmark_source
     assert "više važnih podešavanja" in compatibility_source
     assert "Run je prekinut pre nego što je ovaj slot završio." in tuning_lab_service_source
@@ -1489,6 +1697,7 @@ def test_runtimepilot_phase_four_and_five_shared_shell_is_present():
 def test_runtimepilot_phase_six_visual_redesign_surfaces_icons_and_control_deck_elements():
     app_source = Path("frontend/src/App.tsx").read_text(encoding="utf-8")
     layout_source = Path("frontend/src/components/Layout.tsx").read_text(encoding="utf-8")
+    brand_source = Path("frontend/src/components/BrandLockup.tsx").read_text(encoding="utf-8")
     flow_source = Path("frontend/src/components/PageFlowCard.tsx").read_text(encoding="utf-8")
     telemetry_source = Path("frontend/src/components/TelemetryPanel.tsx").read_text(encoding="utf-8")
     home_source = Path("frontend/src/pages/HomePage.tsx").read_text(encoding="utf-8")
@@ -1500,13 +1709,19 @@ def test_runtimepilot_phase_six_visual_redesign_surfaces_icons_and_control_deck_
     css_assets = list((dist_root / "assets").glob("index-*.css"))
 
     assert "runtimepilot-nav-button-glyph" in app_source
-    assert "runtimepilot-shell-marker-icon" in layout_source
+    assert "runtimepilot-hero-brandline" in layout_source
+    assert "runtimepilot-hero-copy" in layout_source
+    assert "brand-lockup" in brand_source
     assert "runtimepilot-page-shell-signal" in layout_source
     assert "runtimepilot-section-glyph" in flow_source
     assert "telemetry-radar-shell" in telemetry_source
-    assert "Mission control" in home_source
+    assert "Komandni pregled" in home_source
     assert ".runtimepilot-nav-button-glyph" in styles_source
-    assert ".runtimepilot-shell-marker-icon" in styles_source
+    assert ".runtimepilot-hero-brandline" in styles_source
+    assert ".runtimepilot-hero-copy" in styles_source
+    assert ".brand-lockup" in styles_source
+    assert "grid-template-columns: minmax(300px, 520px) minmax(0, 1fr);" in styles_source
+    assert "max-width: 42rem;" in styles_source
     assert ".runtimepilot-page-shell-signal" in styles_source
     assert ".runtimepilot-section-glyph" in styles_source
     assert ".telemetry-radar-shell" in styles_source
@@ -1517,9 +1732,102 @@ def test_runtimepilot_phase_six_visual_redesign_surfaces_icons_and_control_deck_
     bundled_js = "\n".join(path.read_text(encoding="utf-8") for path in js_assets)
     bundled_css = "\n".join(path.read_text(encoding="utf-8") for path in css_assets)
 
-    assert "Mission control" in bundled_js
-    assert ".runtimepilot-shell-marker-icon" in bundled_css
+    assert "Komandni pregled" in bundled_js
+    assert "Control. Monitor. Optimize." in bundled_js
+    assert ".runtimepilot-hero-brandline" in bundled_css
+    assert ".runtimepilot-hero-copy" in bundled_css
+    assert ".brand-lockup" in bundled_css
     assert ".runtimepilot-page-shell-signal" in bundled_css
     assert ".runtimepilot-section-glyph" in bundled_css
     assert ".telemetry-radar-shell" in bundled_css
     assert ".mission-control-grid" in bundled_css
+
+
+def test_help_page_and_more_menu_include_runtimepilot_help_center():
+    app_source = Path("frontend/src/App.tsx").read_text(encoding="utf-8")
+    help_source = Path("frontend/src/pages/HelpPage.tsx").read_text(encoding="utf-8")
+    icon_source = Path("frontend/src/components/RuntimePilotIcon.tsx").read_text(encoding="utf-8")
+    styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
+    dist_root = Path(
+        "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
+    )
+    js_assets = list((dist_root / "assets").glob("index-*.js"))
+    css_assets = list((dist_root / "assets").glob("index-*.css"))
+
+    assert "HelpPage" in app_source
+    assert 'help: { label: "Pomoć", cue: "Vodiči", icon: "help" }' in app_source
+    assert 'label: "Pomoć"' in app_source
+    assert 'pages: ["help"]' in app_source
+    assert "Brzi početak" in help_source
+    assert "Šta radi svaki tab" in help_source
+    assert "Rešavanje problema" in help_source
+    assert "Pojmovnik" in help_source
+    assert "Najčešći tokovi" in help_source
+    assert "help-signal-strip" in help_source
+    assert "GPU layers" in help_source
+    assert "Visok prioritet" in help_source
+    assert "Brza dijagnostika" in help_source
+    assert '"help"' in icon_source
+    assert ".help-overview-grid" in styles_source
+    assert ".help-glossary-grid" in styles_source
+    assert ".help-callout-card" in styles_source
+    assert ".help-path-grid" in styles_source
+    assert ".help-signal-strip" in styles_source
+    assert ".page-flow-card {\n  display: grid;" in styles_source
+    assert ".help-overview-shell,\n.help-section-card {\n  display: grid;" in styles_source
+    assert js_assets
+    assert css_assets
+
+    bundled_js = "\n".join(path.read_text(encoding="utf-8") for path in js_assets)
+    bundled_css = "\n".join(path.read_text(encoding="utf-8") for path in css_assets)
+
+    assert "Pomoć" in bundled_js
+    assert "Brzi početak" in bundled_js
+    assert "Rešavanje problema" in bundled_js
+    assert "Pojmovnik" in bundled_js
+    assert "Najčešći tokovi" in bundled_js
+    assert "Visok prioritet" in bundled_js
+    assert "Brza dijagnostika" in bundled_js
+    assert ".help-overview-grid" in bundled_css
+    assert ".page-flow-card" in bundled_css
+    assert ".help-overview-shell" in bundled_css
+    assert ".help-glossary-grid" in bundled_css
+
+
+def test_action_result_panel_source_uses_human_status_badges_and_clearer_copy():
+    source = Path("frontend/src/components/ActionResultPanel.tsx").read_text(encoding="utf-8")
+    styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
+
+    assert "Poslednja akcija" in source
+    assert "Rezultat je spreman u detaljima ispod" in source
+    assert "runtimepilot-action-head" in source
+    assert "runtimepilot-action-badge" in source
+    assert "runtimepilot-action-copy" in source
+    assert ".runtimepilot-action-head" in styles_source
+    assert ".runtimepilot-action-badge" in styles_source
+    assert ".runtimepilot-action-copy" in styles_source
+
+
+def test_models_page_stacks_action_column_before_it_turns_into_a_tall_narrow_tower():
+    styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
+    dist_root = Path(
+        "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
+    )
+    css_assets = list((dist_root / "assets").glob("index-*.css"))
+
+    assert ".model-item-header" in styles_source
+    assert "@media (max-width: 1180px)" in styles_source
+    assert "grid-template-columns: minmax(0, 1fr) 240px;" in styles_source
+    assert "display: grid;" in styles_source
+    assert "grid-template-columns: repeat(2, minmax(0, 1fr));" in styles_source
+    assert "justify-self: end;" in styles_source
+    assert "width: 300px;" in styles_source
+    assert "grid-template-columns: 1fr;" in styles_source
+    assert "grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));" in styles_source
+    assert "minmax(0, 1.08fr)" in styles_source
+    assert "minmax(0, 1.1fr)" in styles_source
+    assert css_assets
+
+    bundled_css = "\n".join(path.read_text(encoding="utf-8") for path in css_assets)
+
+    assert ".model-item-header" in bundled_css

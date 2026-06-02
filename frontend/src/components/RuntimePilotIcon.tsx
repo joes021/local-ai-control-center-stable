@@ -1,4 +1,4 @@
-type RuntimePilotIconName =
+﻿type RuntimePilotIconName =
   | "home"
   | "server"
   | "models"
@@ -17,6 +17,7 @@ type RuntimePilotIconName =
   | "logs"
   | "repair"
   | "updates"
+  | "help"
   | "runtime"
   | "control"
   | "privacy"
@@ -165,6 +166,14 @@ function iconPaths(name: RuntimePilotIconName) {
           <path d="M12 4v8" />
           <path d="m8.5 8.5 3.5 3.5 3.5-3.5" />
           <path d="M5 15v3h14v-3" />
+        </>
+      );
+    case "help":
+      return (
+        <>
+          <circle cx="12" cy="12" r="8" />
+          <path d="M9.4 9.2a2.8 2.8 0 1 1 4.8 2c-.65.7-1.42 1.1-1.92 1.78-.28.37-.38.72-.38 1.22" />
+          <circle cx="12" cy="17.2" r="0.9" fill="currentColor" stroke="none" />
         </>
       );
     case "runtime":

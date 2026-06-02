@@ -1,10 +1,16 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+﻿import { useEffect, useMemo, useRef, useState } from "react";
 
 import { BrandLockup } from "./components/BrandLockup";
 import { Layout } from "./components/Layout";
 import type { RuntimePilotIconName } from "./components/RuntimePilotIcon";
 import { RuntimePilotIcon } from "./components/RuntimePilotIcon";
-import { fetchSettings, fetchStatus } from "./lib/api";
+import {
+  fetchSettings,
+  fetchStatus,
+  primeModelsCache,
+  primeServerStatusCache,
+  primeSettingsCache,
+} from "./lib/api";
 import type { CompatibilityLaunchTarget } from "./lib/compatibility";
 import { applyTheme, readStoredTheme, THEME_CHANGED_EVENT } from "./lib/theme";
 import type { StatusPayload } from "./lib/types";
@@ -13,6 +19,7 @@ import { BrowserPage } from "./pages/BrowserPage";
 import { CompatibilityPage } from "./pages/CompatibilityPage";
 import { FleetPage } from "./pages/FleetPage";
 import { HomePage } from "./pages/HomePage";
+import { HelpPage } from "./pages/HelpPage";
 import { JobsPage } from "./pages/JobsPage";
 import { KnowledgePage } from "./pages/KnowledgePage";
 import { LogsPage } from "./pages/LogsPage";
@@ -31,7 +38,7 @@ const PAGE_META = {
   home: { label: "Početna", cue: "Pregled", icon: "home" },
   server: { label: "Server", cue: "Runtime", icon: "server" },
   fleet: { label: "Flota", cue: "Mašine", icon: "fleet" },
-  jobs: { label: "Poslovi", cue: "Queue", icon: "jobs" },
+  jobs: { label: "Poslovi", cue: "Red", icon: "jobs" },
   workflows: { label: "Radni tokovi", cue: "Automatika", icon: "workflows" },
   opencode: { label: "OpenCode", cue: "Agent", icon: "opencode" },
   models: { label: "Modeli", cue: "Biblioteka", icon: "models" },
@@ -46,6 +53,7 @@ const PAGE_META = {
   logs: { label: "Logovi", cue: "Tragovi", icon: "logs" },
   repair: { label: "Popravka", cue: "Oporavak", icon: "repair" },
   updates: { label: "Ažuriranja", cue: "Release", icon: "updates" },
+  help: { label: "Pomoć", cue: "Vodiči", icon: "help" },
 } as const satisfies Record<string, { label: string; cue: string; icon: RuntimePilotIconName }>;
 
 type PageKey = keyof typeof PAGE_META;
@@ -69,16 +77,13 @@ const MORE_PAGE_SECTIONS: Array<{ label: string; pages: PageKey[] }> = [
     label: "Održavanje",
     pages: ["logs", "repair", "updates"],
   },
+  {
+    label: "Pomoć",
+    pages: ["help"],
+  },
 ];
 
 const MORE_PAGES = MORE_PAGE_SECTIONS.flatMap((section) => section.pages);
-
-const shellMarkers = [
-  { label: "CONTROL", value: "Lokalno", icon: "control" as const },
-  { label: "RUNTIME", value: "Pod nadzorom", icon: "runtime" as const },
-  { label: "MODELS", value: "Spremni za rad", icon: "models" as const },
-  { label: "PRIVACY", value: "Bez clouda", icon: "privacy" as const },
-];
 
 const runtimePilotDeckTitle = "RuntimePilot Control Deck";
 const runtimePilotDeckSummary =
@@ -97,6 +102,12 @@ export default function App() {
   useEffect(() => {
     let active = true;
     applyTheme(readStoredTheme());
+    const modelsWarmTimer = window.setTimeout(() => {
+      void primeModelsCache().catch(() => null);
+    }, 250);
+
+    void primeServerStatusCache().catch(() => null);
+    void primeSettingsCache().catch(() => null);
 
     fetchStatus()
       .then((payload) => {
@@ -131,6 +142,7 @@ export default function App() {
 
     return () => {
       active = false;
+      window.clearTimeout(modelsWarmTimer);
       window.removeEventListener(THEME_CHANGED_EVENT, handleThemeChanged as EventListener);
     };
   }, []);
@@ -256,12 +268,16 @@ export default function App() {
 
   return (
     <Layout
-      brand={<BrandLockup version={status?.version ?? null} />}
+      brand={<BrandLockup />}
       deckSummary={runtimePilotDeckSummary}
       deckTitle={runtimePilotDeckTitle}
-      eyebrow="LOCAL AI RUNTIME CONTROL CENTER"
+      eyebrow={
+        <>
+          <span>LOCAL AI RUNTIME CONTROL CENTER</span>
+          {status?.version ? <span className="runtimepilot-hero-version">v{status.version}</span> : null}
+        </>
+      }
       nav={nav}
-      shellMarkers={shellMarkers}
       subtitle={
         <>
           <strong>Control. Monitor. Optimize.</strong>
@@ -337,6 +353,17 @@ export default function App() {
       {page === "logs" ? <LogsPage /> : null}
       {page === "repair" ? <RepairPage /> : null}
       {page === "updates" ? <UpdatesPage /> : null}
+      {page === "help" ? (
+        <HelpPage
+          onOpenBenchmark={() => setPage("benchmark")}
+          onOpenModels={() => setPage("models")}
+          onOpenOpenCode={() => setPage("opencode")}
+          onOpenSearch={() => setPage("search")}
+          onOpenServer={() => setPage("server")}
+          onOpenSettings={() => setPage("settings")}
+          onOpenTuningLab={() => setPage("tuningLab")}
+        />
+      ) : null}
     </Layout>
   );
 }
