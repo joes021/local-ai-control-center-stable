@@ -141,6 +141,94 @@ def test_layout_and_benchmark_source_show_persistent_resource_strip_and_mode_lab
     assert "CPU + RAM" in benchmark_source
 
 
+def test_app_and_layout_source_and_packaged_frontend_show_global_active_model_strip():
+    app_source = Path("frontend/src/App.tsx").read_text(encoding="utf-8")
+    layout_source = Path("frontend/src/components/Layout.tsx").read_text(encoding="utf-8")
+    styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
+    dist_root = Path(
+        "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
+    )
+    js_assets = list((dist_root / "assets").glob("index-*.js"))
+    css_assets = list((dist_root / "assets").glob("index-*.css"))
+
+    assert "activeModelStrip" in layout_source
+    assert "runtimepilot-active-model-strip" in app_source
+    assert "runtimepilot-active-model-primary" in app_source
+    assert "runtimepilot-active-model-meta" in app_source
+    assert "Otvori modele" in app_source
+    assert "Runtime aktivan" in app_source
+    assert "Nema aktivnog modela" in app_source
+    assert ".runtimepilot-active-model-strip" in styles_source
+    assert ".runtimepilot-active-model-primary" in styles_source
+    assert ".runtimepilot-active-model-open" in styles_source
+    assert ".runtimepilot-active-model-meta" in styles_source
+    assert js_assets
+    assert css_assets
+
+    bundled_js = "\n".join(path.read_text(encoding="utf-8") for path in js_assets)
+    bundled_css = "\n".join(path.read_text(encoding="utf-8") for path in css_assets)
+
+    assert "Aktivni model" in bundled_js
+    assert "Otvori modele" in bundled_js
+    assert "Runtime aktivan" in bundled_js
+    assert "Nema aktivnog modela" in bundled_js
+    assert ".runtimepilot-active-model-strip" in bundled_css
+    assert ".runtimepilot-active-model-primary" in bundled_css
+    assert ".runtimepilot-active-model-open" in bundled_css
+    assert ".runtimepilot-active-model-meta" in bundled_css
+
+
+def test_project_memory_source_and_packaged_frontend_include_global_strip_and_page():
+    app_source = Path("frontend/src/App.tsx").read_text(encoding="utf-8")
+    layout_source = Path("frontend/src/components/Layout.tsx").read_text(encoding="utf-8")
+    page_source = Path("frontend/src/pages/ProjectMemoryPage.tsx").read_text(encoding="utf-8")
+    api_source = Path("frontend/src/lib/api.ts").read_text(encoding="utf-8")
+    types_source = Path("frontend/src/lib/types.ts").read_text(encoding="utf-8")
+    styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
+    dist_root = Path(
+        "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
+    )
+    js_assets = list((dist_root / "assets").glob("index-*.js"))
+    css_assets = list((dist_root / "assets").glob("index-*.css"))
+
+    assert "projectMemory" in app_source
+    assert "Project Memory" in app_source
+    assert "projectMemoryStrip" in app_source
+    assert "Otvori memoriju" in app_source
+    assert "Cilj još nije postavljen" in app_source
+    assert "activeModelStrip" in layout_source
+    assert "projectMemoryStrip" in layout_source
+    assert "Posej iz task teksta" in page_source
+    assert "Sačuvaj Project Memory" in page_source
+    assert "Glavni fokus" in page_source
+    assert "Važna pravila" in page_source
+    assert "Već odlučeno" in page_source
+    assert "Napredak" in page_source
+    assert "Sledeće" in page_source
+    assert "fetchProjectMemory" in api_source
+    assert "seedProjectMemory" in api_source
+    assert "saveProjectMemory" in api_source
+    assert "ProjectMemoryPayload" in types_source
+    assert "ProjectMemorySavePayload" in types_source
+    assert ".runtimepilot-project-memory-strip" in styles_source
+    assert ".project-memory-grid" in styles_source
+    assert ".project-memory-item-row" in styles_source
+    assert js_assets
+    assert css_assets
+
+    bundled_js = "\n".join(path.read_text(encoding="utf-8") for path in js_assets)
+    bundled_css = "\n".join(path.read_text(encoding="utf-8") for path in css_assets)
+
+    assert "Project Memory" in bundled_js
+    assert "Otvori memoriju" in bundled_js
+    assert "Posej iz task teksta" in bundled_js
+    assert "Sačuvaj Project Memory" in bundled_js
+    assert "Cilj još nije postavljen" in bundled_js
+    assert ".runtimepilot-project-memory-strip" in bundled_css
+    assert ".project-memory-grid" in bundled_css
+    assert ".project-memory-item-row" in bundled_css
+
+
 def test_live_resource_strip_source_and_packaged_frontend_use_compact_clickable_two_line_metrics_without_horizontal_scroll():
     strip_source = Path("frontend/src/components/LiveResourceStrip.tsx").read_text(encoding="utf-8")
     styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
@@ -165,8 +253,14 @@ def test_live_resource_strip_source_and_packaged_frontend_use_compact_clickable_
     assert 'label: "Context"' in strip_source
     assert "Restart potreban" in strip_source
     assert "Usklađeno" in strip_source
+    assert "Staje u VRAM" in strip_source
+    assert "Ne staje u VRAM" in strip_source
+    assert "Sistemski RAM se i dalje koristi samo za mapiranje i pomoćne bafere." in strip_source
     assert ".live-resource-inline-row" in styles_source
     assert ".live-resource-inline-item" in styles_source
+    assert "live-resource-inline-item-compact-numeric" in strip_source
+    assert ".live-resource-inline-item-compact-numeric .live-resource-inline-value" in styles_source
+    assert "padding: 7px 9px;" in styles_source
     assert "grid-template-columns: minmax(0, 0.58fr) minmax(0, 0.94fr) minmax(0, 0.94fr) minmax(0, 0.96fr) minmax(0, 1.08fr) minmax(0, 1.08fr) minmax(0, 0.82fr) minmax(0, 1.28fr);" in styles_source
     assert "grid-template-rows: auto auto;" in styles_source
     assert "overflow-x: auto;" not in styles_source
@@ -186,20 +280,25 @@ def test_live_resource_strip_source_and_packaged_frontend_use_compact_clickable_
     assert "Klikni stavku za pun detalj" in bundled_js
     assert "Izaberi CPU, RAM, VRAM, režim, offload ili GPU kada želiš pun kontekst." in bundled_js
     assert "Hibrid" in bundled_js
-    assert "Puni GPU fit" in bundled_js
+    assert "GPU drži ceo model" in bundled_js
     assert "Otvori VRAM tuning" in bundled_js
     assert "RTX 3060" in bundled_js
     assert "Context" in bundled_js
     assert "Restart potreban" in bundled_js
     assert "Usklađeno" in bundled_js
+    assert "Staje u VRAM" in bundled_js
+    assert "Ne staje u VRAM" in bundled_js
+    assert "Sistemski RAM se i dalje koristi samo za mapiranje i pomoćne bafere." in bundled_js
     assert "Potreban restart runtime-a" in bundled_js
     assert "Config ctx" in bundled_js
     assert "Živi ctx" in bundled_js
     assert ".live-resource-inline-row" in bundled_css
     assert ".live-resource-inline-item" in bundled_css
+    assert ".live-resource-inline-item-compact-numeric .live-resource-inline-value" in bundled_css
     assert ".live-resource-inline-button" in bundled_css
     assert ".resource-chip-detail-panel" in bundled_css
     assert ".resource-chip-detail-panel-idle" in bundled_css
+    assert "padding:7px 9px" in bundled_css
     assert "grid-template-columns:minmax(0,.58fr) minmax(0,.94fr) minmax(0,.94fr) minmax(0,.96fr) minmax(0,1.08fr) minmax(0,1.08fr) minmax(0,.82fr) minmax(0,1.28fr)" in bundled_css
 
 

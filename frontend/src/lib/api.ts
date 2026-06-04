@@ -26,6 +26,8 @@
   OpenCodeStatusPayload,
   OpenCodeStepSchemaPayload,
   OpenCodeStepValues,
+  ProjectMemoryPayload,
+  ProjectMemorySavePayload,
   ServerStatusPayload,
   SettingsProfileValues,
   SettingsPayload,
@@ -591,6 +593,30 @@ export async function fetchTuningLabRunStatus(): Promise<TuningLabRun | Record<s
     throw new Error(`Tuning Lab run status request failed: ${response.status}`);
   }
   return response.json() as Promise<TuningLabRun | Record<string, never>>;
+}
+
+export async function fetchProjectMemory(): Promise<ProjectMemoryPayload> {
+  const response = await fetch("/api/project-memory", { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(`Project Memory request failed: ${response.status}`);
+  }
+  return response.json() as Promise<ProjectMemoryPayload>;
+}
+
+export async function seedProjectMemory(payload: {
+  goal: string;
+  taskPrompt: string;
+}): Promise<ProjectMemoryPayload> {
+  return postJson<typeof payload, ProjectMemoryPayload>("/api/project-memory/seed", payload);
+}
+
+export async function saveProjectMemory(
+  payload: ProjectMemorySavePayload,
+): Promise<ActionResult & { memory: ProjectMemoryPayload }> {
+  return postJson<ProjectMemorySavePayload, ActionResult & { memory: ProjectMemoryPayload }>(
+    "/api/project-memory/save",
+    payload,
+  );
 }
 
 export async function queueTuningLabExperiment(payload: {

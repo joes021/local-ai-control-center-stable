@@ -2727,3 +2727,63 @@ def test_tuning_lab_slot_runtime_retries_without_explicit_main_gpu_when_runtime_
     assert "ponovio start bez `--main-gpu`" in result["launchFallbackReason"]
     assert "ponovio start bez `--main-gpu`" in result["runtimeDiagnostics"]["summary"]
     assert result["runtimePid"] == 77702
+
+
+def test_tuning_lab_run_start_seeds_project_memory_from_task(tmp_path: Path, monkeypatch):
+    from local_ai_control_center_installer.control_center_backend.services import (
+        project_memory_service,
+        tuning_lab_service,
+    )
+
+    install_root = tmp_path / "install-root"
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+
+    monkeypatch.setattr(
+        tuning_lab_service,
+        "_execute_tuning_experiment",
+        lambda experiment, config=None: {
+            **dict(experiment),
+            "status": "completed",
+            "slots": [],
+            "finishedAt": "2026-06-04T10:00:00Z",
+        },
+    )
+    monkeypatch.setattr(
+        tuning_lab_service,
+        "_ensure_tuning_worker",
+        lambda config=None: None,
+    )
+    monkeypatch.setattr(
+        tuning_lab_service,
+        "_load_tuning_lab_prerequisites",
+        lambda config, working_directory="": {
+            "canQueue": True,
+            "runBlockers": [],
+            "configuredWorkingDirectory": working_directory or str(tmp_path / "project"),
+            "workingDirectory": working_directory or str(tmp_path / "project"),
+            "workingDirectoryWasAdjusted": False,
+            "runtimeBinaryReady": True,
+            "activeModelReady": True,
+            "opencodeReady": True,
+        },
+    )
+
+    queued = tuning_lab_service.enqueue_tuning_experiment(
+        {
+            "name": "Demo task",
+            "goal": "code",
+            "taskPrompt": "Mora imati score.\nPrvo dovrši collision.",
+            "workingDirectory": str(tmp_path / "project"),
+        },
+        start_worker=False,
+    )
+
+    assert queued["status"] == "accepted"
+
+    processed = tuning_lab_service.run_next_tuning_experiment()
+
+    assert processed["status"] == "ok"
+    memory = project_memory_service.get_project_memory()
+    assert memory["goal"]["text"] == "Demo task"
+    assert any("score" in item["text"].lower() for item in memory["rules"])
+    assert any("collision" in item["text"].lower() for item in memory["nextSteps"])

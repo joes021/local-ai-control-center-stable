@@ -59,7 +59,7 @@ function formatGiBCompact(value: number | null | undefined) {
 }
 
 function formatUsedTotalGiBCompact(used: number | null | undefined, total: number | null | undefined) {
-  return `${formatGiBCompact(used)} / ${formatGiB(total)}`;
+  return `${formatGiBCompact(used)}/${formatGiBCompact(total)}`;
 }
 
 function formatMiB(value: number | null | undefined) {
@@ -93,6 +93,36 @@ function formatContext(value: number | null | undefined) {
     return "--";
   }
   return String(Math.round(value));
+}
+
+function sumFiniteMiB(...values: Array<number | null | undefined>) {
+  let total = 0;
+  let found = false;
+  for (const value of values) {
+    if (typeof value !== "number" || !Number.isFinite(value)) {
+      continue;
+    }
+    total += value;
+    found = true;
+  }
+  return found ? total : null;
+}
+
+function formatGpuLayerShare(
+  diagnostics: ObservabilityPayload["runtime"]["runtimeDiagnostics"] | null | undefined,
+) {
+  const gpuLayers = diagnostics?.confirmedGpuLayers;
+  const totalLayers = diagnostics?.confirmedTotalLayers;
+  if (
+    typeof gpuLayers !== "number" ||
+    !Number.isFinite(gpuLayers) ||
+    typeof totalLayers !== "number" ||
+    !Number.isFinite(totalLayers) ||
+    totalLayers <= 0
+  ) {
+    return null;
+  }
+  return `${Math.round(gpuLayers)}/${Math.round(totalLayers)}`;
 }
 
 function buildModeTone(modeId: string | undefined) {
@@ -212,31 +242,132 @@ export function LiveResourceStrip({ onOpenSettingsSection }: LiveResourceStripPr
       return [];
     }
 
+    const diagnostics = observability.runtime.runtimeDiagnostics;
     const simplifiedGpuName = simplifyGpuName(selectedGpu?.name || observability.system.gpuName);
     const detailedGpuName = selectedGpu?.name || observability.system.gpuName || "GPU nije dostupan";
-    const modeValue =
-      observability.runtime.executionModeId === "hybrid-vram-ram" && hybridEstimate
-        ? `Hibrid • +${formatCompactMemoryMiB(hybridEstimate.estimatedRamSpillMiB)} RAM`
-        : observability.runtime.executionModeLabel || "Čeka potvrdu";
-    const offloadValue =
-      observability.runtime.executionModeId === "hybrid-vram-ram" &&
-      hybridEstimate?.estimatedAdditionalVramToFitMiB != null
-        ? `${observability.runtime.offloadLabel || "Čeka potvrdu"} • Puni GPU fit +${formatCompactMemoryMiB(
-            hybridEstimate.estimatedAdditionalVramToFitMiB,
-          )}`
-        : observability.runtime.offloadLabel || "Čeka potvrdu";
-    const configuredContext = observability.runtime.runtimeDiagnostics?.configuredContext ?? null;
-    const effectiveProcessContext = observability.runtime.runtimeDiagnostics?.effectiveProcessContext ?? null;
-    const contextMismatch = observability.runtime.runtimeDiagnostics?.contextMismatch === true;
-    const contextAlignmentLabel = observability.runtime.runtimeDiagnostics?.contextAlignmentLabel || "Čeka proveru";
+    const configuredContext = diagnostics?.configuredContext ?? null;
+    const effectiveProcessContext = diagnostics?.effectiveProcessContext ?? null;
+    const contextMismatch = diagnostics?.contextMismatch === true;
+    const contextAlignmentLabel = diagnostics?.contextAlignmentLabel || "Čeka proveru";
     const contextAlignmentSummary =
-      observability.runtime.runtimeDiagnostics?.contextAlignmentSummary ||
+      diagnostics?.contextAlignmentSummary ||
       "Ovde vidiš da li zapisani config i živi runtime proces zaista rade sa istim context brojem.";
     const contextStatusLabel = buildContextStatusLabel(
       contextMismatch,
       configuredContext,
       effectiveProcessContext,
     );
+    const gpuLayerShare = formatGpuLayerShare(diagnostics);
+    const gpuLayerShareLabel = gpuLayerShare ? `${gpuLayerShare} na GPU-u` : "Čeka potvrdu";
+    const totalGpuFootprintMiB = sumFiniteMiB(
+      diagnostics?.modelBufferMiB,
+      diagnostics?.kvBufferMiB,
+      diagnostics?.computeBufferMiB,
+    );
+    const cpuMappedMiB = diagnostics?.cpuMappedModelBufferMiB ?? null;
+    const kvBufferMiB = diagnostics?.kvBufferMiB ?? null;
+    const totalGpuFootprintLabel = formatCompactMemoryMiB(totalGpuFootprintMiB);
+    const selectedGpuTotalLabel = formatGiB(observability.runtime.selectedGpuTotalGiB ?? selectedGpu?.totalGiB ?? null);
+
+    let modeValue = observability.runtime.executionModeLabel || "Čeka potvrdu";
+    let modeTitle = `Režim: ${observability.runtime.executionModeLabel || "Čeka potvrdu"}`;
+    let modeDetailTitle = observability.runtime.executionModeLabel || "Čeka potvrdu";
+    let modeDetailValue = observability.runtime.executionModeLabel || "Čeka potvrdu";
+    let modeDetailDescription =
+      observability.runtime.executionModeSummary || "RuntimePilot još čeka dovoljno signala za preciznu klasifikaciju.";
+
+    if (observability.runtime.executionModeId === "gpu-vram") {
+      modeValue = "Staje u VRAM";
+      modeTitle = gpuLayerShare
+        ? `Režim: model staje u VRAM | ${gpuLayerShareLabel}`
+        : "Režim: model staje u VRAM";
+      modeDetailTitle = "Model staje u VRAM";
+      modeDetailValue =
+        totalGpuFootprintMiB != null
+          ? `${totalGpuFootprintLabel} / ${selectedGpuTotalLabel} VRAM u radu`
+          : "Svi slojevi modela su na GPU-u";
+      modeDetailDescription = [
+        "Svi slojevi modela su potvrđeni na GPU-u, pa jezgro modela staje u VRAM.",
+        totalGpuFootprintMiB != null
+          ? `Trenutni model + KV cache + compute buffer zauzimaju oko ${totalGpuFootprintLabel} VRAM-a.`
+          : null,
+        kvBufferMiB != null ? `KV cache je prijavljen na GPU-u i trenutno zauzima oko ${formatCompactMemoryMiB(kvBufferMiB)}.` : null,
+        cpuMappedMiB != null
+          ? `Sistemski RAM se i dalje koristi samo za mapiranje i pomoćne bafere. Trenutno je to oko ${formatCompactMemoryMiB(cpuMappedMiB)}, ali to nije znak da je deo modela ispao iz VRAM-a.`
+          : "Sistemski RAM se i dalje koristi samo za mapiranje i pomoćne bafere.",
+      ]
+        .filter(Boolean)
+        .join(" ");
+    } else if (observability.runtime.executionModeId === "hybrid-vram-ram" && hybridEstimate) {
+      modeValue = `Ne staje • +${formatCompactMemoryMiB(hybridEstimate.estimatedRamSpillMiB)} RAM`;
+      modeTitle = `Režim: nije sve stalo u VRAM | RAM preliv ${formatCompactMemoryMiB(hybridEstimate.estimatedRamSpillMiB)}`;
+      modeDetailTitle = "Ne staje u VRAM";
+      modeDetailValue = gpuLayerShare ? `${gpuLayerShareLabel} • +${formatCompactMemoryMiB(hybridEstimate.estimatedRamSpillMiB)} RAM` : `+${formatCompactMemoryMiB(hybridEstimate.estimatedRamSpillMiB)} RAM`;
+      modeDetailDescription = [
+        `Nije sve stalo u VRAM. Deo modela ili radnih bafera trenutno se oslanja na sistemski RAM, a procena preliva je oko ${formatCompactMemoryMiB(hybridEstimate.estimatedRamSpillMiB)}.`,
+        hybridEstimate.estimatedAdditionalVramToFitMiB != null
+          ? `Za čist GPU fit trebalo bi još približno ${formatCompactMemoryMiB(hybridEstimate.estimatedAdditionalVramToFitMiB)} VRAM-a.`
+          : null,
+        kvBufferMiB != null ? `KV cache je već prijavljen na GPU-u i trenutno zauzima oko ${formatCompactMemoryMiB(kvBufferMiB)}.` : null,
+      ]
+        .filter(Boolean)
+        .join(" ");
+    } else if (observability.runtime.executionModeId === "cpu-ram") {
+      modeValue = "Van VRAM-a";
+      modeTitle = "Režim: model nije potvrđen na GPU-u";
+      modeDetailTitle = "Model nije na GPU-u";
+      modeDetailValue = "CPU + RAM";
+      modeDetailDescription =
+        "Runtime trenutno nema potvrđen GPU offload, pa model radi preko CPU-a i sistemskog RAM-a.";
+    }
+
+    let offloadValue = observability.runtime.offloadLabel || "Čeka potvrdu";
+    let offloadTitle = `Offload: ${observability.runtime.offloadLabel || "Čeka potvrdu"}`;
+    let offloadDetailTitle = observability.runtime.offloadLabel || "Čeka potvrdu";
+    let offloadDetailValue = observability.runtime.offloadSummary || observability.runtime.offloadLabel || "Čeka potvrdu";
+    let offloadDetailDescription =
+      diagnostics?.confirmedSummary || observability.runtime.offloadSummary || "Nema dodatnog offload detalja.";
+
+    if (observability.runtime.executionModeId === "gpu-vram") {
+      offloadValue = gpuLayerShareLabel;
+      offloadTitle = `Offload: ${gpuLayerShareLabel}`;
+      offloadDetailTitle = "GPU drži ceo model";
+      offloadDetailValue = gpuLayerShare ? `${gpuLayerShare} slojeva na GPU-u` : "GPU offload potvrđen";
+      offloadDetailDescription = [
+        gpuLayerShare
+          ? `GPU offload je potvrđen i svih ${gpuLayerShare} slojeva modela su na GPU-u.`
+          : "GPU offload je potvrđen i model je na GPU-u.",
+        kvBufferMiB != null ? `KV cache je takođe prijavljen na GPU-u (~${formatCompactMemoryMiB(kvBufferMiB)}).` : null,
+        cpuMappedMiB != null
+          ? `Sistemski RAM pomaže samo kroz mapiranje i pomoćne bafere (~${formatCompactMemoryMiB(cpuMappedMiB)}), ne zato što je deo modela ostao van VRAM-a.`
+          : "Sistemski RAM pomaže samo kroz mapiranje i pomoćne bafere, ne zato što je deo modela ostao van VRAM-a.",
+      ]
+        .filter(Boolean)
+        .join(" ");
+    } else if (observability.runtime.executionModeId === "hybrid-vram-ram" && hybridEstimate) {
+      offloadValue = gpuLayerShareLabel;
+      offloadTitle = `Offload: ${gpuLayerShareLabel} | RAM preliv ${formatCompactMemoryMiB(hybridEstimate.estimatedRamSpillMiB)}`;
+      offloadDetailTitle = "GPU + RAM zajedno";
+      offloadDetailValue = gpuLayerShare ? `${gpuLayerShare} slojeva na GPU-u` : "RAM pomaže GPU-u";
+      offloadDetailDescription = [
+        gpuLayerShare
+          ? `Na GPU-u je potvrđeno ${gpuLayerShare} slojeva, ali nije sve stalo u VRAM.`
+          : "GPU učestvuje u radu modela, ali nije sve stalo u VRAM.",
+        `Trenutni RAM preliv procenjen je na oko ${formatCompactMemoryMiB(hybridEstimate.estimatedRamSpillMiB)}.`,
+        hybridEstimate.estimatedAdditionalVramToFitMiB != null
+          ? `Za čist GPU fit nedostaje još približno ${formatCompactMemoryMiB(hybridEstimate.estimatedAdditionalVramToFitMiB)} VRAM-a.`
+          : null,
+      ]
+        .filter(Boolean)
+        .join(" ");
+    } else if (observability.runtime.executionModeId === "cpu-ram") {
+      offloadValue = "GPU ne drži model";
+      offloadTitle = "Offload: GPU ne drži model";
+      offloadDetailTitle = "GPU nije uključen u model";
+      offloadDetailValue = "CPU + RAM";
+      offloadDetailDescription =
+        "GPU offload nije potvrđen, pa se model oslanja na CPU i sistemski RAM.";
+    }
 
     const result: ResourceMetric[] = [
       {
@@ -274,22 +405,10 @@ export function LiveResourceStrip({ onOpenSettingsSection }: LiveResourceStripPr
         label: "Režim",
         icon: "runtime",
         value: modeValue,
-        title:
-          observability.runtime.executionModeId === "hybrid-vram-ram" && hybridEstimate
-            ? `Režim: ${observability.runtime.executionModeLabel} | Procena RAM preliva: ${formatCompactMemoryMiB(
-                hybridEstimate.estimatedRamSpillMiB,
-              )}`
-            : `Režim: ${observability.runtime.executionModeLabel || "Čeka potvrdu"}`,
-        detailTitle: observability.runtime.executionModeLabel || "Čeka potvrdu",
-        detailValue: modeValue,
-        detailDescription:
-          observability.runtime.executionModeId === "hybrid-vram-ram" && hybridEstimate
-            ? `Procena RAM preliva je oko ${formatCompactMemoryMiB(
-                hybridEstimate.estimatedRamSpillMiB,
-              )}. To je aproksimacija na osnovu odnosa GPU slojeva i učitanog model buffer-a.`
-            :
-              observability.runtime.executionModeSummary ||
-              "RuntimePilot još čeka dovoljno signala za preciznu klasifikaciju.",
+        title: modeTitle,
+        detailTitle: modeDetailTitle,
+        detailValue: modeDetailValue,
+        detailDescription: modeDetailDescription,
         toneClassName: buildModeTone(observability.runtime.executionModeId),
       },
       {
@@ -297,24 +416,10 @@ export function LiveResourceStrip({ onOpenSettingsSection }: LiveResourceStripPr
         label: "Offload",
         icon: "control",
         value: offloadValue,
-        title:
-          observability.runtime.executionModeId === "hybrid-vram-ram" &&
-          hybridEstimate?.estimatedAdditionalVramToFitMiB != null
-            ? `Offload: ${observability.runtime.offloadLabel || "Čeka potvrdu"} | Još VRAM-a za puni GPU fit: ${formatCompactMemoryMiB(
-                hybridEstimate.estimatedAdditionalVramToFitMiB,
-              )}`
-            : `Offload: ${observability.runtime.offloadLabel || "Čeka potvrdu"}`,
-        detailTitle: observability.runtime.offloadLabel || "Čeka potvrdu",
-        detailValue: observability.runtime.offloadSummary || observability.runtime.offloadLabel || "Čeka potvrdu",
-        detailDescription:
-          observability.runtime.executionModeId === "hybrid-vram-ram" &&
-          hybridEstimate?.estimatedAdditionalVramToFitMiB != null
-            ? `Za isti model i isti context trebalo bi približno još ${formatCompactMemoryMiB(
-                hybridEstimate.estimatedAdditionalVramToFitMiB,
-              )} VRAM-a da stane potpuno na GPU bez oslanjanja na RAM.`
-            : observability.runtime.runtimeDiagnostics?.confirmedSummary ||
-              observability.runtime.offloadSummary ||
-              "Nema dodatnog offload detalja.",
+        title: offloadTitle,
+        detailTitle: offloadDetailTitle,
+        detailValue: offloadDetailValue,
+        detailDescription: offloadDetailDescription,
         toneClassName: buildModeTone(observability.runtime.executionModeId),
       },
       {
@@ -381,11 +486,15 @@ export function LiveResourceStrip({ onOpenSettingsSection }: LiveResourceStripPr
     selectedMetric != null && ["vram", "mode", "offload", "context", "process", "gpu"].includes(selectedMetric.key);
   const detailHint =
     selectedMetric?.key === "mode" || selectedMetric?.key === "offload" || selectedMetric?.key === "context"
-      ? contextFitEstimate?.suggestedContext
-        ? `Procena govori da bi context oko ${contextFitEstimate.suggestedContext} tokena bio sledeći razuman pokušaj za čistiji GPU fit.`
-        : contextFitEstimate?.contextOnlyCanFit === false
-          ? "Samo spuštanje context-a verovatno nije dovoljno; pogledaj GPU layers override i po potrebi lakši quant/model."
-          : "Za precizniju VRAM fit procenu pusti runtime da prijavi čitljiv KV buffer."
+      ? observability?.runtime.executionModeId === "gpu-vram"
+        ? observability.runtime.runtimeDiagnostics?.kvBufferMiB != null
+          ? "Trenutni KV buffer je već prijavljen, pa ovde vidiš realan GPU fit za ovaj runtime."
+          : "KV buffer još nije prijavljen, pa će procena GPU zauzeća biti preciznija posle prve ozbiljnije generacije."
+        : contextFitEstimate?.suggestedContext
+          ? `Ako želiš manji RAM preliv, sledeći razuman pokušaj je context oko ${contextFitEstimate.suggestedContext} tokena.`
+          : contextFitEstimate?.contextOnlyCanFit === false
+            ? "Ni samo manji context verovatno nije dovoljan; tada treba još VRAM-a ili lakši quant/model."
+            : "KV buffer još nije prijavljen, pa će procena biti preciznija kada runtime napravi čitljiv GPU trag."
       : null;
 
   if (!observability && !error) {
@@ -398,13 +507,14 @@ export function LiveResourceStrip({ onOpenSettingsSection }: LiveResourceStripPr
       <div className="live-resource-inline-row">
         {metrics.map((metric) => {
           const isSelected = selectedMetric?.key === metric.key;
+          const usesCompactNumericValue = metric.key === "ram" || metric.key === "vram";
           return (
             <button
               key={metric.key}
               type="button"
-              className={`live-resource-inline-item live-resource-inline-button ${metric.toneClassName || ""} ${
-                isSelected ? "live-resource-inline-item-active" : ""
-              }`}
+              className={`live-resource-inline-item live-resource-inline-button ${
+                usesCompactNumericValue ? "live-resource-inline-item-compact-numeric" : ""
+              } ${metric.toneClassName || ""} ${isSelected ? "live-resource-inline-item-active" : ""}`}
               title={metric.title}
               aria-pressed={isSelected}
               onClick={() => {

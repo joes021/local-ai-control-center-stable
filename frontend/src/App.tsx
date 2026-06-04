@@ -5,6 +5,7 @@ import { Layout } from "./components/Layout";
 import type { RuntimePilotIconName } from "./components/RuntimePilotIcon";
 import { RuntimePilotIcon } from "./components/RuntimePilotIcon";
 import {
+  fetchProjectMemory,
   fetchSettings,
   fetchStatus,
   primeModelsCache,
@@ -13,7 +14,7 @@ import {
 } from "./lib/api";
 import type { CompatibilityLaunchTarget } from "./lib/compatibility";
 import { applyTheme, readStoredTheme, THEME_CHANGED_EVENT } from "./lib/theme";
-import type { StatusPayload } from "./lib/types";
+import type { ProjectMemoryPayload, StatusPayload } from "./lib/types";
 import { BenchmarkPage } from "./pages/BenchmarkPage";
 import { BrowserPage } from "./pages/BrowserPage";
 import { CompatibilityPage } from "./pages/CompatibilityPage";
@@ -26,6 +27,7 @@ import { LogsPage } from "./pages/LogsPage";
 import { ModelsPage } from "./pages/ModelsPage";
 import { ObservabilityPage } from "./pages/ObservabilityPage";
 import { OpenCodePage } from "./pages/OpenCodePage";
+import { ProjectMemoryPage } from "./pages/ProjectMemoryPage";
 import { RepairPage } from "./pages/RepairPage";
 import { SearchPage } from "./pages/SearchPage";
 import { ServerPage } from "./pages/ServerPage";
@@ -53,6 +55,7 @@ const PAGE_META = {
   logs: { label: "Logovi", cue: "Tragovi", icon: "logs" },
   repair: { label: "Popravka", cue: "Oporavak", icon: "repair" },
   updates: { label: "Ažuriranja", cue: "Release", icon: "updates" },
+  projectMemory: { label: "Project Memory", cue: "Fokus", icon: "memory" },
   help: { label: "Pomoć", cue: "Vodiči", icon: "help" },
 } as const satisfies Record<string, { label: string; cue: string; icon: RuntimePilotIconName }>;
 
@@ -78,6 +81,10 @@ const MORE_PAGE_SECTIONS: Array<{ label: string; pages: PageKey[] }> = [
     pages: ["logs", "repair", "updates"],
   },
   {
+    label: "Fokus projekta",
+    pages: ["projectMemory"],
+  },
+  {
     label: "Pomoć",
     pages: ["help"],
   },
@@ -88,11 +95,16 @@ const MORE_PAGES = MORE_PAGE_SECTIONS.flatMap((section) => section.pages);
 const runtimePilotDeckTitle = "RuntimePilot Control Deck";
 const runtimePilotDeckSummary =
   "Jedan komandni most za runtime, modele, OpenCode, telemetriju i tuning bez lutanja po zasebnim alatima.";
+const STATUS_REFRESH_MS = 5000;
+const PROJECT_MEMORY_REFRESH_MS = 8000;
 
 export default function App() {
   const [page, setPage] = useState<PageKey>("home");
   const [settingsFocusSection, setSettingsFocusSection] = useState<string | null>(null);
   const [status, setStatus] = useState<StatusPayload | null>(null);
+  const [projectMemory, setProjectMemory] = useState<ProjectMemoryPayload | null>(null);
+  const [projectMemoryLoading, setProjectMemoryLoading] = useState(true);
+  const [projectMemoryError, setProjectMemoryError] = useState<string | null>(null);
   const [themeId, setThemeId] = useState<string>(readStoredTheme);
   const [compatibilityLaunchTarget, setCompatibilityLaunchTarget] =
     useState<CompatibilityLaunchTarget | null>(null);
@@ -109,17 +121,23 @@ export default function App() {
     void primeServerStatusCache().catch(() => null);
     void primeSettingsCache().catch(() => null);
 
-    fetchStatus()
-      .then((payload) => {
+    const loadStatus = async () => {
+      try {
+        const payload = await fetchStatus();
         if (active) {
           setStatus(payload);
         }
-      })
-      .catch(() => {
+      } catch {
         if (active) {
           setStatus(null);
         }
-      });
+      }
+    };
+
+    void loadStatus();
+    const statusTimer = window.setInterval(() => {
+      void loadStatus();
+    }, STATUS_REFRESH_MS);
 
     fetchSettings()
       .then((payload) => {
@@ -143,7 +161,40 @@ export default function App() {
     return () => {
       active = false;
       window.clearTimeout(modelsWarmTimer);
+      window.clearInterval(statusTimer);
       window.removeEventListener(THEME_CHANGED_EVENT, handleThemeChanged as EventListener);
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadProjectMemory = async () => {
+      try {
+        const payload = await fetchProjectMemory();
+        if (active) {
+          setProjectMemory(payload);
+          setProjectMemoryError(null);
+          setProjectMemoryLoading(false);
+        }
+      } catch (error) {
+        if (active) {
+          setProjectMemoryError(
+            error instanceof Error ? error.message : "Project Memory trenutno nije dostupan.",
+          );
+          setProjectMemoryLoading(false);
+        }
+      }
+    };
+
+    void loadProjectMemory();
+    const memoryTimer = window.setInterval(() => {
+      void loadProjectMemory();
+    }, PROJECT_MEMORY_REFRESH_MS);
+
+    return () => {
+      active = false;
+      window.clearInterval(memoryTimer);
     };
   }, []);
 
@@ -182,6 +233,21 @@ export default function App() {
     };
   }, [isMoreOpen]);
 
+  const refreshProjectMemory = async () => {
+    setProjectMemoryLoading(true);
+    try {
+      const payload = await fetchProjectMemory();
+      setProjectMemory(payload);
+      setProjectMemoryError(null);
+    } catch (error) {
+      setProjectMemoryError(
+        error instanceof Error ? error.message : "Project Memory trenutno nije dostupan.",
+      );
+    } finally {
+      setProjectMemoryLoading(false);
+    }
+  };
+
   const isMoreActive = MORE_PAGES.includes(page);
 
   const activeMoreLabel = useMemo(() => {
@@ -190,6 +256,95 @@ export default function App() {
     }
     return PAGE_LABELS[page];
   }, [isMoreActive, page]);
+
+  const activeModelName =
+    status?.activeModel && status.activeModel.trim() && status.activeModel.trim() !== "--"
+      ? status.activeModel.trim()
+      : "Nema aktivnog modela";
+  const runtimeLabel = status?.activeRuntimeLabel || status?.requestedRuntimeLabel || "Runtime nije poznat";
+  const runtimeStateLabel =
+    status?.runtimeLiveStatus === "started"
+      ? "Runtime aktivan"
+      : status?.runtimeLiveStatus === "stopped"
+        ? "Runtime nije pokrenut"
+        : "Čeka runtime";
+  const runtimeStateSummary =
+    status?.runtimeLiveReason || status?.runtimeSummary || "Model je izabran, ali runtime još nije prijavio jasno stanje.";
+
+  const activeModelStrip = (
+    <section className="runtimepilot-active-model-strip" aria-label="Aktivni model">
+      <div className="runtimepilot-active-model-primary">
+        <span className="runtimepilot-active-model-glyph" aria-hidden="true">
+          <RuntimePilotIcon className="runtimepilot-active-model-icon" name="models" />
+        </span>
+        <div className="runtimepilot-active-model-copy">
+          <span className="status-label">Aktivni model</span>
+          <strong className="runtimepilot-active-model-value" title={activeModelName}>
+            {activeModelName}
+          </strong>
+        </div>
+      </div>
+      <div className="runtimepilot-active-model-meta">
+        <span className="runtimepilot-active-model-chip" title={runtimeLabel}>
+          Runtime: {runtimeLabel}
+        </span>
+        <span className="runtimepilot-active-model-chip" title={runtimeStateSummary}>
+          Status: {runtimeStateLabel}
+        </span>
+      </div>
+      <button
+        type="button"
+        className="runtimepilot-active-model-open"
+        onClick={() => setPage("models")}
+      >
+        Otvori modele
+      </button>
+    </section>
+  );
+
+  const projectMemoryGoal =
+    projectMemory?.goal.text?.trim() || "Cilj još nije postavljen";
+  const projectMemoryNext =
+    projectMemory?.nextSteps.find((item) => item.text.trim())?.text ||
+    "Unesi sledeći korak ili posej memoriju iz task teksta.";
+  const projectMemoryProgressCount =
+    projectMemory?.progress.filter((item) => item.text.trim()).length ?? 0;
+  const projectMemoryStatusLabel =
+    projectMemory?.status === "active" ? "Aktivno pamti fokus" : "Čeka početni fokus";
+
+  const projectMemoryStrip = (
+    <section className="runtimepilot-project-memory-strip" aria-label="Project Memory">
+      <div className="runtimepilot-project-memory-primary">
+        <span className="runtimepilot-project-memory-glyph" aria-hidden="true">
+          <RuntimePilotIcon className="runtimepilot-project-memory-icon" name="memory" />
+        </span>
+        <div className="runtimepilot-project-memory-copy">
+          <span className="status-label">Project Memory</span>
+          <strong className="runtimepilot-project-memory-value" title={projectMemoryGoal}>
+            {projectMemoryGoal}
+          </strong>
+        </div>
+      </div>
+      <div className="runtimepilot-project-memory-meta">
+        <span className="runtimepilot-project-memory-chip" title={projectMemoryStatusLabel}>
+          Status: {projectMemoryStatusLabel}
+        </span>
+        <span className="runtimepilot-project-memory-chip" title={projectMemoryNext}>
+          Sledeće: {projectMemoryNext}
+        </span>
+        <span className="runtimepilot-project-memory-chip">
+          Napredak: {projectMemoryProgressCount}
+        </span>
+      </div>
+      <button
+        type="button"
+        className="runtimepilot-project-memory-open"
+        onClick={() => setPage("projectMemory")}
+      >
+        Otvori memoriju
+      </button>
+    </section>
+  );
 
   const nav = (
     <>
@@ -278,6 +433,8 @@ export default function App() {
         </>
       }
       nav={nav}
+      activeModelStrip={activeModelStrip}
+      projectMemoryStrip={projectMemoryStrip}
       subtitle={
         <>
           <strong>Control. Monitor. Optimize.</strong>
@@ -344,6 +501,16 @@ export default function App() {
         />
       ) : null}
       {page === "tuningLab" ? <TuningLabPage /> : null}
+      {page === "projectMemory" ? (
+        <ProjectMemoryPage
+          memory={projectMemory}
+          loading={projectMemoryLoading}
+          error={projectMemoryError}
+          onMemoryChange={setProjectMemory}
+          onRefresh={refreshProjectMemory}
+          onOpenTuningLab={() => setPage("tuningLab")}
+        />
+      ) : null}
       {page === "settings" ? (
         <SettingsPage
           focusSectionId={settingsFocusSection}

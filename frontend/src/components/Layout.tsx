@@ -10,6 +10,8 @@ type LayoutProps = PropsWithChildren<{
   deckSummary?: ReactNode;
   eyebrow?: ReactNode;
   nav?: ReactNode;
+  activeModelStrip?: ReactNode;
+  projectMemoryStrip?: ReactNode;
   brand?: ReactNode;
   themeId?: string;
   onOpenSettingsSection?: (sectionId: string) => void;
@@ -22,6 +24,8 @@ export function Layout({
   deckSummary,
   eyebrow,
   nav,
+  activeModelStrip,
+  projectMemoryStrip,
   brand,
   children,
   themeId = "dark-chocolate",
@@ -54,6 +58,8 @@ export function Layout({
           {nav}
         </nav>
       ) : null}
+      {activeModelStrip ? activeModelStrip : null}
+      {projectMemoryStrip ? projectMemoryStrip : null}
       <LiveResourceStrip onOpenSettingsSection={onOpenSettingsSection} />
       <section className="runtimepilot-page-shell">
         <div className="runtimepilot-page-shell-header">

@@ -27,6 +27,10 @@ from local_ai_control_center_installer.control_center_backend.services.opencode_
     _resolve_opencode_executable_path,
 )
 from local_ai_control_center_installer.control_center_backend.services import benchmark_service
+from local_ai_control_center_installer.control_center_backend.services.project_memory_service import (
+    save_project_memory,
+    seed_project_memory_from_task,
+)
 from local_ai_control_center_installer.control_center_backend.services.server_service import (
     _load_runtime_launch_argument_values,
     _resolve_spec_type_for_runtime,
@@ -766,6 +770,7 @@ def run_next_tuning_experiment(
             active_run["queuedAt"] = str(active_run.get("queuedAt", "") or _now_iso())
             _save_run_state(resolved_config, active_run=active_run, queue=queue)
 
+    _seed_project_memory_for_tuning_experiment(active_run, resolved_config)
     completed = _execute_tuning_experiment(active_run, resolved_config)
 
     with _RUN_LOCK:
@@ -785,6 +790,22 @@ def run_next_tuning_experiment(
         "summary": str(completed.get("winnerSummary", "") or completed.get("summary", "Tuning Lab run je završen.")),
         "runId": str(completed.get("runId", "") or ""),
     }
+
+
+def _seed_project_memory_for_tuning_experiment(
+    experiment: dict[str, Any],
+    config: ControlCenterConfig,
+) -> None:
+    task_prompt = str(experiment.get("taskPrompt", "") or "").strip()
+    if not task_prompt:
+        return
+    goal_text = (
+        str(experiment.get("name", "") or "").strip()
+        or str(experiment.get("goalLabel", "") or "").strip()
+        or str(experiment.get("goal", "") or "").strip()
+    )
+    seeded = seed_project_memory_from_task(goal_text, task_prompt)
+    save_project_memory(seeded, config=config, updated_by="system")
 
 
 def apply_tuning_lab_winner(

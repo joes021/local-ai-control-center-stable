@@ -690,6 +690,36 @@ export type TuningLabSummaryPayload = {
   };
 };
 
+export type ProjectMemoryGoal = {
+  text: string;
+  locked: boolean;
+};
+
+export type ProjectMemoryItem = {
+  id: string;
+  text: string;
+  locked?: boolean;
+};
+
+export type ProjectMemoryPayload = {
+  status: string;
+  goal: ProjectMemoryGoal;
+  rules: ProjectMemoryItem[];
+  decisions: ProjectMemoryItem[];
+  progress: ProjectMemoryItem[];
+  nextSteps: ProjectMemoryItem[];
+  updatedAt: string;
+  updatedBy: string;
+};
+
+export type ProjectMemorySavePayload = {
+  goal: ProjectMemoryGoal;
+  rules: ProjectMemoryItem[];
+  decisions: ProjectMemoryItem[];
+  progress: ProjectMemoryItem[];
+  nextSteps: ProjectMemoryItem[];
+};
+
 export type ModelEntry = {
   id: string;
   label: string;
