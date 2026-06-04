@@ -176,6 +176,23 @@ def test_activate_model_route_updates_active_model_and_managed_opencode_config(
             }
         ],
     )
+    _write_settings(
+        install_root,
+        {
+            "profile": "balanced",
+            "context": 262144,
+            "outputTokens": 8192,
+            "workingDirectory": str(install_root),
+            "thinkingMode": "mid",
+            "buildSteps": 140,
+            "planSteps": 100,
+            "generalSteps": 110,
+            "exploreSteps": 80,
+            "accessMode": "local-only",
+            "securityMode": "strict",
+            "capabilityMode": "confirm-commands",
+        },
+    )
 
     monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
     monkeypatch.setattr(
@@ -212,7 +229,13 @@ def test_activate_model_route_updates_active_model_and_managed_opencode_config(
         == "http://127.0.0.1:3210/api/runtime-proxy/v1"
     )
     assert managed_config["provider"]["local-lacc"]["models"] == {
-        "Qwen3-0.6B-Q8_0.gguf": {"name": "Qwen3-0.6B-Q8_0.gguf"}
+        "Qwen3-0.6B-Q8_0.gguf": {
+            "name": "Qwen3-0.6B-Q8_0.gguf",
+            "limit": {
+                "context": 262144,
+                "output": 8192,
+            },
+        }
     }
 
 

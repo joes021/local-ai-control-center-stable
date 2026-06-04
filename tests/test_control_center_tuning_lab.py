@@ -1080,6 +1080,7 @@ def test_run_slot_opencode_task_records_runtime_live_signal(
             return 0
 
     recorded_calls: list[dict[str, object]] = []
+    env_capture: dict[str, object] = {}
 
     monkeypatch.setattr(tuning_lab_service, "_resolve_opencode_executable_path", lambda config=None: executable_path)
     monkeypatch.setattr(
@@ -1090,7 +1091,11 @@ def test_run_slot_opencode_task_records_runtime_live_signal(
             "active_model": "demo.gguf",
         },
     )
-    monkeypatch.setattr(tuning_lab_service, "_build_slot_opencode_env", lambda **kwargs: {})
+    monkeypatch.setattr(
+        tuning_lab_service,
+        "_build_slot_opencode_env",
+        lambda **kwargs: env_capture.update(kwargs) or {},
+    )
     monkeypatch.setattr(tuning_lab_service, "_parse_opencode_json_output", lambda text: {})
     monkeypatch.setattr(tuning_lab_service.subprocess, "Popen", FakeProcess)
     monkeypatch.setattr(tuning_lab_service.time, "sleep", lambda seconds: None)
@@ -1107,7 +1112,7 @@ def test_run_slot_opencode_task_records_runtime_live_signal(
             "difficulty": "easy",
             "currentSlotLabel": "Baseline",
         },
-        slot_settings={},
+        slot_settings={"context": 262144, "outputTokens": 8192},
         runtime_profile_token="slot-token",
         workspace_path=workspace_path,
         slot_artifact_root=slot_artifact_root,
@@ -1125,6 +1130,15 @@ def test_run_slot_opencode_task_records_runtime_live_signal(
     assert recorded_calls
     assert all(call["base_url"] == "http://127.0.0.1:49000" for call in recorded_calls)
     assert all(call["label"] == "tuning-lab-live" for call in recorded_calls)
+    assert env_capture["override_payload"]["provider"]["local-lacc"]["models"] == {
+        "demo.gguf": {
+            "name": "demo.gguf",
+            "limit": {
+                "context": 262144,
+                "output": 8192,
+            },
+        }
+    }
 
 
 def test_run_slot_opencode_task_auto_finishes_after_stable_success_probe(

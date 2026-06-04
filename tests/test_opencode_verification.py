@@ -64,10 +64,21 @@ def _write_managed_config(path: Path, *, verified_server_url: str) -> Path:
     path.write_text(
         json.dumps(
             {
+                "model": "local-lacc/recommended-6gb.gguf",
+                "enabled_providers": ["local-lacc"],
                 "provider": {
                     "local-lacc": {
                         "npm": "@ai-sdk/openai-compatible",
-                        "options": {"baseURL": f"{verified_server_url}/v1"}
+                        "options": {"baseURL": f"{verified_server_url}/v1"},
+                        "models": {
+                            "recommended-6gb.gguf": {
+                                "name": "recommended-6gb.gguf",
+                                "limit": {
+                                    "context": 262144,
+                                    "output": 8192,
+                                },
+                            }
+                        },
                     }
                 }
             },
@@ -320,7 +331,13 @@ def test_apply_opencode_verification_success_path_uses_bounded_smoke_and_relay_e
         == "http://127.0.0.1:9422/v1"
     )
     assert embedded_config["provider"]["local-lacc"]["models"] == {
-        "recommended-6gb.gguf": {"name": "recommended-6gb.gguf"}
+        "recommended-6gb.gguf": {
+            "name": "recommended-6gb.gguf",
+            "limit": {
+                "context": 262144,
+                "output": 8192,
+            },
+        }
     }
     persisted_config = json.loads(
         Path(session.opencode_config_path).read_text(encoding="utf-8")

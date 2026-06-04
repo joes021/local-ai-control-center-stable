@@ -28,13 +28,13 @@ function renderOpenCodeState(opencode: OpenCodeStatusPayload | null) {
     return "Nedostupan";
   }
   if (opencode.sessionState === "launching") {
-    return "Pokretanje u toku";
+    return "Pokretanje CLI sesije";
   }
   if (opencode.sessionState === "connected") {
-    return "Aktivan";
+    return "CLI sesija aktivna";
   }
   if (opencode.sessionState === "app-only") {
-    return "Otvoren bez backend veze";
+    return "CLI sesija bez backend veze";
   }
   if (opencode.sessionState === "runtime-ready") {
     return "Runtime spreman";
@@ -213,6 +213,10 @@ export function OpenCodePage() {
           {opencode.sessionSummary ||
             "Promena modela važi za novi OpenCode session. Već otvoren OpenCode prozor ne menja model usred sesije."}
         </p>
+        <p className="helper-text">
+          Installer-managed OpenCode radi kao CLI sesija u terminalu. Ovo nije zaseban OpenCode GUI prozor,
+          pa je normalno da vidiš `cmd` prozor dok je sesija aktivna.
+        </p>
         {opencode.bootstrapBlockedReason ? (
           <p className="helper-text">{opencode.bootstrapBlockedReason}</p>
         ) : null}
@@ -240,6 +244,10 @@ export function OpenCodePage() {
         <p className="helper-text">
           Ovo je najbliži ručni prikaz onoga što RuntimePilot radi kada otvara OpenCode. Managed config
           određuje provider i model, a `local-lacc` zatim koristi trenutni runtime i aktivni model iz trenutnog RuntimePilot okruženja.
+        </p>
+        <p className="helper-text">
+          Kada klikneš `Otvori OpenCode`, RuntimePilot pokreće CLI sesija u terminalu preko launcher `.cmd`.
+          To nije zaseban OpenCode GUI prozor kao desktop aplikacija iz `C:\\Program Files\\OpenCode`.
         </p>
         <p className="helper-text">
           Ako želiš ručno da ga startuješ iz običnog `cmd.exe`, koristi launcher `.cmd`. PowerShell

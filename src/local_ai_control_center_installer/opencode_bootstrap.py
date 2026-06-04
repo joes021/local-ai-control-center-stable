@@ -387,6 +387,7 @@ def _write_managed_config(
     del model_id
     resolved_public_model_name = public_model_name.strip() or "unknown-model"
     managed_base_url = build_managed_opencode_base_url(control_center_base_url)
+    context_limit, output_limit = _resolve_managed_model_limits(config_path)
     config_path.parent.mkdir(parents=True, exist_ok=True)
     config_path.write_text(
         json.dumps(
@@ -399,9 +400,11 @@ def _write_managed_config(
                         "npm": "@ai-sdk/openai-compatible",
                         "options": {"baseURL": managed_base_url},
                         "models": {
-                            resolved_public_model_name: {
-                                "name": resolved_public_model_name
-                            }
+                            resolved_public_model_name: build_managed_opencode_model_entry(
+                                resolved_public_model_name,
+                                context_limit=context_limit,
+                                output_limit=output_limit,
+                            )
                         },
                     }
                 },
@@ -435,6 +438,106 @@ def resolve_opencode_public_model_name(
 
     candidate_name = Path(candidate_path).name.strip() if candidate_path.strip() else ""
     return candidate_name or model_id.strip()
+
+
+def build_managed_opencode_model_entry(
+    public_model_name: str,
+    *,
+    context_limit: int | None = None,
+    output_limit: int | None = None,
+) -> dict[str, object]:
+    entry: dict[str, object] = {
+        "name": public_model_name.strip() or "unknown-model",
+    }
+    limit: dict[str, int] = {}
+    resolved_context_limit = _positive_int_or_none(context_limit)
+    resolved_output_limit = _positive_int_or_none(output_limit)
+    if resolved_context_limit is not None:
+        limit["context"] = resolved_context_limit
+    if resolved_output_limit is not None:
+        limit["output"] = resolved_output_limit
+    if limit:
+        entry["limit"] = limit
+    return entry
+
+
+def extract_managed_opencode_model_entry(
+    managed_config_text: str,
+    public_model_name: str,
+) -> dict[str, object]:
+    fallback = build_managed_opencode_model_entry(public_model_name)
+    try:
+        payload = json.loads(managed_config_text)
+    except (TypeError, ValueError, JSONDecodeError):
+        return fallback
+    if not isinstance(payload, dict):
+        return fallback
+    provider = payload.get("provider")
+    if not isinstance(provider, dict):
+        return fallback
+    local_lacc = provider.get("local-lacc")
+    if not isinstance(local_lacc, dict):
+        return fallback
+    models = local_lacc.get("models")
+    if not isinstance(models, dict):
+        return fallback
+    raw_entry = models.get(public_model_name)
+    if not isinstance(raw_entry, dict) and len(models) == 1:
+        only_entry = next(iter(models.values()))
+        raw_entry = only_entry if isinstance(only_entry, dict) else None
+    if not isinstance(raw_entry, dict):
+        return fallback
+    raw_limit = raw_entry.get("limit")
+    context_limit = None
+    output_limit = None
+    if isinstance(raw_limit, dict):
+        context_limit = _positive_int_or_none(raw_limit.get("context"))
+        output_limit = _positive_int_or_none(raw_limit.get("output"))
+    return build_managed_opencode_model_entry(
+        public_model_name,
+        context_limit=context_limit,
+        output_limit=output_limit,
+    )
+
+
+def _resolve_managed_model_limits(config_path: Path) -> tuple[int | None, int | None]:
+    config_root = config_path.parent.parent
+    control_center_root = config_root / "control-center"
+    settings_payload = _read_json_object_file(control_center_root / "settings.json")
+    turboquant_payload = _read_json_object_file(
+        control_center_root / "turboquant-config.json"
+    )
+    runtime_selection_payload = _read_json_object_file(
+        control_center_root / "runtime-selection.json"
+    )
+    selected_runtime = str(runtime_selection_payload.get("runtime", "") or "").strip().lower()
+
+    context_limit = None
+    if selected_runtime == "turboquant":
+        context_limit = _positive_int_or_none(turboquant_payload.get("context"))
+    if context_limit is None:
+        context_limit = _positive_int_or_none(settings_payload.get("context"))
+    if context_limit is None and selected_runtime != "turboquant":
+        context_limit = _positive_int_or_none(turboquant_payload.get("context"))
+
+    output_limit = _positive_int_or_none(settings_payload.get("outputTokens"))
+    return context_limit, output_limit
+
+
+def _read_json_object_file(path: Path) -> dict[str, object]:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, ValueError, JSONDecodeError):
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _positive_int_or_none(value: object) -> int | None:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed > 0 else None
 
 
 def _make_staging_root(temp_root: Path) -> Path:

@@ -726,6 +726,8 @@ def test_server_and_opencode_source_include_equivalent_launch_command_panels():
     assert "opencode-config-grid" in opencode_source
     assert "opencode-env-grid" in opencode_source
     assert "Efektivna local-lacc inference podrazumevana podešavanja" in opencode_source
+    assert "CLI sesija u terminalu" in opencode_source
+    assert "nije zaseban OpenCode GUI prozor" in opencode_source
 
     dist_root = Path(
         "src/local_ai_control_center_installer/control_center_backend/frontend_dist"

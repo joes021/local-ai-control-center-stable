@@ -10,6 +10,7 @@ from urllib.error import HTTPError, URLError
 from urllib.request import urlopen
 
 from local_ai_control_center_installer.opencode_bootstrap import (
+    extract_managed_opencode_model_entry,
     load_opencode_manifest,
     resolve_opencode_public_model_name,
 )
@@ -40,6 +41,7 @@ class FirstRunValidationTarget:
     executable_path: Path
     runtime_executable_path: Path
     managed_config_path: Path
+    managed_config_text: str
     model_id: str
     public_model_name: str
     model_path: Path
@@ -317,7 +319,7 @@ def resolve_first_run_validation_target(
         raise ValueError(
             f"managed OpenCode config does not exist: {managed_config_path}"
         )
-    managed_config_path.read_text(encoding="utf-8")
+    managed_config_text = managed_config_path.read_text(encoding="utf-8")
 
     launch_contract = _load_launch_contract()
     executable_path = artifact_root / launch_contract["executable_relative_path"]
@@ -328,6 +330,7 @@ def resolve_first_run_validation_target(
         executable_path=executable_path,
         runtime_executable_path=runtime_executable_path,
         managed_config_path=managed_config_path,
+        managed_config_text=managed_config_text,
         model_id=model_id,
         public_model_name=resolve_opencode_public_model_name(model_id, model_path),
         model_path=model_path,
@@ -519,6 +522,10 @@ def _build_first_run_env(
     *,
     relay_base_url: str,
 ) -> dict[str, str]:
+    model_entry = extract_managed_opencode_model_entry(
+        target.managed_config_text,
+        target.public_model_name,
+    )
     override_payload = {
         "autoupdate": False,
         "model": f"local-lacc/{target.public_model_name}",
@@ -527,9 +534,7 @@ def _build_first_run_env(
             "local-lacc": {
                 "npm": "@ai-sdk/openai-compatible",
                 "options": {"baseURL": f"{relay_base_url}/v1"},
-                "models": {
-                    target.public_model_name: {"name": target.public_model_name}
-                },
+                "models": {target.public_model_name: model_entry},
             }
         },
     }

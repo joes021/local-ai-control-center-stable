@@ -234,7 +234,11 @@ def open_opencode(
     except RuntimeError as exc:
         return _result("error", "open-opencode", str(exc))
 
-    return _result("ok", "open-opencode", "OpenCode je pokrenut u novom prozoru.")
+    return _result(
+        "ok",
+        "open-opencode",
+        "OpenCode je pokrenut kao CLI sesija u terminal prozoru. Ovo nije zaseban OpenCode GUI prozor.",
+    )
 
 
 def prepare_opencode_launcher(
@@ -813,12 +817,12 @@ def _build_session_state(
     runtime_reason: str,
 ) -> tuple[str, str]:
     if has_instances and runtime_connected:
-        return "connected", "OpenCode je otvoren i povezan sa runtime-om."
+        return "connected", "OpenCode CLI sesija je otvorena u terminalu i povezana sa runtime-om."
     if has_instances:
         reason = runtime_reason or "Runtime trenutno nije pokrenut."
-        return "app-only", f"OpenCode je otvoren, ali backend nije spreman. {reason}"
+        return "app-only", f"OpenCode CLI sesija je otvorena u terminalu, ali backend nije spreman. {reason}"
     if launch_in_progress:
-        return "launching", "OpenCode launch je u toku i čeka se da se sesija stabilizuje."
+        return "launching", "OpenCode CLI launch je u toku i čeka se da se terminal sesija stabilizuje."
     if runtime_connected:
         return "runtime-ready", "Runtime je spreman za novi OpenCode session."
     reason = runtime_reason or "Runtime trenutno nije pokrenut."

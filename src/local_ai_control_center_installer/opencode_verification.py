@@ -13,6 +13,7 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 from local_ai_control_center_installer.opencode_bootstrap import (
+    extract_managed_opencode_model_entry,
     load_opencode_manifest,
     resolve_opencode_public_model_name,
 )
@@ -936,6 +937,10 @@ def _build_verification_env(
     *,
     relay_base_url: str,
 ) -> dict[str, str]:
+    model_entry = extract_managed_opencode_model_entry(
+        target.managed_config_text,
+        target.public_model_name,
+    )
     override_payload = {
         "autoupdate": False,
         "model": f"local-lacc/{target.public_model_name}",
@@ -944,9 +949,7 @@ def _build_verification_env(
             "local-lacc": {
                 "npm": "@ai-sdk/openai-compatible",
                 "options": {"baseURL": f"{relay_base_url}/v1"},
-                "models": {
-                    target.public_model_name: {"name": target.public_model_name}
-                },
+                "models": {target.public_model_name: model_entry},
             }
         },
     }

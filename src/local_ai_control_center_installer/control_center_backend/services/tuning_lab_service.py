@@ -51,6 +51,9 @@ from local_ai_control_center_installer.control_center_backend.services.status_se
     classify_runtime_model_support,
     load_runtime_state,
 )
+from local_ai_control_center_installer.opencode_bootstrap import (
+    build_managed_opencode_model_entry,
+)
 from local_ai_control_center_installer.server_verification import (
     ServerVerificationTarget,
     _build_server_command,
@@ -196,6 +199,14 @@ def _path_is_relative_to(path: Path, root: Path) -> bool:
     except ValueError:
         return False
     return True
+
+
+def _positive_int_or_none(value: object) -> int | None:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed > 0 else None
 
 
 def _sanitize_workspace_slug(value: object, fallback: str = "scratch") -> str:
@@ -1794,6 +1805,8 @@ def _run_slot_opencode_task(
         raise RuntimeError("Aktivni model nije poznat za OpenCode Tuning Lab run.")
 
     base_url = f"http://127.0.0.1:{config.ui_port}/api/runtime-proxy/tuning/{runtime_profile_token}/v1"
+    context_limit = _positive_int_or_none(slot_settings.get("context"))
+    output_limit = _positive_int_or_none(slot_settings.get("outputTokens"))
     override_payload = {
         "autoupdate": False,
         "model": f"local-lacc/{public_model_name}",
@@ -1803,7 +1816,11 @@ def _run_slot_opencode_task(
                 "npm": "@ai-sdk/openai-compatible",
                 "options": {"baseURL": base_url},
                 "models": {
-                    public_model_name: {"name": public_model_name}
+                    public_model_name: build_managed_opencode_model_entry(
+                        public_model_name,
+                        context_limit=context_limit,
+                        output_limit=output_limit,
+                    )
                 },
             }
         },

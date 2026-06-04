@@ -133,6 +133,43 @@ def test_opencode_status_route_reports_app_only_when_runtime_is_not_connected(
     assert "Pripremi backend" in payload["openActionLabel"]
 
 
+def test_opencode_status_route_describes_terminal_cli_session_when_runtime_is_connected(
+    tmp_path: Path,
+    monkeypatch,
+):
+    install_root = tmp_path / "install-root"
+    _write_opencode_fixture(install_root)
+    _write_runtime_and_model_prerequisites(install_root)
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.opencode_service.detect_opencode_instances",
+        lambda executable_path: [
+            {
+                "pid": 29256,
+                "name": "opencode.exe",
+                "commandLine": f'"{install_root}\\tools\\opencode\\opencode.exe"',
+            }
+        ],
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.opencode_service.load_runtime_state",
+        lambda config: {
+            "runtime_live_status": "started",
+            "runtime_live_reason": "Runtime health endpoint odgovara.",
+        },
+        raising=False,
+    )
+
+    client = TestClient(app)
+    response = client.get("/api/opencode/status")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["sessionState"] == "connected"
+    assert "cli sesija" in payload["sessionSummary"].lower()
+    assert "terminal" in payload["sessionSummary"].lower()
+
+
 def test_opencode_status_route_reports_blocked_open_when_executable_is_missing(
     tmp_path: Path,
     monkeypatch,
@@ -602,6 +639,46 @@ def test_opencode_open_route_does_not_spawn_new_terminal_when_launcher_is_alread
     assert payload["status"] == "ok"
     assert "launch je ve" in payload["summary"].lower()
     assert launch_attempted is False
+
+
+def test_opencode_open_route_reports_terminal_session_not_new_gui_window(
+    tmp_path: Path,
+    monkeypatch,
+):
+    from local_ai_control_center_installer.control_center_backend.services import opencode_service
+
+    install_root = tmp_path / "install-root"
+    _write_opencode_fixture(install_root)
+    _write_runtime_and_model_prerequisites(install_root)
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    monkeypatch.setattr(opencode_service, "detect_opencode_instances", lambda executable_path: [])
+    monkeypatch.setattr(opencode_service, "detect_opencode_launcher_instances", lambda launcher_path: [])
+    monkeypatch.setattr(
+        opencode_service,
+        "ensure_runtime_ready",
+        lambda config: {
+            "status": "ok",
+            "action": "ensure-runtime-ready",
+            "summary": "Runtime je spreman za OpenCode.",
+            "details": {"returncode": 0, "stdout": "", "stderr": ""},
+        },
+        raising=False,
+    )
+    monkeypatch.setattr(
+        opencode_service,
+        "prepare_opencode_launcher",
+        lambda config=None, profile="": install_root / "control-center" / "Open-OpenCode.cmd",
+    )
+    monkeypatch.setattr(opencode_service, "_launch_opencode_launcher", lambda launcher_path: None)
+
+    client = TestClient(app)
+    response = client.post("/api/opencode/open", json={"profile": "balanced"})
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "ok"
+    assert "terminal" in payload["summary"].lower()
+    assert "gui" in payload["summary"].lower()
 
 
 def test_prepare_opencode_launcher_writes_windows_duplicate_launch_guard(

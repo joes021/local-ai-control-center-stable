@@ -54,13 +54,21 @@ def _write_managed_opencode_config(path: Path, *, base_url: str) -> Path:
         json.dumps(
             {
                 "autoupdate": False,
-                "model": "local-lacc/recommended-6gb",
+                "model": "local-lacc/recommended-6gb.gguf",
                 "enabled_providers": ["local-lacc"],
                 "provider": {
                     "local-lacc": {
                         "npm": "@ai-sdk/openai-compatible",
                         "options": {"baseURL": f"{base_url}/v1"},
-                        "models": {"recommended-6gb": {}},
+                        "models": {
+                            "recommended-6gb.gguf": {
+                                "name": "recommended-6gb.gguf",
+                                "limit": {
+                                    "context": 262144,
+                                    "output": 8192,
+                                },
+                            }
+                        },
                     }
                 },
             }
@@ -192,6 +200,15 @@ def test_apply_first_run_validation_marks_ready_after_real_opencode_response(
         embedded_config["provider"]["local-lacc"]["options"]["baseURL"]
         .endswith("/v1")
     )
+    assert embedded_config["provider"]["local-lacc"]["models"] == {
+        "recommended-6gb.gguf": {
+            "name": "recommended-6gb.gguf",
+            "limit": {
+                "context": 262144,
+                "output": 8192,
+            },
+        }
+    }
     assert captured["env"]["OPENCODE_DISABLE_MODELS_FETCH"] == "true"
     assert captured["env"]["NO_COLOR"] == "1"
 
