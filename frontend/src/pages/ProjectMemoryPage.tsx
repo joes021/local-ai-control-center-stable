@@ -25,7 +25,9 @@ type MemoryListEditorProps = {
   title: string;
   summary: string;
   items: ProjectMemoryItem[];
-  emptyText: string;
+  emptyTitle: string;
+  emptyDetail: string;
+  placeholderText: string;
   allowLock?: boolean;
   onChange: (items: ProjectMemoryItem[]) => void;
 };
@@ -52,7 +54,9 @@ function MemoryListEditor({
   title,
   summary,
   items,
-  emptyText,
+  emptyTitle,
+  emptyDetail,
+  placeholderText,
   allowLock = false,
   onChange,
 }: MemoryListEditorProps) {
@@ -87,7 +91,7 @@ function MemoryListEditor({
                 <input
                   type="text"
                   value={item.text}
-                  placeholder={emptyText}
+                  placeholder={placeholderText}
                   onChange={(event) => {
                     const nextItems = items.map((current) =>
                       current.id === item.id ? { ...current, text: event.target.value } : current,
@@ -121,7 +125,10 @@ function MemoryListEditor({
             </div>
           ))
         ) : (
-          <p className="helper-text">{emptyText}</p>
+          <div className="project-memory-empty-state">
+            <strong>{emptyTitle}</strong>
+            <span>{emptyDetail}</span>
+          </div>
         )}
       </div>
     </section>
@@ -361,12 +368,14 @@ export function ProjectMemoryPage({
         </div>
       </section>
 
-      <div className="project-memory-grid">
+      <div className="project-memory-grid wide-card">
         <MemoryListEditor
           title="Važna pravila"
-          summary="Ovde stavljaj stvari koje moraju da ostanu tačne i kada se kontekst razvlači."
+          summary="Zapiši ono što mora da ostane tačno i kada run traje dugo."
           items={draft.rules}
-          emptyText="Dodaj pravilo, na primer: jedan HTML fajl, score, restart, bez framework-a."
+          emptyTitle="Još nema pravila"
+          emptyDetail="Klikni Dodaj stavku i upiši ono što agent mora da ispoštuje."
+          placeholderText="Jedan HTML fajl, score, restart, bez framework-a."
           allowLock
           onChange={(rules) => {
             setDraft({ ...draft, rules });
@@ -375,9 +384,11 @@ export function ProjectMemoryPage({
         />
         <MemoryListEditor
           title="Već odlučeno"
-          summary="Bitne tehničke odluke koje ne želiš da agent stalno preispituje."
+          summary="Sačuvaj bitne tehničke odluke da ih agent ne otvara ponovo bez razloga."
           items={draft.decisions}
-          emptyText="Dodaj odluku, na primer: koristimo canvas ili jedan output fajl."
+          emptyTitle="Još nema odluka"
+          emptyDetail="Zabeleži već donetu odluku koju ne želiš da agent stalno preispituje."
+          placeholderText="Koristimo canvas ili jedan output fajl."
           onChange={(decisions) => {
             setDraft({ ...draft, decisions });
             setIsDirty(true);
@@ -385,9 +396,11 @@ export function ProjectMemoryPage({
         />
         <MemoryListEditor
           title="Napredak"
-          summary="Kratko šta je već završeno, da ne gubite vreme na ponavljanje."
+          summary="Kratko zapiši šta je već gotovo, da se vreme ne troši na ponavljanje."
           items={draft.progress}
-          emptyText="Dodaj završenu stavku, na primer: postavljena game loop logika."
+          emptyTitle="Još nema napretka"
+          emptyDetail="Dodaj završenu stavku čim nešto stvarno proradi ili bude gotovo."
+          placeholderText="Postavljena game loop logika."
           onChange={(progress) => {
             setDraft({ ...draft, progress });
             setIsDirty(true);
@@ -395,9 +408,11 @@ export function ProjectMemoryPage({
         />
         <MemoryListEditor
           title="Sledeće"
-          summary="Jedan ili nekoliko narednih koraka koje agent treba da gura prvo."
+          summary="Drži ovde jedan do nekoliko narednih koraka koje agent treba da gura prvo."
           items={draft.nextSteps}
-          emptyText="Dodaj sledeći korak, na primer: dovršiti collision i game over flow."
+          emptyTitle="Još nema sledećeg koraka"
+          emptyDetail="Upiši naredni korak koji treba gurati prvi dok je cilj još svež."
+          placeholderText="Dovršiti collision i game over flow."
           onChange={(nextSteps) => {
             setDraft({ ...draft, nextSteps });
             setIsDirty(true);

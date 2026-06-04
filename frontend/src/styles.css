@@ -1085,6 +1085,8 @@ code {
 
 .models-local-group-anchor {
   display: block;
+  grid-column: 1 / -1;
+  min-width: 0;
 }
 
 .model-group-header-meta {
@@ -2733,12 +2735,40 @@ code {
 .project-memory-editor-card,
 .project-memory-actions-card,
 .project-memory-seed-card {
+  display: grid;
   gap: 14px;
+  align-content: start;
+  min-width: 0;
 }
 
 .project-memory-list {
   display: grid;
   gap: 10px;
+  align-content: start;
+}
+
+.project-memory-empty-state {
+  display: grid;
+  gap: 6px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px dashed var(--app-card-soft-border);
+  background: color-mix(in srgb, var(--app-card-soft-bg) 80%, transparent);
+  color: var(--app-text-soft);
+}
+
+.project-memory-empty-state strong {
+  color: var(--app-text);
+  font-size: 0.95rem;
+  line-height: 1.3;
+}
+
+.project-memory-empty-state span {
+  line-height: 1.55;
+}
+
+.project-memory-grid > * {
+  min-width: 0;
 }
 
 .project-memory-item-row {

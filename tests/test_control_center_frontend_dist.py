@@ -29,6 +29,27 @@ def test_control_center_serves_built_frontend_asset():
     assert asset_response.status_code == 200
 
 
+def test_runtimepilot_favicon_is_declared_and_packaged():
+    source_index = Path("frontend/index.html").read_text(encoding="utf-8")
+    dist_root = Path(
+        "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
+    )
+    packaged_index = (dist_root / "index.html").read_text(encoding="utf-8")
+
+    assert 'rel="icon"' in source_index
+    assert "/runtimepilot-favicon.png" in source_index
+    assert 'rel="icon"' in packaged_index
+    assert "/runtimepilot-favicon.png" in packaged_index
+    assert (Path("frontend/public") / "runtimepilot-favicon.png").is_file()
+    assert (dist_root / "runtimepilot-favicon.png").is_file()
+
+    client = TestClient(app)
+    favicon_response = client.get("/runtimepilot-favicon.png")
+
+    assert favicon_response.status_code == 200
+    assert favicon_response.headers["content-type"] == "image/png"
+
+
 def test_packaged_settings_ui_uses_numeric_preset_dropdowns_with_custom_inputs():
     dist_root = Path(
         "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
@@ -54,6 +75,16 @@ def test_settings_page_source_shows_custom_numeric_fields_conditionally():
     assert 'contextChoice === "custom" ? (' in source
     assert "const outputTokensChoice = resolveTokenChoice(settings.outputTokens);" in source
     assert 'outputTokensChoice === "custom" ? (' in source
+
+
+def test_settings_page_source_reuses_context_picker_pattern_for_turboquant_context():
+    source = Path("frontend/src/pages/SettingsPage.tsx").read_text(encoding="utf-8")
+
+    assert "const turboContextChoice = resolveTokenChoice(activeTurboConfig.context);" in source
+    assert 'parameter.id === "context" ? (' in source
+    assert "Izaberi TurboQuant context veličinu" in source
+    assert "Unesi TurboQuant context veličinu" in source
+    assert 'turboContextChoice === "custom" ? (' in source
 
 
 def test_theme_source_and_packaged_frontend_include_named_themes():
@@ -205,6 +236,9 @@ def test_project_memory_source_and_packaged_frontend_include_global_strip_and_pa
     assert "Već odlučeno" in page_source
     assert "Napredak" in page_source
     assert "Sledeće" in page_source
+    assert 'className="project-memory-grid wide-card"' in page_source
+    assert "Još nema pravila" in page_source
+    assert "Još nema sledećeg koraka" in page_source
     assert "fetchProjectMemory" in api_source
     assert "seedProjectMemory" in api_source
     assert "saveProjectMemory" in api_source
@@ -212,6 +246,7 @@ def test_project_memory_source_and_packaged_frontend_include_global_strip_and_pa
     assert "ProjectMemorySavePayload" in types_source
     assert ".runtimepilot-project-memory-strip" in styles_source
     assert ".project-memory-grid" in styles_source
+    assert ".project-memory-empty-state" in styles_source
     assert ".project-memory-item-row" in styles_source
     assert js_assets
     assert css_assets
@@ -224,8 +259,11 @@ def test_project_memory_source_and_packaged_frontend_include_global_strip_and_pa
     assert "Posej iz task teksta" in bundled_js
     assert "Sačuvaj Project Memory" in bundled_js
     assert "Cilj još nije postavljen" in bundled_js
+    assert "Još nema pravila" in bundled_js
+    assert "Još nema sledećeg koraka" in bundled_js
     assert ".runtimepilot-project-memory-strip" in bundled_css
     assert ".project-memory-grid" in bundled_css
+    assert ".project-memory-empty-state" in bundled_css
     assert ".project-memory-item-row" in bundled_css
 
 
@@ -365,13 +403,14 @@ def test_models_and_nav_source_protect_local_model_layout_and_even_nav_card_heig
     styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
 
     assert 'className="model-item-copy"' in models_source
-    assert 'className="models-local-group-anchor"' in models_source
+    assert 'className="models-local-group-anchor wide-card"' in models_source
     assert 'ref={localGroupRef}' in models_source
     assert "showWhenEmpty = false" in models_source
     assert "if (!items.length && !showWhenEmpty)" in models_source
     assert ".model-item-copy" in styles_source
     assert ".model-item-copy code" in styles_source
     assert ".models-local-group-anchor" in styles_source
+    assert "grid-column: 1 / -1;" in styles_source
     assert ".runtimepilot-nav-button-copy" in styles_source
     assert "min-width: 0;" in styles_source
     assert ".runtimepilot-nav-button-cue" in styles_source
@@ -1899,6 +1938,11 @@ def test_action_result_panel_source_uses_human_status_badges_and_clearer_copy():
 
     assert "Poslednja akcija" in source
     assert "Rezultat je spreman u detaljima ispod" in source
+    assert "Akcija je primljena i pokrenuta." in source
+    assert 'case "accepted":' in source
+    assert "Primljeno" in source
+    assert 'case "queued":' in source
+    assert "Akcija je u toku. Prati detalje ispod za novi signal." in source
     assert "runtimepilot-action-head" in source
     assert "runtimepilot-action-badge" in source
     assert "runtimepilot-action-copy" in source

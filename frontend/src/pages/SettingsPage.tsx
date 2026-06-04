@@ -586,6 +586,7 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
   const outputTokensChoice = resolveTokenChoice(settings.outputTokens);
   const activeSettings = settings;
   const activeTurboConfig = turboConfig;
+  const turboContextChoice = resolveTokenChoice(activeTurboConfig.context);
   const activeInferenceSummary = buildInferenceSummaryItems(settings);
   const activeInferenceSummaryCards = activeInferenceSummary.map((item) => ({
     ...item,
@@ -2139,7 +2140,43 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
                   </div>
                 </div>
                 <div className="inline-actions">
-                  {parameter.id === "context" || parameter.id === "ncmoe" ? (
+                  {parameter.id === "context" ? (
+                    <div className="settings-number-row">
+                      <CustomSelect
+                        value={turboContextChoice}
+                        options={[
+                          ...TOKEN_STEP_OPTIONS.map((option) => ({
+                            value: option.value,
+                            label: option.label,
+                          })),
+                          { value: "custom", label: "custom" },
+                        ]}
+                        onChange={(value) => {
+                          if (value === "custom") {
+                            return;
+                          }
+                          setTurboConfig({
+                            ...turboConfig,
+                            context: Number(value),
+                          });
+                        }}
+                        ariaLabel="Izaberi TurboQuant context veličinu"
+                      />
+                      {turboContextChoice === "custom" ? (
+                        <input
+                          type="number"
+                          value={turboConfig.context}
+                          aria-label="Unesi TurboQuant context veličinu"
+                          onChange={(event) =>
+                            setTurboConfig({
+                              ...turboConfig,
+                              context: Number(event.target.value || 0),
+                            })
+                          }
+                        />
+                      ) : null}
+                    </div>
+                  ) : parameter.id === "ncmoe" ? (
                     <input
                       type="number"
                       value={Number(turboConfig[parameter.id as keyof TurboQuantConfig])}

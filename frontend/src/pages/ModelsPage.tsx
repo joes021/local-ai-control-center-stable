@@ -1487,7 +1487,7 @@ export function ModelsPage({
           setCompatibilityRequest(buildCompatibilityRequestFromModelEntry(item));
         }}
       />
-      <div className="models-local-group-anchor" ref={localGroupRef}>
+      <div className="models-local-group-anchor wide-card" ref={localGroupRef}>
         <ModelGroup
           title="Lokalni modeli"
           groupKey="local"

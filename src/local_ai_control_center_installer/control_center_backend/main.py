@@ -107,9 +107,26 @@ def _resolve_frontend_index() -> Path:
     raise FileNotFoundError("Control panel frontend index.html is not available.")
 
 
+def _resolve_frontend_public_asset(asset_name: str) -> Path:
+    packaged = _package_root() / "frontend_dist" / asset_name
+    if packaged.is_file():
+        return packaged
+
+    development = _repo_root() / "frontend" / "public" / asset_name
+    if development.is_file():
+        return development
+
+    raise FileNotFoundError(f"Control panel public asset {asset_name} is not available.")
+
+
 @app.get("/")
 def frontend_shell() -> FileResponse:
     return FileResponse(_resolve_frontend_index())
+
+
+@app.get("/runtimepilot-favicon.png")
+def frontend_favicon() -> FileResponse:
+    return FileResponse(_resolve_frontend_public_asset("runtimepilot-favicon.png"))
 
 
 @app.get("/health")
