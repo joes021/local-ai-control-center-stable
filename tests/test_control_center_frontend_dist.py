@@ -1976,3 +1976,57 @@ def test_models_page_stacks_action_column_before_it_turns_into_a_tall_narrow_tow
     bundled_css = "\n".join(path.read_text(encoding="utf-8") for path in css_assets)
 
     assert ".model-item-header" in bundled_css
+
+
+def test_runtimepilot_ux_rewrite_shell_exposes_primary_flow_and_guided_entry():
+    app_source = Path("frontend/src/App.tsx").read_text(encoding="utf-8")
+    layout_source = Path("frontend/src/components/Layout.tsx").read_text(encoding="utf-8")
+    styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
+    dist_root = Path(
+        "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
+    )
+    js_assets = list((dist_root / "assets").glob("index-*.js"))
+    css_assets = list((dist_root / "assets").glob("index-*.css"))
+
+    assert "Vodi me redom" in app_source
+    assert "Lokalni model" in app_source
+    assert "Glavni tokovi" in layout_source
+    assert ".runtimepilot-guided-flow" in styles_source
+    assert ".runtimepilot-primary-flows" in styles_source
+    assert js_assets
+    assert css_assets
+
+    bundled_js = "\n".join(path.read_text(encoding="utf-8") for path in js_assets)
+    bundled_css = "\n".join(path.read_text(encoding="utf-8") for path in css_assets)
+
+    assert "Vodi me redom" in bundled_js
+    assert "Lokalni model" in bundled_js
+    assert ".runtimepilot-guided-flow" in bundled_css
+    assert ".runtimepilot-primary-flows" in bundled_css
+
+
+def test_runtimepilot_ux_rewrite_uses_shared_save_and_apply_language():
+    settings_source = Path("frontend/src/pages/SettingsPage.tsx").read_text(encoding="utf-8")
+    styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
+    dist_root = Path(
+        "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
+    )
+    js_assets = list((dist_root / "assets").glob("index-*.js"))
+    css_assets = list((dist_root / "assets").glob("index-*.css"))
+
+    assert "Sačuvaj i primeni" in settings_source
+    assert "Sačuvaj bez primene" in settings_source
+    assert "Primenjeno na živi sistem" in settings_source
+    assert ".apply-state-panel" in styles_source
+    assert ".apply-state-chip" in styles_source
+    assert js_assets
+    assert css_assets
+
+    bundled_js = "\n".join(path.read_text(encoding="utf-8") for path in js_assets)
+    bundled_css = "\n".join(path.read_text(encoding="utf-8") for path in css_assets)
+
+    assert "Sačuvaj i primeni" in bundled_js
+    assert "Sačuvaj bez primene" in bundled_js
+    assert "Primenjeno na živi sistem" in bundled_js
+    assert ".apply-state-panel" in bundled_css
+    assert ".apply-state-chip" in bundled_css
