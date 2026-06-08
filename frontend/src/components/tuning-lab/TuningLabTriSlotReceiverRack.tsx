@@ -1,4 +1,6 @@
 import type { TuningLabSettingsPatch, TuningLabSlot } from "../../lib/types";
+import { TuningLabSlotDisplayPanel } from "./TuningLabSlotDisplayPanel";
+import { TuningLabSlotIdentityPanel } from "./TuningLabSlotIdentityPanel";
 
 type TuningLabTriSlotReceiverRackProps = {
   slots: TuningLabSlot[];
@@ -32,54 +34,15 @@ export function TuningLabTriSlotReceiverRack({
       <div className="tuning-lab-slot-grid">
         {slots.map((slot) => (
           <article className="status-card tuning-lab-slot-card tuning-lab-slot-row" key={slot.id}>
-            <span className="status-label">{slot.label}</span>
-            <strong className="status-value">{slot.source}</strong>
-            <p className="helper-text">{buildInferenceSummary(slot)}</p>
+            <TuningLabSlotIdentityPanel
+              helperText={buildInferenceSummary(slot)}
+              slot={slot}
+              onPatchSlot={onPatchSlot}
+            />
+
+            <TuningLabSlotDisplayPanel slot={slot} onPatchSlot={onPatchSlot} />
+
             <div className="tuning-lab-compact-grid">
-              <label className="settings-compact-field">
-                <span>Profil</span>
-                <select
-                  value={slot.settingsPatch.profile}
-                  onChange={(event) => onPatchSlot(slot.id, { profile: event.target.value })}
-                >
-                  <option value="balanced">balanced</option>
-                  <option value="speed">speed</option>
-                  <option value="video">video</option>
-                </select>
-              </label>
-              <label className="settings-compact-field">
-                <span>Thinking</span>
-                <select
-                  value={slot.settingsPatch.thinkingMode}
-                  onChange={(event) => onPatchSlot(slot.id, { thinkingMode: event.target.value })}
-                >
-                  <option value="no-thinking">no-thinking</option>
-                  <option value="low">low</option>
-                  <option value="mid">mid</option>
-                  <option value="high">high</option>
-                  <option value="extra-high">extra-high</option>
-                </select>
-              </label>
-              <label className="settings-compact-field">
-                <span>Context</span>
-                <input
-                  type="number"
-                  value={slot.settingsPatch.context}
-                  onChange={(event) =>
-                    onPatchSlot(slot.id, { context: Number(event.target.value || 0) })
-                  }
-                />
-              </label>
-              <label className="settings-compact-field">
-                <span>Output</span>
-                <input
-                  type="number"
-                  value={slot.settingsPatch.outputTokens}
-                  onChange={(event) =>
-                    onPatchSlot(slot.id, { outputTokens: Number(event.target.value || 0) })
-                  }
-                />
-              </label>
               {PRECISION_FIELDS.map(([label, key]) => (
                 <label className="settings-compact-field" key={`${slot.id}-${key}`}>
                   <span>{label}</span>

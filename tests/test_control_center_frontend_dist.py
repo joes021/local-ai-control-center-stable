@@ -736,6 +736,16 @@ def test_server_and_tuning_lab_sources_show_runtime_gpu_diagnostics():
     assert "TuningLabTriSlotReceiverRack" in tuning_source
     assert "tuning-lab-receiver-rack" in tuning_source
     assert "tuning-lab-slot-row" in tuning_source
+    assert "tuning-lab-slot-identity-panel" in tuning_source
+    assert "tuning-lab-slot-square-control" in tuning_source
+    assert "tuning-lab-slot-led-row" in tuning_source
+    assert "tuning-lab-slot-display-panel" in tuning_source
+    assert "tuning-lab-slot-display-box" in tuning_source
+    assert "Profil" in tuning_source
+    assert "Thinking" in tuning_source
+    assert "Source" in tuning_source
+    assert "Context" in tuning_source
+    assert "Output" in tuning_source
     assert "tuning-lab-results-table" in tuning_source
     assert "tuning-lab-history-card" in tuning_source
     assert "Zašto je ovaj slot pobedio" in tuning_source
@@ -772,6 +782,11 @@ def test_server_and_tuning_lab_sources_show_runtime_gpu_diagnostics():
     assert "Skupi sve" in tuning_source
     assert "Proširi sve" in tuning_source
     assert ".tuning-lab-slot-grid" in styles_source
+    assert ".tuning-lab-slot-identity-panel" in styles_source
+    assert ".tuning-lab-slot-square-control" in styles_source
+    assert ".tuning-lab-slot-led-row" in styles_source
+    assert ".tuning-lab-slot-display-panel" in styles_source
+    assert ".tuning-lab-slot-display-box" in styles_source
     assert ".tuning-lab-results-table" in styles_source
     assert ".tuning-lab-history-card" in styles_source
     assert ".tuning-lab-history-toolbar" in styles_source

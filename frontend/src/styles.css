@@ -528,6 +528,71 @@ code {
   line-height: 1.2;
 }
 
+.runtimepilot-scroll-top-button {
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+  z-index: 60;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 52px;
+  padding: 0 16px 0 10px;
+  border-radius: 999px;
+  border: 1px solid var(--app-button-hover-border);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.012)),
+    color-mix(in srgb, var(--app-overlay-solid-fill) 90%, var(--app-card-bg));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 16px 30px rgba(0, 0, 0, 0.2);
+  color: var(--app-text);
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(12px);
+  transition:
+    opacity 180ms ease,
+    transform 180ms ease,
+    border-color 180ms ease,
+    background 180ms ease;
+}
+
+.runtimepilot-scroll-top-button:hover {
+  border-color: var(--app-accent);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.018)),
+    color-mix(in srgb, var(--app-overlay-solid-fill) 84%, var(--app-card-bg));
+}
+
+.runtimepilot-scroll-top-button-visible {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+.runtimepilot-scroll-top-button-symbol {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  border: 1px solid var(--app-card-soft-border);
+  background:
+    radial-gradient(circle at top left, rgba(242, 184, 75, 0.16), transparent 52%),
+    color-mix(in srgb, var(--app-card-soft-bg) 84%, transparent);
+  font-size: 1.05rem;
+  line-height: 1;
+}
+
+.runtimepilot-scroll-top-button-label {
+  font-size: 0.92rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 .runtimepilot-page-shell-summary {
   margin: 0;
   align-self: center;
@@ -2632,6 +2697,17 @@ code {
 
   .runtimepilot-nav-shell-copy {
     padding: 0;
+  }
+
+  .runtimepilot-scroll-top-button {
+    right: 14px;
+    bottom: 14px;
+    min-height: 46px;
+    padding-right: 14px;
+  }
+
+  .runtimepilot-scroll-top-button-label {
+    font-size: 0.85rem;
   }
 
   .runtimepilot-status-rack {
@@ -6262,6 +6338,111 @@ select:-webkit-autofill {
 .tuning-lab-slot-card {
   display: grid;
   gap: 14px;
+}
+
+.tuning-lab-receiver-rack {
+  display: grid;
+  gap: 16px;
+}
+
+.tuning-lab-slot-row {
+  grid-template-columns: minmax(0, 1.1fr) minmax(220px, 0.8fr) minmax(0, 1fr);
+  align-items: start;
+}
+
+.tuning-lab-slot-identity-panel {
+  display: grid;
+  gap: 10px;
+}
+
+.tuning-lab-slot-square-control-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.tuning-lab-slot-square-control {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  min-height: 64px;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--app-panel-elevated-border) 72%, var(--app-card-soft-border));
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.01)),
+    color-mix(in srgb, var(--app-card-soft-bg) 92%, var(--app-overlay-solid-fill) 8%);
+}
+
+.tuning-lab-slot-square-control span {
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--app-text-muted);
+}
+
+.tuning-lab-slot-square-control strong {
+  font-size: 0.95rem;
+  line-height: 1.3;
+}
+
+.tuning-lab-slot-square-control select {
+  width: 100%;
+}
+
+.tuning-lab-slot-led-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tuning-lab-slot-led-row span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid var(--app-card-soft-border);
+  background: color-mix(in srgb, var(--app-card-soft-bg) 86%, transparent);
+  color: var(--app-text-muted);
+  font-size: 0.78rem;
+}
+
+.tuning-lab-slot-display-panel {
+  display: grid;
+  gap: 10px;
+}
+
+.tuning-lab-slot-display-box {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--app-panel-elevated-border) 68%, var(--app-card-soft-border));
+  background:
+    linear-gradient(180deg, rgba(19, 24, 20, 0.9), rgba(8, 11, 9, 0.95)),
+    color-mix(in srgb, #102115 86%, var(--app-overlay-solid-fill) 14%);
+}
+
+.tuning-lab-slot-display-box span {
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #9bc89d;
+}
+
+.tuning-lab-slot-display-box input {
+  border: none;
+  background: transparent;
+  color: #dff7d8;
+  font-size: 1.08rem;
+  font-weight: 700;
+  padding: 0;
+}
+
+.tuning-lab-slot-display-box input:focus {
+  outline: none;
 }
 
 .tuning-lab-cockpit {
