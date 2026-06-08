@@ -6346,6 +6346,12 @@ select:-webkit-autofill {
 }
 
 .tuning-lab-slot-row {
+  padding: 16px;
+}
+
+.tuning-lab-slot-zones {
+  display: grid;
+  gap: 14px;
   grid-template-columns: minmax(0, 1.1fr) minmax(220px, 0.8fr) minmax(0, 1fr);
   align-items: start;
 }
@@ -6406,6 +6412,10 @@ select:-webkit-autofill {
   background: color-mix(in srgb, var(--app-card-soft-bg) 86%, transparent);
   color: var(--app-text-muted);
   font-size: 0.78rem;
+}
+
+.tuning-lab-slot-state-chip {
+  font-weight: 600;
 }
 
 .tuning-lab-slot-display-panel {
@@ -6522,6 +6532,21 @@ select:-webkit-autofill {
 
 .tuning-lab-slot-precision-control input {
   width: 100%;
+}
+
+.tuning-lab-slot-state-draft {
+  border-color: rgba(122, 198, 155, 0.46);
+}
+
+.tuning-lab-slot-state-active {
+  box-shadow: inset 0 0 0 1px rgba(255, 196, 77, 0.24);
+}
+
+.tuning-lab-slot-state-recommended {
+  background:
+    radial-gradient(circle at top right, rgba(255, 205, 96, 0.08), transparent 32%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.028), rgba(255, 255, 255, 0.012)),
+    color-mix(in srgb, var(--app-card-soft-bg) 92%, var(--app-overlay-solid-fill) 8%);
 }
 
 .tuning-lab-cockpit {
@@ -7442,6 +7467,10 @@ select:-webkit-autofill {
   .tuning-lab-batch-task-row,
   .tuning-lab-layout,
   .tuning-lab-slot-grid,
+  .tuning-lab-slot-zones,
+  .tuning-lab-slot-square-control-grid,
+  .tuning-lab-slot-display-panel,
+  .tuning-lab-slot-precision-grid,
   .tuning-lab-compact-grid,
   .tuning-lab-check-grid,
   .tuning-lab-check-row {
@@ -7694,6 +7723,14 @@ select:-webkit-autofill {
   .tuning-lab-slot-grid,
   .tuning-lab-check-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .tuning-lab-slot-zones {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .tuning-lab-slot-precision-rack {
+    grid-column: 1 / -1;
   }
 
   .runtime-resource-grid {

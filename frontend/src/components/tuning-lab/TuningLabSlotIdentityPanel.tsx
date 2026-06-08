@@ -2,12 +2,18 @@ import type { TuningLabSettingsPatch, TuningLabSlot } from "../../lib/types";
 
 type TuningLabSlotIdentityPanelProps = {
   helperText: string;
+  isActive: boolean;
+  isDraftChanged: boolean;
+  isRecommended: boolean;
   slot: TuningLabSlot;
   onPatchSlot: (slotId: string, patch: Partial<TuningLabSettingsPatch>) => void;
 };
 
 export function TuningLabSlotIdentityPanel({
   helperText,
+  isActive,
+  isDraftChanged,
+  isRecommended,
   slot,
   onPatchSlot,
 }: TuningLabSlotIdentityPanelProps) {
@@ -51,6 +57,17 @@ export function TuningLabSlotIdentityPanel({
       </div>
 
       <div className="tuning-lab-slot-led-row">
+        {isDraftChanged ? (
+          <span className="tuning-lab-slot-state-chip tuning-lab-slot-state-draft">izmenjeno</span>
+        ) : null}
+        {isRecommended ? (
+          <span className="tuning-lab-slot-state-chip tuning-lab-slot-state-recommended">
+            preporučeno
+          </span>
+        ) : null}
+        {isActive ? (
+          <span className="tuning-lab-slot-state-chip tuning-lab-slot-state-active">aktivno</span>
+        ) : null}
         <span>{slot.status || "draft"}</span>
         <span>{slot.source}</span>
       </div>

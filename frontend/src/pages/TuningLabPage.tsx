@@ -2093,6 +2093,7 @@ export function TuningLabPage() {
         <span className="status-label">Tri slota</span>
         <TuningLabTriSlotReceiverRack
           slots={draft.slots}
+          referenceSlots={summary?.slots ?? []}
           buildInferenceSummary={buildInferenceSummary}
           onPatchSlot={(slotId, patch) =>
             setDraft({
