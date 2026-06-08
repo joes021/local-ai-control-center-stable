@@ -1,7 +1,7 @@
 {
   "name": "local-qwen-control-center-next",
   "private": true,
-  "version": "2.24.27",
+  "version": "2.24.28",
   "type": "module",
   "scripts": {
     "dev": "vite",

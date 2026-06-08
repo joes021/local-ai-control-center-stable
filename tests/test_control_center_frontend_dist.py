@@ -87,6 +87,33 @@ def test_settings_page_source_reuses_context_picker_pattern_for_turboquant_conte
     assert 'turboContextChoice === "custom" ? (' in source
 
 
+def test_settings_source_includes_opencode_disk_hygiene_panel_and_actions():
+    settings_source = Path("frontend/src/pages/SettingsPage.tsx").read_text(encoding="utf-8")
+    api_source = Path("frontend/src/lib/api.ts").read_text(encoding="utf-8")
+    types_source = Path("frontend/src/lib/types.ts").read_text(encoding="utf-8")
+    styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
+
+    assert "Disk higijena OpenCode workspace-a" in settings_source
+    assert "Očisti sada" in settings_source
+    assert "OpCode scratch i copy workspace-i" not in settings_source
+    assert "fetchOpenCodeWorkspaceHygiene" in settings_source
+    assert "cleanupOpenCodeWorkspaceHygiene" in settings_source
+    assert "OpenCodeWorkspaceHygienePayload" in types_source
+    assert "/api/opencode/hygiene" in api_source
+    assert "/api/opencode/hygiene/cleanup" in api_source
+    assert ".settings-hygiene-grid" in styles_source
+    assert ".settings-hygiene-item-list" in styles_source
+
+
+def test_settings_source_mentions_last_auto_cleanup_signal_for_opencode_hygiene():
+    settings_source = Path("frontend/src/pages/SettingsPage.tsx").read_text(encoding="utf-8")
+    types_source = Path("frontend/src/lib/types.ts").read_text(encoding="utf-8")
+
+    assert "lastAutoCleanup" in settings_source
+    assert "Auto-cleanup" in settings_source
+    assert "lastAutoCleanup" in types_source
+
+
 def test_theme_source_and_packaged_frontend_include_named_themes():
     settings_source = Path("frontend/src/pages/SettingsPage.tsx").read_text(encoding="utf-8")
     layout_source = Path("frontend/src/components/Layout.tsx").read_text(encoding="utf-8")
@@ -122,7 +149,7 @@ def test_workflow_preset_source_mentions_core_presets():
     assert "Preset radnog toka" in benchmark_source
 
 
-def test_home_source_formats_runtime_binary_as_name_and_compact_location():
+def test_home_source_exposes_command_deck_intro_and_primary_flow_grid():
     home_source = Path("frontend/src/pages/HomePage.tsx").read_text(encoding="utf-8")
     styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
     dist_root = Path(
@@ -131,21 +158,21 @@ def test_home_source_formats_runtime_binary_as_name_and_compact_location():
     js_assets = list((dist_root / "assets").glob("index-*.js"))
     css_assets = list((dist_root / "assets").glob("index-*.css"))
 
-    assert "describeRuntimeBinaryPath" in home_source
-    assert "Lokacija binara" in home_source
-    assert "runtime-binary-card" in home_source
-    assert "runtime-binary-file" in styles_source
-    assert "runtime-binary-location" in styles_source
+    assert "Nastavi direktan rad" in home_source
+    assert "Sekundarni alati" in home_source
+    assert "primary-flow-grid" in home_source
+    assert ".primary-flow-grid" in styles_source
+    assert ".runtimepilot-home-intro" in styles_source
     assert js_assets
     assert css_assets
 
     bundled_js = "\n".join(path.read_text(encoding="utf-8") for path in js_assets)
     bundled_css = "\n".join(path.read_text(encoding="utf-8") for path in css_assets)
 
-    assert "Lokacija binara" in bundled_js
-    assert "describeRuntimeBinaryPath" not in bundled_js
-    assert "runtime-binary-file" in bundled_css
-    assert "runtime-binary-location" in bundled_css
+    assert "Nastavi direktan rad" in bundled_js
+    assert "Sekundarni alati" in bundled_js
+    assert ".primary-flow-grid" in bundled_css
+    assert ".runtimepilot-home-intro" in bundled_css
 
 
 def test_observability_source_and_navigation_are_present():
@@ -184,13 +211,17 @@ def test_app_and_layout_source_and_packaged_frontend_show_global_active_model_st
 
     assert "activeModelStrip" in layout_source
     assert "runtimepilot-active-model-strip" in app_source
-    assert "runtimepilot-active-model-primary" in app_source
+    assert "runtimepilot-utility-module" in app_source
+    assert "runtimepilot-active-model-layout" in app_source
+    assert "runtimepilot-utility-title" in app_source
     assert "runtimepilot-active-model-meta" in app_source
     assert "Otvori modele" in app_source
     assert "Runtime aktivan" in app_source
     assert "Nema aktivnog modela" in app_source
     assert ".runtimepilot-active-model-strip" in styles_source
-    assert ".runtimepilot-active-model-primary" in styles_source
+    assert ".runtimepilot-utility-module" in styles_source
+    assert ".runtimepilot-utility-head" in styles_source
+    assert ".runtimepilot-utility-title" in styles_source
     assert ".runtimepilot-active-model-open" in styles_source
     assert ".runtimepilot-active-model-meta" in styles_source
     assert js_assets
@@ -204,12 +235,14 @@ def test_app_and_layout_source_and_packaged_frontend_show_global_active_model_st
     assert "Runtime aktivan" in bundled_js
     assert "Nema aktivnog modela" in bundled_js
     assert ".runtimepilot-active-model-strip" in bundled_css
-    assert ".runtimepilot-active-model-primary" in bundled_css
+    assert ".runtimepilot-utility-module" in bundled_css
+    assert ".runtimepilot-utility-head" in bundled_css
+    assert ".runtimepilot-utility-title" in bundled_css
     assert ".runtimepilot-active-model-open" in bundled_css
     assert ".runtimepilot-active-model-meta" in bundled_css
 
 
-def test_project_memory_source_and_packaged_frontend_include_global_strip_and_page():
+def test_project_memory_source_and_packaged_frontend_keep_project_memory_as_page_and_nav_tool():
     app_source = Path("frontend/src/App.tsx").read_text(encoding="utf-8")
     layout_source = Path("frontend/src/components/Layout.tsx").read_text(encoding="utf-8")
     page_source = Path("frontend/src/pages/ProjectMemoryPage.tsx").read_text(encoding="utf-8")
@@ -224,11 +257,9 @@ def test_project_memory_source_and_packaged_frontend_include_global_strip_and_pa
 
     assert "projectMemory" in app_source
     assert "Project Memory" in app_source
-    assert "projectMemoryStrip" in app_source
-    assert "Otvori memoriju" in app_source
-    assert "Cilj još nije postavljen" in app_source
+    assert "projectMemoryStrip" not in app_source
     assert "activeModelStrip" in layout_source
-    assert "projectMemoryStrip" in layout_source
+    assert "projectMemoryStrip" not in layout_source
     assert "Posej iz task teksta" in page_source
     assert "Sačuvaj Project Memory" in page_source
     assert "Glavni fokus" in page_source
@@ -255,13 +286,10 @@ def test_project_memory_source_and_packaged_frontend_include_global_strip_and_pa
     bundled_css = "\n".join(path.read_text(encoding="utf-8") for path in css_assets)
 
     assert "Project Memory" in bundled_js
-    assert "Otvori memoriju" in bundled_js
     assert "Posej iz task teksta" in bundled_js
     assert "Sačuvaj Project Memory" in bundled_js
-    assert "Cilj još nije postavljen" in bundled_js
     assert "Još nema pravila" in bundled_js
     assert "Još nema sledećeg koraka" in bundled_js
-    assert ".runtimepilot-project-memory-strip" in bundled_css
     assert ".project-memory-grid" in bundled_css
     assert ".project-memory-empty-state" in bundled_css
     assert ".project-memory-item-row" in bundled_css
@@ -287,20 +315,28 @@ def test_live_resource_strip_source_and_packaged_frontend_use_compact_clickable_
     assert "resource-chip-detail-panel-idle" in strip_source
     assert "resource-chip-detail-panel-expanded" in strip_source
     assert "resource-chip-detail-idle-copy" in strip_source
+    assert "live-resource-inline-meter" in strip_source
+    assert "live-resource-inline-meter-fill" in strip_source
+    assert "live-resource-inline-meter-scale" in strip_source
     assert "Otvori VRAM tuning" in strip_source
     assert 'label: "Context"' in strip_source
     assert "Restart potreban" in strip_source
     assert "Usklađeno" in strip_source
     assert "Staje u VRAM" in strip_source
     assert "Ne staje u VRAM" in strip_source
+    assert "GPU drži model, ali ceo runtime ne staje u VRAM" in strip_source
+    assert "težine modela jesu na GPU-u, ali ceo runtime nije čist VRAM fit." in strip_source
     assert "Sistemski RAM se i dalje koristi samo za mapiranje i pomoćne bafere." in strip_source
     assert ".live-resource-inline-row" in styles_source
     assert ".live-resource-inline-item" in styles_source
     assert "live-resource-inline-item-compact-numeric" in strip_source
     assert ".live-resource-inline-item-compact-numeric .live-resource-inline-value" in styles_source
-    assert "padding: 7px 9px;" in styles_source
+    assert ".live-resource-inline-meter" in styles_source
+    assert ".live-resource-inline-meter-fill" in styles_source
+    assert ".live-resource-inline-meter-scale" in styles_source
+    assert "padding: 6px 8px;" in styles_source
     assert "grid-template-columns: minmax(0, 0.58fr) minmax(0, 0.94fr) minmax(0, 0.94fr) minmax(0, 0.96fr) minmax(0, 1.08fr) minmax(0, 1.08fr) minmax(0, 0.82fr) minmax(0, 1.28fr);" in styles_source
-    assert "grid-template-rows: auto auto;" in styles_source
+    assert "grid-template-rows: auto auto auto;" in styles_source
     assert "overflow-x: auto;" not in styles_source
     assert ".live-resource-inline-button" in styles_source
     assert ".resource-chip-detail-panel" in styles_source
@@ -333,11 +369,15 @@ def test_live_resource_strip_source_and_packaged_frontend_use_compact_clickable_
     assert ".live-resource-inline-row" in bundled_css
     assert ".live-resource-inline-item" in bundled_css
     assert ".live-resource-inline-item-compact-numeric .live-resource-inline-value" in bundled_css
+    assert ".live-resource-inline-meter" in bundled_css
+    assert ".live-resource-inline-meter-fill" in bundled_css
+    assert ".live-resource-inline-meter-scale" in bundled_css
     assert ".live-resource-inline-button" in bundled_css
     assert ".resource-chip-detail-panel" in bundled_css
     assert ".resource-chip-detail-panel-idle" in bundled_css
-    assert "padding:7px 9px" in bundled_css
+    assert "padding:6px 8px" in bundled_css
     assert "grid-template-columns:minmax(0,.58fr) minmax(0,.94fr) minmax(0,.94fr) minmax(0,.96fr) minmax(0,1.08fr) minmax(0,1.08fr) minmax(0,.82fr) minmax(0,1.28fr)" in bundled_css
+    assert "grid-template-rows:auto auto auto" in bundled_css
 
 
 def test_runtime_resource_panel_source_explains_hybrid_ram_spill_and_full_gpu_fit():
@@ -388,6 +428,51 @@ def test_settings_source_mentions_vram_fit_tuning_and_manual_gpu_layers_override
     assert "Poslednja primena runtime-a" in bundled_js
 
 
+def test_settings_source_uses_hifi_vram_stack_with_transport_controls():
+    settings_source = Path("frontend/src/pages/SettingsPage.tsx").read_text(encoding="utf-8")
+    styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
+
+    assert "settings-vram-hifi-stack" in settings_source
+    assert "settings-vram-mixer-deck" in settings_source
+    assert "settings-vram-transport-deck" in settings_source
+    assert "settings-vram-monitor-deck" in settings_source
+    assert "Primeni postojeće" in settings_source
+    assert "Sačuvaj i primeni" in settings_source
+    assert "saveAndApplySavedVramTuning" in settings_source
+    assert ".settings-vram-hifi-stack" in styles_source
+    assert ".settings-vram-mixer-deck" in styles_source
+    assert ".settings-vram-transport-deck" in styles_source
+    assert ".settings-vram-monitor-deck" in styles_source
+    assert ".settings-vram-transport-actions" in styles_source
+
+
+def test_settings_source_uses_hifi_decks_for_general_search_and_turbo_sections():
+    settings_source = Path("frontend/src/pages/SettingsPage.tsx").read_text(encoding="utf-8")
+    styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
+
+    assert "settings-general-hifi-stack" in settings_source
+    assert "settings-general-mixer-deck" in settings_source
+    assert "settings-general-transport-deck" in settings_source
+    assert "settings-general-monitor-deck" in settings_source
+
+    assert "settings-search-hifi-stack" in settings_source
+    assert "settings-search-mixer-deck" in settings_source
+    assert "settings-search-transport-deck" in settings_source
+    assert "settings-search-monitor-deck" in settings_source
+
+    assert "settings-turbo-hifi-stack" in settings_source
+    assert "settings-turbo-mixer-deck" in settings_source
+    assert "settings-turbo-transport-deck" in settings_source
+    assert "settings-turbo-monitor-deck" in settings_source
+
+    assert ".settings-general-hifi-stack" in styles_source
+    assert ".settings-general-mixer-deck" in styles_source
+    assert ".settings-search-hifi-stack" in styles_source
+    assert ".settings-search-mixer-deck" in styles_source
+    assert ".settings-turbo-hifi-stack" in styles_source
+    assert ".settings-turbo-mixer-deck" in styles_source
+
+
 def test_fleet_source_and_navigation_are_present():
     app_source = Path("frontend/src/App.tsx").read_text(encoding="utf-8")
     fleet_source = Path("frontend/src/pages/FleetPage.tsx").read_text(encoding="utf-8")
@@ -421,11 +506,11 @@ def test_models_and_nav_source_protect_local_model_layout_and_even_nav_card_heig
     assert "white-space: nowrap;" in styles_source
     assert "text-overflow: ellipsis;" in styles_source
     assert ".nav-more-shell" in styles_source
-    assert "flex: 0 0 194px;" in styles_source
-    assert "align-self: stretch;" in styles_source
+    assert "flex: 0 0 182px;" in styles_source
+    assert "align-self: auto;" in styles_source
     assert "display: flex;" in styles_source
     assert ".nav-more-button" in styles_source
-    assert "min-height: 100%;" in styles_source or "height: 100%;" in styles_source
+    assert "min-height: 70px;" in styles_source
 
 
 def test_jobs_source_and_navigation_are_present():
@@ -725,9 +810,10 @@ def test_server_and_opencode_source_include_equivalent_launch_command_panels():
     assert "command-preview-grid" in opencode_source
     assert "opencode-config-grid" in opencode_source
     assert "opencode-env-grid" in opencode_source
-    assert "Efektivna local-lacc inference podrazumevana podešavanja" in opencode_source
-    assert "CLI sesija u terminalu" in opencode_source
-    assert "nije zaseban OpenCode GUI prozor" in opencode_source
+    assert "Efektivna local-lacc inference podrazumevana" in opencode_source
+    assert "Desktop GUI kada je dostupan" in opencode_source
+    assert "CLI fallback" in opencode_source
+    assert "izolovanom workspace-u" in opencode_source
 
     dist_root = Path(
         "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
@@ -1129,7 +1215,7 @@ def test_search_page_source_makes_web_results_clickable_and_guides_toward_answer
     assert "Otvori izvor" in source
 
 
-def test_home_page_source_uses_single_system_overview_card():
+def test_home_page_source_uses_command_deck_intro_and_telemetry_support():
     source = Path("frontend/src/pages/HomePage.tsx").read_text(encoding="utf-8")
     telemetry_source = Path("frontend/src/components/TelemetryPanel.tsx").read_text(encoding="utf-8")
     app_source = Path("frontend/src/App.tsx").read_text(encoding="utf-8")
@@ -1138,7 +1224,7 @@ def test_home_page_source_uses_single_system_overview_card():
     assert "BENCHMARK_REALTIME_REFRESH_MS = 1000" in source
     assert "async function loadBenchmarkOnly()" in source
     assert "void loadBenchmarkOnly();" in source
-    assert "Pregled sistema" in source
+    assert "Nastavi direktan rad" in source
     assert "TelemetryPanel" in source
     assert "Puls tokena" in telemetry_source
     assert "Ulaz 24h" in telemetry_source
@@ -1146,14 +1232,12 @@ def test_home_page_source_uses_single_system_overview_card():
     assert "Aktivne rute" in telemetry_source
     assert "Uživo sada" in telemetry_source
     assert "Poslednji throughput signal" in telemetry_source
-    assert "Stanje RuntimePilot-a" in source
     assert "Control. Monitor. Optimize." in app_source
     assert "RuntimePilot" in app_source
-    assert "Aktivan runtime" in source
-    assert "Status runtime servera" in source
-    assert "Aktivni model" in source
-    assert "Profil" in source
-    assert "Dostupni runtime-i" in source
+    assert "Runtime" in source
+    assert "Lokalni model" in source
+    assert "OpenCode" in source
+    assert "Sekundarni alati" in source
 
 
 def test_telemetry_source_and_styles_keep_live_now_layout_stable_when_signal_drops():
@@ -1296,7 +1380,7 @@ def test_overlay_surfaces_use_solid_fill_to_avoid_transparent_bleed():
     styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
 
     assert "--app-overlay-solid-fill" in styles_source
-    assert "--app-overlay-solid-fill: rgb(17, 15, 12);" in styles_source
+    assert "--app-overlay-solid-fill: rgb(28, 24, 20);" in styles_source
     assert "--app-overlay-solid-fill: rgb(255, 252, 246);" in styles_source
     assert "--app-overlay-solid-fill: rgb(13, 17, 24);" in styles_source
     assert "--app-overlay-solid-fill: rgb(8, 18, 11);" in styles_source
@@ -1446,10 +1530,11 @@ def test_server_page_source_uses_runtime_generic_actions_and_labels():
     source = Path("frontend/src/pages/ServerPage.tsx").read_text(encoding="utf-8")
     api_source = Path("frontend/src/lib/api.ts").read_text(encoding="utf-8")
 
-    assert "Start runtime server" in source
-    assert "Stop runtime server" in source
+    assert "Pokreni runtime" in source
+    assert "Restartuj runtime" in source
+    assert "Zaustavi runtime" in source
     assert "Otvori runtime veb" in source
-    assert "Restartuj runtime da poravnaš context" in source
+    assert "Poravnaj restartom" in source
     assert "serverStatus?.canStart === false" in source
     assert "serverStatus?.canOpenWeb === false" in source
     assert "restartServer" in api_source
@@ -1574,6 +1659,7 @@ def test_settings_source_explains_inference_parameters_and_uses_compact_summary_
 
 def test_shared_ux_components_and_guided_flow_copy_are_present_in_core_pages():
     flow_component = Path("frontend/src/components/PageFlowCard.tsx").read_text(encoding="utf-8")
+    primary_flow_component = Path("frontend/src/components/PrimaryFlowCard.tsx").read_text(encoding="utf-8")
     state_component = Path("frontend/src/components/PageDataStateCard.tsx").read_text(encoding="utf-8")
     home_source = Path("frontend/src/pages/HomePage.tsx").read_text(encoding="utf-8")
     server_source = Path("frontend/src/pages/ServerPage.tsx").read_text(encoding="utf-8")
@@ -1592,24 +1678,29 @@ def test_shared_ux_components_and_guided_flow_copy_are_present_in_core_pages():
     assert "Prirodan tok rada" in flow_component
     assert "page-flow-card" in flow_component
     assert "page-flow-step" in flow_component
+    assert "primary-flow-card" in primary_flow_component
     assert "Pokušaj ponovo" in state_component
     assert "page-data-state-card" in state_component
 
-    assert "Najbrži sledeći korak" in home_source
-    assert "Proveri runtime i model" in home_source
-    assert "Otvori OpenCode ili Tuning Lab" in home_source
-    assert "PageFlowCard" in home_source
-    assert "Otvori Tuning Lab" in home_source
+    assert "Nastavi direktan rad" in home_source
+    assert "PrimaryFlowCard" in home_source
+    assert "Glavna akcija" in home_source
+    assert "Sekundarna akcija" in home_source
+    assert "Rezultat posle klika" in home_source
+    assert "Sekundarni alati" in home_source
+    assert "Otvori u izolovanom workspace-u" in home_source
 
-    assert "Server tok" in server_source
-    assert "Start ili stop runtime server" in server_source
-    assert "Ručna CLI komanda" in server_source
-    assert "PageFlowCard" in server_source
+    assert "Runtime cockpit" in server_source
+    assert "runtime-page-top-grid" in server_source
+    assert "runtime-faceplate-card" in server_source
+    assert "runtime-faceplate-support" in server_source
+    assert "Napredna dijagnostika i ručne komande" in server_source
+    assert "PrimaryFlowCard" in server_source
 
-    assert "Model tok" in models_source
-    assert "Dodaj ili preuzmi model" in models_source
-    assert "Aktiviraj model" in models_source
-    assert "PageFlowCard" in models_source
+    assert "Aktivni model i brza promena" in models_source
+    assert "Brzi izbor modela" in models_source
+    assert "Napredni katalog i izvori" in models_source
+    assert "PrimaryFlowCard" in models_source
     assert "PageDataStateCard" in models_source
 
     assert "Browser tok" in browser_source
@@ -1624,10 +1715,11 @@ def test_shared_ux_components_and_guided_flow_copy_are_present_in_core_pages():
     assert "PageFlowCard" in search_source
     assert "PageDataStateCard" in search_source
 
-    assert "OpenCode tok" in opencode_source
-    assert "Proveri runtime vezu" in opencode_source
-    assert "Otvori novu sesiju" in opencode_source
-    assert "PageFlowCard" in opencode_source
+    assert "OpenCode radni tok" in opencode_source
+    assert "Otvori u izolovanom workspace-u" in opencode_source
+    assert "Desktop GUI kada je dostupan" in opencode_source
+    assert "Napredni OpenCode alati" in opencode_source
+    assert "PrimaryFlowCard" in opencode_source
     assert "PageDataStateCard" in opencode_source
 
     assert "Benchmark tok" in benchmark_source
@@ -1855,7 +1947,7 @@ def test_runtimepilot_phase_six_visual_redesign_surfaces_icons_and_control_deck_
     assert "runtimepilot-page-shell-signal" in layout_source
     assert "runtimepilot-section-glyph" in flow_source
     assert "telemetry-radar-shell" in telemetry_source
-    assert "Komandni pregled" in home_source
+    assert "Komandni ekran" in home_source
     assert ".runtimepilot-nav-button-glyph" in styles_source
     assert ".runtimepilot-hero-brandline" in styles_source
     assert ".runtimepilot-hero-copy" in styles_source
@@ -1865,7 +1957,7 @@ def test_runtimepilot_phase_six_visual_redesign_surfaces_icons_and_control_deck_
     assert ".runtimepilot-page-shell-signal" in styles_source
     assert ".runtimepilot-section-glyph" in styles_source
     assert ".telemetry-radar-shell" in styles_source
-    assert ".mission-control-grid" in styles_source
+    assert ".primary-flow-grid" in styles_source
     assert js_assets
     assert css_assets
 
@@ -2030,3 +2122,415 @@ def test_runtimepilot_ux_rewrite_uses_shared_save_and_apply_language():
     assert "Primenjeno na živi sistem" in bundled_js
     assert ".apply-state-panel" in bundled_css
     assert ".apply-state-chip" in bundled_css
+
+
+def test_runtimepilot_ux_rewrite_home_centers_three_primary_zones():
+    home_source = Path("frontend/src/pages/HomePage.tsx").read_text(encoding="utf-8")
+    styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
+    dist_root = Path(
+        "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
+    )
+    js_assets = list((dist_root / "assets").glob("index-*.js"))
+    css_assets = list((dist_root / "assets").glob("index-*.css"))
+
+    assert "Nastavi direktan rad" in home_source
+    assert "Glavna akcija" in home_source
+    assert "Sekundarna akcija" in home_source
+    assert "primary-flow-sequence-rail" in home_source
+    assert ".primary-flow-grid" in styles_source
+    assert ".primary-flow-card" in styles_source
+    assert ".primary-flow-sequence-rail" in styles_source
+    assert ".primary-flow-sequence-chip" in styles_source
+    assert "grid-template-columns: 1fr;" in styles_source
+    assert js_assets
+    assert css_assets
+
+    bundled_js = "\n".join(path.read_text(encoding="utf-8") for path in js_assets)
+    bundled_css = "\n".join(path.read_text(encoding="utf-8") for path in css_assets)
+
+    assert "Nastavi direktan rad" in bundled_js
+    assert "Glavna akcija" in bundled_js
+    assert "Runtime → Lokalni model → OpenCode" in bundled_js
+    assert ".primary-flow-grid" in bundled_css
+    assert ".primary-flow-card" in bundled_css
+    assert ".primary-flow-sequence-rail" in bundled_css
+    assert ".primary-flow-sequence-chip" in bundled_css
+
+
+def test_runtimepilot_ux_rewrite_runtime_models_and_opencode_pages_use_new_primary_shell():
+    server_source = Path("frontend/src/pages/ServerPage.tsx").read_text(encoding="utf-8")
+    models_source = Path("frontend/src/pages/ModelsPage.tsx").read_text(encoding="utf-8")
+    opencode_source = Path("frontend/src/pages/OpenCodePage.tsx").read_text(encoding="utf-8")
+    styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
+    dist_root = Path(
+        "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
+    )
+    js_assets = list((dist_root / "assets").glob("index-*.js"))
+    css_assets = list((dist_root / "assets").glob("index-*.css"))
+
+    assert "Runtime cockpit" in server_source
+    assert "Napredna dijagnostika i ručne komande" in server_source
+    assert "Aktivni model i brza promena" in models_source
+    assert "runtime-page-top-grid" in models_source
+    assert "runtime-faceplate-support" in models_source
+    assert "runtime-faceplate-headline" in models_source
+    assert "Brzi izbor modela" in models_source
+    assert "Napredni katalog i izvori" in models_source
+    assert "OpenCode radni tok" in opencode_source
+    assert "runtime-page-top-grid" in opencode_source
+    assert "runtime-faceplate-support" in opencode_source
+    assert "runtime-faceplate-headline" in opencode_source
+    assert "Otvorena CLI sesija i sledeći klik" in opencode_source
+    assert "Napredni OpenCode alati" in opencode_source
+    assert ".primary-page-top-grid" in styles_source
+    assert ".runtime-page-top-grid" in styles_source
+    assert ".runtime-faceplate-card" in styles_source
+    assert ".runtime-faceplate-support" in styles_source
+    assert ".runtime-faceplate-headline" in styles_source
+    assert ".runtime-faceplate-module-glyph" in styles_source
+    assert ".primary-page-support-card" in styles_source
+    assert ".runtimepilot-advanced-disclosure" in styles_source
+    assert ".model-quick-grid" in styles_source
+    assert js_assets
+    assert css_assets
+
+    bundled_js = "\n".join(path.read_text(encoding="utf-8") for path in js_assets)
+    bundled_css = "\n".join(path.read_text(encoding="utf-8") for path in css_assets)
+
+    assert "Runtime cockpit" in bundled_js
+    assert "runtime-page-top-grid" in bundled_js
+    assert "Aktivni model i brza promena" in bundled_js
+    assert "Brzi izbor modela" in bundled_js
+    assert "OpenCode radni tok" in bundled_js
+    assert "Napredni OpenCode alati" in bundled_js
+    assert ".primary-page-top-grid" in bundled_css
+    assert ".runtime-page-top-grid" in bundled_css
+    assert ".runtime-faceplate-card" in bundled_css
+    assert ".runtime-faceplate-support" in bundled_css
+    assert ".runtime-faceplate-headline" in bundled_css
+    assert ".runtime-faceplate-module-glyph" in bundled_css
+    assert ".primary-page-support-card" in bundled_css
+    assert ".runtimepilot-advanced-disclosure" in bundled_css
+    assert ".model-quick-grid" in bundled_css
+
+
+def test_runtimepilot_runtime_advanced_diagnostics_use_deck_rack_layout():
+    server_source = Path("frontend/src/pages/ServerPage.tsx").read_text(encoding="utf-8")
+    styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
+    dist_root = Path(
+        "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
+    )
+    js_assets = list((dist_root / "assets").glob("index-*.js"))
+    css_assets = list((dist_root / "assets").glob("index-*.css"))
+
+    assert "runtimepilot-advanced-rack" in server_source
+    assert "runtimepilot-advanced-module" in server_source
+    assert "runtimepilot-command-rack" in server_source
+    assert "runtimepilot-command-module" in server_source
+    assert ".runtimepilot-advanced-rack" in styles_source
+    assert ".runtimepilot-advanced-module" in styles_source
+    assert ".runtimepilot-command-rack" in styles_source
+    assert ".runtimepilot-command-module" in styles_source
+    assert js_assets
+    assert css_assets
+
+    bundled_js = "\n".join(path.read_text(encoding="utf-8") for path in js_assets)
+    bundled_css = "\n".join(path.read_text(encoding="utf-8") for path in css_assets)
+
+    assert "Napredna dijagnostika i ručne komande" in bundled_js
+    assert ".runtimepilot-advanced-rack" in bundled_css
+    assert ".runtimepilot-advanced-module" in bundled_css
+    assert ".runtimepilot-command-rack" in bundled_css
+    assert ".runtimepilot-command-module" in bundled_css
+
+
+def test_runtimepilot_models_and_opencode_advanced_sections_use_deck_modules():
+    models_source = Path("frontend/src/pages/ModelsPage.tsx").read_text(encoding="utf-8")
+    opencode_source = Path("frontend/src/pages/OpenCodePage.tsx").read_text(encoding="utf-8")
+    styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
+    dist_root = Path(
+        "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
+    )
+    js_assets = list((dist_root / "assets").glob("index-*.js"))
+    css_assets = list((dist_root / "assets").glob("index-*.css"))
+
+    assert "runtimepilot-advanced-module-shell" in models_source
+    assert "runtimepilot-advanced-module" in models_source
+    assert "runtimepilot-command-module" in models_source
+    assert "runtimepilot-advanced-module-shell" in opencode_source
+    assert "runtimepilot-advanced-module" in opencode_source
+    assert "runtimepilot-command-module" in opencode_source
+    assert ".runtimepilot-advanced-module-shell" in styles_source
+    assert ".runtimepilot-advanced-module" in styles_source
+    assert ".runtimepilot-command-module" in styles_source
+    assert js_assets
+    assert css_assets
+
+    bundled_js = "\n".join(path.read_text(encoding="utf-8") for path in js_assets)
+    bundled_css = "\n".join(path.read_text(encoding="utf-8") for path in css_assets)
+
+    assert "Napredni katalog i izvori" in bundled_js
+    assert "Napredni OpenCode alati" in bundled_js
+    assert ".runtimepilot-advanced-module-shell" in bundled_css
+    assert ".runtimepilot-advanced-module" in bundled_css
+    assert ".runtimepilot-command-module" in bundled_css
+
+
+def test_runtimepilot_settings_tuning_and_compatibility_pages_use_rack_modules():
+    settings_source = Path("frontend/src/pages/SettingsPage.tsx").read_text(encoding="utf-8")
+    tuning_source = Path("frontend/src/pages/TuningLabPage.tsx").read_text(encoding="utf-8")
+    compatibility_page_source = Path("frontend/src/pages/CompatibilityPage.tsx").read_text(encoding="utf-8")
+    compatibility_panel_source = Path("frontend/src/components/CompatibilityCalculatorPanel.tsx").read_text(encoding="utf-8")
+    styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
+
+    assert "runtimepilot-rack-page" in settings_source
+    assert "runtimepilot-faceplate-module settings-rack-module" in settings_source
+    assert "runtimepilot-rack-page" in tuning_source
+    assert "runtimepilot-faceplate-module tuning-rack-module" in tuning_source
+    assert "runtimepilot-rack-page" in compatibility_page_source
+    assert "runtimepilot-faceplate-module compat-rack-module" in compatibility_page_source
+    assert "compatibility-calculator-panel" in compatibility_panel_source
+    assert "runtimepilot-faceplate-module" in compatibility_panel_source
+    assert ".runtimepilot-rack-page" in styles_source
+    assert ".settings-rack-module" in styles_source
+    assert ".tuning-rack-module" in styles_source
+    assert ".compat-rack-module" in styles_source
+    assert ".compatibility-calculator-panel.compat-surface" in styles_source
+
+
+def test_tuning_lab_and_compatibility_pages_use_hifi_mixer_transport_and_monitoring_decks():
+    tuning_source = Path("frontend/src/pages/TuningLabPage.tsx").read_text(encoding="utf-8")
+    compatibility_page_source = Path("frontend/src/pages/CompatibilityPage.tsx").read_text(encoding="utf-8")
+    compatibility_panel_source = Path("frontend/src/components/CompatibilityCalculatorPanel.tsx").read_text(encoding="utf-8")
+    styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
+
+    assert "tuning-lab-hifi-stack" in tuning_source
+    assert "tuning-lab-mixer-deck" in tuning_source
+    assert "tuning-lab-transport-deck" in tuning_source
+    assert "tuning-lab-monitor-deck" in tuning_source
+
+    assert "compatibility-hifi-stack" in compatibility_page_source
+    assert "compatibility-mixer-deck" in compatibility_page_source
+    assert "compatibility-monitor-deck" in compatibility_panel_source
+    assert "compatibility-transport-deck" in compatibility_panel_source
+
+    assert ".tuning-lab-hifi-stack" in styles_source
+    assert ".tuning-lab-mixer-deck" in styles_source
+    assert ".tuning-lab-transport-deck" in styles_source
+    assert ".tuning-lab-monitor-deck" in styles_source
+    assert ".compatibility-hifi-stack" in styles_source
+    assert ".compatibility-mixer-deck" in styles_source
+    assert ".compatibility-transport-deck" in styles_source
+    assert ".compatibility-monitor-deck" in styles_source
+
+
+def test_compatibility_calculator_makes_apply_results_and_active_values_easy_to_find():
+    compatibility_panel_source = Path(
+        "frontend/src/components/CompatibilityCalculatorPanel.tsx"
+    ).read_text(encoding="utf-8")
+    styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
+
+    assert "Aktivno sada na runtime-u" in compatibility_panel_source
+    assert "compatibility-live-settings-panel" in compatibility_panel_source
+    assert "compatibility-live-settings-grid" in compatibility_panel_source
+    assert "compatibility-action-result-inline" in compatibility_panel_source
+    assert "compatibility-editor-settings-panel" in compatibility_panel_source
+    assert "Napredna izmena menja editor, ne živi runtime" in compatibility_panel_source
+    assert "Proveri ili primeni da bi aktivno stanje ispod bilo ažurirano." in compatibility_panel_source
+    assert ".compatibility-live-settings-panel" in styles_source
+    assert ".compatibility-live-settings-grid" in styles_source
+    assert ".compatibility-action-result-inline" in styles_source
+    assert ".compatibility-editor-settings-panel" in styles_source
+    assert ".compatibility-editor-diff-grid" in styles_source
+
+
+def test_benchmark_observability_help_and_project_memory_use_hifi_decks():
+    benchmark_source = Path("frontend/src/pages/BenchmarkPage.tsx").read_text(encoding="utf-8")
+    observability_source = Path("frontend/src/pages/ObservabilityPage.tsx").read_text(encoding="utf-8")
+    help_source = Path("frontend/src/pages/HelpPage.tsx").read_text(encoding="utf-8")
+    project_memory_source = Path("frontend/src/pages/ProjectMemoryPage.tsx").read_text(encoding="utf-8")
+    styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
+
+    assert "benchmark-page runtimepilot-rack-page" in benchmark_source
+    assert "benchmark-hifi-stack" in benchmark_source
+    assert "benchmark-mixer-deck" in benchmark_source
+    assert "benchmark-transport-deck" in benchmark_source
+    assert "benchmark-monitor-deck" in benchmark_source
+
+    assert "observability-page runtimepilot-rack-page" in observability_source
+    assert "observability-hifi-stack" in observability_source
+    assert "observability-mixer-deck" in observability_source
+    assert "observability-transport-deck" in observability_source
+    assert "observability-monitor-deck" in observability_source
+
+    assert "help-page runtimepilot-rack-page" in help_source
+    assert "help-hifi-stack" in help_source
+    assert "help-mixer-deck" in help_source
+    assert "help-transport-deck" in help_source
+    assert "help-monitor-deck" in help_source
+
+    assert "project-memory-page runtimepilot-rack-page" in project_memory_source
+    assert "project-memory-hifi-stack" in project_memory_source
+    assert "project-memory-mixer-deck" in project_memory_source
+    assert "project-memory-transport-deck" in project_memory_source
+    assert "project-memory-monitor-deck" in project_memory_source
+
+    assert ".benchmark-hifi-stack" in styles_source
+    assert ".observability-hifi-stack" in styles_source
+    assert ".help-hifi-stack" in styles_source
+    assert ".project-memory-hifi-stack" in styles_source
+
+
+def test_runtimepilot_hi_fi_shell_uses_flat_status_rails_and_rack_style_resources():
+    app_source = Path("frontend/src/App.tsx").read_text(encoding="utf-8")
+    layout_source = Path("frontend/src/components/Layout.tsx").read_text(encoding="utf-8")
+    live_strip_source = Path("frontend/src/components/LiveResourceStrip.tsx").read_text(encoding="utf-8")
+    primary_flow_source = Path("frontend/src/components/PrimaryFlowCard.tsx").read_text(encoding="utf-8")
+    styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
+    dist_root = Path(
+        "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
+    )
+    js_assets = list((dist_root / "assets").glob("index-*.js"))
+    css_assets = list((dist_root / "assets").glob("index-*.css"))
+
+    assert "runtimepilot-status-rail" in app_source
+    assert "runtimepilot-utility-module" in app_source
+    assert "runtimepilot-active-model-layout" in app_source
+    assert "runtimepilot-utility-title" in app_source
+    assert "runtimepilot-status-rack" in layout_source
+    assert "runtimepilot-faceplate-module" in primary_flow_source
+    assert "runtimepilot-nav-shell-subtle" in layout_source
+    assert "live-resource-rack" in live_strip_source
+    assert "live-resource-rack-row" in live_strip_source
+    assert ".runtimepilot-status-rail" in styles_source
+    assert ".runtimepilot-status-rack" in styles_source
+    assert ".runtimepilot-faceplate-module" in styles_source
+    assert ".runtimepilot-utility-module" in styles_source
+    assert ".runtimepilot-utility-head" in styles_source
+    assert ".runtimepilot-utility-title" in styles_source
+    assert ".runtimepilot-nav-shell-subtle" in styles_source
+    assert ".live-resource-rack" in styles_source
+    assert ".live-resource-rack-row" in styles_source
+    assert ".runtimepilot-page-shell-flat" in styles_source
+    assert js_assets
+    assert css_assets
+
+    bundled_js = "\n".join(path.read_text(encoding="utf-8") for path in js_assets)
+    bundled_css = "\n".join(path.read_text(encoding="utf-8") for path in css_assets)
+
+    assert "Aktivni model" in bundled_js
+    assert "Project Memory" in bundled_js
+    assert "Živi resursi" in bundled_js
+    assert ".runtimepilot-status-rack" in bundled_css
+    assert ".runtimepilot-faceplate-module" in bundled_css
+    assert ".runtimepilot-status-rail" in bundled_css
+    assert ".runtimepilot-utility-module" in bundled_css
+    assert ".runtimepilot-utility-head" in bundled_css
+    assert ".runtimepilot-utility-title" in bundled_css
+    assert ".runtimepilot-nav-shell-subtle" in bundled_css
+    assert ".live-resource-rack" in bundled_css
+    assert ".live-resource-rack-row" in bundled_css
+    assert ".runtimepilot-page-shell-flat" in bundled_css
+
+
+def test_home_faceplate_modules_use_full_width_active_model_telemetry_and_secondary_tool_layouts():
+    app_source = Path("frontend/src/App.tsx").read_text(encoding="utf-8")
+    home_source = Path("frontend/src/pages/HomePage.tsx").read_text(encoding="utf-8")
+    telemetry_source = Path("frontend/src/components/TelemetryPanel.tsx").read_text(encoding="utf-8")
+    styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
+    dist_root = Path(
+        "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
+    )
+    js_assets = list((dist_root / "assets").glob("index-*.js"))
+    css_assets = list((dist_root / "assets").glob("index-*.css"))
+
+    assert "runtimepilot-active-model-layout" in app_source
+    assert "runtimepilot-active-model-status" in app_source
+    assert "runtimepilot-active-model-open" in app_source
+    assert "runtimepilot-home-support-stack" in home_source
+    assert "runtimepilot-secondary-tools-layout" in home_source
+    assert "runtimepilot-secondary-tool-chip" in home_source
+    assert "runtimepilot-secondary-tool-link" in home_source
+    assert "onOpenBenchmark" in home_source
+    assert "onOpenProjectMemory" in home_source
+    assert "telemetry-home-deck" in telemetry_source
+    assert "telemetry-home-display" in telemetry_source
+    assert "telemetry-home-meter-bank" in telemetry_source
+    assert ".runtimepilot-status-rack" in styles_source
+    assert ".runtimepilot-active-model-layout" in styles_source
+    assert ".runtimepilot-active-model-strip::before" in styles_source
+    assert ".runtimepilot-active-model-status" in styles_source
+    assert ".runtimepilot-home-support-stack" in styles_source
+    assert ".runtimepilot-secondary-tools-layout" in styles_source
+    assert ".runtimepilot-secondary-tool-chip" in styles_source
+    assert ".runtimepilot-secondary-tool-link" in styles_source
+    assert ".telemetry-home-deck" in styles_source
+    assert ".telemetry-home-display" in styles_source
+    assert ".telemetry-home-meter-bank" in styles_source
+    assert js_assets
+    assert css_assets
+
+    bundled_js = "\n".join(path.read_text(encoding="utf-8") for path in js_assets)
+    bundled_css = "\n".join(path.read_text(encoding="utf-8") for path in css_assets)
+
+    assert "Aktivni model" in bundled_js
+    assert "Sekundarni alati" in bundled_js
+    assert "Puls tokena" in bundled_js
+    assert "runtimepilot-active-model-layout" in bundled_js
+    assert "runtimepilot-home-support-stack" in bundled_js
+    assert "telemetry-home-deck" in bundled_js
+    assert "Otvori Benchmark" in bundled_js
+    assert "Otvori Project Memory" in bundled_js
+    assert ".runtimepilot-active-model-layout" in bundled_css
+    assert ".runtimepilot-active-model-strip:before" in bundled_css
+    assert ".runtimepilot-active-model-status" in bundled_css
+    assert ".runtimepilot-home-support-stack" in bundled_css
+    assert ".runtimepilot-secondary-tools-layout" in bundled_css
+    assert ".runtimepilot-secondary-tool-link" in bundled_css
+    assert ".telemetry-home-deck" in bundled_css
+    assert ".telemetry-home-display" in bundled_css
+
+
+def test_primary_flow_and_runtime_pages_use_hifi_deck_controls_for_main_actions():
+    icon_source = Path("frontend/src/components/RuntimePilotIcon.tsx").read_text(encoding="utf-8")
+    flow_source = Path("frontend/src/components/PrimaryFlowCard.tsx").read_text(encoding="utf-8")
+    home_source = Path("frontend/src/pages/HomePage.tsx").read_text(encoding="utf-8")
+    server_source = Path("frontend/src/pages/ServerPage.tsx").read_text(encoding="utf-8")
+    opencode_source = Path("frontend/src/pages/OpenCodePage.tsx").read_text(encoding="utf-8")
+    styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
+    dist_root = Path(
+        "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
+    )
+    js_assets = list((dist_root / "assets").glob("index-*.js"))
+    css_assets = list((dist_root / "assets").glob("index-*.css"))
+
+    assert '"play"' in icon_source
+    assert '"stop"' in icon_source
+    assert '"reload"' in icon_source
+    assert "primaryActionIcon" in flow_source
+    assert "secondaryActionIcon" in flow_source
+    assert "deck-control-button" in flow_source
+    assert "deck-control-symbol" in flow_source
+    assert 'primaryActionIcon="play"' in home_source
+    assert 'secondaryActionIcon="play"' in home_source
+    assert 'primaryActionIcon={runtimeStarted ? "reload" : "play"}' in server_source
+    assert 'secondaryActionIcon="stop"' in server_source
+    assert 'primaryActionIcon="play"' in opencode_source
+    assert 'secondaryActionIcon="reload"' in opencode_source
+    assert ".deck-control-button" in styles_source
+    assert ".deck-control-symbol" in styles_source
+    assert ".deck-control-button-primary" in styles_source
+    assert ".deck-control-button-secondary" in styles_source
+    assert js_assets
+    assert css_assets
+
+    bundled_js = "\n".join(path.read_text(encoding="utf-8") for path in js_assets)
+    bundled_css = "\n".join(path.read_text(encoding="utf-8") for path in css_assets)
+
+    assert "deck-control-button" in bundled_js
+    assert "deck-control-symbol" in bundled_js
+    assert "Pokreni runtime" in bundled_js
+    assert "Zaustavi runtime" in bundled_js
+    assert "Otvori OpenCode" in bundled_js
+    assert ".deck-control-button" in bundled_css
+    assert ".deck-control-symbol" in bundled_css

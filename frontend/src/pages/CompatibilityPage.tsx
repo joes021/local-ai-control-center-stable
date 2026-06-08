@@ -470,7 +470,7 @@ export function CompatibilityPage({
   }
 
   return (
-    <div className="compatibility-page">
+    <div className="compatibility-page runtimepilot-rack-page">
       {inlineError ? <div className="error-panel wide-card">{inlineError}</div> : null}
       <PageFlowCard
         title="Compatibility tok"
@@ -500,7 +500,9 @@ export function CompatibilityPage({
           </>
         }
       />
-      <section className="status-card wide-card compatibility-workspace">
+      <div className="compatibility-hifi-stack">
+      <div className="compatibility-mixer-deck">
+      <section className="status-card wide-card compatibility-workspace runtimepilot-faceplate-module compat-rack-module">
         <div className="section-header">
           <div>
             <span className="status-label">Radni prostor kompatibilnosti</span>
@@ -592,7 +594,7 @@ export function CompatibilityPage({
         </div>
       </section>
 
-      <section className="status-card wide-card compatibility-picker-card">
+      <section className="status-card wide-card compatibility-picker-card runtimepilot-faceplate-module compat-rack-module">
         <div className="section-header">
           <div>
             <span className="status-label">Izvor modela</span>
@@ -758,6 +760,7 @@ export function CompatibilityPage({
           </div>
         ) : null}
       </section>
+      </div>
 
       <CompatibilityCalculatorPanel
         className="compat-surface compat-page-surface"
@@ -774,6 +777,7 @@ export function CompatibilityPage({
           </div>
         }
       />
+      </div>
     </div>
   );
 }

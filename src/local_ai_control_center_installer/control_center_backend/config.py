@@ -69,6 +69,10 @@ class ControlCenterConfig:
         return self.control_center_config_root / "opencode-step-presets.json"
 
     @property
+    def opencode_hygiene_state_path(self) -> Path:
+        return self.control_center_config_root / "opencode-hygiene-state.json"
+
+    @property
     def model_download_progress_path(self) -> Path:
         return self.control_center_config_root / "model-download-progress.json"
 

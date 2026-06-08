@@ -17,3 +17,4 @@ config/
 logs/
 *.egg-info/
 frontend/tsconfig.tsbuildinfo
+.superpowers/

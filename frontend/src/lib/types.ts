@@ -1231,6 +1231,61 @@ export type OpenCodeStatusPayload = {
   auditSummary: string;
 };
 
+export type OpenCodeWorkspaceHygieneItem = {
+  name: string;
+  path: string;
+  kind: string;
+  sizeBytes: number;
+  sizeLabel: string;
+  modifiedAt: number;
+  isDisposable: boolean;
+  isActive: boolean;
+  isRecentFallbackProtected: boolean;
+  cleanupEligible: boolean;
+};
+
+export type OpenCodeAutoCleanupState = {
+  hasRun: boolean;
+  origin: string;
+  status: string;
+  summary: string;
+  completedAt: string;
+  removedCount: number;
+  freedBytes: number;
+  freedSizeLabel: string;
+  failedCount: number;
+};
+
+export type OpenCodeWorkspaceHygienePayload = {
+  workspaceRoot: string;
+  summary: string;
+  canCleanup: boolean;
+  disposableWorkspaceCount: number;
+  activeWorkspaceCount: number;
+  recentFallbackProtectedCount: number;
+  cleanupCandidateCount: number;
+  cleanupCandidateBytes: number;
+  cleanupCandidateSizeLabel: string;
+  items: OpenCodeWorkspaceHygieneItem[];
+  lastAutoCleanup: OpenCodeAutoCleanupState;
+  manualReviewLocations: Array<{
+    label: string;
+    path: string;
+    summary: string;
+  }>;
+};
+
+export type OpenCodeWorkspaceHygieneActionResult = ActionResult & {
+  cleanup: {
+    removedCount: number;
+    freedBytes: number;
+    freedSizeLabel: string;
+    failedCount: number;
+    failedItems: string[];
+  };
+  hygiene: OpenCodeWorkspaceHygienePayload;
+};
+
 export type SearchResultItem = {
   title: string;
   url: string;

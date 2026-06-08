@@ -1161,11 +1161,11 @@ export function TuningLabPage() {
   }
 
   return (
-    <>
+    <div className="tuning-lab-page runtimepilot-rack-page">
       {error ? <div className="error-panel wide-card">{error}</div> : null}
       <PageFlowCard
         title="Tuning Lab tok"
-        summary="Ovde je prirodan redosled da prvo učitaš task ili batch, zatim potvrdiš radni direktorijum i slotove, pa tek onda pokreneš run i pratiš cockpit."
+        summary="Ovde je prirodan redosled da prvo podesiš task i slotove, zatim pokreneš run ili batch, pa tek onda pratiš cockpit i istoriju."
         steps={[
           {
             title: "Učitaj task ili batch",
@@ -1177,11 +1177,12 @@ export function TuningLabPage() {
           },
           {
             title: "Pokreni task i prati cockpit",
-            detail: "Posle starta ostani u gornjem cockpit bloku: tamo se vidi šta radi, koji je PID, šta je workspace i kakav je live signal.",
+            detail: "Posle starta pređi u monitoring deck: tamo se vidi šta radi, koji je PID, šta je workspace i kakav je live signal.",
           },
         ]}
       />
-      <section className="status-card wide-card">
+      <div className="tuning-lab-hifi-stack">
+      <section className="status-card wide-card runtimepilot-faceplate-module tuning-rack-module">
         <span className="status-label">Tuning Lab</span>
         <strong className="status-value">Poređenje, objašnjenje i primena tuning setova</strong>
         <p className="helper-text">
@@ -1256,15 +1257,16 @@ export function TuningLabPage() {
           </div>
         ) : (
           <p className="helper-text">
-            Napredak run-a sada vidiš odmah u gornjem `Aktivni run cockpit` bloku, a detaljniji trag
-            ostaje i u panelu `Aktivni run i red čekanja` niže na strani.
+            Napredak run-a sada vidiš u `Aktivni run cockpit` monitoring decku, a detaljniji trag
+            ostaje i u panelu `Aktivni run i red čekanja`.
           </p>
         )}
       </section>
 
       <ActionResultPanel result={result} />
 
-      <section className="status-card wide-card tuning-lab-cockpit" ref={cockpitRef}>
+      <div className="tuning-lab-monitor-deck">
+      <section className="status-card wide-card tuning-lab-cockpit runtimepilot-faceplate-module tuning-rack-module" ref={cockpitRef}>
         <span className="status-label">Aktivni run cockpit</span>
         <strong className="status-value">
           {activeRun ? activeRun.name : "Tuning Lab trenutno miruje"}
@@ -1586,8 +1588,10 @@ export function TuningLabPage() {
           </p>
         )}
       </section>
+      </div>
 
-      <section className="status-card wide-card">
+      <div className="tuning-lab-transport-deck">
+      <section className="status-card wide-card runtimepilot-faceplate-module tuning-rack-module">
         <span className="status-label">Gotovi batch testovi</span>
         <strong className="status-value">Prvi uporedivi game batch za Tuning Lab</strong>
         <p className="helper-text">
@@ -1877,8 +1881,10 @@ export function TuningLabPage() {
           })}
         </div>
       </section>
+      </div>
 
-      <section className="status-card wide-card" ref={editorRef}>
+      <div className="tuning-lab-mixer-deck">
+      <section className="status-card wide-card runtimepilot-faceplate-module tuning-rack-module" ref={editorRef}>
         <span className="status-label">Eksperiment</span>
         <strong className="status-value">Priprema run-a</strong>
         {summary.context.workingDirectoryWasAdjusted ? (
@@ -2079,8 +2085,10 @@ export function TuningLabPage() {
           </div>
         ) : null}
       </section>
+      </div>
 
-      <section className="status-card wide-card">
+      <div className="tuning-lab-mixer-deck">
+      <section className="status-card wide-card runtimepilot-faceplate-module tuning-rack-module">
         <span className="status-label">Tri slota</span>
         <div className="tuning-lab-slot-grid">
           {draft.slots.map((slot) => (
@@ -2192,8 +2200,10 @@ export function TuningLabPage() {
           ))}
         </div>
       </section>
+      </div>
 
-      <section className="status-card wide-card" ref={progressRef}>
+      <div className="tuning-lab-transport-deck">
+      <section className="status-card wide-card runtimepilot-faceplate-module tuning-rack-module" ref={progressRef}>
         <span className="status-label">Aktivni run i red čekanja</span>
         <div className="tuning-lab-progress-grid">
           <article className="status-card">
@@ -2265,8 +2275,10 @@ export function TuningLabPage() {
           </article>
         </div>
       </section>
+      </div>
 
-      <section className="status-card wide-card">
+      <div className="tuning-lab-monitor-deck">
+      <section className="status-card wide-card runtimepilot-faceplate-module tuning-rack-module">
         <span className="status-label">Istorija</span>
         <strong className="status-value">Filtriraj istoriju</strong>
         <div className="tuning-lab-filter-grid">
@@ -2701,7 +2713,9 @@ export function TuningLabPage() {
           </p>
         )}
       </section>
+      </div>
 
-    </>
+      </div>
+    </div>
   );
 }

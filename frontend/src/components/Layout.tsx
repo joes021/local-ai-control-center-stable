@@ -11,7 +11,6 @@ type LayoutProps = PropsWithChildren<{
   eyebrow?: ReactNode;
   nav?: ReactNode;
   activeModelStrip?: ReactNode;
-  projectMemoryStrip?: ReactNode;
   brand?: ReactNode;
   themeId?: string;
   onOpenSettingsSection?: (sectionId: string) => void;
@@ -25,7 +24,6 @@ export function Layout({
   eyebrow,
   nav,
   activeModelStrip,
-  projectMemoryStrip,
   brand,
   children,
   themeId = "dark-chocolate",
@@ -54,14 +52,21 @@ export function Layout({
         </div>
       </header>
       {nav ? (
-        <nav className="top-nav runtimepilot-nav-surface">
-          {nav}
-        </nav>
+        <div className="runtimepilot-nav-shell runtimepilot-nav-shell-subtle">
+          <div className="runtimepilot-nav-shell-copy">
+            <span className="status-label">Glavni tokovi</span>
+            <strong className="runtimepilot-nav-shell-title">
+              Biraj direktan rad ili klikni na vodič kada želiš jasan redosled koraka.
+            </strong>
+          </div>
+          <nav className="top-nav runtimepilot-nav-surface">
+            {nav}
+          </nav>
+        </div>
       ) : null}
-      {activeModelStrip ? activeModelStrip : null}
-      {projectMemoryStrip ? projectMemoryStrip : null}
+      {activeModelStrip ? <div className="runtimepilot-status-rack">{activeModelStrip}</div> : null}
       <LiveResourceStrip onOpenSettingsSection={onOpenSettingsSection} />
-      <section className="runtimepilot-page-shell">
+      <section className="runtimepilot-page-shell runtimepilot-page-shell-flat">
         <div className="runtimepilot-page-shell-header">
           <div className="runtimepilot-page-shell-copy">
             <div className="runtimepilot-page-shell-signal" aria-hidden="true">

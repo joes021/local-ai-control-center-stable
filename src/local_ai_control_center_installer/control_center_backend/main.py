@@ -73,15 +73,21 @@ from local_ai_control_center_installer.control_center_backend.services.jobs_serv
     start_jobs_scheduler,
     stop_jobs_scheduler,
 )
+from local_ai_control_center_installer.control_center_backend.services.opencode_service import (
+    start_opencode_hygiene_scheduler,
+    stop_opencode_hygiene_scheduler,
+)
 
 
 @asynccontextmanager
 async def _lifespan(_: FastAPI):
     start_jobs_scheduler()
+    start_opencode_hygiene_scheduler()
     try:
         yield
     finally:
         stop_jobs_scheduler()
+        stop_opencode_hygiene_scheduler()
 
 
 app = FastAPI(title="RuntimePilot", lifespan=_lifespan)

@@ -1,6 +1,7 @@
 ﻿import { useEffect, useMemo, useRef, useState } from "react";
 
 import { BrandLockup } from "./components/BrandLockup";
+import { GuidedFlowPanel } from "./components/GuidedFlowPanel";
 import { Layout } from "./components/Layout";
 import type { RuntimePilotIconName } from "./components/RuntimePilotIcon";
 import { RuntimePilotIcon } from "./components/RuntimePilotIcon";
@@ -38,7 +39,8 @@ import { WorkflowsPage } from "./pages/WorkflowsPage";
 
 const PAGE_META = {
   home: { label: "Početna", cue: "Pregled", icon: "home" },
-  server: { label: "Server", cue: "Runtime", icon: "server" },
+  server: { label: "Runtime", cue: "Engine", icon: "server" },
+  guidedFlow: { label: "Vodi me redom", cue: "Koraci", icon: "control" },
   fleet: { label: "Flota", cue: "Mašine", icon: "fleet" },
   jobs: { label: "Poslovi", cue: "Red", icon: "jobs" },
   workflows: { label: "Radni tokovi", cue: "Automatika", icon: "workflows" },
@@ -65,7 +67,8 @@ const PAGE_LABELS = Object.fromEntries(
   Object.entries(PAGE_META).map(([key, value]) => [key, value.label]),
 ) as Record<PageKey, string>;
 
-const PRIMARY_PAGES: PageKey[] = ["home", "server", "models", "opencode", "search", "settings"];
+const PRIMARY_PAGES: PageKey[] = ["home", "server", "models", "opencode"];
+const GUIDED_FLOW_PAGE: PageKey = "guidedFlow";
 
 const MORE_PAGE_SECTIONS: Array<{ label: string; pages: PageKey[] }> = [
   {
@@ -250,6 +253,39 @@ export default function App() {
 
   const isMoreActive = MORE_PAGES.includes(page);
 
+  const guidedFlowSteps = [
+    {
+      id: "runtime",
+      title: "Runtime",
+      detail:
+        "Prvo proveri koji engine želiš da koristiš, da li je pokrenut i da li je spreman za sledeći rad.",
+      status: page === "server" ? "Trenutno otvoreno" : "Korak 1",
+      tone: page === "server" ? "active" : "ready",
+      actionLabel: "Otvori Runtime",
+      onAction: () => setPage("server"),
+    },
+    {
+      id: "local-model",
+      title: "Lokalni model",
+      detail:
+        "Zatim izaberi ili zameni lokalni model, proveri da li staje i sačuvaj izbor koji želiš da koristiš.",
+      status: page === "models" ? "Trenutno otvoreno" : "Korak 2",
+      tone: page === "models" ? "active" : "ready",
+      actionLabel: "Otvori Modele",
+      onAction: () => setPage("models"),
+    },
+    {
+      id: "opencode",
+      title: "OpenCode",
+      detail:
+        "Na kraju otvori OpenCode sesiju i kreni na konkretan rad, task ili rezultat koristeći već pripremljen runtime i model.",
+      status: page === "opencode" ? "Trenutno otvoreno" : "Korak 3",
+      tone: page === "opencode" ? "active" : "ready",
+      actionLabel: "Otvori OpenCode",
+      onAction: () => setPage("opencode"),
+    },
+  ] as const;
+
   const activeMoreLabel = useMemo(() => {
     if (!isMoreActive) {
       return null;
@@ -272,99 +308,78 @@ export default function App() {
     status?.runtimeLiveReason || status?.runtimeSummary || "Model je izabran, ali runtime još nije prijavio jasno stanje.";
 
   const activeModelStrip = (
-    <section className="runtimepilot-active-model-strip" aria-label="Aktivni model">
-      <div className="runtimepilot-active-model-primary">
-        <span className="runtimepilot-active-model-glyph" aria-hidden="true">
-          <RuntimePilotIcon className="runtimepilot-active-model-icon" name="models" />
-        </span>
-        <div className="runtimepilot-active-model-copy">
-          <span className="status-label">Aktivni model</span>
-          <strong className="runtimepilot-active-model-value" title={activeModelName}>
+    <section
+      className="runtimepilot-status-rail runtimepilot-utility-module runtimepilot-active-model-strip"
+      aria-label="Aktivni model"
+    >
+      <div className="runtimepilot-active-model-layout">
+        <div className="runtimepilot-active-model-primary">
+          <div className="runtimepilot-utility-label">
+            <span className="runtimepilot-active-model-glyph" aria-hidden="true">
+              <RuntimePilotIcon className="runtimepilot-active-model-icon" name="models" />
+            </span>
+            <span className="status-label">Aktivni model</span>
+          </div>
+          <strong className="runtimepilot-utility-title runtimepilot-active-model-value" title={activeModelName}>
             {activeModelName}
           </strong>
         </div>
-      </div>
-      <div className="runtimepilot-active-model-meta">
-        <span className="runtimepilot-active-model-chip" title={runtimeLabel}>
-          Runtime: {runtimeLabel}
-        </span>
-        <span className="runtimepilot-active-model-chip" title={runtimeStateSummary}>
-          Status: {runtimeStateLabel}
-        </span>
-      </div>
-      <button
-        type="button"
-        className="runtimepilot-active-model-open"
-        onClick={() => setPage("models")}
-      >
-        Otvori modele
-      </button>
-    </section>
-  );
-
-  const projectMemoryGoal =
-    projectMemory?.goal.text?.trim() || "Cilj još nije postavljen";
-  const projectMemoryNext =
-    projectMemory?.nextSteps.find((item) => item.text.trim())?.text ||
-    "Unesi sledeći korak ili posej memoriju iz task teksta.";
-  const projectMemoryProgressCount =
-    projectMemory?.progress.filter((item) => item.text.trim()).length ?? 0;
-  const projectMemoryStatusLabel =
-    projectMemory?.status === "active" ? "Aktivno pamti fokus" : "Čeka početni fokus";
-
-  const projectMemoryStrip = (
-    <section className="runtimepilot-project-memory-strip" aria-label="Project Memory">
-      <div className="runtimepilot-project-memory-primary">
-        <span className="runtimepilot-project-memory-glyph" aria-hidden="true">
-          <RuntimePilotIcon className="runtimepilot-project-memory-icon" name="memory" />
-        </span>
-        <div className="runtimepilot-project-memory-copy">
-          <span className="status-label">Project Memory</span>
-          <strong className="runtimepilot-project-memory-value" title={projectMemoryGoal}>
-            {projectMemoryGoal}
-          </strong>
+        <div className="runtimepilot-active-model-status runtimepilot-active-model-meta">
+          <span className="runtimepilot-active-model-chip" title={runtimeLabel}>
+            Runtime · {runtimeLabel}
+          </span>
+          <span className="runtimepilot-active-model-chip" title={runtimeStateSummary}>
+            Status · {runtimeStateLabel}
+          </span>
         </div>
+        <button
+          type="button"
+          className="runtimepilot-status-rail-action runtimepilot-active-model-open"
+          onClick={() => setPage("models")}
+        >
+          Otvori modele
+        </button>
       </div>
-      <div className="runtimepilot-project-memory-meta">
-        <span className="runtimepilot-project-memory-chip" title={projectMemoryStatusLabel}>
-          Status: {projectMemoryStatusLabel}
-        </span>
-        <span className="runtimepilot-project-memory-chip" title={projectMemoryNext}>
-          Sledeće: {projectMemoryNext}
-        </span>
-        <span className="runtimepilot-project-memory-chip">
-          Napredak: {projectMemoryProgressCount}
-        </span>
-      </div>
-      <button
-        type="button"
-        className="runtimepilot-project-memory-open"
-        onClick={() => setPage("projectMemory")}
-      >
-        Otvori memoriju
-      </button>
+      <p className="runtimepilot-utility-inline runtimepilot-active-model-summary" title={runtimeStateSummary}>
+        {runtimeStateSummary}
+      </p>
     </section>
   );
 
   const nav = (
     <>
-      <div className="top-nav-primary">
-        {PRIMARY_PAGES.map((key) => (
-          <button
-            className={`nav-button ${page === key ? "nav-button-active" : ""}`}
-            key={key}
-            onClick={() => setPage(key)}
-            type="button"
-          >
-            <span className="runtimepilot-nav-button-glyph">
-              <RuntimePilotIcon className="runtimepilot-nav-icon" name={PAGE_META[key].icon} />
-            </span>
-            <span className="runtimepilot-nav-button-copy">
-              <span className="runtimepilot-nav-button-label">{PAGE_META[key].label}</span>
-              <span className="runtimepilot-nav-button-cue">{PAGE_META[key].cue}</span>
-            </span>
-          </button>
-        ))}
+      <div className="runtimepilot-primary-flows">
+        <div className="top-nav-primary">
+          {PRIMARY_PAGES.map((key) => (
+            <button
+              className={`nav-button ${page === key ? "nav-button-active" : ""}`}
+              key={key}
+              onClick={() => setPage(key)}
+              type="button"
+            >
+              <span className="runtimepilot-nav-button-glyph">
+                <RuntimePilotIcon className="runtimepilot-nav-icon" name={PAGE_META[key].icon} />
+              </span>
+              <span className="runtimepilot-nav-button-copy">
+                <span className="runtimepilot-nav-button-label">{PAGE_META[key].label}</span>
+                <span className="runtimepilot-nav-button-cue">{PAGE_META[key].cue}</span>
+              </span>
+            </button>
+          ))}
+        </div>
+        <button
+          className={`nav-button nav-button-guided ${page === GUIDED_FLOW_PAGE ? "nav-button-active" : ""}`}
+          onClick={() => setPage(GUIDED_FLOW_PAGE)}
+          type="button"
+        >
+          <span className="runtimepilot-nav-button-glyph">
+            <RuntimePilotIcon className="runtimepilot-nav-icon" name={PAGE_META.guidedFlow.icon} />
+          </span>
+          <span className="runtimepilot-nav-button-copy">
+            <span className="runtimepilot-nav-button-label">{PAGE_META.guidedFlow.label}</span>
+            <span className="runtimepilot-nav-button-cue">{PAGE_META.guidedFlow.cue}</span>
+          </span>
+        </button>
       </div>
       <div className="nav-more-shell" ref={moreMenuRef}>
         <button
@@ -434,7 +449,6 @@ export default function App() {
       }
       nav={nav}
       activeModelStrip={activeModelStrip}
-      projectMemoryStrip={projectMemoryStrip}
       subtitle={
         <>
           <strong>Control. Monitor. Optimize.</strong>
@@ -451,10 +465,21 @@ export default function App() {
     >
       {page === "home" ? (
         <HomePage
+          onOpenBenchmark={() => setPage("benchmark")}
+          onOpenCompatibility={() => setPage("compatibility")}
           onOpenModels={() => setPage("models")}
           onOpenOpenCode={() => setPage("opencode")}
+          onOpenProjectMemory={() => setPage("projectMemory")}
           onOpenServer={() => setPage("server")}
           onOpenTuningLab={() => setPage("tuningLab")}
+          onStartGuidedFlow={() => setPage("guidedFlow")}
+        />
+      ) : null}
+      {page === "guidedFlow" ? (
+        <GuidedFlowPanel
+          title="Vodi me redom"
+          summary="Ako ne želiš da razmišljaš gde prvo treba da klikneš, prati ovaj tok: runtime, zatim lokalni model, pa tek onda OpenCode rad."
+          steps={guidedFlowSteps}
         />
       ) : null}
       {page === "server" ? <ServerPage /> : null}

@@ -190,7 +190,7 @@ export function ProjectMemoryPage({
     : "još nije sačuvano";
 
   return (
-    <>
+    <div className="project-memory-page runtimepilot-rack-page">
       <PageFlowCard
         title="Jedna radna memorija za cilj, pravila i sledeći korak"
         summary="Project Memory čuva fokus projekta van samog prompta. Time agent i korisnik imaju jednu istu, vidljivu istinu o tome šta se radi, šta je već odlučeno i šta sledi."
@@ -223,6 +223,8 @@ export function ProjectMemoryPage({
           </>
         }
       />
+      <div className="project-memory-hifi-stack">
+      <div className="project-memory-mixer-deck">
 
       <section className="status-card wide-card runtimepilot-section-shell project-memory-seed-card">
         <div className="section-header page-flow-header">
@@ -304,28 +306,6 @@ export function ProjectMemoryPage({
         </div>
       </section>
 
-      <section className="status-card wide-card runtimepilot-section-shell project-memory-overview-card">
-        <div className="section-header page-flow-header">
-          <div className="runtimepilot-section-heading">
-            <span className="runtimepilot-section-glyph">
-              <RuntimePilotIcon className="runtimepilot-section-glyph-icon" name="control" />
-            </span>
-            <div>
-              <span className="status-label">Sačuvano stanje</span>
-              <strong className="status-value">Šta agent trenutno treba da pamti</strong>
-            </div>
-          </div>
-        </div>
-        <div className="summary-metrics">
-          <span>Status: {memory?.status === "active" ? "Aktivno" : "Prazno"}</span>
-          <span>Ažurirano: {lastUpdatedLabel}</span>
-          <span>Ažurirao: {memory?.updatedBy || "sistem"}</span>
-          <span>Pravila: {counts?.rules ?? 0}</span>
-          <span>Napredak: {counts?.progress ?? 0}</span>
-          <span>Sledeće: {counts?.nextSteps ?? 0}</span>
-        </div>
-      </section>
-
       <section className="status-card wide-card runtimepilot-section-shell project-memory-editor-card">
         <div className="section-header page-flow-header">
           <div className="runtimepilot-section-heading">
@@ -365,6 +345,30 @@ export function ProjectMemoryPage({
             />
             <span>Zaključaj cilj da ga agent ne menja olako</span>
           </label>
+        </div>
+      </section>
+      </div>
+
+      <div className="project-memory-monitor-deck">
+      <section className="status-card wide-card runtimepilot-section-shell project-memory-overview-card">
+        <div className="section-header page-flow-header">
+          <div className="runtimepilot-section-heading">
+            <span className="runtimepilot-section-glyph">
+              <RuntimePilotIcon className="runtimepilot-section-glyph-icon" name="control" />
+            </span>
+            <div>
+              <span className="status-label">Sačuvano stanje</span>
+              <strong className="status-value">Šta agent trenutno treba da pamti</strong>
+            </div>
+          </div>
+        </div>
+        <div className="summary-metrics">
+          <span>Status: {memory?.status === "active" ? "Aktivno" : "Prazno"}</span>
+          <span>Ažurirano: {lastUpdatedLabel}</span>
+          <span>Ažurirao: {memory?.updatedBy || "sistem"}</span>
+          <span>Pravila: {counts?.rules ?? 0}</span>
+          <span>Napredak: {counts?.progress ?? 0}</span>
+          <span>Sledeće: {counts?.nextSteps ?? 0}</span>
         </div>
       </section>
 
@@ -417,9 +421,11 @@ export function ProjectMemoryPage({
             setDraft({ ...draft, nextSteps });
             setIsDirty(true);
           }}
-        />
+          />
+        </div>
       </div>
 
+      <div className="project-memory-transport-deck">
       <section className="status-card wide-card runtimepilot-section-shell project-memory-actions-card">
         <div className="inline-actions compact-actions">
           <button
@@ -467,8 +473,10 @@ export function ProjectMemoryPage({
           </button>
         </div>
       </section>
+      </div>
 
       <ActionResultPanel result={result} />
-    </>
+      </div>
+    </div>
   );
 }

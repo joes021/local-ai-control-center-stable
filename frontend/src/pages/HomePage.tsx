@@ -1,17 +1,9 @@
-﻿import { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 
-import { ActionResultPanel } from "../components/ActionResultPanel";
-import { PageFlowCard } from "../components/PageFlowCard";
+import { PrimaryFlowCard } from "../components/PrimaryFlowCard";
 import { RuntimePilotIcon } from "../components/RuntimePilotIcon";
 import { TelemetryPanel } from "../components/TelemetryPanel";
-import {
-  fetchBenchmark,
-  fetchOpenCodeStatus,
-  fetchServerStatus,
-  fetchStatus,
-  openOpenCode,
-  selectRuntime,
-} from "../lib/api";
+import { fetchBenchmark, fetchOpenCodeStatus, fetchServerStatus, fetchStatus, openOpenCode } from "../lib/api";
 import type {
   ActionResult,
   BenchmarkPayload,
@@ -42,46 +34,24 @@ function renderOpenCodeState(opencode: OpenCodeStatusPayload | null) {
   return "Dostupan";
 }
 
-function describeRuntimeBinaryPath(binaryPath: string | null | undefined) {
-  const normalized = String(binaryPath || "").trim().replace(/\//g, "\\");
-  if (!normalized) {
-    return null;
-  }
-  const parts = normalized.split("\\").filter(Boolean);
-  if (!parts.length) {
-    return {
-      fileName: normalized,
-      compactDirectory: "",
-      fullPath: normalized,
-    };
-  }
-
-  const fileName = parts[parts.length - 1] || normalized;
-  const directoryParts = parts.slice(0, -1);
-  const compactDirectory =
-    directoryParts.length <= 4
-      ? directoryParts.join("\\")
-      : `${directoryParts.slice(0, 2).join("\\")}\\…\\${directoryParts
-          .slice(-2)
-          .join("\\")}`;
-
-  return {
-    fileName,
-    compactDirectory,
-    fullPath: normalized,
-  };
-}
-
 export function HomePage({
+  onOpenBenchmark,
+  onOpenCompatibility,
   onOpenModels,
   onOpenOpenCode,
+  onOpenProjectMemory,
   onOpenServer,
   onOpenTuningLab,
+  onStartGuidedFlow,
 }: {
+  onOpenBenchmark?: () => void;
+  onOpenCompatibility?: () => void;
   onOpenModels?: () => void;
   onOpenOpenCode?: () => void;
+  onOpenProjectMemory?: () => void;
   onOpenServer?: () => void;
   onOpenTuningLab?: () => void;
+  onStartGuidedFlow?: () => void;
 }) {
   const [status, setStatus] = useState<StatusPayload | null>(null);
   const [serverStatus, setServerStatus] = useState<ServerStatusPayload | null>(null);
@@ -157,288 +127,261 @@ export function HomePage({
     };
   }, []);
 
-  const serverWarning = serverStatus?.warningSummary || "";
-  const runtimeBinary = describeRuntimeBinaryPath(status?.activeRuntimeBinary);
+  const runtimeStateTitle = status?.activeRuntimeLabel || serverStatus?.activeRuntimeLabel || "Runtime nije izabran";
+  const runtimeStateSummary =
+    status?.runtimeSummary ||
+    serverStatus?.lastReason ||
+    "Prvo proveri runtime stanje pre izbora modela i pre pokretanja OpenCode rada.";
+  const modelStateTitle =
+    status?.activeModel && status.activeModel.trim() && status.activeModel.trim() !== "--"
+      ? status.activeModel.trim()
+      : "Nema aktivnog modela";
+  const modelStateSummary =
+    modelStateTitle === "Nema aktivnog modela"
+      ? "Prvo izaberi ili dodaj lokalni model, pa tek onda pređi na OpenCode rad."
+      : `Runtime: ${status?.activeRuntimeLabel || "--"} | Profil: ${status?.profile || "--"}.`;
+  const openCodeStateTitle = renderOpenCodeState(opencode);
+  const openCodeStateSummary =
+    opencode?.sessionSummary ||
+    "Kada su runtime i model zdravi, ovde prelaziš na konkretan rad, taskove i rezultate.";
 
   return (
     <>
       {error ? <div className="error-panel wide-card">{error}</div> : null}
-      <PageFlowCard
-        title="Najbrži sledeći korak"
-        summary="Početna treba da ti odmah kaže gde da nastaviš bez kopanja po tabovima. Kreni od stanja runtime-a, pa pređi na model, OpenCode ili Tuning Lab."
-        steps={[
-          {
-            title: "Proveri runtime i model",
-            detail: "Pogledaj da li su runtime server i aktivni model u zdravom stanju pre nego što kreneš dalje.",
-          },
-          {
-            title: "Ako treba, idi na Server ili Modele",
-            detail: "Server koristiš za start/stop i ručnu CLI proveru, a Modeli za download, aktivaciju i kompatibilnost.",
-          },
-          {
-            title: "Otvori OpenCode ili Tuning Lab",
-            detail: "Kad je runtime zdrav, pređi na pravi rad u OpenCode-u ili na poređenje podešavanja u Tuning Lab-u.",
-          },
-        ]}
-        actions={
-          <>
-            <button type="button" className="secondary-button" onClick={onOpenServer}>
-              Otvori Server
+
+      <section className="status-card wide-card runtimepilot-home-intro runtimepilot-section-shell runtimepilot-faceplate-module">
+        <div className="section-header">
+          <div>
+            <span className="status-label">Komandni pregled</span>
+            <strong className="status-value">Nastavi direktan rad</strong>
+            <p className="helper-text">Komandni ekran za tri glavna toka: Runtime, Lokalni model i OpenCode.</p>
+          </div>
+          <div className="inline-actions compact-actions">
+            <button type="button" className="action-button" onClick={onStartGuidedFlow}>
+              Vodi me redom
             </button>
-            <button type="button" className="secondary-button" onClick={onOpenModels}>
-              Otvori Modele
-            </button>
-            <button type="button" className="secondary-button" onClick={onOpenOpenCode}>
-              Otvori OpenCode
-            </button>
-            <button type="button" onClick={onOpenTuningLab}>
+            <button type="button" className="action-button-soft" onClick={onOpenTuningLab}>
               Otvori Tuning Lab
             </button>
-          </>
-        }
-      />
-      <section className="status-card wide-card mission-control-shell runtimepilot-section-shell">
-        <div className="section-header page-flow-header">
-          <div className="runtimepilot-section-heading">
-            <span className="runtimepilot-section-glyph">
-                <RuntimePilotIcon className="runtimepilot-section-glyph-icon" name="server" />
-            </span>
-            <div>
-              <span className="status-label">Komandni pregled</span>
-              <strong className="status-value">Brzi pregled svega što sada zaista upravlja mašinom</strong>
-            </div>
           </div>
         </div>
-        <div className="mission-control-grid">
-          <article className="mission-control-card mission-control-card-runtime">
-            <span className="mission-control-card-icon">
-              <RuntimePilotIcon className="mission-control-card-icon-svg" name="server" />
-            </span>
-            <span className="mission-control-card-label">Runtime stanje</span>
-            <strong className="mission-control-card-value">{status?.runtimeLiveStatus ?? "--"}</strong>
-            <p className="helper-text">
-              {status?.runtimeSummary || "RuntimePilot još čeka svež signal runtime procesa."}
-            </p>
+        <p className="helper-text">
+          Početna sada služi samo za tri glavna toka: prvo proveri runtime, zatim promeni lokalni model,
+          pa pređi u OpenCode. Sve drugo je sekundarni alat kada ti zaista zatreba.
+        </p>
+        <div className="runtimepilot-home-signal-row">
+          <article className="runtimepilot-home-signal-chip">
+            <span className="status-label">Runtime</span>
+            <strong>{runtimeStateTitle}</strong>
+            <p className="helper-text">{status?.runtimeLiveStatus || serverStatus?.status || "Čeka signal"}</p>
           </article>
-          <article className="mission-control-card mission-control-card-model">
-            <span className="mission-control-card-icon">
-              <RuntimePilotIcon className="mission-control-card-icon-svg" name="models" />
-            </span>
-            <span className="mission-control-card-label">Aktivni model</span>
-            <strong className="mission-control-card-value">{status?.activeModel ?? "--"}</strong>
-            <p className="helper-text">
-              Runtime: {status?.activeRuntimeLabel ?? "--"} | Profil: {status?.profile ?? "--"}
-            </p>
+          <article className="runtimepilot-home-signal-chip">
+            <span className="status-label">Lokalni model</span>
+            <strong>{modelStateTitle}</strong>
+            <p className="helper-text">{status?.profile || "Profil još nije potvrđen"}</p>
           </article>
-          <article className="mission-control-card mission-control-card-agent">
-            <span className="mission-control-card-icon">
-              <RuntimePilotIcon className="mission-control-card-icon-svg" name="opencode" />
-            </span>
-            <span className="mission-control-card-label">OpenCode sesija</span>
-            <strong className="mission-control-card-value">{renderOpenCodeState(opencode)}</strong>
-            <p className="helper-text">
-              {opencode?.sessionSummary || "Agent je spreman čim runtime i model ostanu zdravi."}
-            </p>
+          <article className="runtimepilot-home-signal-chip">
+            <span className="status-label">OpenCode</span>
+            <strong>{openCodeStateTitle}</strong>
+            <p className="helper-text">{opencode?.runtimeConnected ? "CLI povezan sa runtime-om" : "Čeka otvaranje sesije"}</p>
           </article>
         </div>
       </section>
-      <div className="home-layout wide-card">
+
+      <section className="status-card wide-card primary-flow-sequence-rail runtimepilot-section-shell runtimepilot-faceplate-module">
+        <div className="primary-flow-sequence-head">
+          <span className="status-label">Redosled glavnog rada</span>
+          <span className="primary-flow-sequence-copy">Runtime → Lokalni model → OpenCode</span>
+        </div>
+        <div className="primary-flow-sequence-row" aria-label="Glavni tok rada">
+          <span className="primary-flow-sequence-chip">
+            <strong>1</strong>
+            <span>Runtime</span>
+          </span>
+          <span className="primary-flow-sequence-chip">
+            <strong>2</strong>
+            <span>Lokalni model</span>
+          </span>
+          <span className="primary-flow-sequence-chip">
+            <strong>3</strong>
+            <span>OpenCode</span>
+          </span>
+        </div>
+      </section>
+
+      <div className="primary-flow-grid wide-card">
+        <PrimaryFlowCard
+          eyebrow="Runtime"
+          title="Pokreni ili proveri engine"
+          stateTitle={runtimeStateTitle}
+          stateSummary={runtimeStateSummary}
+          icon="server"
+          primaryLabel="Glavna akcija"
+          primaryActionLabel="Otvori Runtime"
+          primaryActionIcon="play"
+          onPrimaryAction={() => onOpenServer?.()}
+          secondaryLabel="Sekundarna akcija"
+          secondaryActionLabel="Promeni runtime"
+          secondaryActionIcon="play"
+          onSecondaryAction={() => onOpenServer?.()}
+          resultLabel="Rezultat posle klika"
+          resultSummary="Otvara se Runtime ekran sa health signalom, start/restart kontrolama i naprednim runtime podešavanjima."
+          stateMeta={
+            <>
+              <span>Health: {serverStatus?.health || status?.health || "--"}</span>
+              <span>Server: {serverStatus?.status || "--"}</span>
+              <span>Runtime signal: {status?.runtimeLiveStatus || "--"}</span>
+            </>
+          }
+        />
+
+        <PrimaryFlowCard
+          eyebrow="Lokalni model"
+          title="Izaberi model za rad"
+          stateTitle={modelStateTitle}
+          stateSummary={modelStateSummary}
+          icon="models"
+          primaryLabel="Glavna akcija"
+          primaryActionLabel="Otvori Modele"
+          primaryActionIcon="play"
+          onPrimaryAction={() => onOpenModels?.()}
+          secondaryLabel="Sekundarna akcija"
+          secondaryActionLabel="Proveri kompatibilnost"
+          secondaryActionIcon="play"
+          onSecondaryAction={() => onOpenCompatibility?.()}
+          resultLabel="Rezultat posle klika"
+          resultSummary="Otvara se fokusirani picker sa aktivnim modelom, lokalnim GGUF-ovima i proverom da li model staje u mašinu."
+          stateMeta={
+            <>
+              <span>Runtime: {status?.activeRuntimeLabel || "--"}</span>
+              <span>Profil: {status?.profile || "--"}</span>
+              <span>Katalog: lokalni + spremni za download</span>
+            </>
+          }
+        />
+
+        <PrimaryFlowCard
+          eyebrow="OpenCode"
+          title="Pređi na konkretan rad"
+          stateTitle={openCodeStateTitle}
+          stateSummary={openCodeStateSummary}
+          icon="opencode"
+          primaryLabel="Glavna akcija"
+          primaryActionLabel={opencode?.openActionLabel || "Otvori OpenCode"}
+          primaryActionIcon="play"
+          onPrimaryAction={() =>
+            void runAction(async () => {
+              const actionResult = await openOpenCode(
+                status?.profile || opencode?.profile || "balanced",
+                "direct",
+              );
+              if (actionResult.status === "ok") {
+                onOpenOpenCode?.();
+              }
+              return actionResult;
+            })
+          }
+          primaryDisabled={opencode?.canOpen === false}
+          primaryTitle={opencode?.openBlockedReason || undefined}
+          secondaryLabel="Sekundarna akcija"
+          secondaryActionLabel="Otvori u izolovanom workspace-u"
+          secondaryActionIcon="play"
+          onSecondaryAction={() =>
+            void runAction(async () => {
+              const actionResult = await openOpenCode(
+                status?.profile || opencode?.profile || "balanced",
+                "isolated",
+              );
+              if (actionResult.status === "ok") {
+                onOpenOpenCode?.();
+              }
+              return actionResult;
+            })
+          }
+          secondaryDisabled={opencode?.canOpen === false}
+          secondaryTitle={opencode?.openBlockedReason || undefined}
+          resultLabel="Rezultat posle klika"
+          resultSummary="Otvaraš ili direktan OpenCode nad pravim projektom, ili izolovani workspace za bezbedan probni rad bez diranja glavnog foldera."
+          stateMeta={
+            <>
+              <span>Instanci: {opencode?.instanceCount ?? 0}</span>
+              <span>Profil: {opencode?.profile || status?.profile || "--"}</span>
+              <span>Backend: {opencode?.runtimeConnected ? "povezan" : "nije povezan"}</span>
+            </>
+          }
+          liveResult={
+            result ? (
+              <div className="primary-flow-inline-result">
+                <strong>{result.status === "ok" ? "Poslednja OpenCode akcija" : "Poslednji signal"}</strong>
+                <p className="helper-text">{result.summary}</p>
+              </div>
+            ) : null
+          }
+        />
+      </div>
+
+      <div className="runtimepilot-home-support-stack wide-card">
         <TelemetryPanel benchmark={benchmark} variant="home" />
-        <section className="status-card system-overview-card wide-card">
-          <span className="status-label">Pregled sistema</span>
-          <div className="system-overview-grid">
-            <article className="system-overview-item">
-              <span className="system-overview-label">Stanje RuntimePilot-a</span>
-              <strong className="system-overview-value">{status?.health ?? "--"}</strong>
-            </article>
-            <article className="system-overview-item">
-              <span className="system-overview-label">Aktivan runtime</span>
-              <strong className="system-overview-value">{status?.activeRuntimeLabel ?? "--"}</strong>
-            </article>
-            <article className="system-overview-item">
-              <span className="system-overview-label">Status runtime servera</span>
-              <strong className="system-overview-value">{status?.runtimeLiveStatus ?? "--"}</strong>
-            </article>
-            <article className="system-overview-item">
-              <span className="system-overview-label">Aktivni model</span>
-              <strong className="system-overview-value">{status?.activeModel ?? "--"}</strong>
-            </article>
-            <article className="system-overview-item">
-              <span className="system-overview-label">Profil</span>
-              <strong className="system-overview-value">{status?.profile ?? "--"}</strong>
-            </article>
-            <article className="system-overview-item">
-              <span className="system-overview-label">Dostupni runtime-i</span>
-              <strong className="system-overview-value">
-                {status?.availableRuntimes?.length ? status.availableRuntimes.join(", ") : "--"}
-              </strong>
-            </article>
+
+        <section className="status-card runtimepilot-home-support-card runtimepilot-section-shell runtimepilot-faceplate-module">
+          <div className="runtimepilot-secondary-tools-layout">
+            <div className="runtimepilot-secondary-tools-copy">
+              <span className="status-label">Sekundarni alati</span>
+              <strong className="status-value">Kad osnovni tok radi, dalje ideš kroz Više</strong>
+              <p className="helper-text">
+                Benchmark, Telemetrija, Tuning Lab, Project Memory, Kompatibilnost i ostali alati ostaju tu,
+                ali više ne guše prvi ekran. Otvaraj ih tek kada ti stvarno trebaju analiza, poređenje ili fino podešavanje.
+              </p>
+            </div>
+            <div className="runtimepilot-secondary-tools-bay">
+              <article className="runtimepilot-secondary-tool-chip">
+                <span className="status-label">Benchmark</span>
+                <strong>Izmeri brzinu i uporedi run-ove</strong>
+                <p className="helper-text">Za throughput, latenciju i istoriju rezultata.</p>
+                <button type="button" className="runtimepilot-secondary-tool-link" onClick={onOpenBenchmark}>
+                  <span className="deck-control-symbol" aria-hidden="true">
+                    <RuntimePilotIcon name="play" />
+                  </span>
+                  <span className="deck-control-copy">Otvori Benchmark</span>
+                </button>
+              </article>
+              <article className="runtimepilot-secondary-tool-chip">
+                <span className="status-label">Tuning Lab</span>
+                <strong>Traži bolju kombinaciju parametara</strong>
+                <p className="helper-text">Za batch testove, slotove i izbor pobedničkog seta.</p>
+                <button type="button" className="runtimepilot-secondary-tool-link" onClick={onOpenTuningLab}>
+                  <span className="deck-control-symbol" aria-hidden="true">
+                    <RuntimePilotIcon name="play" />
+                  </span>
+                  <span className="deck-control-copy">Otvori Tuning Lab</span>
+                </button>
+              </article>
+              <article className="runtimepilot-secondary-tool-chip">
+                <span className="status-label">Project Memory</span>
+                <strong>Sačuvaj fokus zadatka</strong>
+                <p className="helper-text">Za cilj, pravila i sledeće korake koje agent ne sme da izgubi.</p>
+                <button type="button" className="runtimepilot-secondary-tool-link" onClick={onOpenProjectMemory}>
+                  <span className="deck-control-symbol" aria-hidden="true">
+                    <RuntimePilotIcon name="play" />
+                  </span>
+                  <span className="deck-control-copy">Otvori Project Memory</span>
+                </button>
+              </article>
+              <article className="runtimepilot-secondary-tool-chip">
+                <span className="status-label">Kompatibilnost</span>
+                <strong>Proveri da li model staje</strong>
+                <p className="helper-text">Za VRAM fit, kontekst i izbor bez nagađanja.</p>
+                <button type="button" className="runtimepilot-secondary-tool-link" onClick={onOpenCompatibility}>
+                  <span className="deck-control-symbol" aria-hidden="true">
+                    <RuntimePilotIcon name="play" />
+                  </span>
+                  <span className="deck-control-copy">Otvori kompatibilnost</span>
+                </button>
+              </article>
+            </div>
           </div>
         </section>
-
-        <div className="home-server-grid">
-          <section className="status-card">
-            <span className="status-label">Server</span>
-            <strong className="status-value">{serverStatus?.status ?? "--"}</strong>
-            <div className="summary-metrics">
-              <span>Port: {serverStatus ? String(serverStatus.port) : "--"}</span>
-              <span>Health: {serverStatus?.health ?? "--"}</span>
-              <span>Runtime: {serverStatus?.activeRuntimeLabel ?? "--"}</span>
-            </div>
-            {serverStatus?.requestedRuntimeLabel ? (
-              <p className="helper-text">
-                Izabrani runtime: {serverStatus.requestedRuntimeLabel} |{" "}
-                {serverStatus.runtimeSelectionSummary || "Nema dodatnih detalja o izboru runtime-a."}
-              </p>
-            ) : null}
-            {serverWarning ? <div className="warning-badge">Upozorenje servera: {serverWarning}</div> : null}
-          </section>
-
-          <section className="status-card">
-            <span className="status-label">OpenCode</span>
-            <strong className="status-value">{renderOpenCodeState(opencode)}</strong>
-            <div className="summary-metrics">
-              <span>Instanci: {opencode?.instanceCount ?? 0}</span>
-              <span>Profil: {opencode?.profile || "--"}</span>
-              <span>
-                Backend: {opencode?.runtimeConnected ? "povezan" : opencode?.runtimeLiveStatus || "--"}
-              </span>
-            </div>
-            <p className="helper-text">
-              {opencode?.sessionSummary || "Promena modela važi za novu OpenCode sesiju."}
-            </p>
-            <div className="inline-actions compact-actions">
-              <button
-                type="button"
-                disabled={opencode?.canOpen === false}
-                title={opencode?.openBlockedReason || undefined}
-                onClick={() => void runAction(() => openOpenCode(status?.profile || opencode?.profile || "balanced"))}
-              >
-                {opencode?.openActionLabel || "Otvori OpenCode"}
-              </button>
-            </div>
-          </section>
-        </div>
-
-        <div className="home-detail-grid">
-          <section className="status-card">
-            <span className="status-label">Sažetak servera</span>
-            <strong className="status-value">
-              {serverStatus?.lastReason || "Učitavam lifecycle status servera..."}
-            </strong>
-            <p className="helper-text">
-              Status: {serverStatus?.status || "--"} | Health: {serverStatus?.health || "--"} | Port:{" "}
-              {serverStatus ? String(serverStatus.port) : "--"} | Runtime: {serverStatus?.activeRuntimeLabel || "--"}
-            </p>
-          </section>
-
-          <section className="status-card">
-            <span className="status-label">Sažetak runtime-a</span>
-            <strong className="status-value">
-              {status?.runtimeSummary ?? "Učitavam runtime status..."}
-            </strong>
-          </section>
-
-          <section className="status-card">
-            <span className="status-label">Binar u upotrebi</span>
-            <div className="runtime-binary-card">
-              <strong className="status-value runtime-binary-file">
-                {runtimeBinary?.fileName || "Nije potvrđeno."}
-              </strong>
-              {runtimeBinary?.compactDirectory ? (
-                <div className="runtime-binary-location-block" title={runtimeBinary.fullPath}>
-                  <span className="runtime-binary-location-label">Lokacija binara</span>
-                  <span className="runtime-binary-location">{runtimeBinary.compactDirectory}</span>
-                </div>
-              ) : null}
-            </div>
-            <p className="helper-text">
-              Izvor potvrde: {status?.activeRuntimeBinarySource || "nema potvrde"}
-            </p>
-            <p className="helper-text">
-              Izabrani runtime: {status?.requestedRuntimeLabel || "--"} |{" "}
-              {status?.runtimeSelectionSummary || "Nema dodatnih detalja o izboru runtime-a."}
-            </p>
-            <p className="helper-text">
-              Runtime health: {status?.runtimeLiveReason || "Nema dodatnih detalja."}
-            </p>
-          </section>
-
-          <section className="status-card">
-            <span className="status-label">TurboQuant stanje</span>
-            <strong className="status-value">
-              {status?.turboQuantSummary ?? "Učitavam TurboQuant stanje..."}
-            </strong>
-            <p className="helper-text">
-              {status?.turboQuantGuidance || "Učitavam TurboQuant smernice..."}
-            </p>
-            <p className="helper-text">
-              Tehnički razlog: {status?.turboQuantReason || "nema dodatnih detalja."}
-            </p>
-            <div className="inline-actions">
-              <button
-                type="button"
-                onClick={async () => {
-                  const actionResult = await selectRuntime("llama.cpp");
-                  setResult(actionResult);
-                  await loadStatus();
-                }}
-              >
-                Koristi llama.cpp
-              </button>
-              <button
-                type="button"
-                disabled={!status?.turboQuantRuntimeAvailable}
-                onClick={async () => {
-                  const actionResult = await selectRuntime("turboquant");
-                  setResult(actionResult);
-                  await loadStatus();
-                }}
-              >
-                Koristi TurboQuant
-              </button>
-            </div>
-          </section>
-
-          <section className="status-card">
-            <span className="status-label">Lokalni URL</span>
-            <strong className="status-value">
-              {status ? status.localUrl : "Učitavam lokalni backend status..."}
-            </strong>
-          </section>
-
-          <section className="status-card">
-            <span className="status-label">Tailscale URL</span>
-            <strong className="status-value">
-              {status?.tailscaleUrl || "Tailscale nije aktivan ili interfejs nije izložen kroz Tailscale."}
-            </strong>
-          </section>
-        </div>
-
-        <section className="status-card">
-          <span className="status-label">OpenCode</span>
-          <strong className="status-value">
-            {opencode?.available ? "Dostupan" : "Nije dostupan"}
-          </strong>
-          <p className="helper-text">OpenCode config: {opencode?.configPath || "nije pronađen"}</p>
-          <p className="helper-text">
-            Backend veza: {opencode?.runtimeConnected ? "spremna" : "nije spremna"} |{" "}
-            {opencode?.runtimeLiveReason || "Nema dodatnih runtime detalja."}
-          </p>
-          <p className="helper-text">
-            Bezbednosni režim: {opencode?.securityModeLabel || "--"} | Autonomija:{" "}
-            {opencode?.capabilityModeLabel || "--"}
-          </p>
-          <p className="helper-text">
-            Audit: {opencode?.auditSummary || "Nema dodatnih OpenCode detalja."}
-          </p>
-          <p className="helper-text">
-            Ako promeniš aktivni model u RuntimePilot-u, zatvori i otvori OpenCode ponovo da bi
-            nova sesija preuzela taj model.
-          </p>
-        </section>
       </div>
-      <ActionResultPanel result={result} />
     </>
   );
 }

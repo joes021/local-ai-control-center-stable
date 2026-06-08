@@ -23,6 +23,7 @@ type ResourceMetric = {
   label: string;
   icon: "cpu" | "memory" | "telemetry" | "runtime" | "control" | "models";
   value: string;
+  meterPercent?: number | null;
   title: string;
   detailTitle: string;
   detailValue: string;
@@ -93,6 +94,26 @@ function formatContext(value: number | null | undefined) {
     return "--";
   }
   return String(Math.round(value));
+}
+
+function clampPercent(value: number | null | undefined) {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return null;
+  }
+  return Math.max(0, Math.min(100, value));
+}
+
+function toUsagePercent(used: number | null | undefined, total: number | null | undefined) {
+  if (
+    typeof used !== "number" ||
+    !Number.isFinite(used) ||
+    typeof total !== "number" ||
+    !Number.isFinite(total) ||
+    total <= 0
+  ) {
+    return null;
+  }
+  return clampPercent((used / total) * 100);
 }
 
 function sumFiniteMiB(...values: Array<number | null | undefined>) {
@@ -264,10 +285,60 @@ export function LiveResourceStrip({ onOpenSettingsSection }: LiveResourceStripPr
       diagnostics?.kvBufferMiB,
       diagnostics?.computeBufferMiB,
     );
+    const selectedGpuTotalMiB =
+      typeof (observability.runtime.selectedGpuTotalGiB ?? selectedGpu?.totalGiB ?? null) === "number" &&
+      Number.isFinite(observability.runtime.selectedGpuTotalGiB ?? selectedGpu?.totalGiB ?? null)
+        ? (observability.runtime.selectedGpuTotalGiB ?? selectedGpu?.totalGiB ?? 0) * 1024
+        : null;
     const cpuMappedMiB = diagnostics?.cpuMappedModelBufferMiB ?? null;
     const kvBufferMiB = diagnostics?.kvBufferMiB ?? null;
     const totalGpuFootprintLabel = formatCompactMemoryMiB(totalGpuFootprintMiB);
     const selectedGpuTotalLabel = formatGiB(observability.runtime.selectedGpuTotalGiB ?? selectedGpu?.totalGiB ?? null);
+    const fullRuntimeFitsVram =
+      totalGpuFootprintMiB != null && selectedGpuTotalMiB != null
+        ? totalGpuFootprintMiB <= selectedGpuTotalMiB + 64
+        : null;
+    const gpuHoldsWholeModelButNotFullRuntime =
+      observability.runtime.executionModeId === "gpu-vram" && fullRuntimeFitsVram === false;
+    const offloadPercent =
+      typeof diagnostics?.confirmedGpuLayers === "number" &&
+      Number.isFinite(diagnostics.confirmedGpuLayers) &&
+      typeof diagnostics?.confirmedTotalLayers === "number" &&
+      Number.isFinite(diagnostics.confirmedTotalLayers) &&
+      diagnostics.confirmedTotalLayers > 0
+        ? clampPercent((diagnostics.confirmedGpuLayers / diagnostics.confirmedTotalLayers) * 100)
+        : observability.runtime.executionModeId === "gpu-vram"
+          ? 100
+          : observability.runtime.executionModeId === "hybrid-vram-ram"
+            ? 62
+            : observability.runtime.executionModeId === "cpu-ram"
+              ? 12
+              : null;
+    const modePercent =
+      observability.runtime.executionModeId === "gpu-vram" && !gpuHoldsWholeModelButNotFullRuntime
+        ? 92
+        : gpuHoldsWholeModelButNotFullRuntime
+          ? 61
+        : observability.runtime.executionModeId === "hybrid-vram-ram"
+          ? 58
+          : observability.runtime.executionModeId === "cpu-ram"
+            ? 24
+            : 40;
+    const contextPercent = contextMismatch
+      ? 38
+      : typeof configuredContext === "number" &&
+          Number.isFinite(configuredContext) &&
+          typeof effectiveProcessContext === "number" &&
+          Number.isFinite(effectiveProcessContext)
+        ? 86
+        : 48;
+    const processPercent = toUsagePercent(
+      observability.runtime.runtimeProcessRamMiB,
+      typeof observability.system.ramTotalGiB === "number" && Number.isFinite(observability.system.ramTotalGiB)
+        ? observability.system.ramTotalGiB * 1024
+        : null,
+    );
+    const gpuPercent = clampPercent(selectedGpu?.utilizationPercent ?? null) ?? toUsagePercent(selectedGpu?.usedGiB, selectedGpu?.totalGiB);
 
     let modeValue = observability.runtime.executionModeLabel || "Čeka potvrdu";
     let modeTitle = `Režim: ${observability.runtime.executionModeLabel || "Čeka potvrdu"}`;
@@ -276,7 +347,30 @@ export function LiveResourceStrip({ onOpenSettingsSection }: LiveResourceStripPr
     let modeDetailDescription =
       observability.runtime.executionModeSummary || "RuntimePilot još čeka dovoljno signala za preciznu klasifikaciju.";
 
-    if (observability.runtime.executionModeId === "gpu-vram") {
+    if (observability.runtime.executionModeId === "gpu-vram" && gpuHoldsWholeModelButNotFullRuntime) {
+      modeValue = `Ne staje • ${totalGpuFootprintLabel}/${selectedGpuTotalLabel}`;
+      modeTitle = "Režim: GPU drži model, ali ceo runtime ne staje u VRAM";
+      modeDetailTitle = "Ne staje kompletan runtime u VRAM";
+      modeDetailValue =
+        totalGpuFootprintMiB != null
+          ? `${totalGpuFootprintLabel} / ${selectedGpuTotalLabel} VRAM u radu`
+          : "GPU drži model, ali brojke ne potvrđuju pun VRAM fit";
+      modeDetailDescription = [
+        "Svi slojevi modela jesu potvrđeni na GPU-u, ali ukupan radni otisak ne staje u raspoloživi VRAM.",
+        totalGpuFootprintMiB != null
+          ? `Trenutni model + KV cache + compute buffer traže oko ${totalGpuFootprintLabel} VRAM-a, a mašina trenutno ima ${selectedGpuTotalLabel}.`
+          : null,
+        kvBufferMiB != null
+          ? `KV cache je prijavljen na GPU-u i trenutno zauzima oko ${formatCompactMemoryMiB(kvBufferMiB)}.`
+          : null,
+        "To znači: težine modela jesu na GPU-u, ali ceo runtime nije čist VRAM fit.",
+        cpuMappedMiB != null
+          ? `Sistemski RAM koji vidiš (~${formatCompactMemoryMiB(cpuMappedMiB)}) i dalje je samo mapiranje i pomoćni baferi, ali glavni problem ovde je što prijavljeni GPU otisak prelazi kapacitet VRAM-a.`
+          : "Glavni problem ovde nije mapiranje u RAM, nego to što prijavljeni GPU otisak prelazi kapacitet VRAM-a.",
+      ]
+        .filter(Boolean)
+        .join(" ");
+    } else if (observability.runtime.executionModeId === "gpu-vram") {
       modeValue = "Staje u VRAM";
       modeTitle = gpuLayerShare
         ? `Režim: model staje u VRAM | ${gpuLayerShareLabel}`
@@ -328,7 +422,31 @@ export function LiveResourceStrip({ onOpenSettingsSection }: LiveResourceStripPr
     let offloadDetailDescription =
       diagnostics?.confirmedSummary || observability.runtime.offloadSummary || "Nema dodatnog offload detalja.";
 
-    if (observability.runtime.executionModeId === "gpu-vram") {
+    if (observability.runtime.executionModeId === "gpu-vram" && gpuHoldsWholeModelButNotFullRuntime) {
+      offloadValue = gpuLayerShareLabel;
+      offloadTitle = "Offload: svi slojevi jesu na GPU-u, ali nema punog VRAM fit-a";
+      offloadDetailTitle = "GPU drži model, ali VRAM je premali";
+      offloadDetailValue =
+        totalGpuFootprintMiB != null
+          ? `${totalGpuFootprintLabel} traženo / ${selectedGpuTotalLabel} dostupno`
+          : "Svi slojevi jesu na GPU-u";
+      offloadDetailDescription = [
+        gpuLayerShare
+          ? `Na GPU-u je potvrđeno svih ${gpuLayerShare} slojeva modela.`
+          : "GPU offload je potvrđen i model težine jesu na GPU-u.",
+        kvBufferMiB != null
+          ? `KV cache je takođe na GPU-u (~${formatCompactMemoryMiB(kvBufferMiB)}).`
+          : null,
+        totalGpuFootprintMiB != null
+          ? `Ali model + KV cache + compute buffer po prijavljenim brojkama prelaze raspoloživi VRAM (${totalGpuFootprintLabel} naspram ${selectedGpuTotalLabel}), pa ovo nije pun VRAM fit.`
+          : "Ali runtime brojke ne potvrđuju da ceo radni otisak staje u VRAM.",
+        cpuMappedMiB != null
+          ? `Sistemski RAM (~${formatCompactMemoryMiB(cpuMappedMiB)}) ovde nije glavni signal problema; glavni signal je sam GPU otisak.`
+          : null,
+      ]
+        .filter(Boolean)
+        .join(" ");
+    } else if (observability.runtime.executionModeId === "gpu-vram") {
       offloadValue = gpuLayerShareLabel;
       offloadTitle = `Offload: ${gpuLayerShareLabel}`;
       offloadDetailTitle = "GPU drži ceo model";
@@ -375,6 +493,7 @@ export function LiveResourceStrip({ onOpenSettingsSection }: LiveResourceStripPr
         label: "CPU",
         icon: "cpu",
         value: formatPercentCompact(observability.system.cpuPercent),
+        meterPercent: clampPercent(observability.system.cpuPercent),
         title: `CPU: ${formatPercent(observability.system.cpuPercent)}`,
         detailTitle: "CPU uživo",
         detailValue: formatPercent(observability.system.cpuPercent),
@@ -385,6 +504,7 @@ export function LiveResourceStrip({ onOpenSettingsSection }: LiveResourceStripPr
         label: "RAM",
         icon: "memory",
         value: formatUsedTotalGiBCompact(observability.system.ramUsedGiB, observability.system.ramTotalGiB),
+        meterPercent: toUsagePercent(observability.system.ramUsedGiB, observability.system.ramTotalGiB),
         title: `RAM: ${formatGiB(observability.system.ramUsedGiB)} / ${formatGiB(observability.system.ramTotalGiB)}`,
         detailTitle: "Sistemski RAM",
         detailValue: `${formatGiB(observability.system.ramUsedGiB)} / ${formatGiB(observability.system.ramTotalGiB)}`,
@@ -395,6 +515,7 @@ export function LiveResourceStrip({ onOpenSettingsSection }: LiveResourceStripPr
         label: "VRAM",
         icon: "memory",
         value: formatUsedTotalGiBCompact(observability.system.vramUsedGiB, observability.system.vramTotalGiB),
+        meterPercent: toUsagePercent(observability.system.vramUsedGiB, observability.system.vramTotalGiB),
         title: `VRAM: ${formatGiB(observability.system.vramUsedGiB)} / ${formatGiB(observability.system.vramTotalGiB)}`,
         detailTitle: "Dedicated GPU memorija",
         detailValue: `${formatGiB(observability.system.vramUsedGiB)} / ${formatGiB(observability.system.vramTotalGiB)}`,
@@ -405,22 +526,28 @@ export function LiveResourceStrip({ onOpenSettingsSection }: LiveResourceStripPr
         label: "Režim",
         icon: "runtime",
         value: modeValue,
+        meterPercent: modePercent,
         title: modeTitle,
         detailTitle: modeDetailTitle,
         detailValue: modeDetailValue,
         detailDescription: modeDetailDescription,
-        toneClassName: buildModeTone(observability.runtime.executionModeId),
+        toneClassName: gpuHoldsWholeModelButNotFullRuntime
+          ? "resource-chip-tone-warm"
+          : buildModeTone(observability.runtime.executionModeId),
       },
       {
         key: "offload",
         label: "Offload",
         icon: "control",
         value: offloadValue,
+        meterPercent: offloadPercent,
         title: offloadTitle,
         detailTitle: offloadDetailTitle,
         detailValue: offloadDetailValue,
         detailDescription: offloadDetailDescription,
-        toneClassName: buildModeTone(observability.runtime.executionModeId),
+        toneClassName: gpuHoldsWholeModelButNotFullRuntime
+          ? "resource-chip-tone-warm"
+          : buildModeTone(observability.runtime.executionModeId),
       },
       {
         key: "context",
@@ -429,6 +556,7 @@ export function LiveResourceStrip({ onOpenSettingsSection }: LiveResourceStripPr
         value: `${contextStatusLabel} • ${formatContext(configuredContext)} / ${formatContext(
           effectiveProcessContext,
         )}`,
+        meterPercent: contextPercent,
         title: `Context: Config ctx ${formatContext(configuredContext)} | Živi ctx ${formatContext(
           effectiveProcessContext,
         )}`,
@@ -444,6 +572,7 @@ export function LiveResourceStrip({ onOpenSettingsSection }: LiveResourceStripPr
         label: "Model proces",
         icon: "models",
         value: formatMiB(observability.runtime.runtimeProcessRamMiB),
+        meterPercent: processPercent,
         title: `Model proces: ${formatMiB(observability.runtime.runtimeProcessRamMiB)}`,
         detailTitle: "RAM aktivnog model procesa",
         detailValue: formatMiB(observability.runtime.runtimeProcessRamMiB),
@@ -454,6 +583,7 @@ export function LiveResourceStrip({ onOpenSettingsSection }: LiveResourceStripPr
         label: "GPU",
         icon: "telemetry",
         value: `${simplifiedGpuName} • ${formatGiB(selectedGpu?.totalGiB ?? null)}`,
+        meterPercent: gpuPercent,
         title: `${detailedGpuName} | ${formatGiB(selectedGpu?.totalGiB ?? null)} ukupno`,
         detailTitle: detailedGpuName,
         detailValue: `${formatGiB(selectedGpu?.usedGiB ?? null)} / ${formatGiB(selectedGpu?.totalGiB ?? null)}`,
@@ -470,6 +600,7 @@ export function LiveResourceStrip({ onOpenSettingsSection }: LiveResourceStripPr
         label: "Signal",
         icon: "telemetry",
         value: "Problem",
+        meterPercent: 18,
         title: error,
         detailTitle: "Signal greške",
         detailValue: "Živi resursi trenutno nisu dostupni",
@@ -502,9 +633,12 @@ export function LiveResourceStrip({ onOpenSettingsSection }: LiveResourceStripPr
   }
 
   return (
-    <section className="live-resource-strip runtimepilot-command-deck" aria-label="Živi resursi sistema">
-      <span className="status-label live-resource-strip-heading">Živi resursi</span>
-      <div className="live-resource-inline-row">
+    <section className="live-resource-strip live-resource-rack runtimepilot-command-deck" aria-label="Živi resursi sistema">
+      <div className="live-resource-rack-head">
+        <span className="status-label live-resource-strip-heading">Živi resursi</span>
+        <span className="live-resource-rack-helper">Instrument tabla sistema</span>
+      </div>
+      <div className="live-resource-inline-row live-resource-rack-row">
         {metrics.map((metric) => {
           const isSelected = selectedMetric?.key === metric.key;
           const usesCompactNumericValue = metric.key === "ram" || metric.key === "vram";
@@ -526,12 +660,19 @@ export function LiveResourceStrip({ onOpenSettingsSection }: LiveResourceStripPr
                 <span>{metric.label}</span>
               </span>
               <strong className="live-resource-inline-value">{metric.value}</strong>
+              <span className="live-resource-inline-meter" aria-hidden="true">
+                <span className="live-resource-inline-meter-scale" />
+                <span
+                  className="live-resource-inline-meter-fill"
+                  style={{ width: `${metric.meterPercent ?? 0}%` }}
+                />
+              </span>
             </button>
           );
         })}
       </div>
       <div
-        className={`resource-chip-detail-panel ${
+        className={`resource-chip-detail-panel live-resource-rack-detail ${
           selectedMetric ? "resource-chip-detail-panel-expanded" : "resource-chip-detail-panel-idle"
         }`}
       >

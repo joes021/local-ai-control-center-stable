@@ -97,7 +97,7 @@ export function ObservabilityPage() {
   }
 
   return (
-    <>
+    <div className="observability-page runtimepilot-rack-page">
       {inlineError ? <div className="error-panel wide-card">{inlineError}</div> : null}
       <PageFlowCard
         title="Observability tok"
@@ -117,9 +117,13 @@ export function ObservabilityPage() {
           },
         ]}
       />
+      <div className="observability-hifi-stack">
+      <div className="observability-monitor-deck">
       <TelemetryPanel benchmark={benchmark} variant="benchmark" />
       <RuntimeResourcePanel observability={observability} />
+      </div>
 
+      <div className="observability-mixer-deck">
       <section className="status-card wide-card">
         <span className="status-label">Telemetrija</span>
         <strong className="status-value">GPU, RAM, runtime i log signal uživo na jednom mestu</strong>
@@ -156,7 +160,9 @@ export function ObservabilityPage() {
           </article>
         </div>
       </section>
+      </div>
 
+      <div className="observability-transport-deck">
       <section className="status-card wide-card">
         <span className="status-label">Runtime signal</span>
         <strong className="status-value">
@@ -193,6 +199,8 @@ export function ObservabilityPage() {
           <p className="helper-text">Još nema znacajnih log signala u zadnjim installer-managed logovima.</p>
         )}
       </section>
-    </>
+      </div>
+      </div>
+    </div>
   );
 }

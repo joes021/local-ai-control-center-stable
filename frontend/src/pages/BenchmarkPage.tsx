@@ -735,7 +735,7 @@ export function BenchmarkPage({
   }
 
   return (
-    <>
+    <div className="benchmark-page runtimepilot-rack-page">
       {error ? <div className="error-panel wide-card">{error}</div> : null}
       <PageFlowCard
         title="Benchmark tok"
@@ -762,6 +762,8 @@ export function BenchmarkPage({
           ) : null
         }
       />
+      <div className="benchmark-hifi-stack">
+      <div className="benchmark-mixer-deck">
       <section className="status-card wide-card">
         <span className="status-label">Kontrole benchmarka</span>
         {currentWorkflowPreset ? (
@@ -889,7 +891,98 @@ export function BenchmarkPage({
           })()}
         </div>
       </section>
+      </div>
 
+      <div className="benchmark-transport-deck">
+      <section className="status-card wide-card">
+        <span className="status-label">Kontekst benchmarka</span>
+        <div className="benchmark-context-grid">
+          <div className="benchmark-context-main">
+            <strong className="status-value">
+              Model: {benchmarkEnvironment?.modelLabel || "Nema aktivnog modela"}
+            </strong>
+            <p className="helper-text">
+              Runtime: {benchmarkEnvironment?.runtimeLabel || "--"} | Profil: {benchmarkEnvironment?.profile || "--"} |
+              Razmišljanje: {benchmarkEnvironment?.thinkingMode || "--"}
+            </p>
+          </div>
+          <div className="browser-chip-row">
+            <span className="browser-badge">Kontekst {formatCompactTokens(benchmarkEnvironment?.context)}</span>
+            <span className="browser-badge">Izlaz {formatCompactTokens(benchmarkEnvironment?.outputTokens)}</span>
+            <span className="browser-badge">
+              Stanje uživo {benchmark?.liveState?.status || "idle"}
+            </span>
+          </div>
+        </div>
+        <p className="helper-text">{benchmark?.liveState?.reason}</p>
+      </section>
+
+      <section className="status-card wide-card">
+        <span className="status-label">Pokretanje benchmarka</span>
+        <div className="benchmark-run-summary">
+          <div className="benchmark-run-main">
+            <strong className="status-value">
+              {activeRun?.mode === "battery"
+                ? `${activeRun.currentIndex}/${activeRun.totalScenarios} | ${
+                    activeRun.currentScenarioName || "čeka"
+                  }`
+                : activeRun?.scenarioName || "nema aktivnog testa"}
+            </strong>
+            <span className={`scenario-status-badge scenario-status-${activeRun?.status || "idle"}`}>
+              {activeRun?.status || "idle"}
+            </span>
+          </div>
+          <div className="benchmark-run-meta">
+            <span>{activeRun?.percent ?? 0}%</span>
+            <span>{activeRun?.message || "Benchmark nije pokrenut."}</span>
+          </div>
+        </div>
+        <div className="benchmark-run-status-list">
+          {(activeRun?.scenarioStatuses ?? []).map((item) => (
+            <article className="benchmark-run-status-row" key={item.scenarioId}>
+              <strong>{item.scenarioName}</strong>
+              <span className={`scenario-status-badge scenario-status-${item.status}`}>
+                {item.status}
+              </span>
+              <div className="muted-line">{item.summary}</div>
+            </article>
+          ))}
+        </div>
+        <div style={{ display: "none" }}>queued running done failed</div>
+      </section>
+
+      <section className="status-card wide-card">
+        <span className="status-label">Aktivnost zahteva</span>
+        <p className="helper-text">
+          Zahtevi: {benchmark.requestCount} | Stabilnost: {benchmark.activity.stability.label} (
+          {benchmark.activity.stability.score})
+        </p>
+        <p className="helper-text">{benchmark.activity.stability.reason}</p>
+        <div className="inline-actions">
+          <button type="button" onClick={onOpenLogs}>
+            Otvori puni live log
+          </button>
+        </div>
+        <p className="helper-text">Zadnjih 30 linija</p>
+        <pre
+          className="helper-text"
+          style={{
+            whiteSpace: "pre-wrap",
+            maxHeight: "260px",
+            overflowY: "auto",
+            background: "rgba(0,0,0,0.12)",
+            padding: "12px",
+            borderRadius: "12px",
+          }}
+        >
+          {(benchmark.liveLog.lines.length
+            ? benchmark.liveLog.lines
+            : ["Još nema dostupnog live log preview-ja."]).join("\n")}
+        </pre>
+      </section>
+      </div>
+
+      <div className="benchmark-monitor-deck">
       <TelemetryPanel benchmark={benchmark} variant="benchmark" />
       <p className="helper-text">
         CPU uživo, RAM uživo i VRAM uživo su stalno vidljivi, a ispod odmah dobijaš i jasno
@@ -1115,93 +1208,6 @@ export function BenchmarkPage({
       </section>
 
       <section className="status-card wide-card">
-        <span className="status-label">Kontekst benchmarka</span>
-        <div className="benchmark-context-grid">
-          <div className="benchmark-context-main">
-            <strong className="status-value">
-              Model: {benchmarkEnvironment?.modelLabel || "Nema aktivnog modela"}
-            </strong>
-            <p className="helper-text">
-              Runtime: {benchmarkEnvironment?.runtimeLabel || "--"} | Profil: {benchmarkEnvironment?.profile || "--"} |
-              Razmišljanje: {benchmarkEnvironment?.thinkingMode || "--"}
-            </p>
-          </div>
-          <div className="browser-chip-row">
-            <span className="browser-badge">Kontekst {formatCompactTokens(benchmarkEnvironment?.context)}</span>
-            <span className="browser-badge">Izlaz {formatCompactTokens(benchmarkEnvironment?.outputTokens)}</span>
-            <span className="browser-badge">
-              Stanje uživo {benchmark?.liveState?.status || "idle"}
-            </span>
-          </div>
-        </div>
-        <p className="helper-text">{benchmark?.liveState?.reason}</p>
-      </section>
-
-      <section className="status-card wide-card">
-        <span className="status-label">Pokretanje benchmarka</span>
-        <div className="benchmark-run-summary">
-          <div className="benchmark-run-main">
-            <strong className="status-value">
-              {activeRun?.mode === "battery"
-                ? `${activeRun.currentIndex}/${activeRun.totalScenarios} | ${
-                    activeRun.currentScenarioName || "čeka"
-                  }`
-                : activeRun?.scenarioName || "nema aktivnog testa"}
-            </strong>
-            <span className={`scenario-status-badge scenario-status-${activeRun?.status || "idle"}`}>
-              {activeRun?.status || "idle"}
-            </span>
-          </div>
-          <div className="benchmark-run-meta">
-            <span>{activeRun?.percent ?? 0}%</span>
-            <span>{activeRun?.message || "Benchmark nije pokrenut."}</span>
-          </div>
-        </div>
-        <div className="benchmark-run-status-list">
-          {(activeRun?.scenarioStatuses ?? []).map((item) => (
-            <article className="benchmark-run-status-row" key={item.scenarioId}>
-              <strong>{item.scenarioName}</strong>
-              <span className={`scenario-status-badge scenario-status-${item.status}`}>
-                {item.status}
-              </span>
-              <div className="muted-line">{item.summary}</div>
-            </article>
-          ))}
-        </div>
-        <div style={{ display: "none" }}>queued running done failed</div>
-      </section>
-
-      <section className="status-card wide-card">
-        <span className="status-label">Aktivnost zahteva</span>
-        <p className="helper-text">
-          Zahtevi: {benchmark.requestCount} | Stabilnost: {benchmark.activity.stability.label} (
-          {benchmark.activity.stability.score})
-        </p>
-        <p className="helper-text">{benchmark.activity.stability.reason}</p>
-        <div className="inline-actions">
-          <button type="button" onClick={onOpenLogs}>
-            Otvori puni live log
-          </button>
-        </div>
-        <p className="helper-text">Zadnjih 30 linija</p>
-        <pre
-          className="helper-text"
-          style={{
-            whiteSpace: "pre-wrap",
-            maxHeight: "260px",
-            overflowY: "auto",
-            background: "rgba(0,0,0,0.12)",
-            padding: "12px",
-            borderRadius: "12px",
-          }}
-        >
-          {(benchmark.liveLog.lines.length
-            ? benchmark.liveLog.lines
-            : ["Još nema dostupnog live log preview-ja."]).join("\n")}
-        </pre>
-      </section>
-
-      <section className="status-card wide-card">
         <span className="status-label">Benchmark istorija</span>
         <div className="inline-actions benchmark-export-row">
           <button type="button" onClick={() => void handleExport("json")}>
@@ -1330,6 +1336,8 @@ export function BenchmarkPage({
           )}
         </div>
       </section>
-    </>
+      </div>
+      </div>
+    </div>
   );
 }

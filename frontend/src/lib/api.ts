@@ -26,6 +26,8 @@
   OpenCodeStatusPayload,
   OpenCodeStepSchemaPayload,
   OpenCodeStepValues,
+  OpenCodeWorkspaceHygieneActionResult,
+  OpenCodeWorkspaceHygienePayload,
   ProjectMemoryPayload,
   ProjectMemorySavePayload,
   ServerStatusPayload,
@@ -814,6 +816,21 @@ export async function fetchOpenCodeStepSchema(): Promise<OpenCodeStepSchemaPaylo
   return response.json() as Promise<OpenCodeStepSchemaPayload>;
 }
 
+export async function fetchOpenCodeWorkspaceHygiene(): Promise<OpenCodeWorkspaceHygienePayload> {
+  const response = await fetch("/api/opencode/hygiene", { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(`OpenCode hygiene request failed: ${response.status}`);
+  }
+  return response.json() as Promise<OpenCodeWorkspaceHygienePayload>;
+}
+
+export async function cleanupOpenCodeWorkspaceHygiene(): Promise<OpenCodeWorkspaceHygieneActionResult> {
+  return postJson<Record<string, never>, OpenCodeWorkspaceHygieneActionResult>(
+    "/api/opencode/hygiene/cleanup",
+    {},
+  );
+}
+
 export async function applyOpenCodeSettings(payload: {
   profile: string;
   context: number;
@@ -829,8 +846,11 @@ export async function applyOpenCodeSettings(payload: {
   return postJson("/api/opencode/settings/apply", payload);
 }
 
-export async function openOpenCode(profile: string): Promise<ActionResult> {
-  return postJson("/api/opencode/open", { profile });
+export async function openOpenCode(
+  profile: string,
+  launchMode: "direct" | "isolated" = "direct",
+): Promise<ActionResult> {
+  return postJson("/api/opencode/open", { profile, launchMode });
 }
 
 export async function bootstrapOpenCode(): Promise<ActionResult> {

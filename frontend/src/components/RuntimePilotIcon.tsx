@@ -23,7 +23,10 @@
   | "privacy"
   | "telemetry"
   | "memory"
-  | "cpu";
+  | "cpu"
+  | "play"
+  | "stop"
+  | "reload";
 
 export type { RuntimePilotIconName };
 
@@ -203,6 +206,26 @@ function iconPaths(name: RuntimePilotIconName) {
         <>
           <rect x="7" y="7" width="10" height="10" rx="2" />
           <path d="M9 9h6v6H9zM9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3" />
+        </>
+      );
+    case "play":
+      return (
+        <>
+          <path d="M8 6.5v11l8.5-5.5Z" fill="currentColor" stroke="none" />
+        </>
+      );
+    case "stop":
+      return (
+        <>
+          <rect x="7" y="7" width="10" height="10" rx="1.75" fill="currentColor" stroke="none" />
+        </>
+      );
+    case "reload":
+      return (
+        <>
+          <path d="M17 7.5V4.5h-3" />
+          <path d="M17 4.5 13 8.5" />
+          <path d="M17 12a5 5 0 1 1-1.25-3.3" />
         </>
       );
     case "control":

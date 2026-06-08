@@ -238,7 +238,7 @@ export function HelpPage({
   onOpenTuningLab,
 }: HelpPageProps) {
   return (
-    <>
+    <div className="help-page runtimepilot-rack-page">
       <PageFlowCard
         title="Najkraći put do rezultata"
         summary="Ovaj help centar je praktičan vodič kroz RuntimePilot. Ne objašnjava teoriju radi teorije, nego ti kaže gde da klikneš i šta da očekuješ."
@@ -273,6 +273,8 @@ export function HelpPage({
           </>
         }
       />
+      <div className="help-hifi-stack">
+      <div className="help-mixer-deck">
 
       <section className="status-card wide-card runtimepilot-section-shell help-overview-shell">
         <div className="section-header page-flow-header">
@@ -378,7 +380,9 @@ export function HelpPage({
           </button>
         </div>
       </HelpSectionCard>
+      </div>
 
+      <div className="help-transport-deck">
       <HelpSectionCard
         id="common-paths"
         title="Najčešći tokovi"
@@ -471,7 +475,9 @@ export function HelpPage({
           </button>
         </div>
       </HelpSectionCard>
+      </div>
 
+      <div className="help-monitor-deck">
       <HelpSectionCard
         id="tuning-lab"
         title="Tuning Lab i batch testovi"
@@ -553,6 +559,8 @@ export function HelpPage({
           ))}
         </div>
       </HelpSectionCard>
-    </>
+      </div>
+      </div>
+    </div>
   );
 }

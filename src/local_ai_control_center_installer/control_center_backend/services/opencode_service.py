@@ -1,17 +1,25 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import stat
 import subprocess
 import shlex
 import tempfile
+import threading
+import time
 
 from local_ai_control_center_installer.control_center_backend.config import (
     ControlCenterConfig,
     get_config,
+)
+from local_ai_control_center_installer.control_center_backend.services.state_helpers import (
+    atomic_write_json,
+    read_json_object,
 )
 from local_ai_control_center_installer.control_center_backend.services.server_service import (
     ensure_runtime_ready,
@@ -44,22 +52,36 @@ from local_ai_control_center_installer.runtime_bootstrap import load_runtime_end
 from local_ai_control_center_installer.session import InstallerSession
 
 
+OPENCODE_DISPOSABLE_WORKSPACE_PREFIXES: dict[str, str] = {
+    "gui-copy-": "copy",
+    "gui-scratch-": "scratch",
+    "gui-worktree-": "git-worktree",
+}
+OPENCODE_HYGIENE_POLL_SECONDS = 15 * 60.0
+_HYGIENE_SCHEDULER_LOCK = threading.Lock()
+_HYGIENE_SCHEDULER_THREAD: threading.Thread | None = None
+_HYGIENE_SCHEDULER_STOP = threading.Event()
+
+
 def load_opencode_status_payload(
     config: ControlCenterConfig | None = None,
 ) -> dict[str, object]:
     config = config or get_config()
     executable_path = _resolve_opencode_executable_path(config)
+    desktop_executable_path = _resolve_windows_opencode_desktop_executable_path(config)
     config_path = config.install_root / "config" / "opencode" / "managed-config.json"
     launcher_path = config.install_root / "control-center" / (
         "Open-OpenCode.cmd" if is_windows_platform() else "Open-OpenCode.sh"
     )
     instances = detect_opencode_instances(executable_path)
+    desktop_instances = detect_opencode_desktop_instances(desktop_executable_path)
     launcher_instances = detect_opencode_launcher_instances(launcher_path)
     settings = load_effective_settings_state(config)
     runtime_state = load_runtime_state(config)
     runtime_connected = str(runtime_state.get("runtime_live_status", "")) == "started"
     session_state, session_summary = _build_session_state(
         has_instances=bool(instances),
+        has_desktop_instances=bool(desktop_instances),
         launch_in_progress=bool(launcher_instances),
         runtime_connected=runtime_connected,
         runtime_reason=str(runtime_state.get("runtime_live_reason", "") or ""),
@@ -78,9 +100,11 @@ def load_opencode_status_payload(
 
     return {
         "available": executable_path.is_file(),
-        "active": bool(instances),
-        "instanceCount": len(instances),
-        "instances": instances,
+        "desktopAvailable": bool(desktop_executable_path and desktop_executable_path.is_file()),
+        "desktopExecutablePath": str(desktop_executable_path) if desktop_executable_path else "",
+        "active": bool(instances or desktop_instances),
+        "instanceCount": len(instances) + len(desktop_instances),
+        "instances": desktop_instances + instances,
         "runtimeConnected": runtime_connected,
         "runtimeLiveStatus": str(runtime_state.get("runtime_live_status", "") or ""),
         "runtimeLiveReason": str(runtime_state.get("runtime_live_reason", "") or ""),
@@ -113,6 +137,7 @@ def load_opencode_status_payload(
         "launchPreview": _build_opencode_launch_preview(
             config=config,
             executable_path=executable_path,
+            desktop_executable_path=desktop_executable_path,
             managed_config_path=config_path,
             settings=settings,
         ),
@@ -189,13 +214,217 @@ def bootstrap_opencode_payload(
     return _result("error", "bootstrap-opencode", "OpenCode executable i dalje nije pronađen posle bootstrap-a.")
 
 
+def load_opencode_workspace_hygiene_payload(
+    config: ControlCenterConfig | None = None,
+) -> dict[str, object]:
+    config = config or get_config()
+    workspace_root = _resolve_opencode_workspace_root(config)
+    workspace_root.mkdir(parents=True, exist_ok=True)
+    process_instances = [*_query_opencode_processes(), *_query_opencode_desktop_processes()]
+    active_paths = _collect_active_opencode_workspace_paths(
+        workspace_root=workspace_root,
+        instances=process_instances,
+    )
+    protect_most_recent = bool(process_instances) and not active_paths
+    items = _scan_opencode_disposable_workspaces(
+        workspace_root=workspace_root,
+        active_paths=active_paths,
+        protect_most_recent=protect_most_recent,
+    )
+    cleanup_candidates = [item for item in items if bool(item.get("cleanupEligible"))]
+    active_items = [item for item in items if bool(item.get("isActive"))]
+    protected_recent_items = [item for item in items if bool(item.get("isRecentFallbackProtected"))]
+    cleanup_candidate_bytes = sum(int(item.get("sizeBytes", 0) or 0) for item in cleanup_candidates)
+    summary = (
+        "Nema zaostalih izolovanih OpenCode workspace foldera za čišćenje."
+        if not cleanup_candidates
+        else (
+            f"Pronađeno je {len(cleanup_candidates)} disposable OpenCode workspace foldera "
+            f"spremnih za čišćenje ({_format_storage_size(cleanup_candidate_bytes)})."
+        )
+    )
+    return {
+        "workspaceRoot": str(workspace_root),
+        "summary": summary,
+        "canCleanup": bool(cleanup_candidates),
+        "disposableWorkspaceCount": len(items),
+        "activeWorkspaceCount": len(active_items),
+        "recentFallbackProtectedCount": len(protected_recent_items),
+        "cleanupCandidateCount": len(cleanup_candidates),
+        "cleanupCandidateBytes": cleanup_candidate_bytes,
+        "cleanupCandidateSizeLabel": _format_storage_size(cleanup_candidate_bytes),
+        "items": items,
+        "manualReviewLocations": _build_manual_storage_review_locations(),
+        "lastAutoCleanup": load_last_opencode_auto_cleanup_state(config),
+    }
+
+
+def cleanup_opencode_workspace_hygiene_payload(
+    config: ControlCenterConfig | None = None,
+    *,
+    persist_auto_state: bool = False,
+    origin: str = "manual",
+) -> dict[str, object]:
+    config = config or get_config()
+    hygiene = load_opencode_workspace_hygiene_payload(config)
+    workspace_root = _resolve_opencode_workspace_root(config)
+    removed_count = 0
+    freed_bytes = 0
+    failed_items: list[str] = []
+    for item in hygiene.get("items", []):
+        if not isinstance(item, dict) or not bool(item.get("cleanupEligible")):
+            continue
+        candidate_path = Path(str(item.get("path", "") or ""))
+        if not _is_opencode_workspace_cleanup_target(candidate_path, workspace_root):
+            failed_items.append(f"{candidate_path.name}: putanja nije bezbedna za cleanup")
+            continue
+        try:
+            _remove_tree(candidate_path)
+        except OSError as exc:
+            failed_items.append(f"{candidate_path.name}: {exc}")
+            continue
+        removed_count += 1
+        freed_bytes += int(item.get("sizeBytes", 0) or 0)
+
+    updated_hygiene = load_opencode_workspace_hygiene_payload(config)
+    if failed_items:
+        summary = (
+            f"Očišćeno: {removed_count} workspace foldera ({_format_storage_size(freed_bytes)}), "
+            f"ali {len(failed_items)} stavki nije moglo da se obriše."
+        )
+        payload = _result("error", "cleanup-opencode-workspaces", summary)
+    else:
+        summary = (
+            "Nije bilo disposable OpenCode workspace foldera za čišćenje."
+            if removed_count == 0
+            else f"Očišćeno je {removed_count} disposable OpenCode workspace foldera ({_format_storage_size(freed_bytes)})."
+        )
+        payload = _result("ok", "cleanup-opencode-workspaces", summary)
+    payload["cleanup"] = {
+        "removedCount": removed_count,
+        "freedBytes": freed_bytes,
+        "freedSizeLabel": _format_storage_size(freed_bytes),
+        "failedCount": len(failed_items),
+        "failedItems": failed_items,
+    }
+    payload["hygiene"] = updated_hygiene
+    if persist_auto_state:
+        _record_opencode_auto_cleanup_state(
+            config,
+            {
+                "hasRun": True,
+                "origin": origin,
+                "status": str(payload.get("status", "") or "ok"),
+                "summary": str(payload.get("summary", "") or ""),
+                "completedAt": _now_iso(),
+                "removedCount": removed_count,
+                "freedBytes": freed_bytes,
+                "freedSizeLabel": _format_storage_size(freed_bytes),
+                "failedCount": len(failed_items),
+            },
+        )
+        payload["hygiene"] = load_opencode_workspace_hygiene_payload(config)
+    return payload
+
+
+def run_opencode_hygiene_auto_cleanup(
+    config: ControlCenterConfig | None = None,
+) -> dict[str, object]:
+    config = config or get_config()
+    try:
+        return cleanup_opencode_workspace_hygiene_payload(
+            config,
+            persist_auto_state=True,
+            origin="auto",
+        )
+    except Exception as exc:  # noqa: BLE001 - scheduler path must persist state even on failure
+        summary = f"Auto-cleanup OpenCode workspace-a nije uspeo: {exc}"
+        _record_opencode_auto_cleanup_state(
+            config,
+            {
+                "hasRun": True,
+                "origin": "auto",
+                "status": "error",
+                "summary": summary,
+                "completedAt": _now_iso(),
+                "removedCount": 0,
+                "freedBytes": 0,
+                "freedSizeLabel": "0 B",
+                "failedCount": 1,
+            },
+        )
+        raise
+
+
+def load_last_opencode_auto_cleanup_state(
+    config: ControlCenterConfig | None = None,
+) -> dict[str, object]:
+    config = config or get_config()
+    payload = read_json_object(config.opencode_hygiene_state_path)
+    if not payload:
+        return {
+            "hasRun": False,
+            "origin": "auto",
+            "status": "idle",
+            "summary": "Auto-cleanup još nije radio od poslednjeg poznatog stanja.",
+            "completedAt": "",
+            "removedCount": 0,
+            "freedBytes": 0,
+            "freedSizeLabel": "0 B",
+            "failedCount": 0,
+        }
+    return {
+        "hasRun": bool(payload.get("hasRun", True)),
+        "origin": str(payload.get("origin", "auto") or "auto"),
+        "status": str(payload.get("status", "idle") or "idle"),
+        "summary": str(payload.get("summary", "") or ""),
+        "completedAt": str(payload.get("completedAt", "") or ""),
+        "removedCount": int(payload.get("removedCount", 0) or 0),
+        "freedBytes": int(payload.get("freedBytes", 0) or 0),
+        "freedSizeLabel": str(payload.get("freedSizeLabel", "0 B") or "0 B"),
+        "failedCount": int(payload.get("failedCount", 0) or 0),
+    }
+
+
+def start_opencode_hygiene_scheduler() -> None:
+    global _HYGIENE_SCHEDULER_THREAD
+    with _HYGIENE_SCHEDULER_LOCK:
+        if _HYGIENE_SCHEDULER_THREAD and _HYGIENE_SCHEDULER_THREAD.is_alive():
+            return
+        _HYGIENE_SCHEDULER_STOP.clear()
+        _HYGIENE_SCHEDULER_THREAD = threading.Thread(
+            target=_opencode_hygiene_scheduler_loop,
+            name="lacc-opencode-hygiene",
+            daemon=True,
+        )
+        _HYGIENE_SCHEDULER_THREAD.start()
+
+
+def stop_opencode_hygiene_scheduler() -> None:
+    _HYGIENE_SCHEDULER_STOP.set()
+
+
+def _opencode_hygiene_scheduler_loop() -> None:
+    while True:
+        try:
+            run_opencode_hygiene_auto_cleanup()
+        except Exception:  # noqa: BLE001 - auto cleanup loop must stay alive
+            time.sleep(1.0)
+        if _HYGIENE_SCHEDULER_STOP.wait(OPENCODE_HYGIENE_POLL_SECONDS):
+            break
+
+
 def open_opencode(
     profile: str = "",
+    launch_mode: str = "direct",
     config: ControlCenterConfig | None = None,
 ) -> dict[str, object]:
     config = config or get_config()
     executable_path = _resolve_opencode_executable_path(config)
+    desktop_executable_path = _resolve_windows_opencode_desktop_executable_path(config)
     managed_config_path = config.install_root / "config" / "opencode" / "managed-config.json"
+    settings = load_effective_settings_state(config)
+    normalized_launch_mode = _normalize_opencode_launch_mode(launch_mode)
     if not executable_path.is_file():
         return _result("error", "open-opencode", "OpenCode executable nije pronađen.")
     if not managed_config_path.is_file():
@@ -208,7 +437,34 @@ def open_opencode(
             "open-opencode",
             f"OpenCode nije pokrenut. {summary}",
         )
-    existing_instances = detect_opencode_instances(executable_path)
+
+    working_directory = _resolve_opencode_working_directory(settings=settings, config=config)
+    try:
+        workspace_info = (
+            _prepare_isolated_opencode_workspace(config=config, working_directory=working_directory)
+            if normalized_launch_mode == "isolated"
+            else None
+        )
+    except Exception as exc:
+        return _result(
+            "error",
+            "open-opencode",
+            f"Izolovani workspace nije mogao da se pripremi. {exc}",
+        )
+    project_path = Path(str(workspace_info["workspacePath"])) if workspace_info else working_directory
+
+    existing_desktop_instances = (
+        []
+        if normalized_launch_mode != "direct"
+        else detect_opencode_desktop_instances(desktop_executable_path)
+    )
+    if existing_desktop_instances:
+        return _result(
+            "ok",
+            "open-opencode",
+            "OpenCode GUI je već otvoren; koristi postojeći prozor.",
+        )
+    existing_instances = [] if normalized_launch_mode != "direct" else detect_opencode_instances(executable_path)
     if existing_instances:
         return _result(
             "ok",
@@ -216,7 +472,40 @@ def open_opencode(
             "OpenCode je već otvoren; backend je pripremljen za postojeću sesiju.",
         )
 
-    launcher_path = prepare_opencode_launcher(config=config, profile=profile)
+    if desktop_executable_path and desktop_executable_path.is_file():
+        env = _build_opencode_launch_environment(
+            managed_config_path=managed_config_path,
+            settings=settings,
+            profile=profile,
+        )
+        _launch_opencode_desktop(
+            desktop_executable_path=desktop_executable_path,
+            working_directory=project_path,
+            project_path=project_path,
+            env=env,
+        )
+        return _result(
+            "ok",
+            "open-opencode",
+            _build_opencode_open_summary(
+                launch_mode=normalized_launch_mode,
+                project_path=project_path,
+                workspace_info=workspace_info,
+                gui=True,
+            ),
+        )
+
+    launcher_name_override = None
+    if normalized_launch_mode == "isolated":
+        launcher_name_override = (
+            "Open-OpenCode-Isolated.cmd" if is_windows_platform() else "Open-OpenCode-Isolated.sh"
+        )
+    launcher_path = prepare_opencode_launcher(
+        config=config,
+        profile=profile,
+        working_directory_override=project_path,
+        launcher_name_override=launcher_name_override,
+    )
     existing_launchers = detect_opencode_launcher_instances(launcher_path)
     if existing_launchers:
         return _result(
@@ -237,13 +526,20 @@ def open_opencode(
     return _result(
         "ok",
         "open-opencode",
-        "OpenCode je pokrenut kao CLI sesija u terminal prozoru. Ovo nije zaseban OpenCode GUI prozor.",
+        _build_opencode_open_summary(
+            launch_mode=normalized_launch_mode,
+            project_path=project_path,
+            workspace_info=workspace_info,
+            gui=False,
+        ),
     )
 
 
 def prepare_opencode_launcher(
     config: ControlCenterConfig | None = None,
     profile: str = "",
+    working_directory_override: Path | None = None,
+    launcher_name_override: str | None = None,
     platform: str | None = None,
 ) -> Path:
     config = config or get_config()
@@ -262,17 +558,367 @@ def prepare_opencode_launcher(
         settings=settings,
         profile=profile,
     )
-    launcher_name = "Open-OpenCode.cmd" if is_windows_platform(platform) else "Open-OpenCode.sh"
+    working_directory = (
+        Path(working_directory_override).expanduser().resolve()
+        if working_directory_override is not None
+        else _resolve_opencode_working_directory(settings=settings, config=config)
+    )
+    launcher_name = launcher_name_override or (
+        "Open-OpenCode.cmd" if is_windows_platform(platform) else "Open-OpenCode.sh"
+    )
     launcher_path = config.install_root / "control-center" / launcher_name
     launcher_path.parent.mkdir(parents=True, exist_ok=True)
     _write_opencode_launcher(
         launcher_path=launcher_path,
         executable_path=executable_path,
-        working_directory=Path(str(settings["workingDirectory"])),
+        working_directory=working_directory,
         env=env,
         platform=platform,
     )
     return launcher_path
+
+
+def _normalize_opencode_launch_mode(value: str) -> str:
+    candidate = str(value or "").strip().lower()
+    if candidate == "isolated":
+        return "isolated"
+    return "direct"
+
+
+def _resolve_opencode_working_directory(
+    *,
+    settings: dict[str, object],
+    config: ControlCenterConfig,
+) -> Path:
+    working_directory = Path(str(settings.get("workingDirectory") or config.install_root)).expanduser()
+    if working_directory.exists() and not working_directory.is_dir():
+        raise RuntimeError(f"Radni direktorijum nije folder: {working_directory}")
+    working_directory.mkdir(parents=True, exist_ok=True)
+    return working_directory.resolve()
+
+
+def _prepare_isolated_opencode_workspace(
+    *,
+    config: ControlCenterConfig,
+    working_directory: Path,
+) -> dict[str, object]:
+    from local_ai_control_center_installer.control_center_backend.services.tuning_lab_service import (
+        _build_tuning_workspace_copy_ignore,
+        _git_repo_is_clean,
+        _git_repo_root,
+        _path_is_relative_to,
+    )
+
+    workspace_root = config.install_root / "workspaces" / "opencode"
+    workspace_root.mkdir(parents=True, exist_ok=True)
+    source_dir = Path(working_directory).resolve()
+    if (
+        source_dir == config.install_root
+        or _path_is_relative_to(source_dir, config.control_center_config_root)
+        or _path_is_relative_to(source_dir, workspace_root)
+    ):
+        scratch_root = Path(tempfile.mkdtemp(prefix="gui-scratch-", dir=str(workspace_root)))
+        _seed_opencode_scratch_workspace(scratch_root=scratch_root, source_dir=source_dir)
+        return {
+            "mode": "scratch",
+            "workspacePath": str(scratch_root),
+            "workspaceRoot": str(scratch_root),
+            "cleanupPath": str(scratch_root),
+            "sourceRoot": str(source_dir),
+        }
+    repo_root = _git_repo_root(source_dir)
+    if repo_root is not None and _git_repo_is_clean(repo_root):
+        reserved_path = Path(tempfile.mkdtemp(prefix="gui-worktree-", dir=str(workspace_root)))
+        shutil.rmtree(reserved_path, ignore_errors=True)
+        subprocess.run(
+            ["git", "worktree", "add", "--detach", str(reserved_path), "HEAD"],
+            cwd=repo_root,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        relative_subdir = source_dir.relative_to(repo_root) if source_dir != repo_root else Path(".")
+        effective_workspace = reserved_path / relative_subdir if str(relative_subdir) != "." else reserved_path
+        return {
+            "mode": "git-worktree",
+            "workspacePath": str(effective_workspace),
+            "workspaceRoot": str(reserved_path),
+            "cleanupPath": str(reserved_path),
+            "sourceRoot": str(repo_root),
+        }
+
+    copy_root = Path(tempfile.mkdtemp(prefix="gui-copy-", dir=str(workspace_root)))
+    shutil.rmtree(copy_root, ignore_errors=True)
+    shutil.copytree(
+        source_dir,
+        copy_root,
+        dirs_exist_ok=False,
+        ignore=_build_tuning_workspace_copy_ignore(source_dir=source_dir, config=config),
+    )
+    return {
+        "mode": "copy",
+        "workspacePath": str(copy_root),
+        "workspaceRoot": str(copy_root),
+        "cleanupPath": str(copy_root),
+        "sourceRoot": str(source_dir),
+    }
+
+
+def _resolve_opencode_workspace_root(config: ControlCenterConfig) -> Path:
+    return config.install_root / "workspaces" / "opencode"
+
+
+def _collect_active_opencode_workspace_paths(
+    *,
+    workspace_root: Path,
+    instances: list[dict[str, object]],
+) -> set[Path]:
+    active_paths: set[Path] = set()
+    for instance in instances:
+        if not isinstance(instance, dict):
+            continue
+        command_line = str(instance.get("commandLine") or instance.get("CommandLine") or "")
+        for candidate_path in _extract_workspace_paths_from_command_line(
+            command_line=command_line,
+            workspace_root=workspace_root,
+        ):
+            active_paths.add(candidate_path)
+    return active_paths
+
+
+def _extract_workspace_paths_from_command_line(
+    *,
+    command_line: str,
+    workspace_root: Path,
+) -> list[Path]:
+    if not command_line.strip():
+        return []
+    matches = re.findall(r'"([^"]+)"|(\S+)', command_line)
+    candidates: list[Path] = []
+    for quoted, bare in matches:
+        raw_value = (quoted or bare or "").strip().strip('"')
+        if not raw_value:
+            continue
+        workspace_path = _resolve_opencode_workspace_candidate(Path(raw_value), workspace_root)
+        if workspace_path is None or workspace_path in candidates:
+            continue
+        candidates.append(workspace_path)
+    return candidates
+
+
+def _resolve_opencode_workspace_candidate(candidate: Path, workspace_root: Path) -> Path | None:
+    candidate_resolved = candidate.expanduser().resolve(strict=False)
+    workspace_root_resolved = workspace_root.resolve(strict=False)
+    try:
+        relative = candidate_resolved.relative_to(workspace_root_resolved)
+    except ValueError:
+        return None
+    if not relative.parts:
+        return None
+    return workspace_root_resolved / relative.parts[0]
+
+
+def _scan_opencode_disposable_workspaces(
+    *,
+    workspace_root: Path,
+    active_paths: set[Path],
+    protect_most_recent: bool,
+) -> list[dict[str, object]]:
+    if not workspace_root.exists():
+        return []
+    disposable_entries: list[tuple[Path, str, os.stat_result, int]] = []
+    for entry in workspace_root.iterdir():
+        if not entry.is_dir():
+            continue
+        workspace_kind = _classify_opencode_disposable_workspace(entry.name)
+        if workspace_kind is None:
+            continue
+        try:
+            stat_result = entry.stat()
+        except OSError:
+            continue
+        size_bytes = _measure_directory_size(entry)
+        disposable_entries.append((entry.resolve(strict=False), workspace_kind, stat_result, size_bytes))
+
+    fallback_protected_path: Path | None = None
+    if protect_most_recent and disposable_entries:
+        fallback_protected_path = max(disposable_entries, key=lambda item: item[2].st_mtime)[0]
+
+    items: list[dict[str, object]] = []
+    for entry_path, workspace_kind, stat_result, size_bytes in sorted(
+        disposable_entries,
+        key=lambda item: (item[0] not in active_paths, -(item[2].st_mtime)),
+    ):
+        is_active = entry_path in active_paths
+        is_recent_fallback_protected = bool(
+            fallback_protected_path is not None and entry_path == fallback_protected_path and not is_active
+        )
+        items.append(
+            {
+                "name": entry_path.name,
+                "path": str(entry_path),
+                "kind": workspace_kind,
+                "sizeBytes": size_bytes,
+                "sizeLabel": _format_storage_size(size_bytes),
+                "modifiedAt": stat_result.st_mtime,
+                "isDisposable": True,
+                "isActive": is_active,
+                "isRecentFallbackProtected": is_recent_fallback_protected,
+                "cleanupEligible": not is_active and not is_recent_fallback_protected,
+            }
+        )
+    return items
+
+
+def _classify_opencode_disposable_workspace(name: str) -> str | None:
+    for prefix, label in OPENCODE_DISPOSABLE_WORKSPACE_PREFIXES.items():
+        if name.startswith(prefix):
+            return label
+    return None
+
+
+def _measure_directory_size(root: Path) -> int:
+    total = 0
+    pending = [root]
+    while pending:
+        current = pending.pop()
+        try:
+            with os.scandir(current) as iterator:
+                for entry in iterator:
+                    try:
+                        if entry.is_symlink():
+                            continue
+                        if entry.is_dir(follow_symlinks=False):
+                            pending.append(Path(entry.path))
+                            continue
+                        total += entry.stat(follow_symlinks=False).st_size
+                    except OSError:
+                        continue
+        except OSError:
+            continue
+    return total
+
+
+def _is_opencode_workspace_cleanup_target(candidate_path: Path, workspace_root: Path) -> bool:
+    candidate_resolved = candidate_path.resolve(strict=False)
+    workspace_root_resolved = workspace_root.resolve(strict=False)
+    try:
+        relative = candidate_resolved.relative_to(workspace_root_resolved)
+    except ValueError:
+        return False
+    if len(relative.parts) != 1:
+        return False
+    return _classify_opencode_disposable_workspace(candidate_resolved.name) is not None
+
+
+def _remove_tree(path: Path) -> None:
+    def _on_error(function, target_path, exc_info):
+        try:
+            Path(target_path).chmod(stat.S_IWRITE)
+        except OSError:
+            pass
+        function(target_path)
+
+    shutil.rmtree(path, onerror=_on_error)
+
+
+def _format_storage_size(value: int) -> str:
+    normalized = max(int(value or 0), 0)
+    units = ["B", "KiB", "MiB", "GiB", "TiB"]
+    size = float(normalized)
+    unit = units[0]
+    for candidate in units:
+        unit = candidate
+        if size < 1024 or candidate == units[-1]:
+            break
+        size /= 1024
+    if unit == "B":
+        return f"{int(size)} {unit}"
+    return f"{size:.2f} {unit}"
+
+
+def _record_opencode_auto_cleanup_state(
+    config: ControlCenterConfig,
+    payload: dict[str, object],
+) -> None:
+    atomic_write_json(config.opencode_hygiene_state_path, payload)
+
+
+def _now_iso() -> str:
+    return datetime.now(UTC).isoformat()
+
+
+def _build_manual_storage_review_locations() -> list[dict[str, str]]:
+    home = Path.home()
+    candidates = [
+        ("Hugging Face keš", home / ".cache" / "huggingface" / "hub"),
+        ("Ollama modeli", home / ".ollama" / "models"),
+        ("LocalQwenHome modeli", home / "LocalQwenHome" / "models"),
+        (
+            "Pinokio API keš i aplikacije",
+            Path(home.anchor) / "pinokio" / "api" if home.anchor else Path(""),
+        ),
+    ]
+    visible_items: list[dict[str, str]] = []
+    for label, path in candidates:
+        if not str(path).strip() or not path.exists():
+            continue
+        visible_items.append(
+            {
+                "label": label,
+                "path": str(path),
+                "summary": "RuntimePilot ovu lokaciju ne briše automatski; proveri je ručno kada prostor opet počne da nestaje.",
+            }
+        )
+    return visible_items
+
+
+def _seed_opencode_scratch_workspace(*, scratch_root: Path, source_dir: Path) -> None:
+    scratch_root.mkdir(parents=True, exist_ok=True)
+    readme_path = scratch_root / "README.md"
+    readme_path.write_text(
+        "\n".join(
+            [
+                "# RuntimePilot isolated OpenCode workspace",
+                "",
+                "Ovo je lagani scratch workspace za probni rad u OpenCode GUI-ju.",
+                "Koristi ga kada trenutni working directory nije pravi projekat nego RuntimePilot install root.",
+                "",
+                f"Izvorni working directory: {source_dir}",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    (scratch_root / ".gitignore").write_text(".codex/\nnode_modules/\n__pycache__/\n", encoding="utf-8")
+
+
+def _build_opencode_open_summary(
+    *,
+    launch_mode: str,
+    project_path: Path,
+    workspace_info: dict[str, object] | None,
+    gui: bool,
+) -> str:
+    if launch_mode == "isolated" and workspace_info is not None:
+        workspace_mode = str(workspace_info.get("mode"))
+        if workspace_mode == "git-worktree":
+            mode_label = "git worktree"
+        elif workspace_mode == "scratch":
+            mode_label = "scratch workspace"
+        else:
+            mode_label = "kopija"
+        if gui:
+            return f"OpenCode GUI je pokrenut u izolovanom workspace-u ({mode_label}) na putanji: {project_path}"
+        return (
+            f"GUI nije dostupan; OpenCode je pokrenut kao CLI sesija u izolovanom workspace-u "
+            f"({mode_label}) na putanji: {project_path}"
+        )
+    if gui:
+        return f"OpenCode GUI je pokrenut nad radnim direktorijumom: {project_path}"
+    return (
+        f"GUI nije dostupan; OpenCode je pokrenut kao CLI sesija u terminalu nad radnim direktorijumom: "
+        f"{project_path}"
+    )
 
 
 def detect_opencode_instances(executable_path: Path) -> list[dict[str, object]]:
@@ -282,6 +928,35 @@ def detect_opencode_instances(executable_path: Path) -> list[dict[str, object]]:
     if not executable_token:
         return []
     payloads = _query_opencode_processes()
+    if not payloads:
+        return []
+    instances: list[dict[str, object]] = []
+    for item in payloads:
+        if not isinstance(item, dict):
+            continue
+        pid = item.get("pid") or item.get("ProcessId")
+        if not isinstance(pid, int):
+            continue
+        command_line = str(item.get("commandLine") or item.get("CommandLine") or "")
+        if not _command_line_matches_executable(command_line, executable_token):
+            continue
+        instances.append(
+            {
+                "pid": pid,
+                "name": str(item.get("name") or item.get("Name") or ""),
+                "commandLine": command_line,
+            }
+        )
+    return instances
+
+
+def detect_opencode_desktop_instances(executable_path: Path | None) -> list[dict[str, object]]:
+    if not is_windows_platform() or executable_path is None:
+        return []
+    executable_token = _normalize_windows_path_token(str(executable_path))
+    if not executable_token:
+        return []
+    payloads = _query_opencode_desktop_processes()
     if not payloads:
         return []
     instances: list[dict[str, object]] = []
@@ -318,7 +993,7 @@ def detect_opencode_launcher_instances(launcher_path: Path) -> list[dict[str, ob
         if not isinstance(item, dict):
             continue
         name = str(item.get("name") or item.get("Name") or "").strip().lower()
-        if name != "cmd.exe":
+        if name not in {"cmd.exe", "wt.exe"}:
             continue
         pid = item.get("pid") or item.get("ProcessId")
         if not isinstance(pid, int):
@@ -366,6 +1041,38 @@ def _query_opencode_processes() -> list[dict[str, object]]:
     return parsed if isinstance(parsed, list) else [parsed]
 
 
+def _query_opencode_desktop_processes() -> list[dict[str, object]]:
+    if not is_windows_platform():
+        return []
+    completed = subprocess.run(
+        [
+            "powershell",
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-Command",
+            (
+                "$matches = Get-CimInstance Win32_Process "
+                "-Filter \"Name = 'OpenCode.exe'\" "
+                "| Select-Object ProcessId, Name, CommandLine; "
+                "$matches | ConvertTo-Json -Compress -Depth 3"
+            ),
+        ],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+    )
+    if completed.returncode != 0 or not completed.stdout.strip():
+        return []
+    try:
+        parsed = json.loads(completed.stdout)
+    except json.JSONDecodeError:
+        return []
+    return parsed if isinstance(parsed, list) else [parsed]
+
+
 def _query_shell_launcher_processes() -> list[dict[str, object]]:
     if not is_windows_platform():
         return []
@@ -378,7 +1085,7 @@ def _query_shell_launcher_processes() -> list[dict[str, object]]:
             "-Command",
             (
                 "$matches = Get-CimInstance Win32_Process "
-                "| Where-Object { $_.Name -eq 'cmd.exe' } "
+                "| Where-Object { $_.Name -in @('cmd.exe', 'wt.exe') } "
                 "| Select-Object ProcessId, Name, CommandLine; "
                 "$matches | ConvertTo-Json -Compress -Depth 3"
             ),
@@ -414,6 +1121,51 @@ def _resolve_opencode_executable_path(config: ControlCenterConfig) -> Path:
     artifact = manifest["opencode_artifact"]
     launch = artifact["launch"]["executable_relative_path"]
     return config.install_root / artifact["install_subdir"] / launch
+
+
+def _find_existing_file_with_exact_name(candidate: Path) -> Path | None:
+    candidate_name = candidate.name
+    if not candidate_name:
+        return None
+    try:
+        if not candidate.parent.is_dir():
+            return None
+        for entry in os.scandir(candidate.parent):
+            if entry.name != candidate_name:
+                continue
+            if not entry.is_file():
+                continue
+            return Path(entry.path)
+    except OSError:
+        return None
+    return None
+
+
+def _resolve_windows_opencode_desktop_executable_path(
+    config: ControlCenterConfig,
+) -> Path | None:
+    if not is_windows_platform():
+        return None
+    cli_executable_path = _resolve_opencode_executable_path(config)
+    candidates = [
+        config.install_root / "tools" / "opencode" / "OpenCode.exe",
+        Path(os.environ.get("LOCALAPPDATA", "")) / "opencode" / "OpenCode.exe",
+        Path(os.environ.get("ProgramFiles", "")) / "OpenCode" / "OpenCode.exe",
+        Path(os.environ.get("ProgramFiles(x86)", "")) / "OpenCode" / "OpenCode.exe",
+    ]
+    for candidate in candidates:
+        if not str(candidate).strip():
+            continue
+        matched = _find_existing_file_with_exact_name(candidate)
+        if matched is None:
+            continue
+        try:
+            if matched.samefile(cli_executable_path):
+                continue
+        except OSError:
+            pass
+        return matched
+    return None
 
 
 def _build_opencode_launch_environment(
@@ -520,7 +1272,7 @@ def _build_windows_opencode_launcher_guard_lines(
     return [
         f'powershell -NoProfile -ExecutionPolicy Bypass -Command "{powershell_script}" >nul 2>nul',
         'if "%ERRORLEVEL%"=="0" (',
-        "  echo OpenCode launch je vec u toku ili je sesija vec otvorena.",
+        "  echo OpenCode launch je već u toku ili je sesija već otvorena.",
         "  endlocal",
         "  exit /b 0",
         ")",
@@ -531,6 +1283,7 @@ def _build_opencode_launch_preview(
     *,
     config: ControlCenterConfig,
     executable_path: Path,
+    desktop_executable_path: Path | None,
     managed_config_path: Path,
     settings: dict[str, object],
 ) -> dict[str, object]:
@@ -578,6 +1331,30 @@ def _build_opencode_launch_preview(
             ),
         }
 
+    if desktop_executable_path and desktop_executable_path.is_file():
+        powershell_lines = [
+            f'Set-Location "{settings["workingDirectory"]}"',
+            *(
+                f'$env:{item["key"]} = "{_escape_powershell_value(str(item["value"]))}"'
+                for item in env_items
+            ),
+            f'Start-Process -FilePath "{desktop_executable_path}"',
+        ]
+        return {
+            "shellLabel": "Desktop",
+            "launcherPath": str(desktop_executable_path),
+            "launcherCommand": str(desktop_executable_path),
+            "powershellCommand": "\n".join(powershell_lines),
+            "workingDirectory": str(settings["workingDirectory"]),
+            "environment": env_items,
+            "managedConfig": _build_managed_opencode_config_preview(managed_config_path),
+            "generationSummary": _build_generation_defaults_summary(settings),
+            "summary": (
+                "OpenCode GUI se otvara sa RuntimePilot managed config podešavanjima, "
+                "dok CLI fallback ostaje dostupan ako desktop aplikacija nije instalirana."
+            ),
+        }
+
     powershell_lines = [
         f'Set-Location "{settings["workingDirectory"]}"',
         *(
@@ -586,10 +1363,11 @@ def _build_opencode_launch_preview(
         ),
         f'& "{executable_path}"',
     ]
+    launch_command, preview_command = _build_windows_opencode_terminal_command(launcher_path)
     return {
         "shellLabel": "PowerShell",
         "launcherPath": str(launcher_path),
-        "launcherCommand": f'cmd.exe /d /c "{launcher_path}"',
+        "launcherCommand": preview_command,
         "powershellCommand": "\n".join(powershell_lines),
         "workingDirectory": str(settings["workingDirectory"]),
         "environment": env_items,
@@ -616,16 +1394,43 @@ def _launch_opencode_launcher(launcher_path: Path) -> None:
         )
         return
 
+    command, _preview = _build_windows_opencode_terminal_command(launcher_path)
+    popen_kwargs: dict[str, object] = {"cwd": str(launcher_path.parent)}
+    if command and Path(command[0]).name.lower() == "cmd.exe":
+        popen_kwargs["creationflags"] = new_console_subprocess_creationflags()
+    subprocess.Popen(command, **popen_kwargs)
+
+
+def _launch_opencode_desktop(
+    *,
+    desktop_executable_path: Path,
+    working_directory: Path,
+    project_path: Path,
+    env: dict[str, str],
+) -> None:
     subprocess.Popen(
-        [
+        [str(desktop_executable_path), str(project_path)],
+        cwd=str(working_directory),
+        env=env,
+    )
+
+
+def _build_windows_opencode_terminal_command(launcher_path: Path) -> tuple[list[str], str]:
+    windows_terminal_path = shutil.which("wt.exe") or shutil.which("wt")
+    if windows_terminal_path:
+        command = [
+            windows_terminal_path,
+            "new-tab",
+            "--title",
+            "RuntimePilot - OpenCode",
             "cmd.exe",
             "/d",
             "/c",
             str(launcher_path),
-        ],
-        cwd=str(launcher_path.parent),
-        creationflags=new_console_subprocess_creationflags(),
-    )
+        ]
+        return command, f'wt.exe new-tab --title "RuntimePilot - OpenCode" cmd.exe /d /c "{launcher_path}"'
+    command = ["cmd.exe", "/d", "/c", str(launcher_path)]
+    return command, f'cmd.exe /d /c "{launcher_path}"'
 
 
 def _build_managed_opencode_config_preview(managed_config_path: Path) -> dict[str, object]:
@@ -812,10 +1617,16 @@ def _build_generation_defaults_summary(settings: dict[str, object]) -> str:
 def _build_session_state(
     *,
     has_instances: bool,
+    has_desktop_instances: bool,
     launch_in_progress: bool,
     runtime_connected: bool,
     runtime_reason: str,
 ) -> tuple[str, str]:
+    if has_desktop_instances and runtime_connected:
+        return "connected", "OpenCode prozor je otvoren i povezan sa runtime-om."
+    if has_desktop_instances:
+        reason = runtime_reason or "Runtime trenutno nije pokrenut."
+        return "app-only", f"OpenCode prozor je otvoren, ali backend nije spreman. {reason}"
     if has_instances and runtime_connected:
         return "connected", "OpenCode CLI sesija je otvorena u terminalu i povezana sa runtime-om."
     if has_instances:

@@ -7,9 +7,11 @@ import { PageFlowCard } from "../components/PageFlowCard";
 import {
   applySettings,
   bootstrapManagedSearchProvider,
+  cleanupOpenCodeWorkspaceHygiene,
   deleteSettingsProfile,
   deleteTurboQuantPreset,
   fetchObservability,
+  fetchOpenCodeWorkspaceHygiene,
   fetchSearchProviderStatus,
   fetchSettings,
   fetchTurboQuantSchema,
@@ -30,6 +32,7 @@ import { applyTheme } from "../lib/theme";
 import { resolveSelectedWorkflowPreset, resolveWorkflowPresets } from "../lib/workflowPresets";
 import type {
   ActionResult,
+  OpenCodeWorkspaceHygienePayload,
   ObservabilityPayload,
   SearchProviderStatusPayload,
   SettingsPayload,
@@ -438,6 +441,34 @@ function formatGpuLayersModeLabel(mode: string, override: number, autoRecommenda
   return `Auto ${autoRecommendation || 0}`;
 }
 
+function formatWorkspaceHygieneKind(kind: string) {
+  if (kind === "scratch") {
+    return "Scratch workspace";
+  }
+  if (kind === "git-worktree") {
+    return "Git worktree";
+  }
+  return "Kopija workspace-a";
+}
+
+function formatWorkspaceHygieneModifiedAt(value: number) {
+  if (!Number.isFinite(value) || value <= 0) {
+    return "--";
+  }
+  return new Date(value * 1000).toLocaleString("sr-RS");
+}
+
+function formatAutoCleanupCompletedAt(value: string) {
+  if (!value) {
+    return "--";
+  }
+  const timestamp = Date.parse(value);
+  if (!Number.isFinite(timestamp)) {
+    return value;
+  }
+  return new Date(timestamp).toLocaleString("sr-RS");
+}
+
 type VramFitComparisonRow = {
   label: string;
   saved: string;
@@ -459,6 +490,7 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
   const [turboConfig, setTurboConfig] = useState<TurboQuantConfig | null>(null);
   const [turboConfigDefaults, setTurboConfigDefaults] = useState<TurboQuantConfig | null>(null);
   const [observability, setObservability] = useState<ObservabilityPayload | null>(null);
+  const [workspaceHygiene, setWorkspaceHygiene] = useState<OpenCodeWorkspaceHygienePayload | null>(null);
   const [settingsProfileName, setSettingsProfileName] = useState("");
   const [presetName, setPresetName] = useState("");
   const [presetDescription, setPresetDescription] = useState("");
@@ -467,15 +499,17 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ActionResult | null>(null);
   const [providerBusy, setProviderBusy] = useState<"" | "check" | "setup">("");
+  const [hygieneBusy, setHygieneBusy] = useState<"" | "refresh" | "cleanup">("");
   const [vramFitBusy, setVramFitBusy] = useState(false);
   const [showTurboQuantGuidance, setShowTurboQuantGuidance] = useState(false);
   const vramFitSectionRef = useRef<HTMLElement | null>(null);
 
   async function reload() {
-    const [settingsPayload, schemaPayload, observabilityPayload] = await Promise.all([
+    const [settingsPayload, schemaPayload, observabilityPayload, workspaceHygienePayload] = await Promise.all([
       fetchSettings({ preferCache: true }),
       fetchTurboQuantSchema(),
       fetchObservability(),
+      fetchOpenCodeWorkspaceHygiene(),
     ]);
     const turboDraft = readDraft<TurboQuantConfig>(TURBOQUANT_DRAFT_STORAGE_KEY);
     const savedTurboConfig = schemaPayload.currentConfig;
@@ -486,6 +520,7 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
     setTurboConfigDefaults(savedTurboConfig);
     setTurboConfig(turboDraft ? { ...savedTurboConfig, ...turboDraft } : savedTurboConfig);
     setObservability(observabilityPayload);
+    setWorkspaceHygiene(workspaceHygienePayload);
   }
 
   useEffect(() => {
@@ -557,7 +592,7 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
     [settings],
   );
 
-  if (!settings || !schema || !turboConfig) {
+  if (!settings || !schema || !turboConfig || !workspaceHygiene) {
     return (
       <PageDataStateCard
         error={error}
@@ -592,6 +627,7 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
     ...item,
     definition: resolveInferenceDefinitionForSummaryLabel(item.label),
   }));
+  const savedInferenceSummary = buildInferenceSummaryItems(settingsDefaults ?? settings);
   const primaryInferenceSummary = activeInferenceSummaryCards.filter((item) =>
     INFERENCE_PRIMARY_LABELS.includes(item.label as (typeof INFERENCE_PRIMARY_LABELS)[number]),
   );
@@ -731,13 +767,186 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
   }
   const hasUnsavedVramFitChanges = vramFitComparisonRows.some((row) => row.changed);
   const vramFitLocalResult =
-    result && (result.action === "try-fit-in-vram" || result.action === "save-and-apply-vram-tuning")
+    result &&
+    (result.action === "try-fit-in-vram" ||
+      result.action === "apply-saved-vram-tuning" ||
+      result.action === "save-and-apply-vram-tuning" ||
+      result.action === "save-vram-tuning-without-apply")
       ? result
       : null;
   const vramFitLocalLines = (vramFitLocalResult?.details.stdout || vramFitLocalResult?.details.stderr || "")
     .split("\n")
     .map((line) => line.trim())
     .filter(Boolean);
+  const vramFitSavedInConfig =
+    !hasUnsavedVramFitChanges ||
+    (vramFitLocalResult?.action === "apply-saved-vram-tuning" && vramFitLocalResult.status === "ok") ||
+    (vramFitLocalResult?.action === "save-and-apply-vram-tuning" && vramFitLocalResult.status === "ok") ||
+    (vramFitLocalResult?.action === "save-vram-tuning-without-apply" && vramFitLocalResult.status === "ok");
+  const vramFitAppliedToLiveSystem =
+    (vramFitLocalResult?.action === "save-and-apply-vram-tuning" ||
+      vramFitLocalResult?.action === "apply-saved-vram-tuning") &&
+    vramFitLocalResult.status === "ok";
+  const formatInferenceStrip = (
+    items: Array<{
+      label: string;
+      value: string;
+    }>,
+  ) =>
+    items
+      .filter((item) =>
+        INFERENCE_PRIMARY_LABELS.includes(item.label as (typeof INFERENCE_PRIMARY_LABELS)[number]),
+      )
+      .map((item) => `${item.label} ${item.value}`)
+      .join(" | ");
+  const findThemeLabel = (themeId: string) =>
+    availableThemeOptions.find((theme) => theme.id === themeId)?.label ?? themeId;
+  const generalComparisonRows: VramFitComparisonRow[] = [
+    {
+      label: "Profil",
+      saved: fitBaselineSettings.profile,
+      editor: activeSettings.profile,
+      changed: fitBaselineSettings.profile !== activeSettings.profile,
+    },
+    {
+      label: "Thinking",
+      saved: fitBaselineSettings.thinkingMode,
+      editor: activeSettings.thinkingMode,
+      changed: fitBaselineSettings.thinkingMode !== activeSettings.thinkingMode,
+    },
+    {
+      label: "Context",
+      saved: formatTokenCount(fitBaselineSettings.context),
+      editor: formatTokenCount(activeSettings.context),
+      changed: fitBaselineSettings.context !== activeSettings.context,
+    },
+    {
+      label: "Output",
+      saved: formatTokenCount(fitBaselineSettings.outputTokens),
+      editor: formatTokenCount(activeSettings.outputTokens),
+      changed: fitBaselineSettings.outputTokens !== activeSettings.outputTokens,
+    },
+    {
+      label: "Tema",
+      saved: findThemeLabel(fitBaselineSettings.themeId),
+      editor: findThemeLabel(activeSettings.themeId),
+      changed: fitBaselineSettings.themeId !== activeSettings.themeId,
+    },
+    {
+      label: "Inference core",
+      saved: formatInferenceStrip(savedInferenceSummary),
+      editor: formatInferenceStrip(activeInferenceSummary),
+      changed:
+        fitBaselineSettings.temperature !== activeSettings.temperature ||
+        fitBaselineSettings.topK !== activeSettings.topK ||
+        fitBaselineSettings.topP !== activeSettings.topP ||
+        fitBaselineSettings.seed !== activeSettings.seed,
+    },
+    {
+      label: "Radni direktorijum",
+      saved: fitBaselineSettings.workingDirectory || "--",
+      editor: activeSettings.workingDirectory || "--",
+      changed: fitBaselineSettings.workingDirectory !== activeSettings.workingDirectory,
+    },
+  ];
+  const hasUnsavedGeneralChanges = generalComparisonRows.some((row) => row.changed);
+  const searchComparisonRows: VramFitComparisonRow[] = [
+    {
+      label: "Provider",
+      saved: fitBaselineSettings.webSearchProvider,
+      editor: activeSettings.webSearchProvider,
+      changed: fitBaselineSettings.webSearchProvider !== activeSettings.webSearchProvider,
+    },
+    {
+      label: "Režim",
+      saved: fitBaselineSettings.webSearchMode,
+      editor: activeSettings.webSearchMode,
+      changed: fitBaselineSettings.webSearchMode !== activeSettings.webSearchMode,
+    },
+    {
+      label: "Base URL",
+      saved: fitBaselineSettings.webSearchBaseUrl || "managed / default",
+      editor: activeSettings.webSearchBaseUrl || "managed / default",
+      changed: fitBaselineSettings.webSearchBaseUrl !== activeSettings.webSearchBaseUrl,
+    },
+    {
+      label: "Max rezultata",
+      saved: String(fitBaselineSettings.webSearchMaxResults),
+      editor: String(activeSettings.webSearchMaxResults),
+      changed: fitBaselineSettings.webSearchMaxResults !== activeSettings.webSearchMaxResults,
+    },
+    {
+      label: "Timeout",
+      saved: `${fitBaselineSettings.webSearchTimeoutSeconds}s`,
+      editor: `${activeSettings.webSearchTimeoutSeconds}s`,
+      changed:
+        fitBaselineSettings.webSearchTimeoutSeconds !== activeSettings.webSearchTimeoutSeconds,
+    },
+    {
+      label: "Prefiks",
+      saved: fitBaselineSettings.webSearchPromptPrefix || "--",
+      editor: activeSettings.webSearchPromptPrefix || "--",
+      changed:
+        fitBaselineSettings.webSearchPromptPrefix !== activeSettings.webSearchPromptPrefix,
+    },
+  ];
+  const hasUnsavedSearchChanges = searchComparisonRows.some((row) => row.changed);
+  const turboComparisonRows: VramFitComparisonRow[] = [
+    {
+      label: "Context",
+      saved: formatTokenCount(fitBaselineTurboConfig.context),
+      editor: formatTokenCount(activeTurboConfig.context),
+      changed: fitBaselineTurboConfig.context !== activeTurboConfig.context,
+    },
+    {
+      label: "ctk",
+      saved: fitBaselineTurboConfig.ctk,
+      editor: activeTurboConfig.ctk,
+      changed: fitBaselineTurboConfig.ctk !== activeTurboConfig.ctk,
+    },
+    {
+      label: "ctv",
+      saved: fitBaselineTurboConfig.ctv,
+      editor: activeTurboConfig.ctv,
+      changed: fitBaselineTurboConfig.ctv !== activeTurboConfig.ctv,
+    },
+    {
+      label: "ncmoe",
+      saved: String(fitBaselineTurboConfig.ncmoe),
+      editor: String(activeTurboConfig.ncmoe),
+      changed: fitBaselineTurboConfig.ncmoe !== activeTurboConfig.ncmoe,
+    },
+    {
+      label: "Flash attention",
+      saved: fitBaselineTurboConfig.flashAttention ? "Uključeno" : "Isključeno",
+      editor: activeTurboConfig.flashAttention ? "Uključeno" : "Isključeno",
+      changed: fitBaselineTurboConfig.flashAttention !== activeTurboConfig.flashAttention,
+    },
+    {
+      label: "mlock",
+      saved: fitBaselineTurboConfig.mlock ? "Uključeno" : "Isključeno",
+      editor: activeTurboConfig.mlock ? "Uključeno" : "Isključeno",
+      changed: fitBaselineTurboConfig.mlock !== activeTurboConfig.mlock,
+    },
+  ];
+  const hasUnsavedTurboChanges = turboComparisonRows.some((row) => row.changed);
+  const activeTurboPreset = allTurboPresets.find((preset) =>
+    Object.entries(preset.settings).every(
+      ([key, value]) => activeTurboConfig[key as keyof TurboQuantConfig] === value,
+    ),
+  );
+  const settingsSaveResult =
+    result && (result.action === "apply-settings" || result.action === "restore-model-settings")
+      ? result
+      : null;
+  const turboSaveResult =
+    result &&
+    (result.action === "save-turboquant-config" ||
+      result.action === "save-turboquant-preset" ||
+      result.action === "delete-turboquant-preset" ||
+      result.action === "restore-turboquant-config")
+      ? result
+      : null;
 
   function updateInferenceSetting(key: InferenceParameterKey, value: number) {
     setSettings({
@@ -905,6 +1114,77 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
     }
   }
 
+  async function saveCurrentVramTuningWithoutApply() {
+    setVramFitBusy(true);
+    try {
+      const settingsResult = await applySettings(activeSettings);
+      if (settingsResult.status !== "ok") {
+        setResult(settingsResult);
+        return;
+      }
+
+      let turboResult: ActionResult | null = null;
+      if (observability?.runtime.activeRuntime === "turboquant") {
+        turboResult = await saveTurboQuantConfig(activeTurboConfig);
+        if (turboResult.status !== "ok") {
+          setResult(turboResult);
+          return;
+        }
+      }
+
+      setSettingsDefaults({ ...activeSettings });
+      if (observability?.runtime.activeRuntime === "turboquant") {
+        setTurboConfigDefaults({ ...activeTurboConfig });
+      }
+
+      setResult({
+        status: "ok",
+        action: "save-vram-tuning-without-apply",
+        summary:
+          "VRAM tuning je sačuvan u configu, ali nije još primenjen na živi sistem. Sledeći korak je `Sačuvaj i primeni na runtime` kada želiš restart/pokretanje sa novim vrednostima.",
+        details: {
+          returncode: 0,
+          stdout: [settingsResult.summary, turboResult?.summary].filter(Boolean).join("\n"),
+          stderr: turboResult?.details.stderr || settingsResult.details.stderr,
+        },
+      });
+      await reload();
+    } finally {
+      setVramFitBusy(false);
+    }
+  }
+
+  async function saveAndApplySavedVramTuning() {
+    setVramFitBusy(true);
+    try {
+      const savedSettings = settingsDefaults ?? activeSettings;
+      const savedTurboConfig = turboConfigDefaults ?? activeTurboConfig;
+      const restartResult = await startServer();
+      setResult({
+        status: restartResult.status,
+        action: "apply-saved-vram-tuning",
+        summary: [
+          "Poslednje sačuvano VRAM tuning stanje je poslato na runtime.",
+          `GPU layers režim: ${savedSettings.gpuLayersMode === "manual" ? `ručno ${savedSettings.gpuLayersOverride || 0}` : `auto ${autoGpuLayersRecommendation || 0}`}.`,
+          observability?.runtime.activeRuntime === "turboquant"
+            ? `TurboQuant context: ${savedTurboConfig.context}.`
+            : `Context: ${savedSettings.context}.`,
+          restartResult.summary,
+        ]
+          .filter(Boolean)
+          .join(" "),
+        details: {
+          returncode: restartResult.details.returncode,
+          stdout: restartResult.summary,
+          stderr: restartResult.details.stderr,
+        },
+      });
+      await reload();
+    } finally {
+      setVramFitBusy(false);
+    }
+  }
+
   function applyWorkflowPreset(preset: WorkflowPreset) {
     setSettings({
       ...activeSettings,
@@ -927,6 +1207,81 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
     });
   }
 
+  async function saveGeneralSettingsAction() {
+    const actionResult = await applySettings(activeSettings);
+    setResult(actionResult);
+    await reload();
+  }
+
+  function restoreSavedGeneralSettings() {
+    if (!settingsDefaults) {
+      return;
+    }
+    setSettings({ ...settingsDefaults });
+    applyTheme(settingsDefaults.themeId);
+    setResult({
+      status: "ok",
+      action: "restore-model-settings",
+      summary: "Opšta podešavanja i pretraga su vraćeni na poslednje sačuvane vrednosti.",
+      details: { returncode: 0, stdout: "", stderr: "" },
+    });
+  }
+
+  async function checkSearchProviderAction() {
+    setProviderBusy("check");
+    try {
+      const providerStatus = await fetchSearchProviderStatus(activeSettings.webSearchProvider);
+      updateProviderStatus(providerStatus);
+      setResult({
+        status: providerStatus.status === "healthy" ? "ok" : "error",
+        action: "check-search-provider",
+        summary: providerStatus.summary,
+        details: {
+          returncode: providerStatus.status === "healthy" ? 0 : 1,
+          stdout: providerStatus.status === "healthy" ? providerStatus.summary : "",
+          stderr: providerStatus.status === "healthy" ? "" : providerStatus.summary,
+        },
+      });
+    } finally {
+      setProviderBusy("");
+    }
+  }
+
+  async function bootstrapSearchProviderAction() {
+    setProviderBusy("setup");
+    try {
+      const payload = await bootstrapManagedSearchProvider(activeSettings.webSearchProvider);
+      updateProviderStatus(payload.providerStatus);
+      setResult(payload.result);
+      await reload();
+    } finally {
+      setProviderBusy("");
+    }
+  }
+
+  async function saveTurboQuantConfigAction() {
+    const actionResult = await saveTurboQuantConfig(activeTurboConfig);
+    setResult(actionResult);
+    if (actionResult.status === "ok") {
+      clearDraft(TURBOQUANT_DRAFT_STORAGE_KEY);
+    }
+    await reload();
+  }
+
+  function restoreSavedTurboConfig() {
+    if (!turboConfigDefaults) {
+      return;
+    }
+    clearDraft(TURBOQUANT_DRAFT_STORAGE_KEY);
+    setTurboConfig({ ...turboConfigDefaults });
+    setResult({
+      status: "ok",
+      action: "restore-turboquant-config",
+      summary: "TurboQuant editor je vraćen na poslednje sačuvano stanje.",
+      details: { returncode: 0, stdout: "", stderr: "" },
+    });
+  }
+
   function updateProviderStatus(nextStatus: SearchProviderStatusPayload) {
     setSettings((current) =>
       current
@@ -938,8 +1293,51 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
     );
   }
 
+  async function refreshWorkspaceHygieneAction() {
+    setHygieneBusy("refresh");
+    try {
+      const payload = await fetchOpenCodeWorkspaceHygiene();
+      setWorkspaceHygiene(payload);
+      setResult({
+        status: "ok",
+        action: "refresh-opencode-hygiene",
+        summary: "Disk higijena procena je osvežena.",
+        details: { returncode: 0, stdout: "", stderr: "" },
+      });
+    } catch (reason: unknown) {
+      const summary = reason instanceof Error ? reason.message : "Disk higijena procena nije uspela.";
+      setResult({
+        status: "error",
+        action: "refresh-opencode-hygiene",
+        summary,
+        details: { returncode: 1, stdout: "", stderr: summary },
+      });
+    } finally {
+      setHygieneBusy("");
+    }
+  }
+
+  async function cleanupWorkspaceHygieneAction() {
+    setHygieneBusy("cleanup");
+    try {
+      const actionResult = await cleanupOpenCodeWorkspaceHygiene();
+      setResult(actionResult);
+      setWorkspaceHygiene(actionResult.hygiene);
+    } catch (reason: unknown) {
+      const summary = reason instanceof Error ? reason.message : "Čišćenje OpenCode workspace-a nije uspelo.";
+      setResult({
+        status: "error",
+        action: "cleanup-opencode-workspaces",
+        summary,
+        details: { returncode: 1, stdout: "", stderr: summary },
+      });
+    } finally {
+      setHygieneBusy("");
+    }
+  }
+
   return (
-    <div className="settings-page">
+    <div className="settings-page runtimepilot-rack-page">
       {error ? <div className="error-panel wide-card">{error}</div> : null}
       <PageFlowCard
         title="Settings tok"
@@ -960,7 +1358,7 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
         ]}
       />
       <ActionResultPanel result={result} />
-      <section className="status-card wide-card settings-cluster-card">
+      <section className="status-card wide-card settings-cluster-card runtimepilot-faceplate-module settings-rack-module">
         <div className="section-header settings-cluster-header">
           <div>
             <span className="status-label">Kako da koristiš ovu stranu</span>
@@ -992,7 +1390,141 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
         </div>
       </section>
 
-      <section className="status-card wide-card settings-cluster-card">
+      <section className="status-card wide-card settings-cluster-card runtimepilot-faceplate-module settings-rack-module">
+        <div className="section-header settings-cluster-header">
+          <div>
+            <span className="status-label">Disk higijena OpenCode workspace-a</span>
+            <strong className="status-value">
+              Čistimo samo disposable izolovane workspace foldere, nikad tvoje modele ili regularne projekte
+            </strong>
+          </div>
+        </div>
+        <p className="helper-text">
+          Posle klika gledaj odmah ovde: broj kandidata i zauzeće padaju ispod, a gore u poslednjoj akciji
+          dobijaš potvrdu šta se stvarno desilo. Auto-cleanup u pozadini proverava isto ovo periodično dok je
+          portal aktivan.
+        </p>
+        <div className="settings-hygiene-grid">
+          <article className="settings-explainer-card">
+            <span className="settings-field-label">Spremno za čišćenje</span>
+            <strong className="status-value">
+              {workspaceHygiene.cleanupCandidateCount} foldera · {workspaceHygiene.cleanupCandidateSizeLabel}
+            </strong>
+            <p className="helper-text">{workspaceHygiene.summary}</p>
+          </article>
+          <article className="settings-explainer-card">
+            <span className="settings-field-label">Zaštićeno</span>
+            <strong className="status-value">
+              {workspaceHygiene.activeWorkspaceCount} aktivno · {workspaceHygiene.recentFallbackProtectedCount} privremeno zaštićeno
+            </strong>
+            <p className="helper-text">
+              Aktivni OpenCode workspace nikad ne brišemo. Ako proces radi ali putanja nije jasno vidljiva, čuvamo i
+              najskoriji disposable workspace dok se sesija ne ugasi.
+            </p>
+          </article>
+          <article className="settings-explainer-card">
+            <span className="settings-field-label">Lokacija</span>
+            <strong className="status-value">OpenCode scratch i copy workspace-i</strong>
+            <code className="settings-hygiene-path">{workspaceHygiene.workspaceRoot}</code>
+          </article>
+          <article className="settings-explainer-card">
+            <span className="settings-field-label">Auto-cleanup</span>
+            <strong className="status-value">
+              {workspaceHygiene.lastAutoCleanup.hasRun
+                ? `${workspaceHygiene.lastAutoCleanup.removedCount} obrisano · ${workspaceHygiene.lastAutoCleanup.freedSizeLabel}`
+                : "Još nije radio"}
+            </strong>
+            <p className="helper-text">
+              {workspaceHygiene.lastAutoCleanup.summary}
+              {" "}
+              {workspaceHygiene.lastAutoCleanup.hasRun
+                ? `Poslednji ciklus: ${formatAutoCleanupCompletedAt(workspaceHygiene.lastAutoCleanup.completedAt)}.`
+                : "Kada portal ostane aktivan, auto-cleanup sam proverava disposable workspace-e u pozadini."}
+            </p>
+          </article>
+        </div>
+        <div className="settings-action-row">
+          <button
+            type="button"
+            onClick={() => {
+              void refreshWorkspaceHygieneAction();
+            }}
+            disabled={hygieneBusy !== ""}
+          >
+            {hygieneBusy === "refresh" ? "Osvežavam procenu..." : "Osveži procenu"}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              void cleanupWorkspaceHygieneAction();
+            }}
+            disabled={hygieneBusy !== "" || !workspaceHygiene.canCleanup}
+          >
+            {hygieneBusy === "cleanup" ? "Čistim disposable workspace-e..." : "Očisti sada"}
+          </button>
+        </div>
+        <div className="settings-hygiene-item-list">
+          {workspaceHygiene.items.length ? (
+            workspaceHygiene.items.slice(0, 6).map((item) => (
+              <article key={item.path} className="settings-hygiene-item">
+                <div className="settings-hygiene-item-head">
+                  <strong>{item.name}</strong>
+                  <span
+                    className={`compat-badge ${
+                      item.isActive
+                        ? "compat-badge-ok"
+                        : item.cleanupEligible
+                          ? "compat-badge-warn"
+                          : "compat-badge"
+                    }`}
+                  >
+                    {item.isActive
+                      ? "Aktivno / zaštićeno"
+                      : item.cleanupEligible
+                        ? "Spremno za čišćenje"
+                        : "Privremeno zaštićeno"}
+                  </span>
+                </div>
+                <p className="helper-text">
+                  {formatWorkspaceHygieneKind(item.kind)} · {item.sizeLabel} · poslednja izmena{" "}
+                  {formatWorkspaceHygieneModifiedAt(item.modifiedAt)}
+                </p>
+                <code className="settings-hygiene-path">{item.path}</code>
+              </article>
+            ))
+          ) : (
+            <article className="compat-empty-state">
+              <strong className="status-value">Nema disposable OpenCode workspace foldera</strong>
+              <p className="helper-text">
+                Kada koristiš izolovani OpenCode, ovde ćeš videti samo scratch, copy i worktree foldere koje je
+                RuntimePilot sam napravio.
+              </p>
+            </article>
+          )}
+        </div>
+        {workspaceHygiene.items.length > 6 ? (
+          <p className="helper-text">
+            Prikazano je prvih 6 stavki. Procena i čišćenje i dalje važe za sve disposable workspace foldere iz ove
+            lokacije.
+          </p>
+        ) : null}
+        {workspaceHygiene.manualReviewLocations.length ? (
+          <div className="settings-hygiene-manual">
+            <span className="settings-field-label">Ručno proveri i ove spoljne lokacije</span>
+            <div className="settings-hygiene-manual-list">
+              {workspaceHygiene.manualReviewLocations.map((item) => (
+                <article key={`${item.label}-${item.path}`} className="settings-explainer-card">
+                  <strong className="status-value">{item.label}</strong>
+                  <p className="helper-text">{item.summary}</p>
+                  <code className="settings-hygiene-path">{item.path}</code>
+                </article>
+              ))}
+            </div>
+          </div>
+        ) : null}
+      </section>
+
+      <section className="status-card wide-card settings-cluster-card runtimepilot-faceplate-module settings-rack-module">
         <div className="section-header settings-cluster-header">
           <div>
             <span className="status-label">Profili i opseg</span>
@@ -1162,352 +1694,501 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
         </div>
       </section>
 
-      <section className="status-card wide-card settings-cluster-card">
+      <section className="status-card wide-card settings-cluster-card runtimepilot-faceplate-module settings-rack-module">
         <div className="section-header settings-cluster-header">
           <div>
             <span className="status-label">Opšta podešavanja</span>
             <strong className="status-value">Glavni radni profil za RuntimePilot i lokalni model</strong>
           </div>
         </div>
-        <div className="settings-cluster-grid settings-cluster-grid-core">
-          <article className="settings-field settings-field-wide inference-spotlight-card">
-            <div className="inference-spotlight-shell">
-              <div className="inference-spotlight-main">
-                <span className="settings-field-label">Aktivna inference podešavanja</span>
-                <strong className="status-value inference-spotlight-value">
-                  {primaryInferenceSummary.map((item) => `${item.label} ${item.value}`).join(" | ")}
-                </strong>
-                <div className="inference-spotlight-tips">
-                  <span>Brzi orijentiri</span>
-                  <span>Za kod: niža `temperature`, niži `top-k`, fiksan `seed`.</span>
-                  <span>Za chat: viša `temperature` i širi `top-k` / `top-p`.</span>
-                  <span>Za benchmark: fiksan `seed` i mirniji sampling.</span>
-                </div>
-                <p className="helper-text">
-                  Ove vrednosti trenutno ulaze u `llama.cpp` ili `TurboQuant` start komandu i
-                  postaju local-lacc podrazumevana inference podešavanja kada klijent ne pošalje
-                  svoje sampling argumente.
-                </p>
-                <p className="helper-text">
-                  Workflow preset: {currentWorkflowPreset?.label || "--"} | Starter orijentir:{" "}
-                  {activeInferenceStarter?.label || "custom kombinacija"}
-                </p>
+        <div className="settings-general-hifi-stack">
+          <section className="settings-general-mixer-deck runtimepilot-faceplate-module">
+            <div className="settings-vram-deck-head">
+              <div>
+                <span className="settings-field-label">1. Menjanje</span>
+                <strong className="status-value">Kontrole, miks i radni profil</strong>
               </div>
-              <div className="inference-spotlight-rail">
-                <div className="inference-primary-grid">
-                  {primaryInferenceSummary.map((item) => (
-                    <div className="inference-primary-card" key={item.label}>
-                      <span className="inference-primary-card-label">{item.label}</span>
-                      <strong className="inference-primary-card-value">{item.value}</strong>
-                      {item.definition ? (
-                        <span className="inference-summary-chip-note">
-                          {item.definition.quickHint}
-                        </span>
-                      ) : null}
-                    </div>
-                  ))}
-                </div>
-                <div className="inference-summary-grid">
-                  {secondaryInferenceSummary.map((item) => (
-                    <div className="inference-summary-chip" key={item.label}>
-                      <span className="inference-summary-chip-label">{item.label}</span>
-                      <strong className="inference-summary-chip-value">{item.value}</strong>
-                      {item.definition ? (
-                        <span className="inference-summary-chip-note">
-                          {item.definition.quickHint}
-                        </span>
-                      ) : null}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </article>
-
-          <article className="settings-field">
-            <span className="settings-field-label">Režim pristupa</span>
-            <div className="settings-control-block">
-              <CustomSelect
-                value={settings.accessMode}
-                options={[
-                  { value: "local-only", label: "Samo lokalno" },
-                  { value: "tailscale", label: "Tailscale" },
-                ]}
-                onChange={(value) =>
-                  setSettings({
-                    ...settings,
-                    accessMode: value,
-                  })
-                }
-                ariaLabel="Izaberi režim pristupa"
-              />
-            </div>
-            <p className="helper-text">Lokalno ili Tailscale izlaganje backend-a.</p>
-          </article>
-
-          <article className="settings-field settings-field-wide">
-            <span className="settings-field-label">Tema boja</span>
-            <div className="settings-option-grid">
-              {availableThemeOptions.map((theme) => {
-                const active = settings.themeId === theme.id;
-                return (
-                  <button
-                    key={theme.id}
-                    type="button"
-                    className={`theme-option-card ${active ? "theme-option-card-active" : ""}`}
-                    onClick={() => {
-                      setSettings({
-                        ...settings,
-                        themeId: theme.id,
-                      });
-                      applyTheme(theme.id);
-                    }}
-                  >
-                    <span
-                      className="theme-option-name"
-                      style={{ color: theme.textColor, borderColor: `${theme.accent}55`, background: `${theme.accent}18` }}
-                    >
-                      {theme.label}
-                    </span>
-                    <span className="theme-option-copy">{theme.summary}</span>
-                  </button>
-                );
-              })}
-            </div>
-            <p className="helper-text">
-              Trenutna tema: {currentThemeOption?.label || "Dark Chocolate"}.
-            </p>
-          </article>
-
-          <article className="settings-field">
-            <span className="settings-field-label">OpenCode profil</span>
-            <div className="settings-control-block">
-              <CustomSelect
-                value={settings.profile}
-                options={[
-                  { value: "speed", label: "speed" },
-                  { value: "balanced", label: "balanced" },
-                  { value: "video", label: "video" },
-                ]}
-                onChange={(value) =>
-                  setSettings({
-                    ...settings,
-                    profile: value,
-                  })
-                }
-                ariaLabel="Izaberi OpenCode profil"
-              />
-            </div>
-          </article>
-
-          <article className="settings-field">
-            <span className="settings-field-label">Thinking režim</span>
-            <div className="settings-control-block">
-              <CustomSelect
-                value={settings.thinkingMode}
-                options={[
-                  { value: "no-thinking", label: "Bez thinking-a" },
-                  { value: "low", label: "Nisko" },
-                  { value: "mid", label: "Srednje" },
-                  { value: "high", label: "Visoko" },
-                  { value: "extra-high", label: "Vrlo visoko" },
-                ]}
-                onChange={(value) =>
-                  setSettings({
-                    ...settings,
-                    thinkingMode: value,
-                  })
-                }
-                ariaLabel="Izaberi thinking režim"
-              />
-            </div>
-          </article>
-
-          <article className="settings-field">
-            <span className="settings-field-label">Context</span>
-            <div className="settings-number-row">
-              <CustomSelect
-                value={contextChoice}
-                options={[
-                  ...TOKEN_STEP_OPTIONS.map((option) => ({
-                    value: option.value,
-                    label: option.label,
-                  })),
-                  { value: "custom", label: "custom" },
-                ]}
-                onChange={(value) => {
-                  if (value === "custom") {
-                    return;
-                  }
-                  setSettings({
-                    ...settings,
-                    context: Number(value),
-                  });
-                }}
-                ariaLabel="Izaberi context veličinu"
-              />
-              {contextChoice === "custom" ? (
-                <input
-                  type="number"
-                  value={settings.context}
-                  aria-label="Unesi context veličinu"
-                  onChange={(event) =>
-                    setSettings({
-                      ...settings,
-                      context: Number(event.target.value || 0),
-                    })
-                  }
-                />
-              ) : null}
-            </div>
-          </article>
-
-          <article className="settings-field">
-            <span className="settings-field-label">Output tokens</span>
-            <div className="settings-number-row">
-              <CustomSelect
-                value={outputTokensChoice}
-                options={[
-                  ...TOKEN_STEP_OPTIONS.map((option) => ({
-                    value: option.value,
-                    label: option.label,
-                  })),
-                  { value: "custom", label: "custom" },
-                ]}
-                onChange={(value) => {
-                  if (value === "custom") {
-                    return;
-                  }
-                  setSettings({
-                    ...settings,
-                    outputTokens: Number(value),
-                  });
-                }}
-                ariaLabel="Izaberi output token limit"
-              />
-              {outputTokensChoice === "custom" ? (
-                <input
-                  type="number"
-                  value={settings.outputTokens}
-                  aria-label="Unesi output token limit"
-                  onChange={(event) =>
-                    setSettings({
-                      ...settings,
-                      outputTokens: Number(event.target.value || 0),
-                    })
-                  }
-                />
-              ) : null}
-            </div>
-          </article>
-
-          <article className="settings-field settings-field-wide">
-            <span className="settings-field-label">Generacija i sampling</span>
-            <p className="helper-text">
-              Ovo su inference argumenti koji najviše utiču na ponašanje `llama.cpp`, lokalnog modela
-              i `OpenCode local-lacc` toka. Iste vrednosti se koriste i za start komandu servera i kao
-              podrazumevani runtime-proxy fallback kada klijent ne pošalje svoje sampling parametre.
-            </p>
-            <div className="settings-option-grid">
-              {settings.availableGenerationStarters.map((starter) => (
-                <button
-                  key={starter.id}
-                  type="button"
-                  className="theme-option-card"
-                  onClick={() =>
-                    setSettings({
-                      ...settings,
-                      temperature: starter.settings.temperature,
-                      topK: starter.settings.topK,
-                      topP: starter.settings.topP,
-                      minP: starter.settings.minP,
-                      repeatPenalty: starter.settings.repeatPenalty,
-                      repeatLastN: starter.settings.repeatLastN,
-                      presencePenalty: starter.settings.presencePenalty,
-                      frequencyPenalty: starter.settings.frequencyPenalty,
-                      seed: starter.settings.seed,
-                    })
-                  }
-                >
-                  <span className="theme-option-name">{starter.label}</span>
-                  <span className="theme-option-copy">{starter.summary}</span>
-                  <span className="muted-line">{starter.source}</span>
-                  <span className="muted-line">{formatGenerationStarterValues(starter.settings)}</span>
-                </button>
-              ))}
-            </div>
-            <div className="inference-guide-head">
-              <span className="settings-field-label">Šta radi i kada da ga menjaš</span>
               <p className="helper-text">
-                Kratke smernice ispod služe kao praktičan početak. Za ozbiljno poređenje run-ova
-                drži se fiksnog `seed`-a i niže `temperature`, a za opušteniji razgovor pomeraj
-                `temperature`, `top-k` i `top-p`.
+                Ovaj deo je sada pravi faceplate: prvo biraš radni profil, context, output i inferencu, pa tek onda odlučuješ kada ćeš to upisati u živi sistem.
               </p>
             </div>
-            <div className="inference-parameter-grid">
-              {INFERENCE_PARAMETER_DEFINITIONS.map((field) => (
-                <article className="settings-field inference-parameter-card" key={field.key}>
-                  <span className="settings-field-label">{field.label}</span>
-                  <input
-                    type="number"
-                    step={field.step}
-                    value={settings[field.key]}
-                    onChange={(event) =>
-                      updateInferenceSetting(field.key, Number(event.target.value || 0))
-                    }
-                  />
-                  <p className="inference-parameter-note">{field.description}</p>
-                  <div className="inference-parameter-ranges">
-                    <span>Za kodiranje: {field.coding}</span>
-                    <span>Za kreativniji chat: {field.creative}</span>
-                    <span>Za stabilne benchmarke: {field.benchmark}</span>
+
+            <div className="settings-general-mixer-grid">
+              <article className="settings-field settings-field-wide inference-spotlight-card settings-general-panel">
+                <div className="inference-spotlight-shell">
+                  <div className="inference-spotlight-main">
+                    <span className="settings-field-label">Aktivna inference podešavanja</span>
+                    <strong className="status-value inference-spotlight-value">
+                      {primaryInferenceSummary.map((item) => `${item.label} ${item.value}`).join(" | ")}
+                    </strong>
+                    <div className="inference-spotlight-tips">
+                      <span>Brzi orijentiri</span>
+                      <span>Za kod: niža `temperature`, niži `top-k`, fiksan `seed`.</span>
+                      <span>Za chat: viša `temperature` i širi `top-k` / `top-p`.</span>
+                      <span>Za benchmark: fiksan `seed` i mirniji sampling.</span>
+                    </div>
+                    <p className="helper-text">
+                      Ove vrednosti trenutno ulaze u `llama.cpp` ili `TurboQuant` start komandu i postaju local-lacc podrazumevana inference podešavanja kada klijent ne pošalje svoje sampling argumente.
+                    </p>
+                    <p className="helper-text">
+                      Workflow preset: {currentWorkflowPreset?.label || "--"} | Starter orijentir:{" "}
+                      {activeInferenceStarter?.label || "custom kombinacija"}
+                    </p>
+                  </div>
+                  <div className="inference-spotlight-rail">
+                    <div className="inference-primary-grid">
+                      {primaryInferenceSummary.map((item) => (
+                        <div className="inference-primary-card" key={item.label}>
+                          <span className="inference-primary-card-label">{item.label}</span>
+                          <strong className="inference-primary-card-value">{item.value}</strong>
+                          {item.definition ? (
+                            <span className="inference-summary-chip-note">{item.definition.quickHint}</span>
+                          ) : null}
+                        </div>
+                      ))}
+                    </div>
+                    <div className="inference-summary-grid">
+                      {secondaryInferenceSummary.map((item) => (
+                        <div className="inference-summary-chip" key={item.label}>
+                          <span className="inference-summary-chip-label">{item.label}</span>
+                          <strong className="inference-summary-chip-value">{item.value}</strong>
+                          {item.definition ? (
+                            <span className="inference-summary-chip-note">{item.definition.quickHint}</span>
+                          ) : null}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </article>
+
+              <div className="settings-general-mini-grid">
+                <article className="settings-field settings-general-panel">
+                  <span className="settings-field-label">Režim pristupa</span>
+                  <div className="settings-control-block">
+                    <CustomSelect
+                      value={settings.accessMode}
+                      options={[
+                        { value: "local-only", label: "Samo lokalno" },
+                        { value: "tailscale", label: "Tailscale" },
+                      ]}
+                      onChange={(value) =>
+                        setSettings({
+                          ...settings,
+                          accessMode: value,
+                        })
+                      }
+                      ariaLabel="Izaberi režim pristupa"
+                    />
+                  </div>
+                  <p className="helper-text">Lokalno ili Tailscale izlaganje backend-a.</p>
+                </article>
+
+                <article className="settings-field settings-general-panel">
+                  <span className="settings-field-label">OpenCode profil</span>
+                  <div className="settings-control-block">
+                    <CustomSelect
+                      value={settings.profile}
+                      options={[
+                        { value: "speed", label: "speed" },
+                        { value: "balanced", label: "balanced" },
+                        { value: "video", label: "video" },
+                      ]}
+                      onChange={(value) =>
+                        setSettings({
+                          ...settings,
+                          profile: value,
+                        })
+                      }
+                      ariaLabel="Izaberi OpenCode profil"
+                    />
                   </div>
                 </article>
-              ))}
-            </div>
-            <p className="helper-text">
-              Qwen instruct preporuke često idu oko `temp 0.7`, `top-p 0.8`, `top-k 20`, dok je za
-              coding i reprodukciju korisno spustiti temperaturu i koristiti fiksiran seed.
-            </p>
-          </article>
 
-          <article className="settings-field settings-field-wide">
-            <span className="settings-field-label">Radni direktorijum</span>
-            <div className="settings-path-row">
-              <input
-                className="settings-path-input"
-                value={settings.workingDirectory}
-                onChange={(event) =>
-                  setSettings({
-                    ...settings,
-                    workingDirectory: event.target.value,
-                  })
-                }
-              />
-              <button
-                type="button"
-                onClick={() =>
-                  pickWorkingDirectory().then((payload) => {
-                    if (payload.path) {
+                <article className="settings-field settings-general-panel">
+                  <span className="settings-field-label">Thinking režim</span>
+                  <div className="settings-control-block">
+                    <CustomSelect
+                      value={settings.thinkingMode}
+                      options={[
+                        { value: "no-thinking", label: "Bez thinking-a" },
+                        { value: "low", label: "Nisko" },
+                        { value: "mid", label: "Srednje" },
+                        { value: "high", label: "Visoko" },
+                        { value: "extra-high", label: "Vrlo visoko" },
+                      ]}
+                      onChange={(value) =>
+                        setSettings({
+                          ...settings,
+                          thinkingMode: value,
+                        })
+                      }
+                      ariaLabel="Izaberi thinking režim"
+                    />
+                  </div>
+                </article>
+
+                <article className="settings-field settings-general-panel">
+                  <span className="settings-field-label">Context</span>
+                  <div className="settings-number-row">
+                    <CustomSelect
+                      value={contextChoice}
+                      options={[
+                        ...TOKEN_STEP_OPTIONS.map((option) => ({
+                          value: option.value,
+                          label: option.label,
+                        })),
+                        { value: "custom", label: "custom" },
+                      ]}
+                      onChange={(value) => {
+                        if (value === "custom") {
+                          return;
+                        }
+                        setSettings({
+                          ...settings,
+                          context: Number(value),
+                        });
+                      }}
+                      ariaLabel="Izaberi context veličinu"
+                    />
+                    {contextChoice === "custom" ? (
+                      <input
+                        type="number"
+                        value={settings.context}
+                        aria-label="Unesi context veličinu"
+                        onChange={(event) =>
+                          setSettings({
+                            ...settings,
+                            context: Number(event.target.value || 0),
+                          })
+                        }
+                      />
+                    ) : null}
+                  </div>
+                </article>
+
+                <article className="settings-field settings-general-panel">
+                  <span className="settings-field-label">Output tokens</span>
+                  <div className="settings-number-row">
+                    <CustomSelect
+                      value={outputTokensChoice}
+                      options={[
+                        ...TOKEN_STEP_OPTIONS.map((option) => ({
+                          value: option.value,
+                          label: option.label,
+                        })),
+                        { value: "custom", label: "custom" },
+                      ]}
+                      onChange={(value) => {
+                        if (value === "custom") {
+                          return;
+                        }
+                        setSettings({
+                          ...settings,
+                          outputTokens: Number(value),
+                        });
+                      }}
+                      ariaLabel="Izaberi output token limit"
+                    />
+                    {outputTokensChoice === "custom" ? (
+                      <input
+                        type="number"
+                        value={settings.outputTokens}
+                        aria-label="Unesi output token limit"
+                        onChange={(event) =>
+                          setSettings({
+                            ...settings,
+                            outputTokens: Number(event.target.value || 0),
+                          })
+                        }
+                      />
+                    ) : null}
+                  </div>
+                </article>
+              </div>
+
+              <article className="settings-field settings-field-wide settings-general-panel">
+                <span className="settings-field-label">Tema boja</span>
+                <div className="settings-option-grid">
+                  {availableThemeOptions.map((theme) => {
+                    const active = settings.themeId === theme.id;
+                    return (
+                      <button
+                        key={theme.id}
+                        type="button"
+                        className={`theme-option-card ${active ? "theme-option-card-active" : ""}`}
+                        onClick={() => {
+                          setSettings({
+                            ...settings,
+                            themeId: theme.id,
+                          });
+                          applyTheme(theme.id);
+                        }}
+                      >
+                        <span
+                          className="theme-option-name"
+                          style={{
+                            color: theme.textColor,
+                            borderColor: `${theme.accent}55`,
+                            background: `${theme.accent}18`,
+                          }}
+                        >
+                          {theme.label}
+                        </span>
+                        <span className="theme-option-copy">{theme.summary}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="helper-text">
+                  Trenutna tema: {currentThemeOption?.label || "Dark Chocolate"}.
+                </p>
+              </article>
+
+              <article className="settings-field settings-field-wide settings-general-panel">
+                <span className="settings-field-label">Generacija i sampling</span>
+                <p className="helper-text">
+                  Ovo su inference argumenti koji najviše utiču na ponašanje `llama.cpp`, lokalnog modela i `OpenCode local-lacc` toka. Iste vrednosti se koriste i za start komandu servera i kao podrazumevani runtime-proxy fallback kada klijent ne pošalje svoje sampling parametre.
+                </p>
+                <div className="settings-option-grid">
+                  {settings.availableGenerationStarters.map((starter) => (
+                    <button
+                      key={starter.id}
+                      type="button"
+                      className="theme-option-card"
+                      onClick={() =>
+                        setSettings({
+                          ...settings,
+                          temperature: starter.settings.temperature,
+                          topK: starter.settings.topK,
+                          topP: starter.settings.topP,
+                          minP: starter.settings.minP,
+                          repeatPenalty: starter.settings.repeatPenalty,
+                          repeatLastN: starter.settings.repeatLastN,
+                          presencePenalty: starter.settings.presencePenalty,
+                          frequencyPenalty: starter.settings.frequencyPenalty,
+                          seed: starter.settings.seed,
+                        })
+                      }
+                    >
+                      <span className="theme-option-name">{starter.label}</span>
+                      <span className="theme-option-copy">{starter.summary}</span>
+                      <span className="muted-line">{starter.source}</span>
+                      <span className="muted-line">{formatGenerationStarterValues(starter.settings)}</span>
+                    </button>
+                  ))}
+                </div>
+                <div className="inference-guide-head">
+                  <span className="settings-field-label">Šta radi i kada da ga menjaš</span>
+                  <p className="helper-text">
+                    Kratke smernice ispod služe kao praktičan početak. Za ozbiljno poređenje run-ova drži se fiksnog `seed`-a i niže `temperature`, a za opušteniji razgovor pomeraj `temperature`, `top-k` i `top-p`.
+                  </p>
+                </div>
+                <div className="inference-parameter-grid">
+                  {INFERENCE_PARAMETER_DEFINITIONS.map((field) => (
+                    <article className="settings-field inference-parameter-card" key={field.key}>
+                      <span className="settings-field-label">{field.label}</span>
+                      <input
+                        type="number"
+                        step={field.step}
+                        value={settings[field.key]}
+                        onChange={(event) =>
+                          updateInferenceSetting(field.key, Number(event.target.value || 0))
+                        }
+                      />
+                      <p className="inference-parameter-note">{field.description}</p>
+                      <div className="inference-parameter-ranges">
+                        <span>Za kodiranje: {field.coding}</span>
+                        <span>Za kreativniji chat: {field.creative}</span>
+                        <span>Za stabilne benchmarke: {field.benchmark}</span>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+                <p className="helper-text">
+                  Qwen instruct preporuke često idu oko `temp 0.7`, `top-p 0.8`, `top-k 20`, dok je za coding i reprodukciju korisno spustiti temperaturu i koristiti fiksiran seed.
+                </p>
+              </article>
+
+              <article className="settings-field settings-field-wide settings-general-panel">
+                <span className="settings-field-label">Radni direktorijum</span>
+                <div className="settings-path-row">
+                  <input
+                    className="settings-path-input"
+                    value={settings.workingDirectory}
+                    onChange={(event) =>
                       setSettings({
                         ...settings,
-                        workingDirectory: payload.path,
-                      });
+                        workingDirectory: event.target.value,
+                      })
                     }
-                  })
-                }
+                  />
+                  <button
+                    type="button"
+                    onClick={() =>
+                      pickWorkingDirectory().then((payload) => {
+                        if (payload.path) {
+                          setSettings({
+                            ...settings,
+                            workingDirectory: payload.path,
+                          });
+                        }
+                      })
+                    }
+                  >
+                    Pregledaj
+                  </button>
+                </div>
+                <p className="helper-text">
+                  Ovo važi za opšti radni kontekst RuntimePilot-a, OpenCode integraciju i lokalne workflow tokove.
+                </p>
+              </article>
+            </div>
+          </section>
+
+          <section className="settings-general-transport-deck runtimepilot-faceplate-module">
+            <div className="settings-vram-deck-head">
+              <div>
+                <span className="settings-field-label">2. Primena i snimanje</span>
+                <strong className="status-value">Sačuvaj, vrati i profiliši opšti deo</strong>
+              </div>
+              <p className="helper-text">
+                Ovaj transport deck upisuje opšti config, search deo i inference podrazumevane vrednosti. Ako je runtime već aktivan, RuntimePilot ga restartuje sa novim profilom kada to zahteva backend.
+              </p>
+            </div>
+
+            <div className="settings-vram-transport-actions settings-general-transport-actions">
+              <button
+                type="button"
+                className="action-button-soft settings-vram-transport-button"
+                onClick={restoreSavedGeneralSettings}
               >
-                Pregledaj
+                <span className="settings-vram-transport-symbol" aria-hidden="true">▣</span>
+                <span>Vrati sačuvano stanje</span>
+              </button>
+              <button
+                type="button"
+                className="action-button"
+                onClick={() => {
+                  void saveGeneralSettingsAction();
+                }}
+              >
+                <span className="settings-vram-transport-symbol" aria-hidden="true">▶</span>
+                <span>Sačuvaj opšta podešavanja</span>
               </button>
             </div>
-            <p className="helper-text">
-              Ovo važi za opšti radni kontekst RuntimePilot-a, OpenCode integraciju i lokalne workflow tokove.
-            </p>
-          </article>
+
+            <div className="settings-vram-transport-actions settings-vram-transport-actions-aux">
+              <article className="settings-field settings-general-panel settings-general-profile-save">
+                <span className="settings-field-label">Sačuvaj trenutni custom profil</span>
+                <div className="settings-action-row">
+                  <input
+                    className="settings-profile-name-input"
+                    placeholder="Ime novog profila"
+                    value={settingsProfileName}
+                    onChange={(event) => setSettingsProfileName(event.target.value)}
+                  />
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const actionResult = await saveSettingsProfile({
+                        name: settingsProfileName,
+                        settings: buildSettingsProfileDraft(settings),
+                      });
+                      setResult(actionResult);
+                      if (actionResult.status === "ok") {
+                        setSettingsProfileName("");
+                      }
+                      await reload();
+                    }}
+                  >
+                    Sačuvaj profil
+                  </button>
+                  {selectedSettingsProfile && selectedSettingsProfile.kind === "user" ? (
+                    <button
+                      type="button"
+                      className="danger-button"
+                      onClick={async () => {
+                        const actionResult = await deleteSettingsProfile(selectedSettingsProfile.id);
+                        setResult(actionResult);
+                        await reload();
+                      }}
+                    >
+                      Obriši izabrani profil
+                    </button>
+                  ) : null}
+                </div>
+              </article>
+            </div>
+          </section>
+
+          <section className="settings-general-monitor-deck runtimepilot-faceplate-module">
+            <div className="settings-vram-deck-head">
+              <div>
+                <span className="settings-field-label">3. Monitoring</span>
+                <strong className="status-value">Šta je u editoru, šta je sačuvano i šta vodi sistem</strong>
+              </div>
+              <p className="helper-text">
+                Ovde vidiš da li se editor odvojio od poslednjeg sačuvanog stanja i koji preset ili starter trenutno vodi ostatak sistema.
+              </p>
+            </div>
+
+            <div className="apply-state-panel settings-vram-transport-status">
+              <article className="apply-state-chip">
+                <span className="apply-state-chip-title">Editor</span>
+                <strong className="apply-state-chip-value">
+                  {hasUnsavedGeneralChanges ? "Ima nesnimljenih promena" : "Usklađen sa configom"}
+                </strong>
+              </article>
+              <article className="apply-state-chip">
+                <span className="apply-state-chip-title">Profil</span>
+                <strong className="apply-state-chip-value">
+                  {selectedSettingsProfile ? selectedSettingsProfile.name : "custom"}
+                </strong>
+              </article>
+              <article className="apply-state-chip">
+                <span className="apply-state-chip-title">Starter</span>
+                <strong className="apply-state-chip-value">
+                  {activeInferenceStarter?.label || "custom kombinacija"}
+                </strong>
+              </article>
+            </div>
+
+            <article className="settings-field settings-field-wide settings-vram-monitor-card">
+              <span className="settings-field-label">Sačuvano i editor</span>
+              <strong className="status-value">
+                {hasUnsavedGeneralChanges
+                  ? "Opšti editor ima promene koje još nisu upisane u config"
+                  : "Opšti editor je usklađen sa poslednjim sačuvanim stanjem"}
+              </strong>
+              <div className="settings-vram-compare-grid settings-general-compare-grid">
+                {generalComparisonRows.map((row) => (
+                  <article
+                    key={row.label}
+                    className={`settings-vram-compare-card ${row.changed ? "settings-vram-compare-card-changed" : ""}`}
+                  >
+                    <span className="settings-vram-compare-label">{row.label}</span>
+                    <span className="settings-vram-compare-side">Sačuvano: {row.saved}</span>
+                    <span className="settings-vram-compare-side">Editor: {row.editor}</span>
+                  </article>
+                ))}
+              </div>
+            </article>
+
+            <div className="compat-empty-state settings-general-status-card">
+              <strong>Aktivni orijentiri</strong>
+              <div className="summary-metrics">
+                <span>Tema: {currentThemeOption?.label || "Dark Chocolate"}</span>
+                <span>Workflow preset: {currentWorkflowPreset?.label || "--"}</span>
+                <span>Inference starter: {activeInferenceStarter?.label || "custom kombinacija"}</span>
+                <span>Poslednja akcija: {settingsSaveResult?.summary || "Nema nove potvrde"}</span>
+              </div>
+            </div>
+          </section>
         </div>
       </section>
 
-      <section className="status-card wide-card settings-cluster-card">
+      <section className="status-card wide-card settings-cluster-card runtimepilot-faceplate-module settings-rack-module">
         <div className="section-header settings-cluster-header">
           <div>
             <span className="status-label">VRAM fit tuning</span>
@@ -1515,212 +2196,281 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
           </div>
         </div>
         <p className="helper-text">
-          Ovde podešavaš ručni <code>GPU layers override</code> i vidiš procenu koliko još fali do
-          punog GPU fit-a. Ako je aktivan TurboQuant, isti blok ti govori i kada treba da spustiš
-          njegov <code>context</code>.
+          Ovaj blok sada radi kao hi-fi tok u tri reda: prvo menjaš glavne parametre, zatim biraš da li samo čuvaš ili stvarno primenjuješ, pa tek onda čitaš monitoring i razlike.
         </p>
-        <p className="helper-text">
-          Auto trenutno cilja oko <code>{autoGpuLayersRecommendation || 0}</code> GPU slojeva za
-          izabrani GPU. Više GPU slojeva = više VRAM i manje RAM preliva. Manje GPU slojeva = manje
-          VRAM, ali više oslanjanja na RAM.
-        </p>
-        <div className="settings-cluster-grid settings-cluster-grid-core">
-          <article
-            className="settings-field settings-field-wide settings-vram-fit-card"
+
+        <div className="settings-vram-hifi-stack">
+          <section
+            className="settings-vram-mixer-deck runtimepilot-faceplate-module"
             id="settings-vram-fit"
             ref={vramFitSectionRef}
           >
-            <span className="settings-field-label">Aktivni runtime signal</span>
-            <strong className="status-value">
-              {observability?.runtime.activeRuntime || "--"} | {observability?.runtime.executionModeLabel || "Čeka potvrdu"}
-            </strong>
-            <div className="summary-metrics">
-              <span>GPU: {observability?.runtime.selectedGpuName || observability?.system.gpuName || "--"}</span>
-              <span>Offload: {observability?.runtime.offloadLabel || "--"}</span>
-              <span>Model buffer: {formatMiB(observability?.runtime.runtimeDiagnostics?.modelBufferMiB)}</span>
-              <span>KV buffer: {formatMiB(observability?.runtime.runtimeDiagnostics?.kvBufferMiB)}</span>
-              <span>Compute buffer: {formatMiB(observability?.runtime.runtimeDiagnostics?.computeBufferMiB)}</span>
+            <div className="settings-vram-deck-head">
+              <div>
+                <span className="settings-field-label">1. Menjanje</span>
+                <strong className="status-value">Glavni parametri za VRAM fit</strong>
+              </div>
+              <p className="helper-text">
+                Prvo diraj GPU layers i context. Tek kad to ne pomaže dovoljno, gledaj agresivnije kompromise.
+              </p>
             </div>
-            <p className="helper-text">
-              Ako je režim <code>Hibrid VRAM + RAM</code>, gledaj najviše <code>GPU layers</code>,
-              <code>context</code> i TurboQuant KV kompresiju. Ako je model i quant pretežak, ni
-              agresivan tuning neće garantovati čist GPU fit.
-            </p>
-          </article>
 
-          <article className="settings-field">
-            <span className="settings-field-label">GPU layers override</span>
-            <strong className="status-value">
-              {activeSettings.gpuLayersMode === "manual"
-                ? `Ručno: ${activeSettings.gpuLayersOverride || 0} slojeva`
-                : `Auto: ${autoGpuLayersRecommendation || 0} slojeva`}
-            </strong>
-            <div className="settings-number-row">
-              <CustomSelect
-                value={settings.gpuLayersMode}
-                options={[
-                  { value: "auto", label: "Auto" },
-                  { value: "manual", label: "Ručno" },
-                ]}
-                onChange={(value) =>
-                  setSettings({
-                    ...settings,
-                    gpuLayersMode: value,
-                  })
-                }
-                ariaLabel="Izaberi GPU layers režim"
-              />
-              {settings.gpuLayersMode === "manual" ? (
-                <input
-                  type="number"
-                  value={settings.gpuLayersOverride}
-                  aria-label="Unesi GPU layers override"
-                  onChange={(event) =>
-                    setSettings({
-                      ...settings,
-                      gpuLayersOverride: Number(event.target.value || 0),
-                    })
-                  }
-                />
-              ) : null}
+            <div className="settings-vram-mixer-grid">
+              <article className="settings-field settings-vram-channel-card settings-vram-channel-card-wide">
+                <span className="settings-field-label">Aktivni runtime signal</span>
+                <strong className="status-value">
+                  {observability?.runtime.activeRuntime || "--"} | {observability?.runtime.executionModeLabel || "čeka potvrdu"}
+                </strong>
+                <div className="summary-metrics">
+                  <span>GPU: {observability?.runtime.selectedGpuName || observability?.system.gpuName || "--"}</span>
+                  <span>Offload: {observability?.runtime.offloadLabel || "--"}</span>
+                  <span>Model buffer: {formatMiB(observability?.runtime.runtimeDiagnostics?.modelBufferMiB)}</span>
+                  <span>KV buffer: {formatMiB(observability?.runtime.runtimeDiagnostics?.kvBufferMiB)}</span>
+                  <span>Compute buffer: {formatMiB(observability?.runtime.runtimeDiagnostics?.computeBufferMiB)}</span>
+                </div>
+                <p className="helper-text">
+                  Ovo je trenutni živi signal. Ako je režim i dalje hibridan, pritisak ide najviše na GPU layers, context i TurboQuant KV kompresiju.
+                </p>
+              </article>
+
+              <article className="settings-field settings-vram-channel-card">
+                <span className="settings-field-label">GPU layers override</span>
+                <strong className="status-value">
+                  {activeSettings.gpuLayersMode === "manual"
+                    ? `Ručno: ${activeSettings.gpuLayersOverride || 0} slojeva`
+                    : `Auto: ${autoGpuLayersRecommendation || 0} slojeva`}
+                </strong>
+                <div className="settings-number-row">
+                  <CustomSelect
+                    value={settings.gpuLayersMode}
+                    options={[
+                      { value: "auto", label: "Auto" },
+                      { value: "manual", label: "Ručno" },
+                    ]}
+                    onChange={(value) =>
+                      setSettings({
+                        ...settings,
+                        gpuLayersMode: value,
+                      })
+                    }
+                    ariaLabel="Izaberi GPU layers režim"
+                  />
+                  {settings.gpuLayersMode === "manual" ? (
+                    <input
+                      type="number"
+                      value={settings.gpuLayersOverride}
+                      aria-label="Unesi GPU layers override"
+                      onChange={(event) =>
+                        setSettings({
+                          ...settings,
+                          gpuLayersOverride: Number(event.target.value || 0),
+                        })
+                      }
+                    />
+                  ) : null}
+                </div>
+                <div className="summary-metrics">
+                  <span>Auto trenutno cilja: {autoGpuLayersRecommendation || 0}</span>
+                  <span>Aktivno u editoru: {activeGpuLayersValue || 0}</span>
+                  <span>Runtime trenutno traži: {observability?.runtime.runtimeDiagnostics?.requestedGpuLayers ?? "--"}</span>
+                  <span>Ukupno slojeva modela: {totalModelLayers ?? "--"}</span>
+                </div>
+                <p className="helper-text">
+                  `Auto` prati procenu po VRAM-u. `Ručno` ti daje direktnu kontrolu kada želiš da guraš čvršći GPU fit.
+                </p>
+                <p className="helper-text">
+                  Više GPU slojeva = više VRAM, ali i veći deo modela ostaje na GPU-u umesto da preliva u RAM.
+                </p>
+                <p className="helper-text">
+                  Runtime se tada još ne restartuje dok ne klikneš neku od komandi u srednjem deck-u.
+                </p>
+              </article>
+
+              <article className="settings-field settings-vram-channel-card">
+                <span className="settings-field-label">Procenjeni context za puni GPU fit</span>
+                <strong className="status-value">
+                  {contextFitEstimate?.suggestedContext
+                    ? `${contextFitEstimate.suggestedContext} tokena`
+                    : contextFitEstimate?.contextOnlyCanFit === false
+                      ? "Samo spuštanje context-a verovatno nije dovoljno"
+                      : "Nema dovoljnog signala za procenu"}
+                </strong>
+                <p className="helper-text">
+                  {contextFitEstimate?.suggestedContext
+                    ? `Na osnovu trenutnog KV buffer-a procena je da bi oko ${contextFitEstimate.suggestedContext} tokena oslobodilo približno ${formatMiB(contextFitEstimate.estimatedFreedVramMiB)} VRAM-a.`
+                    : contextFitEstimate?.contextOnlyCanFit === false
+                      ? "KV buffer nije dovoljan da sam od sebe oslobodi sav nedostajući VRAM. Tada treba i manji quant/model ili agresivniji TurboQuant kompromis."
+                      : "Procena postaje korisna tek kada runtime već radi i prijavi čitljiv KV buffer."}
+                </p>
+                <div className="summary-metrics">
+                  <span>Aktivni context: {activeRuntimeContext}</span>
+                  <span>Smanjenje: {formatPercent(contextFitEstimate?.estimatedReductionPercent)}</span>
+                  <span>Aktivni runtime: {observability?.runtime.activeRuntime || "--"}</span>
+                </div>
+              </article>
             </div>
-            <p className="helper-text">
-              `Auto` prati procenu po VRAM-u. `Ručno` ti daje direktnu kontrolu kada želiš da teraš
-              puni fit, na primer <code>{suggestedGpuLayers ?? "--"}</code> sloj{suggestedGpuLayers === 1 ? "" : "a"}.
-            </p>
-            <p className="helper-text">
-              Ako ručno promeniš broj ovde, on postaje aktivan tek kada klikneš
-              <code>Sačuvaj opšta podešavanja</code> ili <code>Sačuvaj i primeni na runtime</code>.
-            </p>
-            <div className="summary-metrics">
-              <span>Auto trenutno cilja: {autoGpuLayersRecommendation || 0}</span>
-              <span>Aktivno u editoru: {activeGpuLayersValue || 0}</span>
-              <span>Runtime trenutno traži: {observability?.runtime.runtimeDiagnostics?.requestedGpuLayers ?? "--"}</span>
-              <span>Ukupno slojeva modela: {totalModelLayers ?? "--"}</span>
+
+            <div className="settings-vram-monitor-strip">
+              <article className="settings-vram-meter-card">
+                <span className="settings-field-label">Model preliv za editor</span>
+                <strong className="status-value">{formatMiB(runtimeFitPreview?.estimatedModelRamSpillMiB)}</strong>
+                <p className="helper-text">
+                  Ovaj broj se najviše menja kada menjaš `GPU layers`. Pokazuje koliko bi sam model deo i dalje ostao van VRAM-a.
+                </p>
+              </article>
+              <article className="settings-vram-meter-card">
+                <span className="settings-field-label">Još VRAM-a za editor</span>
+                <strong className="status-value">{formatMiB(runtimeFitPreview?.estimatedAdditionalVramToFitMiB)}</strong>
+                <div className="summary-metrics">
+                  <span>Trenutni runtime preliv: {formatMiB(hybridEstimate?.estimatedRamSpillMiB)}</span>
+                  <span>Editor GPU slojevi: {runtimeFitPreview?.targetGpuLayers ?? "--"}</span>
+                  <span>Editor context: {previewContextValue}</span>
+                </div>
+              </article>
             </div>
-          </article>
+          </section>
 
-          <article className="settings-field">
-            <span className="settings-field-label">Model preliv za editor</span>
-            <strong className="status-value">{formatMiB(runtimeFitPreview?.estimatedModelRamSpillMiB)}</strong>
-            <p className="helper-text">
-              Ovaj broj se najviše menja kada menjaš <code>GPU layers</code>. Pokazuje koliko bi
-              sam model deo i dalje ostao van VRAM-a za trenutno podešavanje u editoru.
-            </p>
-          </article>
-
-          <article className="settings-field">
-            <span className="settings-field-label">Još VRAM-a za editor</span>
-            <strong className="status-value">{formatMiB(runtimeFitPreview?.estimatedAdditionalVramToFitMiB)}</strong>
-            <p className="helper-text">
-              Ovaj broj reaguje i na <code>GPU layers</code> i na <code>context</code>. Ako ostaje
-              visok, samo spuštanje context-a verovatno nije dovoljno.
-            </p>
-            <div className="summary-metrics">
-              <span>Trenutni runtime preliv: {formatMiB(hybridEstimate?.estimatedRamSpillMiB)}</span>
-              <span>Editor GPU slojevi: {runtimeFitPreview?.targetGpuLayers ?? "--"}</span>
-              <span>Editor context: {previewContextValue}</span>
+          <section className="settings-vram-transport-deck runtimepilot-faceplate-module">
+            <div className="settings-vram-deck-head">
+              <div>
+                <span className="settings-field-label">2. Primena i snimanje</span>
+                <strong className="status-value">Transport deck za config i runtime</strong>
+              </div>
+              <p className="helper-text">
+                `Sačuvaj bez primene` upisuje config. `Primeni postojeće` tera runtime da uzme poslednje sačuvano stanje. `Sačuvaj i primeni` radi oba koraka odjednom.
+              </p>
             </div>
-          </article>
 
-          <article className="settings-field settings-field-wide">
-            <span className="settings-field-label">Procenjeni context za puni GPU fit</span>
-            <strong className="status-value">
-              {contextFitEstimate?.suggestedContext
-                ? `${contextFitEstimate.suggestedContext} tokena`
-                : contextFitEstimate?.contextOnlyCanFit === false
-                  ? "Samo spuštanje context-a verovatno nije dovoljno"
-                  : "Nema dovoljnog signala za procenu"}
-            </strong>
-            <p className="helper-text">
-              {contextFitEstimate?.suggestedContext
-                ? `Na osnovu trenutnog KV buffer-a procena je da bi oko ${contextFitEstimate.suggestedContext} tokena oslobodilo približno ${formatMiB(contextFitEstimate.estimatedFreedVramMiB)} VRAM-a.`
-                : contextFitEstimate?.contextOnlyCanFit === false
-                  ? "KV buffer nije dovoljan da sam od sebe oslobodi sav nedostajući VRAM. Tada treba i manji quant/model ili agresivniji TurboQuant kompromis."
-                  : "Procena postaje korisna tek kada runtime već radi i prijavi čitljiv KV buffer."}
-            </p>
-            <div className="summary-metrics">
-              <span>Aktivni context: {activeRuntimeContext}</span>
-              <span>Smanjenje: {formatPercent(contextFitEstimate?.estimatedReductionPercent)}</span>
-              <span>Aktivni runtime: {observability?.runtime.activeRuntime || "--"}</span>
-            </div>
-          </article>
-
-          <article className="settings-field settings-field-wide">
-            <span className="settings-field-label">Sačuvano i editor</span>
-            <strong className="status-value">
-              {hasUnsavedVramFitChanges
-                ? "Editor ima nesnimljene VRAM tuning promene"
-                : "Editor je usklađen sa poslednjim sačuvanim VRAM tuning stanjem"}
-            </strong>
-            <p className="helper-text">
-              Ovde odmah vidiš stare i nove vrednosti. Kada klikneš `Pokušaj VRAM fit`, promene se
-              prvo vide ovde, pa tek posle `Sačuvaj i primeni na runtime` postaju aktivne.
-            </p>
-            <div className="settings-vram-compare-grid">
-              {vramFitComparisonRows.map((row) => (
-                <article
-                  key={row.label}
-                  className={`settings-vram-compare-card ${row.changed ? "settings-vram-compare-card-changed" : ""}`}
-                >
-                  <span className="settings-vram-compare-label">{row.label}</span>
-                  <span className="settings-vram-compare-side">Sačuvano: {row.saved}</span>
-                  <span className="settings-vram-compare-side">Editor: {row.editor}</span>
-                </article>
-              ))}
-            </div>
-          </article>
-
-          <article className="settings-field settings-field-wide">
-            <span className="settings-field-label">Preporučeni sledeći korak</span>
-            <div className="inline-actions">
+            <div className="settings-vram-transport-actions">
               <button
                 type="button"
-                className="action-button"
+                className="action-button-soft settings-vram-transport-button"
+                onClick={() => {
+                  void saveCurrentVramTuningWithoutApply();
+                }}
+                disabled={vramFitBusy}
+              >
+                <span className="settings-vram-transport-symbol" aria-hidden="true">▣</span>
+                <span>{vramFitBusy ? "Čuvam..." : "Sačuvaj bez primene"}</span>
+              </button>
+              <button
+                type="button"
+                className="action-button-soft settings-vram-transport-button"
+                onClick={() => {
+                  void saveAndApplySavedVramTuning();
+                }}
+                disabled={vramFitBusy}
+              >
+                <span className="settings-vram-transport-symbol" aria-hidden="true">▶</span>
+                <span>{vramFitBusy ? "Primenjujem..." : "Primeni postojeće"}</span>
+              </button>
+              <button
+                type="button"
+                className="action-button settings-vram-transport-button settings-vram-transport-button-primary"
                 onClick={() => {
                   void saveAndApplyCurrentVramTuning();
                 }}
                 disabled={vramFitBusy}
               >
-                {vramFitBusy ? "Čuvam i primenjujem..." : "Sačuvaj i primeni na runtime"}
+                <span className="settings-vram-transport-symbol-group" aria-hidden="true">
+                  <span className="settings-vram-transport-symbol">▣</span>
+                  <span className="settings-vram-transport-symbol">▶</span>
+                </span>
+                <span>{vramFitBusy ? "Čuvam i primenjujem..." : "Sačuvaj i primeni"}</span>
               </button>
+            </div>
+
+            <div className="settings-vram-transport-actions settings-vram-transport-actions-aux">
               <button
                 type="button"
                 title="Pokušaj VRAM fit"
                 aria-label="Pokušaj VRAM fit"
-                className="secondary-button"
+                className="secondary-button settings-vram-transport-button"
                 onClick={tryToFitInVramInEditor}
                 disabled={!canTryToFitInVram}
               >
-                Pokušaj VRAM fit
+                <span>Pokušaj VRAM fit</span>
               </button>
               {observability?.runtime.activeRuntime === "turboquant" ? (
                 <button
                   type="button"
-                  className="secondary-button"
+                  className="secondary-button settings-vram-transport-button"
                   onClick={() => setShowTurboQuantGuidance((current) => !current)}
                 >
-                  {showTurboQuantGuidance ? "Sakrij TurboQuant smernice" : "Prikaži TurboQuant smernice"}
+                  <span>{showTurboQuantGuidance ? "Sakrij TurboQuant smernice" : "Prikaži TurboQuant smernice"}</span>
                 </button>
               ) : null}
             </div>
-            <p className="helper-text">
-              `Pokušaj VRAM fit` samo popunjava editor smislenijim VRAM-fit vrednostima: puni GPU layers,
-              manji context po proceni i, kod TurboQuant-a, jaču KV kompresiju kada izgleda korisno.
-              Runtime se tada još ne restartuje. `Sačuvaj i primeni na runtime` je zaseban korak koji tek tada stvarno
-              snima i primenjuje ono što vidiš. Ako je runtime već aktivan, RuntimePilot ga restartuje; ako nije, pokreće ga.
+          </section>
+
+          <section className="settings-vram-monitor-deck runtimepilot-faceplate-module">
+            <div className="settings-vram-deck-head">
+              <div>
+                <span className="settings-field-label">3. Monitoring</span>
+                <strong className="status-value">Sačuvano, editor i živi runtime</strong>
+              </div>
+              <p className="helper-text">
+                Ovde vidiš šta je samo promenjeno u editoru, šta je upisano u config i šta je stvarno stiglo do živog runtime-a.
+              </p>
+            </div>
+
+            <div className="apply-state-panel settings-vram-transport-status">
+              <article className="apply-state-chip">
+                <span className="apply-state-chip-title">Izmenjeno u editoru</span>
+                <strong className="apply-state-chip-value">
+                  {hasUnsavedVramFitChanges ? "Da, čeka potvrdu" : "Ne, editor je usklađen"}
+                </strong>
+              </article>
+              <article className="apply-state-chip">
+                <span className="apply-state-chip-title">Sačuvano u configu</span>
+                <strong className="apply-state-chip-value">{vramFitSavedInConfig ? "Da" : "Još nije"}</strong>
+              </article>
+              <article className="apply-state-chip">
+                <span className="apply-state-chip-title">Primenjeno na živi sistem</span>
+                <strong className="apply-state-chip-value">{vramFitAppliedToLiveSystem ? "Da" : "Čeka primenu"}</strong>
+              </article>
+            </div>
+
+            <article className="settings-field settings-field-wide settings-vram-monitor-card">
+              <span className="settings-field-label">Sačuvano i editor</span>
+              <strong className="status-value">
+                {hasUnsavedVramFitChanges
+                  ? "Editor ima nesnimljene VRAM tuning promene"
+                  : "Editor je usklađen sa poslednjim sačuvanim VRAM tuning stanjem"}
+              </strong>
+              <div className="settings-vram-compare-grid">
+                {vramFitComparisonRows.map((row) => (
+                  <article
+                    key={row.label}
+                    className={`settings-vram-compare-card ${row.changed ? "settings-vram-compare-card-changed" : ""}`}
+                  >
+                    <span className="settings-vram-compare-label">{row.label}</span>
+                    <span className="settings-vram-compare-side">Sačuvano: {row.saved}</span>
+                    <span className="settings-vram-compare-side">Editor: {row.editor}</span>
+                  </article>
+                ))}
+              </div>
+            </article>
+
+            <p className="helper-text settings-vram-monitor-copy">
+              `Pokušaj VRAM fit` samo popunjava editor smislenijim VRAM-fit vrednostima. `Primeni postojeće` ne dira editor, nego restartuje ili pokreće runtime po poslednjem sačuvanom stanju.
             </p>
+
             {vramFitLocalResult ? (
               <div className="compat-empty-state settings-vram-local-status">
                 <strong>
                   {vramFitLocalResult.action === "try-fit-in-vram"
                     ? "Poslednji VRAM fit predlog"
-                    : "Poslednja primena runtime-a"}
+                    : vramFitLocalResult.action === "save-vram-tuning-without-apply"
+                      ? "Poslednje čuvanje bez primene"
+                      : "Poslednja primena runtime-a"}
                 </strong>
                 <p className="helper-text">
                   {vramFitLocalResult.action === "try-fit-in-vram"
                     ? "Ovo još nije sačuvano ni aktivno u runtime-u."
-                    : "Posle čuvanja, Živi resursi mogu da kasne nekoliko sekundi dok novi runtime signal ne stigne."}
+                    : vramFitLocalResult.action === "save-vram-tuning-without-apply"
+                      ? "Config je ažuriran, ali runtime još radi po starom dok ne klikneš `Primeni postojeće` ili `Sačuvaj i primeni`."
+                      : "Posle primene, živi resursi mogu da kasne nekoliko sekundi dok novi runtime signal ne stigne."}
                 </p>
                 <p className="helper-text">{vramFitLocalResult.summary}</p>
                 {vramFitLocalLines.length ? (
@@ -1732,13 +2482,12 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
                 ) : null}
               </div>
             ) : null}
+
             {showTurboQuantGuidance && observability?.runtime.activeRuntime === "turboquant" ? (
-              <div className="compat-empty-state">
+              <div className="compat-empty-state settings-vram-turbo-guidance">
                 <strong>TurboQuant smernice za čistiji VRAM fit</strong>
                 <p className="helper-text">
-                  Ako hoćeš da sve stane u VRAM, redosled je obično: prvo spusti <code>context</code>,
-                  zatim proveri <code>GPU layers</code>, pa tek onda idi na agresivnije TurboQuant
-                  kompromise.
+                  Ako hoćeš da sve stane u VRAM, redosled je obično: prvo spusti `context`, zatim proveri `GPU layers`, pa tek onda idi na agresivnije TurboQuant kompromise.
                 </p>
                 <div className="summary-metrics">
                   <span>Prvo probaj: ctv turbo3</span>
@@ -1748,267 +2497,295 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
                 </div>
               </div>
             ) : null}
-          </article>
+          </section>
         </div>
       </section>
 
-      <section className="status-card wide-card settings-cluster-card">
+      <section className="status-card wide-card settings-cluster-card runtimepilot-faceplate-module settings-rack-module">
         <div className="section-header settings-cluster-header">
           <div>
             <span className="status-label">Pretraga i izvori</span>
             <strong className="status-value">Kako Search, Knowledge i local-lacc dolaze do web rezultata</strong>
           </div>
         </div>
-        <div className="settings-cluster-grid settings-cluster-grid-core">
-          <article className="settings-field settings-field-wide">
-            <span className="settings-field-label">Šta se ovde zapravo čuva</span>
-            <p className="helper-text">
-              Ovaj blok kontroliše izbor search providera, health proveru, managed SearxNG setup, režim
-              pretrage i limite. Sve promene ovde takođe postaju aktivne tek kada klikneš na
-              <code>Sačuvaj opšta podešavanja</code>.
-            </p>
-          </article>
-
-          <article className="settings-field settings-field-wide">
-            <span className="settings-field-label">Provider pretrage</span>
-            <div className="settings-control-block settings-control-block-wide">
-              <CustomSelect
-                value={settings.webSearchProvider}
-                options={settings.availableSearchProviders.map((provider) => ({
-                  value: provider.id,
-                  label: provider.label,
-                }))}
-                onChange={(value) => {
-                  const nextSettings = {
-                    ...settings,
-                    webSearchProvider: value,
-                    webSearchBaseUrl: value === "searxng" ? settings.webSearchBaseUrl : "",
-                  };
-                  setSettings(nextSettings);
-                  void fetchSearchProviderStatus(value).then(updateProviderStatus);
-                }}
-                ariaLabel="Izaberi provider pretrage"
-              />
+        <div className="settings-search-hifi-stack">
+          <section className="settings-search-mixer-deck runtimepilot-faceplate-module">
+            <div className="settings-vram-deck-head">
+              <div>
+                <span className="settings-field-label">1. Menjanje</span>
+                <strong className="status-value">Provider, režim i granice pretrage</strong>
+              </div>
+              <p className="helper-text">
+                Ovde biraš odakle Search, Knowledge i local-lacc vuku rezultate. Tek posle toga odlučuješ da li prvo proveravaš stanje ili odmah čuvaš opšti config.
+              </p>
             </div>
-            <p className="helper-text">
-              {currentSearchProviderOption?.summary || "Izaberi provider za Pretragu, Znanje i local-lacc sloj pretrage."}
-            </p>
-            <p className="helper-text">
-              Ako hoćeš javni provider bez API ključa, biraj DuckDuckGo (public web, no key).
-            </p>
-          </article>
 
-          <article className="settings-field settings-field-wide">
-            <span className="settings-field-label">
-              {settings.webSearchProvider === "searxng"
-                ? "Managed lokalni SearxNG (Windows + WSL)"
-                : "DuckDuckGo javni veb (bez ključa)"}
-            </span>
-            <strong className="status-value">
-              {settings.searchProviderStatus.providerLabel}: {settings.searchProviderStatus.label}
-            </strong>
-            <p className="helper-text">{settings.searchProviderStatus.summary}</p>
-            <div className="summary-metrics">
-              <span>Izvor: {settings.searchProviderStatus.source || "--"}</span>
-              <span>Podešeni URL: {settings.searchProviderStatus.configuredBaseUrl || "--"}</span>
-              <span>Efektivni URL: {settings.searchProviderStatus.effectiveBaseUrl || "--"}</span>
-              <span>Servis: {settings.searchProviderStatus.serviceLabel || "--"}</span>
+            <div className="settings-search-mixer-grid">
+              <article className="settings-field settings-field-wide settings-general-panel">
+                <span className="settings-field-label">Provider pretrage</span>
+                <div className="settings-control-block settings-control-block-wide">
+                  <CustomSelect
+                    value={settings.webSearchProvider}
+                    options={settings.availableSearchProviders.map((provider) => ({
+                      value: provider.id,
+                      label: provider.label,
+                    }))}
+                    onChange={(value) => {
+                      const nextSettings = {
+                        ...settings,
+                        webSearchProvider: value,
+                        webSearchBaseUrl: value === "searxng" ? settings.webSearchBaseUrl : "",
+                      };
+                      setSettings(nextSettings);
+                      void fetchSearchProviderStatus(value).then(updateProviderStatus);
+                    }}
+                    ariaLabel="Izaberi provider pretrage"
+                  />
+                </div>
+                <p className="helper-text">
+                  {currentSearchProviderOption?.summary || "Izaberi provider za Pretragu, Znanje i local-lacc sloj pretrage."}
+                </p>
+                <p className="helper-text">
+                  Ako hoćeš javni provider bez API ključa, biraj DuckDuckGo (public web, no key).
+                </p>
+              </article>
+
+              <article className="settings-field settings-general-panel">
+                <span className="settings-field-label">Režim veb pretrage</span>
+                <div className="settings-control-block">
+                  <CustomSelect
+                    value={settings.webSearchMode}
+                    options={[
+                      { value: "off", label: "Isključeno" },
+                      { value: "on-demand", label: "Na zahtev" },
+                      { value: "always", label: "Uvek" },
+                    ]}
+                    onChange={(value) =>
+                      setSettings({
+                        ...settings,
+                        webSearchMode: value,
+                      })
+                    }
+                    ariaLabel="Izaberi režim veb pretrage"
+                  />
+                </div>
+                <p className="helper-text">
+                  Ovo važi za Search tab i za OpenCode kada koristi lokalni `local-lacc` provider.
+                </p>
+              </article>
+
+              {settings.webSearchProvider === "searxng" ? (
+                <article className="settings-field settings-field-wide settings-general-panel">
+                  <span className="settings-field-label">Ručni SearxNG base URL (opciono, bez WSL-a)</span>
+                  <div className="settings-path-row">
+                    <input
+                      className="settings-path-input"
+                      value={settings.webSearchBaseUrl}
+                      onChange={(event) =>
+                        setSettings({
+                          ...settings,
+                          webSearchBaseUrl: event.target.value,
+                        })
+                      }
+                    />
+                  </div>
+                  <p className="helper-text">
+                    Ostavi prazno ako hoćeš da Search koristi managed lokalni SearxNG koji aplikacija sama podigne preko WSL-a.
+                  </p>
+                </article>
+              ) : null}
+
+              <div className="settings-general-mini-grid">
+                <article className="settings-field settings-general-panel">
+                  <span className="settings-field-label">Limit rezultata pretrage</span>
+                  <div className="settings-number-row">
+                    <input
+                      type="number"
+                      value={settings.webSearchMaxResults}
+                      onChange={(event) =>
+                        setSettings({
+                          ...settings,
+                          webSearchMaxResults: Number(event.target.value || 0),
+                        })
+                      }
+                    />
+                  </div>
+                </article>
+
+                <article className="settings-field settings-general-panel">
+                  <span className="settings-field-label">Timeout pretrage (s)</span>
+                  <div className="settings-number-row">
+                    <input
+                      type="number"
+                      value={settings.webSearchTimeoutSeconds}
+                      onChange={(event) =>
+                        setSettings({
+                          ...settings,
+                          webSearchTimeoutSeconds: Number(event.target.value || 0),
+                        })
+                      }
+                    />
+                  </div>
+                </article>
+
+                <article className="settings-field settings-general-panel">
+                  <span className="settings-field-label">Prefiks za zahtev</span>
+                  <div className="settings-number-row">
+                    <input
+                      value={settings.webSearchPromptPrefix}
+                      onChange={(event) =>
+                        setSettings({
+                          ...settings,
+                          webSearchPromptPrefix: event.target.value,
+                        })
+                      }
+                    />
+                  </div>
+                </article>
+              </div>
             </div>
-            <div className="settings-action-row">
+          </section>
+
+          <section className="settings-search-transport-deck runtimepilot-faceplate-module">
+            <div className="settings-vram-deck-head">
+              <div>
+                <span className="settings-field-label">2. Primena i alati</span>
+                <strong className="status-value">Proveri, podigni provider i sačuvaj opšti config</strong>
+              </div>
+              <p className="helper-text">
+                Search deo se čuva zajedno sa opštim podešavanjima. Ako radiš sa SearxNG, najpre proveri stanje ili podigni managed instancu, pa onda sačuvaj opšti config.
+              </p>
+            </div>
+
+            <div className="settings-vram-transport-actions settings-search-transport-actions">
               <button
                 type="button"
+                className="action-button-soft settings-vram-transport-button"
                 disabled={providerBusy !== ""}
-                onClick={async () => {
-                  setProviderBusy("check");
-                  try {
-                    const providerStatus = await fetchSearchProviderStatus(settings.webSearchProvider);
-                    updateProviderStatus(providerStatus);
-                    setResult({
-                      status: providerStatus.status === "healthy" ? "ok" : "error",
-                      action: "check-search-provider",
-                      summary: providerStatus.summary,
-                      details: {
-                        returncode: providerStatus.status === "healthy" ? 0 : 1,
-                        stdout: providerStatus.status === "healthy" ? providerStatus.summary : "",
-                        stderr: providerStatus.status === "healthy" ? "" : providerStatus.summary,
-                      },
-                    });
-                  } finally {
-                    setProviderBusy("");
-                  }
+                onClick={() => {
+                  void checkSearchProviderAction();
                 }}
               >
-                {providerBusy === "check" ? "Proveravam..." : "Proveri stanje"}
+                <span className="settings-vram-transport-symbol" aria-hidden="true">▶</span>
+                <span>{providerBusy === "check" ? "Proveravam..." : "Proveri stanje"}</span>
               </button>
               {settings.webSearchProvider === "searxng" ? (
                 <button
                   type="button"
+                  className="action-button-soft settings-vram-transport-button"
                   disabled={providerBusy !== "" || settings.searchProviderStatus.canBootstrap === false}
                   title={
                     settings.searchProviderStatus.canBootstrap
                       ? undefined
                       : settings.searchProviderStatus.bootstrapSummary
                   }
-                  onClick={async () => {
-                    setProviderBusy("setup");
-                    try {
-                      const payload = await bootstrapManagedSearchProvider(settings.webSearchProvider);
-                      updateProviderStatus(payload.providerStatus);
-                      setResult(payload.result);
-                      await reload();
-                    } finally {
-                      setProviderBusy("");
-                    }
+                  onClick={() => {
+                    void bootstrapSearchProviderAction();
                   }}
                 >
-                  {providerBusy === "setup"
-                    ? "Podešavam managed SearxNG..."
-                    : "Podesi managed SearxNG (Windows + WSL)"}
+                  <span className="settings-vram-transport-symbol" aria-hidden="true">▣</span>
+                  <span>
+                    {providerBusy === "setup"
+                      ? "Podešavam managed SearxNG..."
+                      : "Podesi managed SearxNG (Windows + WSL)"}
+                  </span>
                 </button>
               ) : null}
+              <button
+                type="button"
+                className="action-button"
+                onClick={() => {
+                  void saveGeneralSettingsAction();
+                }}
+              >
+                <span className="settings-vram-transport-symbol" aria-hidden="true">▶</span>
+                <span>Sačuvaj opšta podešavanja</span>
+              </button>
             </div>
-            {settings.webSearchProvider === "searxng" ? (
-              <p className="helper-text">
-                Ovaj automatski setup koristi WSL da lokalno podigne SearxNG. Manualni URL ispod je
-                odvojeni režim i ne zahteva WSL.
-              </p>
-            ) : (
-              <p className="helper-text">
-                DuckDuckGo radi kao javni provider i ne traži WSL, bootstrap ni manualni endpoint.
-              </p>
-            )}
-          </article>
+          </section>
 
-          <article className="settings-field settings-field-wide">
-            <span className="settings-field-label">Režim veb pretrage</span>
-            <div className="settings-control-block">
-              <CustomSelect
-                value={settings.webSearchMode}
-                options={[
-                  { value: "off", label: "Isključeno" },
-                  { value: "on-demand", label: "Na zahtev" },
-                  { value: "always", label: "Uvek" },
-                ]}
-                onChange={(value) =>
-                  setSettings({
-                    ...settings,
-                    webSearchMode: value,
-                  })
-                }
-                ariaLabel="Izaberi režim veb pretrage"
-              />
-            </div>
-            <p className="helper-text">
-              Ovo važi za Search tab i za OpenCode kada koristi lokalni `local-lacc` provider. Cloud
-              `opencode` modeli ne prolaze kroz ovaj lokalni search sloj.
-            </p>
-          </article>
-
-          {settings.webSearchProvider === "searxng" ? (
-            <article className="settings-field settings-field-wide">
-              <span className="settings-field-label">Ručni SearxNG base URL (opciono, bez WSL-a)</span>
-              <div className="settings-path-row">
-                <input
-                  className="settings-path-input"
-                  value={settings.webSearchBaseUrl}
-                  onChange={(event) =>
-                    setSettings({
-                      ...settings,
-                      webSearchBaseUrl: event.target.value,
-                    })
-                  }
-                />
+          <section className="settings-search-monitor-deck runtimepilot-faceplate-module">
+            <div className="settings-vram-deck-head">
+              <div>
+                <span className="settings-field-label">3. Monitoring</span>
+                <strong className="status-value">Health, URL i editor naspram sačuvanog stanja</strong>
               </div>
               <p className="helper-text">
-                Ostavi prazno ako hoćeš da Search koristi managed lokalni SearxNG koji aplikacija sama
-                podigne preko WSL-a.
+                Ovaj panel ti odmah pokazuje da li provider radi, odakle dolazi URL i da li editor nosi još neupisane promene.
               </p>
+            </div>
+
+            <div className="apply-state-panel settings-vram-transport-status">
+              <article className="apply-state-chip">
+                <span className="apply-state-chip-title">Editor</span>
+                <strong className="apply-state-chip-value">
+                  {hasUnsavedSearchChanges ? "Ima promena" : "Usklađen"}
+                </strong>
+              </article>
+              <article className="apply-state-chip">
+                <span className="apply-state-chip-title">Provider</span>
+                <strong className="apply-state-chip-value">
+                  {settings.searchProviderStatus.providerLabel}
+                </strong>
+              </article>
+              <article className="apply-state-chip">
+                <span className="apply-state-chip-title">Health</span>
+                <strong className="apply-state-chip-value">{settings.searchProviderStatus.label}</strong>
+              </article>
+            </div>
+
+            <article className="settings-field settings-field-wide settings-vram-monitor-card">
+              <span className="settings-field-label">
+                {settings.webSearchProvider === "searxng"
+                  ? "Managed lokalni SearxNG (Windows + WSL)"
+                  : "DuckDuckGo javni veb (bez ključa)"}
+              </span>
+              <strong className="status-value">
+                {settings.searchProviderStatus.providerLabel}: {settings.searchProviderStatus.label}
+              </strong>
+              <p className="helper-text">{settings.searchProviderStatus.summary}</p>
+              <div className="summary-metrics">
+                <span>Izvor: {settings.searchProviderStatus.source || "--"}</span>
+                <span>Podešeni URL: {settings.searchProviderStatus.configuredBaseUrl || "--"}</span>
+                <span>Efektivni URL: {settings.searchProviderStatus.effectiveBaseUrl || "--"}</span>
+                <span>Servis: {settings.searchProviderStatus.serviceLabel || "--"}</span>
+              </div>
+              {settings.webSearchProvider === "searxng" ? (
+                <p className="helper-text">
+                  Ovaj automatski setup koristi WSL da lokalno podigne SearxNG. Manualni URL iznad je odvojeni režim i ne zahteva WSL.
+                </p>
+              ) : (
+                <p className="helper-text">
+                  DuckDuckGo radi kao javni provider i ne traži WSL, bootstrap ni manualni endpoint.
+                </p>
+              )}
             </article>
-          ) : null}
 
-          <article className="settings-field">
-            <span className="settings-field-label">Limit rezultata pretrage</span>
-            <div className="settings-number-row">
-              <input
-                type="number"
-                value={settings.webSearchMaxResults}
-                onChange={(event) =>
-                  setSettings({
-                    ...settings,
-                    webSearchMaxResults: Number(event.target.value || 0),
-                  })
-                }
-              />
-            </div>
-          </article>
-
-          <article className="settings-field">
-            <span className="settings-field-label">Timeout pretrage (s)</span>
-            <div className="settings-number-row">
-              <input
-                type="number"
-                value={settings.webSearchTimeoutSeconds}
-                onChange={(event) =>
-                  setSettings({
-                    ...settings,
-                    webSearchTimeoutSeconds: Number(event.target.value || 0),
-                  })
-                }
-              />
-            </div>
-          </article>
-
-          <article className="settings-field">
-            <span className="settings-field-label">Prefiks za zahtev</span>
-            <div className="settings-number-row">
-              <input
-                value={settings.webSearchPromptPrefix}
-                onChange={(event) =>
-                  setSettings({
-                    ...settings,
-                    webSearchPromptPrefix: event.target.value,
-                  })
-                }
-              />
-            </div>
-          </article>
+            <article className="settings-field settings-field-wide settings-vram-monitor-card">
+              <span className="settings-field-label">Sačuvano i editor</span>
+              <strong className="status-value">
+                {hasUnsavedSearchChanges
+                  ? "Search editor ima promene koje još nisu upisane"
+                  : "Search editor je usklađen sa poslednjim sačuvanim stanjem"}
+              </strong>
+              <div className="settings-vram-compare-grid settings-search-compare-grid">
+                {searchComparisonRows.map((row) => (
+                  <article
+                    key={row.label}
+                    className={`settings-vram-compare-card ${row.changed ? "settings-vram-compare-card-changed" : ""}`}
+                  >
+                    <span className="settings-vram-compare-label">{row.label}</span>
+                    <span className="settings-vram-compare-side">Sačuvano: {row.saved}</span>
+                    <span className="settings-vram-compare-side">Editor: {row.editor}</span>
+                  </article>
+                ))}
+              </div>
+            </article>
+          </section>
         </div>
-        <div className="inline-actions settings-footer-actions">
-          <button
-            type="button"
-            onClick={async () => {
-              const actionResult = await applySettings(settings);
-              setResult(actionResult);
-              await reload();
-            }}
-          >
-            Sačuvaj opšta podešavanja
-          </button>
-          <button
-            type="button"
-            className="secondary-button"
-            onClick={() => {
-              if (!settingsDefaults) {
-                return;
-              }
-              setSettings({ ...settingsDefaults });
-              setResult({
-                status: "ok",
-                action: "restore-model-settings",
-                summary: "Model settings su vraćeni na poslednje sačuvane vrednosti.",
-                details: { returncode: 0, stdout: "", stderr: "" },
-              });
-            }}
-          >
-            Vrati podrazumevano
-          </button>
-        </div>
-        <p className="helper-text">
-          Ovde se zajedno čuvaju opšta podešavanja i podešavanja pretrage za izabrani opseg.
-        </p>
       </section>
 
-      <section className="status-card wide-card settings-cluster-card">
+      <section className="status-card wide-card settings-cluster-card runtimepilot-faceplate-module settings-rack-module">
         <div className="section-header settings-cluster-header">
           <div>
             <span className="status-label">TurboQuant podešavanja</span>
@@ -2023,223 +2800,314 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
           TurboQuant editor ne menja opšta podešavanja. Njegove promene se čuvaju samo kroz posebno
           dugme <code>Sačuvaj TurboQuant podešavanja</code>.
         </p>
-      </section>
+        <div className="settings-turbo-hifi-stack">
+          <section className="settings-turbo-mixer-deck runtimepilot-faceplate-module">
+            <div className="settings-vram-deck-head">
+              <div>
+                <span className="settings-field-label">1. Menjanje</span>
+                <strong className="status-value">Preseti, editor i kanali TurboQuant-a</strong>
+              </div>
+              <p className="helper-text">
+                Najprirodniji tok je: prvo učitaj preset ili ručno promeni kanale, zatim sačuvaj TurboQuant config, pa tek onda prati monitoring šta je stvarno ostalo u editoru.
+              </p>
+            </div>
 
-      <section className="status-card wide-card">
-        <div className="section-header">
-          <span className="status-label">TurboQuant preseti</span>
-        </div>
-        <div className="model-list">
-          {allTurboPresets.map((preset) => (
-            <article className="model-item" key={preset.id}>
-              <div className="model-item-header">
-                <div>
-                  <strong>{preset.name}</strong>
-                  <div className="muted-line">{preset.description}</div>
-                  <div className="muted-line">
-                    Context {preset.settings.context} | ctk {preset.settings.ctk} | ctv{" "}
-                    {preset.settings.ctv} | ncmoe {preset.settings.ncmoe}
-                  </div>
-                  {preset.notes ? <p className="helper-text">{preset.notes}</p> : null}
+            <div className="settings-turbo-mixer-grid">
+              <article className="settings-field settings-field-wide settings-general-panel">
+                <span className="settings-field-label">TurboQuant preseti</span>
+                <div className="model-list">
+                  {allTurboPresets.map((preset) => (
+                    <article className="model-item" key={preset.id}>
+                      <div className="model-item-header">
+                        <div>
+                          <strong>{preset.name}</strong>
+                          <div className="muted-line">{preset.description}</div>
+                          <div className="muted-line">
+                            Context {preset.settings.context} | ctk {preset.settings.ctk} | ctv{" "}
+                            {preset.settings.ctv} | ncmoe {preset.settings.ncmoe}
+                          </div>
+                          {preset.notes ? <p className="helper-text">{preset.notes}</p> : null}
+                        </div>
+                        <div className="inline-actions">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setTurboConfig(applyPresetToConfig(preset));
+                              setResult({
+                                status: "ok",
+                                action: "apply-preset-local",
+                                summary: `Preset ${preset.name} je učitan u editor.`,
+                                details: { returncode: 0, stdout: "", stderr: "" },
+                              });
+                            }}
+                          >
+                            Učitaj preset
+                          </button>
+                          {schema.userPresets.some((item) => item.id === preset.id) ? (
+                            <button
+                              type="button"
+                              className="danger-button"
+                              onClick={async () => {
+                                const actionResult = await deleteTurboQuantPreset(preset.id);
+                                setResult(actionResult);
+                                await reload();
+                              }}
+                            >
+                              Obriši
+                            </button>
+                          ) : null}
+                        </div>
+                      </div>
+                    </article>
+                  ))}
                 </div>
-                <div className="inline-actions">
+              </article>
+
+              <article className="settings-field settings-field-wide settings-general-panel">
+                <span className="settings-field-label">Sačuvaj trenutni preset</span>
+                <div className="form-grid">
+                  <input
+                    placeholder="Ime preset-a"
+                    value={presetName}
+                    onChange={(event) => setPresetName(event.target.value)}
+                  />
+                  <input
+                    placeholder="Kratak opis"
+                    value={presetDescription}
+                    onChange={(event) => setPresetDescription(event.target.value)}
+                  />
+                  <input
+                    placeholder="Model pattern, npr qwen36-*"
+                    value={presetTargetPattern}
+                    onChange={(event) => setPresetTargetPattern(event.target.value)}
+                  />
+                  <input
+                    placeholder="Napomena"
+                    value={presetNotes}
+                    onChange={(event) => setPresetNotes(event.target.value)}
+                  />
                   <button
                     type="button"
-                    onClick={() => {
-                      setTurboConfig(applyPresetToConfig(preset));
-                      setResult({
-                        status: "ok",
-                        action: "apply-preset-local",
-                        summary: `Preset ${preset.name} je učitan u editor.`,
-                        details: { returncode: 0, stdout: "", stderr: "" },
+                    onClick={async () => {
+                      const actionResult = await saveTurboQuantPreset({
+                        name: presetName,
+                        description: presetDescription,
+                        targetModelPattern: presetTargetPattern,
+                        notes: presetNotes,
+                        settings: turboConfig,
                       });
+                      setResult(actionResult);
+                      setPresetName("");
+                      setPresetDescription("");
+                      setPresetTargetPattern("");
+                      setPresetNotes("");
+                      await reload();
                     }}
                   >
-                    Učitaj preset
+                    Sačuvaj preset
                   </button>
-                  {schema.userPresets.some((item) => item.id === preset.id) ? (
-                    <button
-                      type="button"
-                      className="danger-button"
-                      onClick={async () => {
-                        const actionResult = await deleteTurboQuantPreset(preset.id);
-                        setResult(actionResult);
-                        await reload();
-                      }}
-                    >
-                      Obriši
-                    </button>
-                  ) : null}
                 </div>
+              </article>
+
+              <article className="settings-field settings-field-wide settings-general-panel">
+                <span className="status-label">TurboQuant parametri</span>
+                <div className="model-list">
+                  {schema.parameters.map((parameter) => (
+                    <article className="model-item" key={parameter.id}>
+                      <div className="model-item-header">
+                        <div>
+                          <strong>{parameter.label}</strong>
+                          <p className="helper-text">{parameter.whatIsIt}</p>
+                          <p className="helper-text">Učinak: {parameter.effect}</p>
+                          <p className="helper-text">Preporuka: {parameter.recommendation}</p>
+                          <div className="muted-line">
+                            Safe: {parameter.safeChoices.join(", ") || "--"} | Advanced:{" "}
+                            {parameter.advancedChoices.join(", ") || "--"}
+                          </div>
+                        </div>
+                        <div className="inline-actions">
+                          {parameter.id === "context" ? (
+                            <div className="settings-number-row">
+                              <CustomSelect
+                                value={turboContextChoice}
+                                options={[
+                                  ...TOKEN_STEP_OPTIONS.map((option) => ({
+                                    value: option.value,
+                                    label: option.label,
+                                  })),
+                                  { value: "custom", label: "custom" },
+                                ]}
+                                onChange={(value) => {
+                                  if (value === "custom") {
+                                    return;
+                                  }
+                                  setTurboConfig({
+                                    ...turboConfig,
+                                    context: Number(value),
+                                  });
+                                }}
+                                ariaLabel="Izaberi TurboQuant context veličinu"
+                              />
+                              {turboContextChoice === "custom" ? (
+                                <input
+                                  type="number"
+                                  value={turboConfig.context}
+                                  aria-label="Unesi TurboQuant context veličinu"
+                                  onChange={(event) =>
+                                    setTurboConfig({
+                                      ...turboConfig,
+                                      context: Number(event.target.value || 0),
+                                    })
+                                  }
+                                />
+                              ) : null}
+                            </div>
+                          ) : parameter.id === "ncmoe" ? (
+                            <input
+                              type="number"
+                              value={Number(turboConfig[parameter.id as keyof TurboQuantConfig])}
+                              onChange={(event) =>
+                                setTurboConfig({
+                                  ...turboConfig,
+                                  [parameter.id]: Number(event.target.value || 0),
+                                })
+                              }
+                            />
+                          ) : parameter.id === "flashAttention" || parameter.id === "mlock" ? (
+                            <label>
+                              <input
+                                type="checkbox"
+                                checked={Boolean(turboConfig[parameter.id as keyof TurboQuantConfig])}
+                                onChange={(event) =>
+                                  setTurboConfig({
+                                    ...turboConfig,
+                                    [parameter.id]: event.target.checked,
+                                  })
+                                }
+                              />{" "}
+                              uključeno
+                            </label>
+                          ) : (
+                            <CustomSelect
+                              value={String(turboConfig[parameter.id as keyof TurboQuantConfig])}
+                              options={[...parameter.safeChoices, ...parameter.advancedChoices].map((choice) => ({
+                                value: choice,
+                                label: choice,
+                              }))}
+                              onChange={(value) =>
+                                setTurboConfig({
+                                  ...turboConfig,
+                                  [parameter.id]: value,
+                                })
+                              }
+                              ariaLabel={`Izaberi ${parameter.label}`}
+                            />
+                          )}
+                        </div>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </article>
+            </div>
+          </section>
+
+          <section className="settings-turbo-transport-deck runtimepilot-faceplate-module">
+            <div className="settings-vram-deck-head">
+              <div>
+                <span className="settings-field-label">2. Primena i snimanje</span>
+                <strong className="status-value">Sačuvaj TurboQuant config ili vrati sačuvano stanje</strong>
+              </div>
+              <p className="helper-text">
+                TurboQuant editor je odvojen od opštih podešavanja. Ovde odlučuješ da li vraćaš editor na poslednji sačuvani config ili upisuješ novi TurboQuant config.
+              </p>
+            </div>
+
+            <div className="settings-vram-transport-actions settings-turbo-transport-actions">
+              <button
+                type="button"
+                className="action-button-soft settings-vram-transport-button"
+                onClick={restoreSavedTurboConfig}
+              >
+                <span className="settings-vram-transport-symbol" aria-hidden="true">▣</span>
+                <span>Vrati sačuvano stanje</span>
+              </button>
+              <button
+                type="button"
+                className="action-button"
+                onClick={() => {
+                  void saveTurboQuantConfigAction();
+                }}
+              >
+                <span className="settings-vram-transport-symbol" aria-hidden="true">▣</span>
+                <span>Sačuvaj TurboQuant podešavanja</span>
+              </button>
+            </div>
+          </section>
+
+          <section className="settings-turbo-monitor-deck runtimepilot-faceplate-module">
+            <div className="settings-vram-deck-head">
+              <div>
+                <span className="settings-field-label">3. Monitoring</span>
+                <strong className="status-value">Preset, editor i sačuvani TurboQuant config</strong>
+              </div>
+              <p className="helper-text">
+                Monitoring ti kaže da li editor odstupa od sačuvanog configa i da li trenutna kombinacija liči na neki poznat preset ili je potpuno custom.
+              </p>
+            </div>
+
+            <div className="apply-state-panel settings-vram-transport-status">
+              <article className="apply-state-chip">
+                <span className="apply-state-chip-title">Editor</span>
+                <strong className="apply-state-chip-value">
+                  {hasUnsavedTurboChanges ? "Ima nesnimljenih promena" : "Usklađen sa configom"}
+                </strong>
+              </article>
+              <article className="apply-state-chip">
+                <span className="apply-state-chip-title">Preset</span>
+                <strong className="apply-state-chip-value">
+                  {activeTurboPreset?.name || "Custom kombinacija"}
+                </strong>
+              </article>
+              <article className="apply-state-chip">
+                <span className="apply-state-chip-title">Runtime veza</span>
+                <strong className="apply-state-chip-value">
+                  {observability?.runtime.activeRuntime === "turboquant" ? "TurboQuant aktivan" : "Čeka TurboQuant runtime"}
+                </strong>
+              </article>
+            </div>
+
+            <article className="settings-field settings-field-wide settings-vram-monitor-card">
+              <span className="settings-field-label">Sačuvano i editor</span>
+              <strong className="status-value">
+                {hasUnsavedTurboChanges
+                  ? "TurboQuant editor ima promene koje još nisu upisane"
+                  : "TurboQuant editor je usklađen sa poslednjim sačuvanim configom"}
+              </strong>
+              <div className="settings-vram-compare-grid settings-turbo-compare-grid">
+                {turboComparisonRows.map((row) => (
+                  <article
+                    key={row.label}
+                    className={`settings-vram-compare-card ${row.changed ? "settings-vram-compare-card-changed" : ""}`}
+                  >
+                    <span className="settings-vram-compare-label">{row.label}</span>
+                    <span className="settings-vram-compare-side">Sačuvano: {row.saved}</span>
+                    <span className="settings-vram-compare-side">Editor: {row.editor}</span>
+                  </article>
+                ))}
               </div>
             </article>
-          ))}
-        </div>
-      </section>
 
-      <section className="status-card wide-card">
-        <span className="status-label">Sačuvaj trenutni preset</span>
-        <div className="form-grid">
-          <input
-            placeholder="Ime preset-a"
-            value={presetName}
-            onChange={(event) => setPresetName(event.target.value)}
-          />
-          <input
-            placeholder="Kratak opis"
-            value={presetDescription}
-            onChange={(event) => setPresetDescription(event.target.value)}
-          />
-          <input
-            placeholder="Model pattern, npr qwen36-*"
-            value={presetTargetPattern}
-            onChange={(event) => setPresetTargetPattern(event.target.value)}
-          />
-          <input
-            placeholder="Napomena"
-            value={presetNotes}
-            onChange={(event) => setPresetNotes(event.target.value)}
-          />
-          <button
-            type="button"
-            onClick={async () => {
-              const actionResult = await saveTurboQuantPreset({
-                name: presetName,
-                description: presetDescription,
-                targetModelPattern: presetTargetPattern,
-                notes: presetNotes,
-                settings: turboConfig,
-              });
-              setResult(actionResult);
-              setPresetName("");
-              setPresetDescription("");
-              setPresetTargetPattern("");
-              setPresetNotes("");
-              await reload();
-            }}
-          >
-            Sačuvaj preset
-          </button>
-        </div>
-      </section>
-
-      <section className="status-card wide-card">
-        <span className="status-label">TurboQuant parametri</span>
-        <div className="model-list">
-          {schema.parameters.map((parameter) => (
-            <article className="model-item" key={parameter.id}>
-              <div className="model-item-header">
-                <div>
-                  <strong>{parameter.label}</strong>
-                  <p className="helper-text">{parameter.whatIsIt}</p>
-                  <p className="helper-text">Ucinak: {parameter.effect}</p>
-                  <p className="helper-text">Preporuka: {parameter.recommendation}</p>
-                  <div className="muted-line">
-                    Safe: {parameter.safeChoices.join(", ") || "--"} | Advanced:{" "}
-                    {parameter.advancedChoices.join(", ") || "--"}
-                  </div>
-                </div>
-                <div className="inline-actions">
-                  {parameter.id === "context" ? (
-                    <div className="settings-number-row">
-                      <CustomSelect
-                        value={turboContextChoice}
-                        options={[
-                          ...TOKEN_STEP_OPTIONS.map((option) => ({
-                            value: option.value,
-                            label: option.label,
-                          })),
-                          { value: "custom", label: "custom" },
-                        ]}
-                        onChange={(value) => {
-                          if (value === "custom") {
-                            return;
-                          }
-                          setTurboConfig({
-                            ...turboConfig,
-                            context: Number(value),
-                          });
-                        }}
-                        ariaLabel="Izaberi TurboQuant context veličinu"
-                      />
-                      {turboContextChoice === "custom" ? (
-                        <input
-                          type="number"
-                          value={turboConfig.context}
-                          aria-label="Unesi TurboQuant context veličinu"
-                          onChange={(event) =>
-                            setTurboConfig({
-                              ...turboConfig,
-                              context: Number(event.target.value || 0),
-                            })
-                          }
-                        />
-                      ) : null}
-                    </div>
-                  ) : parameter.id === "ncmoe" ? (
-                    <input
-                      type="number"
-                      value={Number(turboConfig[parameter.id as keyof TurboQuantConfig])}
-                      onChange={(event) =>
-                        setTurboConfig({
-                          ...turboConfig,
-                          [parameter.id]: Number(event.target.value || 0),
-                        })
-                      }
-                    />
-                  ) : parameter.id === "flashAttention" || parameter.id === "mlock" ? (
-                    <label>
-                      <input
-                        type="checkbox"
-                        checked={Boolean(turboConfig[parameter.id as keyof TurboQuantConfig])}
-                        onChange={(event) =>
-                          setTurboConfig({
-                            ...turboConfig,
-                            [parameter.id]: event.target.checked,
-                          })
-                        }
-                      />{" "}
-                      uključeno
-                    </label>
-                  ) : (
-                    <CustomSelect
-                      value={String(turboConfig[parameter.id as keyof TurboQuantConfig])}
-                      options={[...parameter.safeChoices, ...parameter.advancedChoices].map((choice) => ({
-                        value: choice,
-                        label: choice,
-                      }))}
-                      onChange={(value) =>
-                        setTurboConfig({
-                          ...turboConfig,
-                          [parameter.id]: value,
-                        })
-                      }
-                      ariaLabel={`Izaberi ${parameter.label}`}
-                    />
-                  )}
-                </div>
+            <div className="compat-empty-state settings-general-status-card">
+              <strong>TurboQuant status</strong>
+              <div className="summary-metrics">
+                <span>Aktivni preset: {activeTurboPreset?.name || "Custom kombinacija"}</span>
+                <span>Preseti ukupno: {allTurboPresets.length}</span>
+                <span>Runtime: {observability?.runtime.activeRuntime || "--"}</span>
+                <span>Poslednja akcija: {turboSaveResult?.summary || "Nema nove potvrde"}</span>
               </div>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="status-card wide-card">
-        <div className="inline-actions">
-          <button
-            type="button"
-            className="secondary-button"
-            onClick={async () => {
-              const actionResult = await saveTurboQuantConfig(turboConfig);
-              setResult(actionResult);
-              if (actionResult.status === "ok") {
-                clearDraft(TURBOQUANT_DRAFT_STORAGE_KEY);
-              }
-              await reload();
-            }}
-          >
-            Sačuvaj TurboQuant podešavanja
-          </button>
+            </div>
+          </section>
         </div>
       </section>
     </div>

@@ -3,8 +3,18 @@ from pathlib import Path
 import subprocess
 
 from fastapi.testclient import TestClient
+import pytest
 
 from local_ai_control_center_installer.control_center_backend.main import app
+
+
+@pytest.fixture(autouse=True)
+def _disable_real_desktop_opencode_detection(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.opencode_service._resolve_windows_opencode_desktop_executable_path",
+        lambda config: None,
+        raising=False,
+    )
 
 
 def _write_opencode_fixture(install_root: Path) -> None:
@@ -311,6 +321,8 @@ def test_opencode_open_route_does_not_treat_foreign_instance_as_local_session(
     tmp_path: Path,
     monkeypatch,
 ):
+    from local_ai_control_center_installer.control_center_backend.services import opencode_service
+
     install_root = tmp_path / "install-root"
     _write_opencode_fixture(install_root)
     monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
@@ -362,13 +374,16 @@ def test_opencode_open_route_does_not_treat_foreign_instance_as_local_session(
     assert payload["status"] == "ok"
     assert "pokrenut" in payload["summary"].lower()
     launcher_path = install_root / "control-center" / "Open-OpenCode.cmd"
-    assert captured["command"] == ["cmd.exe", "/d", "/c", str(launcher_path)]
+    expected_command, _ = opencode_service._build_windows_opencode_terminal_command(launcher_path)
+    assert captured["command"] == expected_command
 
 
 def test_opencode_open_route_launches_visible_windows_launcher(
     tmp_path: Path,
     monkeypatch,
 ):
+    from local_ai_control_center_installer.control_center_backend.services import opencode_service
+
     install_root = tmp_path / "install-root"
     _write_opencode_fixture(install_root)
     monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
@@ -430,14 +445,266 @@ def test_opencode_open_route_launches_visible_windows_launcher(
     assert 'set "LACC_OPENCODE_SECURITY_MODE=strict"' in launcher_text
     assert 'echo OpenCode je završio sa kodom %OPENCODE_EXIT_CODE%.' in launcher_text
     assert "pause" in launcher_text
-    assert captured["command"] == [
-        "cmd.exe",
-        "/d",
-        "/c",
-        str(launcher_path),
-    ]
+    expected_command, _ = opencode_service._build_windows_opencode_terminal_command(launcher_path)
+    assert captured["command"] == expected_command
     assert captured["kwargs"]["cwd"] == str(launcher_path.parent)
-    assert captured["kwargs"]["creationflags"] == getattr(subprocess, "CREATE_NEW_CONSOLE", 0)
+    if Path(str(expected_command[0])).name.lower() == "cmd.exe":
+        assert captured["kwargs"]["creationflags"] == getattr(subprocess, "CREATE_NEW_CONSOLE", 0)
+    else:
+        assert "creationflags" not in captured["kwargs"]
+
+
+def test_prepare_isolated_opencode_workspace_uses_scratch_when_working_directory_is_install_root(
+    tmp_path: Path,
+    monkeypatch,
+):
+    from local_ai_control_center_installer.control_center_backend.services import opencode_service
+
+    install_root = tmp_path / "install-root"
+    _write_opencode_fixture(install_root)
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+
+    workspace = opencode_service._prepare_isolated_opencode_workspace(
+        config=opencode_service.get_config(),
+        working_directory=install_root,
+    )
+
+    assert workspace["mode"] == "scratch"
+    workspace_path = Path(str(workspace["workspacePath"]))
+    assert workspace_path.is_dir()
+    assert "workspaces" in str(workspace_path)
+    assert "opencode" in str(workspace_path)
+    assert (workspace_path / "README.md").is_file()
+
+
+def test_opencode_hygiene_route_reports_disposable_and_active_workspaces(
+    tmp_path: Path,
+    monkeypatch,
+):
+    install_root = tmp_path / "install-root"
+    _write_opencode_fixture(install_root)
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    workspace_root = install_root / "workspaces" / "opencode"
+    active_workspace = workspace_root / "gui-scratch-active"
+    stale_workspace = workspace_root / "gui-copy-stale"
+    protected_workspace = workspace_root / "manual-project"
+    active_workspace.mkdir(parents=True, exist_ok=True)
+    stale_workspace.mkdir(parents=True, exist_ok=True)
+    protected_workspace.mkdir(parents=True, exist_ok=True)
+    (active_workspace / "README.md").write_text("active", encoding="utf-8")
+    (stale_workspace / "notes.txt").write_text("stale", encoding="utf-8")
+    (protected_workspace / "notes.txt").write_text("keep", encoding="utf-8")
+
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.opencode_service._query_opencode_desktop_processes",
+        lambda: [
+            {
+                "ProcessId": 4040,
+                "Name": "OpenCode.exe",
+                "CommandLine": f'"C:\\Program Files\\OpenCode\\OpenCode.exe" "{active_workspace}"',
+            }
+        ],
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.opencode_service._query_opencode_processes",
+        lambda: [],
+    )
+
+    client = TestClient(app)
+    response = client.get("/api/opencode/hygiene")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["workspaceRoot"].endswith("workspaces\\opencode")
+    assert payload["disposableWorkspaceCount"] == 2
+    assert payload["cleanupCandidateCount"] == 1
+    assert payload["activeWorkspaceCount"] == 1
+    assert payload["canCleanup"] is True
+    names = {item["name"]: item for item in payload["items"]}
+    assert names["gui-scratch-active"]["isDisposable"] is True
+    assert names["gui-scratch-active"]["isActive"] is True
+    assert names["gui-scratch-active"]["cleanupEligible"] is False
+    assert names["gui-copy-stale"]["isDisposable"] is True
+    assert names["gui-copy-stale"]["cleanupEligible"] is True
+    assert "manual-project" not in names
+
+
+def test_opencode_hygiene_cleanup_route_removes_only_inactive_disposable_workspaces(
+    tmp_path: Path,
+    monkeypatch,
+):
+    install_root = tmp_path / "install-root"
+    _write_opencode_fixture(install_root)
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    workspace_root = install_root / "workspaces" / "opencode"
+    active_workspace = workspace_root / "gui-scratch-active"
+    stale_workspace = workspace_root / "gui-worktree-stale"
+    protected_workspace = workspace_root / "manual-project"
+    active_workspace.mkdir(parents=True, exist_ok=True)
+    stale_workspace.mkdir(parents=True, exist_ok=True)
+    protected_workspace.mkdir(parents=True, exist_ok=True)
+    (active_workspace / "README.md").write_text("active", encoding="utf-8")
+    (stale_workspace / "README.md").write_text("stale", encoding="utf-8")
+    (protected_workspace / "README.md").write_text("keep", encoding="utf-8")
+
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.opencode_service._query_opencode_desktop_processes",
+        lambda: [
+            {
+                "ProcessId": 5151,
+                "Name": "OpenCode.exe",
+                "CommandLine": f'"C:\\Program Files\\OpenCode\\OpenCode.exe" "{active_workspace}"',
+            }
+        ],
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.opencode_service._query_opencode_processes",
+        lambda: [],
+    )
+
+    client = TestClient(app)
+    response = client.post("/api/opencode/hygiene/cleanup")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "ok"
+    assert payload["cleanup"]["removedCount"] == 1
+    assert payload["cleanup"]["freedBytes"] >= 0
+    assert active_workspace.is_dir()
+    assert protected_workspace.is_dir()
+    assert not stale_workspace.exists()
+    assert payload["hygiene"]["cleanupCandidateCount"] == 0
+    assert payload["hygiene"]["activeWorkspaceCount"] == 1
+
+
+def test_opencode_hygiene_auto_cleanup_persists_last_run_and_exposes_it(
+    tmp_path: Path,
+    monkeypatch,
+):
+    from local_ai_control_center_installer.control_center_backend.services import opencode_service
+
+    install_root = tmp_path / "install-root"
+    _write_opencode_fixture(install_root)
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    workspace_root = install_root / "workspaces" / "opencode"
+    stale_workspace = workspace_root / "gui-copy-stale"
+    stale_workspace.mkdir(parents=True, exist_ok=True)
+    (stale_workspace / "README.md").write_text("stale", encoding="utf-8")
+
+    monkeypatch.setattr(opencode_service, "_query_opencode_processes", lambda: [])
+    monkeypatch.setattr(opencode_service, "_query_opencode_desktop_processes", lambda: [])
+
+    result = opencode_service.run_opencode_hygiene_auto_cleanup(opencode_service.get_config())
+
+    assert result["status"] == "ok"
+    assert result["cleanup"]["removedCount"] == 1
+    state_path = opencode_service.get_config().opencode_hygiene_state_path
+    assert state_path.is_file()
+    persisted = json.loads(state_path.read_text(encoding="utf-8"))
+    assert persisted["removedCount"] == 1
+    assert persisted["origin"] == "auto"
+
+    hygiene_payload = opencode_service.load_opencode_workspace_hygiene_payload(opencode_service.get_config())
+    assert hygiene_payload["lastAutoCleanup"]["removedCount"] == 1
+    assert hygiene_payload["lastAutoCleanup"]["origin"] == "auto"
+    assert "Očišćeno je 1 disposable" in hygiene_payload["lastAutoCleanup"]["summary"]
+
+
+def test_start_opencode_hygiene_scheduler_starts_daemon_thread(monkeypatch):
+    from local_ai_control_center_installer.control_center_backend.services import opencode_service
+
+    captured: dict[str, object] = {}
+
+    class FakeThread:
+        def __init__(self, target=None, name=None, daemon=None):
+            captured["target"] = target
+            captured["name"] = name
+            captured["daemon"] = daemon
+
+        def is_alive(self):
+            return False
+
+        def start(self):
+            captured["started"] = True
+
+    monkeypatch.setattr(opencode_service.threading, "Thread", FakeThread)
+    monkeypatch.setattr(opencode_service, "_HYGIENE_SCHEDULER_THREAD", None, raising=False)
+
+    opencode_service.start_opencode_hygiene_scheduler()
+
+    assert captured["started"] is True
+    assert captured["target"].__name__ == "_opencode_hygiene_scheduler_loop"
+    assert captured["name"] == "lacc-opencode-hygiene"
+    assert captured["daemon"] is True
+
+
+def test_opencode_open_route_returns_error_when_isolated_workspace_cannot_be_prepared(
+    tmp_path: Path,
+    monkeypatch,
+):
+    from local_ai_control_center_installer.control_center_backend.services import opencode_service
+
+    install_root = tmp_path / "install-root"
+    _write_opencode_fixture(install_root)
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    gui_path = Path("C:/Program Files/OpenCode/OpenCode.exe")
+    launch_attempted = False
+
+    def fake_popen(command, **kwargs):
+        nonlocal launch_attempted
+        launch_attempted = True
+
+    monkeypatch.setattr(opencode_service.subprocess, "Popen", fake_popen)
+    monkeypatch.setattr(
+        opencode_service,
+        "_resolve_windows_opencode_desktop_executable_path",
+        lambda config: gui_path,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        opencode_service,
+        "detect_opencode_desktop_instances",
+        lambda executable_path: [],
+        raising=False,
+    )
+    monkeypatch.setattr(
+        opencode_service,
+        "ensure_runtime_ready",
+        lambda config: {
+            "status": "ok",
+            "action": "ensure-runtime-ready",
+            "summary": "Runtime je spreman za OpenCode.",
+            "details": {
+                "returncode": 0,
+                "stdout": "Runtime je spreman za OpenCode.",
+                "stderr": "",
+            },
+        },
+        raising=False,
+    )
+    monkeypatch.setattr(
+        opencode_service,
+        "detect_opencode_instances",
+        lambda executable_path: [],
+    )
+    monkeypatch.setattr(
+        opencode_service,
+        "_prepare_isolated_opencode_workspace",
+        lambda config, working_directory: (_ for _ in ()).throw(RuntimeError("disk full")),
+        raising=False,
+    )
+
+    client = TestClient(app)
+    response = client.post(
+        "/api/opencode/open",
+        json={"profile": "balanced", "launchMode": "isolated"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "error"
+    assert "izolovan" in payload["summary"].lower()
+    assert launch_attempted is False
 
 
 def test_opencode_open_route_returns_error_when_runtime_cannot_be_prepared(
@@ -667,7 +934,10 @@ def test_opencode_open_route_reports_terminal_session_not_new_gui_window(
     monkeypatch.setattr(
         opencode_service,
         "prepare_opencode_launcher",
-        lambda config=None, profile="": install_root / "control-center" / "Open-OpenCode.cmd",
+        (
+            lambda config=None, profile="", working_directory_override=None, launcher_name_override=None:
+            install_root / "control-center" / "Open-OpenCode.cmd"
+        ),
     )
     monkeypatch.setattr(opencode_service, "_launch_opencode_launcher", lambda launcher_path: None)
 

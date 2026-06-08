@@ -10,6 +10,7 @@ import type {
 } from "../lib/types";
 import { ActionResultPanel } from "./ActionResultPanel";
 import { CustomSelect } from "./CustomSelect";
+import { RuntimePilotIcon } from "./RuntimePilotIcon";
 
 type Props = {
   title: string;
@@ -41,6 +42,24 @@ function formatHeadroom(value: number | null | undefined) {
   }
   const sign = value >= 0 ? "+" : "";
   return `${sign}${value.toFixed(1)} GiB`;
+}
+
+function formatInteger(value: number | null | undefined) {
+  if (value === null || value === undefined || Number.isNaN(value)) {
+    return "--";
+  }
+  return value.toLocaleString("sr-RS");
+}
+
+function runtimeLabel(value: string | null | undefined) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (normalized === "turboquant") {
+    return "TurboQuant";
+  }
+  if (normalized === "llama.cpp") {
+    return "llama.cpp";
+  }
+  return value || "--";
 }
 
 function fitBadgeClass(fitStatus: string) {
@@ -179,6 +198,44 @@ export function CompatibilityCalculatorPanel({
     [],
   );
 
+  const liveSnapshot = payload?.systemSnapshot ?? null;
+  const liveTurbo = liveSnapshot?.turboQuantConfig ?? null;
+  const editorDiffs = useMemo(
+    () => [
+      {
+        id: "context",
+        label: "Context",
+        active: formatInteger(liveSnapshot?.context ?? null),
+        editor: formatInteger(overrides?.context ?? null),
+      },
+      {
+        id: "output",
+        label: "Output",
+        active: formatInteger(liveSnapshot?.outputTokens ?? null),
+        editor: formatInteger(overrides?.outputTokens ?? null),
+      },
+      {
+        id: "ctk-ctv",
+        label: "ctk / ctv",
+        active: liveTurbo ? `${liveTurbo.ctk} / ${liveTurbo.ctv}` : "--",
+        editor: `${overrides?.ctk ?? "turbo4"} / ${overrides?.ctv ?? "turbo3"}`,
+      },
+      {
+        id: "ncmoe",
+        label: "ncmoe",
+        active: formatInteger(liveTurbo?.ncmoe ?? null),
+        editor: formatInteger(overrides?.ncmoe ?? null),
+      },
+      {
+        id: "runtime",
+        label: "Runtime",
+        active: runtimeLabel(liveTurbo?.runtimePreference ?? null),
+        editor: runtimeLabel(overrides?.runtimePreference ?? null),
+      },
+    ],
+    [liveSnapshot?.context, liveSnapshot?.outputTokens, liveTurbo, overrides],
+  );
+
   async function handleRecheck(
     nextOverrides?: CompatibilityCheckRequest["overrides"],
   ) {
@@ -192,7 +249,17 @@ export function CompatibilityCalculatorPanel({
         overrides: nextOverrides ?? overrides,
       });
       setPayload(response);
-      setResult(null);
+      setResult({
+        status: "ok",
+        action: "compatibility-check",
+        summary:
+          "Kompatibilnost je osvežena sa trenutnim editor vrednostima. Aktivno stanje i fit su ažurirani ispod.",
+        details: {
+          returncode: 0,
+          stdout: "Compatibility rezultat i aktivni runtime fit su osveženi.",
+          stderr: "",
+        },
+      });
       onPayloadChange?.(response);
     } catch (reason: unknown) {
       const message =
@@ -252,7 +319,16 @@ export function CompatibilityCalculatorPanel({
   }
 
   return (
-    <section className={className}>
+    <section
+      className={[
+        "compatibility-calculator-panel",
+        "runtimepilot-faceplate-module",
+        "compat-rack-module",
+        className || "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
+    >
       <div className="section-header">
         <div>
           <span className="status-label">Compatibility calculator</span>
@@ -286,6 +362,7 @@ export function CompatibilityCalculatorPanel({
 
       {payload ? (
         <>
+          <div className="compatibility-monitor-deck">
           <div className="compat-header">
             <span className={fitBadgeClass(payload.fitStatus)}>
               {payload.fitLabel}
@@ -418,69 +495,136 @@ export function CompatibilityCalculatorPanel({
               </div>
             </div>
           </section>
+          </div>
 
-          {payload.recommendations?.length ? (
+          <div className="compatibility-transport-deck">
             <section className="compat-section">
               <div className="section-header">
-                <span className="status-label">Preporuke</span>
-                <button
-                  type="button"
-                  className="secondary-button"
-                  disabled={pending}
-                  onClick={() => void handleRecheck()}
-                >
-                  Proveri ponovo
-                </button>
+                <span className="status-label">Provera i primena</span>
+                <div className="inline-actions compact-actions">
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    disabled={pending}
+                    onClick={() => void handleRecheck()}
+                  >
+                    Proveri ponovo
+                  </button>
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={() => setAdvancedOpen((current) => !current)}
+                  >
+                    {advancedOpen ? "Sakrij napredno" : "Prikaži napredno"}
+                  </button>
+                </div>
               </div>
-              <div className="compat-recommendation-list">
-                {payload.recommendations.map((item) => (
-                  <div className="compat-recommendation" key={item.id}>
-                    <div className="compat-recommendation-copy">
-                      <strong>{item.title}</strong>
-                      <div className="helper-text">{item.summary}</div>
-                      <div className="muted-line">{item.tradeoff}</div>
-                    </div>
-                    {item.action ? (
-                      <button
-                        type="button"
-                        className="action-button"
-                        disabled={pending}
-                        onClick={() => void handleApply(item.action!)}
-                      >
-                        {item.action.kind === "apply-package"
-                          ? "Primeni paket"
-                          : "Primeni"}
-                      </button>
-                    ) : null}
+              <section className="compatibility-live-settings-panel runtimepilot-faceplate-module">
+                <div className="compatibility-live-settings-heading">
+                  <span className="runtimepilot-section-glyph">
+                    <RuntimePilotIcon
+                      className="runtimepilot-section-glyph-icon"
+                      name="observability"
+                    />
+                  </span>
+                  <div>
+                    <span className="status-label">Aktivno sada na runtime-u</span>
+                    <strong className="status-value">
+                      Ovo su vrednosti koje su trenutno važeće, ne samo one iz editora.
+                    </strong>
                   </div>
-                ))}
+                </div>
+                <div className="compatibility-live-settings-grid">
+                  <article className="compatibility-live-setting-card">
+                    <span className="status-label">Context</span>
+                    <strong className="status-value">
+                      {formatInteger(liveSnapshot?.context ?? null)}
+                    </strong>
+                  </article>
+                  <article className="compatibility-live-setting-card">
+                    <span className="status-label">Output</span>
+                    <strong className="status-value">
+                      {formatInteger(liveSnapshot?.outputTokens ?? null)}
+                    </strong>
+                  </article>
+                  <article className="compatibility-live-setting-card">
+                    <span className="status-label">ctk / ctv</span>
+                    <strong className="status-value">
+                      {liveTurbo ? `${liveTurbo.ctk} / ${liveTurbo.ctv}` : "--"}
+                    </strong>
+                  </article>
+                  <article className="compatibility-live-setting-card">
+                    <span className="status-label">ncmoe</span>
+                    <strong className="status-value">
+                      {formatInteger(liveTurbo?.ncmoe ?? null)}
+                    </strong>
+                  </article>
+                  <article className="compatibility-live-setting-card">
+                    <span className="status-label">Runtime</span>
+                    <strong className="status-value">
+                      {runtimeLabel(liveTurbo?.runtimePreference ?? null)}
+                    </strong>
+                  </article>
+                </div>
+                <p className="helper-text">
+                  Proveri ili primeni da bi aktivno stanje ispod bilo ažurirano.
+                </p>
+              </section>
+              {payload.recommendations?.length ? (
+                <div className="compat-recommendation-list">
+                  {payload.recommendations.map((item) => (
+                    <div className="compat-recommendation" key={item.id}>
+                      <div className="compat-recommendation-copy">
+                        <strong>{item.title}</strong>
+                        <div className="helper-text">{item.summary}</div>
+                        <div className="muted-line">{item.tradeoff}</div>
+                      </div>
+                      {item.action ? (
+                        <button
+                          type="button"
+                          className="action-button"
+                          disabled={pending}
+                          onClick={() => void handleApply(item.action!)}
+                        >
+                          {item.action.kind === "apply-package"
+                            ? "Primeni paket"
+                            : "Primeni"}
+                        </button>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="helper-text">
+                  Trenutni izbor nema gotov paket za primenu, ali možeš odmah da ponoviš proveru
+                  ili da otvoriš napredne izmene ispod.
+                </p>
+              )}
+              <div className="compatibility-action-result-inline">
+                <ActionResultPanel result={result} />
               </div>
             </section>
-          ) : null}
-
-          <section className="compat-section">
-            <div className="section-header">
-              <span className="status-label">Razlozi</span>
-              <button
-                type="button"
-                className="secondary-button"
-                onClick={() => setAdvancedOpen((current) => !current)}
-              >
-                {advancedOpen ? "Sakrij napredno" : "Prikaži napredno"}
-              </button>
-            </div>
-            <div className="browser-reasoning-list">
-              {Object.entries(payload.reasoning ?? {}).map(([key, value]) => (
-                <div className="muted-line" key={key}>
-                  <strong>{key}:</strong> {value}
-                </div>
-              ))}
-            </div>
-          </section>
 
           {advancedOpen ? (
-            <section className="compat-section">
-              <span className="status-label">Napredna izmena</span>
+            <section className="compat-section compatibility-editor-settings-panel runtimepilot-faceplate-module">
+              <div className="compatibility-live-settings-heading">
+                <span className="runtimepilot-section-glyph">
+                  <RuntimePilotIcon
+                    className="runtimepilot-section-glyph-icon"
+                    name="settings"
+                  />
+                </span>
+                <div>
+                  <span className="status-label">Napredna izmena</span>
+                  <strong className="status-value">
+                    Napredna izmena menja editor, ne živi runtime
+                  </strong>
+                </div>
+              </div>
+              <p className="helper-text">
+                Ovde menjaš radne vrednosti za sledeću proveru ili primenu. Tek posle `Proveri` ili
+                `Primeni` aktivno stanje iznad treba da se promeni.
+              </p>
               <div className="compat-advanced-grid">
                 <label className="browser-field">
                   <span>Kontekst</span>
@@ -558,6 +702,23 @@ export function CompatibilityCalculatorPanel({
                   />
                 </label>
               </div>
+              <div className="compatibility-editor-diff-grid">
+                {editorDiffs.map((item) => {
+                  const changed = item.active !== item.editor;
+                  return (
+                    <article
+                      className={`compatibility-editor-diff-card${
+                        changed ? " compatibility-editor-diff-card-changed" : ""
+                      }`}
+                      key={item.id}
+                    >
+                      <span className="status-label">{item.label}</span>
+                      <strong className="status-value">{item.editor}</strong>
+                      <div className="helper-text">Aktivno: {item.active}</div>
+                    </article>
+                  );
+                })}
+              </div>
               <div className="inline-actions compact-actions">
                 <button
                   type="button"
@@ -569,10 +730,27 @@ export function CompatibilityCalculatorPanel({
               </div>
             </section>
           ) : null}
+          </div>
+
+          <div className="compatibility-monitor-deck">
+            <section className="compat-section">
+              <div className="section-header">
+                <span className="status-label">Razlozi</span>
+                <span className="helper-text">
+                  Ovde vidiš zašto je kalkulator doneo baš ovu preporuku.
+                </span>
+              </div>
+              <div className="browser-reasoning-list">
+                {Object.entries(payload.reasoning ?? {}).map(([key, value]) => (
+                  <div className="muted-line" key={key}>
+                    <strong>{key}:</strong> {value}
+                  </div>
+                ))}
+              </div>
+            </section>
+          </div>
         </>
       ) : null}
-
-      <ActionResultPanel result={result} />
     </section>
   );
 }

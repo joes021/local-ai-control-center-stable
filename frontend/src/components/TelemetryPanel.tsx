@@ -98,6 +98,103 @@ export function TelemetryPanel({
   }%`;
   const inputSplitWidth = telemetry?.inputSharePercent ?? 0;
   const outputSplitWidth = telemetry?.outputSharePercent ?? 0;
+  const liveMeterSegments = Math.max(0, Math.min(12, Math.round((liveMeterWidth(telemetry?.liveNowTokensPerSecond) / 100) * 12)));
+
+  if (variant === "home") {
+    return (
+      <section className="status-card wide-card telemetry-panel runtimepilot-telemetry-shell telemetry-panel-home runtimepilot-faceplate-module">
+        <div className="telemetry-home-deck">
+          <div className="telemetry-home-display">
+            <div className="telemetry-home-display-head">
+              <div>
+                <span className="status-label">Puls tokena</span>
+                <strong className="telemetry-page-title">Signal rada i ritam poslednjih 24 sata</strong>
+              </div>
+              <span className={`telemetry-state-badge telemetry-state-${liveStateClass}`}>{liveStateLabel}</span>
+            </div>
+            <div className="telemetry-home-live-shell">
+              <span className="telemetry-home-live-glyph" aria-hidden="true">
+                <RuntimePilotIcon className="telemetry-radar-icon" name="telemetry" />
+              </span>
+              <div>
+                <span className="telemetry-live-label">Uživo sada</span>
+                <strong
+                  className={`telemetry-home-live-value ${
+                    hasLiveNowSignal ? "telemetry-live-value-active" : "telemetry-live-value-idle"
+                  }`}
+                >
+                  {liveNowDisplay}
+                </strong>
+              </div>
+            </div>
+            <div className="telemetry-home-meter-bank" aria-hidden="true">
+              {Array.from({ length: 12 }, (_, index) => (
+                <span
+                  key={`telemetry-home-meter-${index}`}
+                  className={`telemetry-home-meter-segment ${index < liveMeterSegments ? "telemetry-home-meter-segment-active" : ""}`}
+                />
+              ))}
+            </div>
+            <p className="helper-text">
+              {telemetry?.flowStateReason || "Telemetrija još nema signal uživo sa runtime-a."}
+            </p>
+          </div>
+
+          <div className="telemetry-home-metrics">
+            <MetricCard
+              label="Ulaz 24h"
+              value={input24h}
+              copy="Prompt tokeni za poslednja 24 sata."
+            />
+            <MetricCard
+              label="Izlaz 24h"
+              value={output24h}
+              copy="Generisani tokeni za poslednja 24 sata."
+            />
+            <MetricCard
+              label="Aktivne rute"
+              value={activeRoutes}
+              copy={routeSummary(telemetry?.activeRoutesLabel)}
+            />
+            <MetricCard
+              label="Trošak 24h"
+              value={cost24h}
+              copy="Proxy procena za poslednja 24 sata."
+            />
+          </div>
+        </div>
+
+        <div className="telemetry-home-footer">
+          <article className="telemetry-footer-card telemetry-home-footer-card">
+            <span className="telemetry-footer-label">Poslednji throughput signal</span>
+            <strong>{lastSignal}</strong>
+            <p className="helper-text">
+              {telemetry?.lastSignalStateLabel || "skorašnji signal"}
+              {telemetry?.lastSignalLabel ? ` | ${telemetry.lastSignalLabel}` : ""}
+            </p>
+          </article>
+          <article className="telemetry-footer-card telemetry-home-footer-card">
+            <span className="telemetry-footer-label">Signal zabeležen</span>
+            <strong>{lastSignalAt}</strong>
+            <p className="helper-text">Poslednje poznato vreme kroz runtime signal.</p>
+          </article>
+          <article className="telemetry-footer-card telemetry-home-footer-card">
+            <span className="telemetry-footer-label">Ukupno 24h</span>
+            <strong>{total24h}</strong>
+            <p className="helper-text">Ukupni zbir ulaza i izlaza tokom poslednja 24 sata.</p>
+          </article>
+          <article className="telemetry-footer-card telemetry-footer-card-split telemetry-home-footer-card">
+            <span className="telemetry-footer-label">Odnos ulaza i izlaza</span>
+            <strong>{splitText}</strong>
+            <div className="telemetry-split-bar">
+              <div className="telemetry-split-bar-input" style={{ width: `${inputSplitWidth}%` }} />
+              <div className="telemetry-split-bar-output" style={{ width: `${outputSplitWidth}%` }} />
+            </div>
+          </article>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section

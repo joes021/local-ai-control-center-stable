@@ -4,7 +4,8 @@ import { ActionResultPanel } from "../components/ActionResultPanel";
 import { CompatibilityCalculatorModal } from "../components/CompatibilityCalculatorModal";
 import { ModelDownloadProgressCard } from "../components/ModelDownloadProgressCard";
 import { PageDataStateCard } from "../components/PageDataStateCard";
-import { PageFlowCard } from "../components/PageFlowCard";
+import { PrimaryFlowCard } from "../components/PrimaryFlowCard";
+import { RuntimePilotIcon } from "../components/RuntimePilotIcon";
 import {
   activateModel,
   addHfModel,
@@ -387,6 +388,90 @@ function ModelDeletePanel({
         </button>
       </div>
     </div>
+  );
+}
+
+function QuickModelCard({
+  item,
+  pendingAction,
+  onActivate,
+  onDownload,
+  onCheckCompatibility,
+}: {
+  item: ModelEntry;
+  pendingAction: boolean;
+  onActivate: (item: ModelEntry) => Promise<void>;
+  onDownload: (item: ModelEntry) => Promise<void>;
+  onCheckCompatibility: (item: ModelEntry) => void;
+}) {
+  const primaryLabel = item.active
+    ? "Aktivan"
+    : item.installed && supportsRuntimeActivation(item)
+      ? "Aktiviraj"
+      : item.canDownload
+        ? downloadActionLabel(item)
+        : "Pogledaj fit";
+
+  return (
+    <article className="status-card runtimepilot-section-shell model-quick-card">
+      <div className="model-quick-card-head">
+        <div>
+          <span className="status-label">{item.source === "curated" ? "Kurirani model" : "Lokalni model"}</span>
+          <strong className="status-value">{item.label}</strong>
+        </div>
+        <span className={lifecycleTone(item.lifecycleStatus)}>{item.lifecycleLabel ?? "Status"}</span>
+      </div>
+      <p className="helper-text">
+        {item.active ? "Trenutno aktivan model." : item.installed ? "Spreman za aktivaciju." : "Još nije lokalno spreman."}
+      </p>
+      <div className="summary-metrics">
+        <span>{item.family ?? "Nepoznata familija"}</span>
+        <span>{formatGiB(item.approxSizeGiB ?? null)}</span>
+        <span>{item.mtpStatusLabel ?? "MTP nepoznat"}</span>
+      </div>
+      <div className="model-quick-actions">
+        <button
+          type="button"
+          className="action-button"
+          disabled={
+            pendingAction ||
+            item.active ||
+            (!item.installed && !item.canDownload) ||
+            (item.installed && !supportsRuntimeActivation(item))
+          }
+          title={
+            item.active
+              ? "Ovaj model je već aktivan."
+              : !item.installed && !item.canDownload
+                ? "Model nema direktnu akciju za preuzimanje iz ovog prikaza."
+                : requiresForceActivationConfirmation(item)
+                  ? activationRiskSummary(item)
+                  : (mtpActivationGuidance(item) ?? undefined)
+          }
+          onClick={() => {
+            if (item.installed) {
+              void onActivate(item);
+              return;
+            }
+            if (item.canDownload) {
+              void onDownload(item);
+              return;
+            }
+            onCheckCompatibility(item);
+          }}
+        >
+          {primaryLabel}
+        </button>
+        <button
+          type="button"
+          className="action-button-soft"
+          disabled={pendingAction}
+          onClick={() => onCheckCompatibility(item)}
+        >
+          Kompatibilnost
+        </button>
+      </div>
+    </article>
   );
 }
 
@@ -835,8 +920,11 @@ export function ModelsPage({
   });
   const [compatibilityRequest, setCompatibilityRequest] = useState<CompatibilityCheckRequest | null>(null);
   const [compatibilityTitle, setCompatibilityTitle] = useState("Model");
+  const [advancedCatalogOpen, setAdvancedCatalogOpen] = useState(false);
   const progressStatusRef = useRef<string>("idle");
   const localGroupRef = useRef<HTMLDivElement | null>(null);
+  const addModelRef = useRef<HTMLDivElement | null>(null);
+  const advancedCatalogRef = useRef<HTMLDetailsElement | null>(null);
 
   function showClientError(summary: string) {
     setResult({
@@ -858,8 +946,23 @@ export function ModelsPage({
   }
 
   function revealLocalModels() {
+    setAdvancedCatalogOpen(true);
     requestAnimationFrame(() => {
       localGroupRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
+
+  function revealAddModel() {
+    setAdvancedCatalogOpen(true);
+    requestAnimationFrame(() => {
+      addModelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
+
+  function revealAdvancedCatalog() {
+    setAdvancedCatalogOpen(true);
+    requestAnimationFrame(() => {
+      advancedCatalogRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
   }
 
@@ -987,6 +1090,32 @@ export function ModelsPage({
     };
   }, [filteredItems]);
 
+  const allModels = useMemo(
+    () => (models ? [...models.local, ...models.curated, ...models.huggingFace, ...models.unsloth] : []),
+    [models],
+  );
+
+  const activeModel = useMemo(
+    () => allModels.find((item) => item.active) ?? null,
+    [allModels],
+  );
+
+  const quickModels = useMemo(() => {
+    const seen = new Set<string>();
+    const bucket: ModelEntry[] = [];
+    [activeModel, ...(models?.local ?? []), ...(models?.curated ?? [])].forEach((item) => {
+      if (!item || seen.has(item.id)) {
+        return;
+      }
+      if (!item.installed && !item.canDownload && !item.active) {
+        return;
+      }
+      seen.add(item.id);
+      bucket.push(item);
+    });
+    return bucket.slice(0, 4);
+  }, [activeModel, models]);
+
   async function runTopLevelAction(label: string, run: () => Promise<ActionResult>) {
     try {
       showPendingAction(label);
@@ -999,6 +1128,28 @@ export function ModelsPage({
     } finally {
       setPendingAction(null);
     }
+  }
+
+  async function handleQuickActivate(item: ModelEntry) {
+    if (requiresForceActivationConfirmation(item)) {
+      setResult({
+        status: "warning",
+        action: "activate-model-precheck",
+        summary: activationRiskSummary(item),
+        details: {
+          returncode: 1,
+          stdout: activationRiskSummary(item),
+          stderr: activationRiskSummary(item),
+        },
+      });
+      revealAdvancedCatalog();
+      return;
+    }
+    await runTopLevelAction(`activate ${item.id}`, () => activateModel(item.id));
+  }
+
+  async function handleQuickDownload(item: ModelEntry) {
+    await runTopLevelAction(`download ${item.id}`, () => downloadModel(item.id));
   }
 
   if (!models || !filteredModels) {
@@ -1017,186 +1168,193 @@ export function ModelsPage({
   return (
     <>
       {error ? <div className="error-panel wide-card">{error}</div> : null}
-      <PageFlowCard
-        title="Model tok"
-        summary="Najprirodniji tok je da prvo dodaš ili preuzmeš model, zatim ga aktiviraš, pa po potrebi proveriš kompatibilnost pre starta runtime-a."
-        steps={[
-          {
-            title: "Dodaj ili preuzmi model",
-            detail: "Kreni od curated, local ili remote izvora i prvo obezbedi da model stvarno postoji lokalno.",
-          },
-          {
-            title: "Aktiviraj model",
-            detail: "Tek kada je model spreman lokalno, aktiviraj ga i obrati pažnju na lifecycle i MTP napomene.",
-          },
-          {
-            title: "Proveri kompatibilnost ili pokreni runtime",
-            detail: "Ako imaš sumnju oko memorije i fit-a, idi na Compatibility tok pre nego što kreneš u rad.",
-          },
-        ]}
-      />
-      <section className="status-card wide-card models-browser-shell">
-        <div className="section-header">
-          <span className="status-label">Model browser</span>
-          <div className="inline-actions compact-actions">
-            <button
-              type="button"
-              className={`secondary-button ${modelsFilter === "all" ? "nav-button-active" : ""}`}
-              onClick={() => setModelsFilter("all")}
-            >
-              Svi
-            </button>
-            <button
-              type="button"
-              className={`secondary-button ${modelsFilter === "installed" ? "nav-button-active" : ""}`}
-              onClick={() => setModelsFilter("installed")}
-            >
-              Skinuti
-            </button>
-            <button
-              type="button"
-              className={`secondary-button ${modelsFilter === "active" ? "nav-button-active" : ""}`}
-              onClick={() => setModelsFilter("active")}
-            >
-              Aktivni
-            </button>
-            <button
-              type="button"
-              className={`secondary-button ${modelsFilter === "no-mtp" ? "nav-button-active" : ""}`}
-              onClick={() => setModelsFilter("no-mtp")}
-            >
-              Bez MTP
-            </button>
-            <button
-              type="button"
-              className={`secondary-button ${modelsFilter === "has-mtp" ? "nav-button-active" : ""}`}
-              onClick={() => setModelsFilter("has-mtp")}
-            >
-              Ima MTP
-            </button>
-            <button
-              type="button"
-              className={`secondary-button ${modelsFilter === "unknown-mtp" ? "nav-button-active" : ""}`}
-              onClick={() => setModelsFilter("unknown-mtp")}
-            >
-              Nepoznato MTP
-            </button>
-            <button
-              type="button"
-              className="secondary-button"
-              onClick={() =>
-                setCollapsedGroups({
-                  curated: false,
-                  local: false,
-                  huggingFace: false,
-                  unsloth: false,
-                })
-              }
-            >
-              Proširi sve
-            </button>
-            <button
-              type="button"
-              className="secondary-button"
-              onClick={() =>
-                setCollapsedGroups({
-                  curated: true,
-                  local: true,
-                  huggingFace: true,
-                  unsloth: true,
-                })
-              }
-            >
-              Skupi sve
+      <div className="primary-page-top-grid runtime-page-top-grid wide-card">
+        <PrimaryFlowCard
+          className="runtime-faceplate-card"
+          eyebrow="Modeli"
+          title="Aktivni model i brza promena"
+          stateTitle={activeModel?.label || "Nema aktivnog modela"}
+          stateSummary={
+            activeModel
+              ? "Ovo je model koji runtime i nova OpenCode sesija trenutno treba da koriste."
+              : "Prvo dodaj ili preuzmi model, pa ga aktiviraj pre nego što pređeš u OpenCode rad."
+          }
+          icon="models"
+          primaryLabel="Glavna akcija"
+          primaryActionLabel={activeModel ? "Skoči na lokalne modele" : "Dodaj lokalni GGUF"}
+          onPrimaryAction={() => {
+            if (activeModel) {
+              revealLocalModels();
+              return;
+            }
+            revealAddModel();
+          }}
+          secondaryLabel="Sekundarna akcija"
+          secondaryActionLabel="Tab kompatibilnosti"
+          onSecondaryAction={() => {
+            const focusModel =
+              activeModel ??
+              filteredItems[0] ??
+              models.local[0] ??
+              models.curated[0] ??
+              models.huggingFace[0] ??
+              models.unsloth[0];
+            if (!focusModel) {
+              return;
+            }
+            onOpenCompatibilityTab?.({
+              title: focusModel.label,
+              request: buildCompatibilityRequestFromModelEntry(focusModel),
+            });
+          }}
+          resultLabel="Rezultat posle klika"
+          resultSummary={
+            result
+              ? result.summary
+              : "Posle klika vidiš novi aktivni model, status preuzimanja ili upozorenje da model ne staje na mašinu."
+          }
+          stateMeta={
+            <>
+              <span>Ukupno: {summary.total}</span>
+              <span>Skinuto: {summary.installed}</span>
+              <span>Aktivno u prikazu: {filteredSummary.active}</span>
+            </>
+          }
+          liveResult={
+            <div className="primary-flow-inline-result">
+              <strong>OpenCode i aktivacija</strong>
+              <p className="helper-text">
+                Kad promeniš aktivni model, otvori novu OpenCode sesiju da agent stvarno preuzme novu postavku.
+              </p>
+            </div>
+          }
+        />
+
+        <section className="status-card runtimepilot-section-shell primary-page-support-card runtime-faceplate-support">
+          <div className="runtime-faceplate-head">
+            <div className="runtime-faceplate-headline">
+              <span className="runtime-faceplate-module-glyph" aria-hidden="true">
+                <RuntimePilotIcon className="runtime-faceplate-module-icon" name="search" />
+              </span>
+              <div className="runtime-faceplate-module-copy">
+                <span className="status-label">Brzi izbor modela</span>
+                <strong className="status-value">
+                  {quickModels.length ? `${quickModels.length} modela za direktan rad` : "Još nema brzih kandidata"}
+                </strong>
+              </div>
+            </div>
+            <div className="runtime-faceplate-status-lights" aria-hidden="true">
+              <span className="runtime-faceplate-status-light runtime-faceplate-status-light-active" />
+              <span className="runtime-faceplate-status-light" />
+              <span className="runtime-faceplate-status-light" />
+            </div>
+          </div>
+          <div className="runtime-faceplate-copy">
+            <p className="helper-text">
+              Gore vidiš samo modele koji imaju smisla za sledeći klik: aktivni, lokalno spremni ili odmah dostupni za download.
+            </p>
+            <div className="summary-metrics">
+              <span>Filter: {buildModelsFilterLabel(modelsFilter)}</span>
+              <span>Lokalni: {models.local.length}</span>
+              <span>Kurirani: {models.curated.length}</span>
+            </div>
+          </div>
+          <div className="runtime-faceplate-rail">
+            <span className="status-label">Sledeći klik</span>
+            <button type="button" className="action-button-soft deck-control-button deck-control-button-secondary" onClick={() => {
+              setModelsFilter("installed");
+              revealLocalModels();
+            }}>
+              <span className="deck-control-symbol" aria-hidden="true">▶</span>
+              <span className="deck-control-copy">Prikaži skinute modele</span>
             </button>
           </div>
-        </div>
-        <strong className="status-value">Pregled model kataloga i aktivacije</strong>
-        <div className="models-summary-grid">
-          <article className="models-summary-card">
-            <span className="status-label">Trenutni prikaz</span>
-            <strong>{buildModelsFilterLabel(modelsFilter)}</strong>
-            <p className="helper-text">
-              {modelsFilter === "all"
-                ? "Gledaš ceo katalog bez dodatnog filtriranja."
-                : "Filtrirani prikaz ti sužava fokus pre aktivacije ili čišćenja liste."}
-            </p>
-          </article>
-          <article className="models-summary-card">
-            <span className="status-label">U ovom prikazu</span>
-            <strong>{filteredSummary.total} modela</strong>
-            <p className="helper-text">
-              Skinuto: {filteredSummary.installed} · Aktivno: {filteredSummary.active}
-            </p>
-          </article>
-          <article className="models-summary-card">
-            <span className="status-label">Ukupan katalog</span>
-            <strong>{summary.total} modela</strong>
-            <p className="helper-text">
-              Ukupno skinuto: {summary.installed}. To ti govori koliki je stvarni lokalni fond.
-            </p>
-          </article>
-          <article className="models-summary-card">
-            <span className="status-label">Brzi savet</span>
-            <strong>Model pa nova sesija</strong>
-            <p className="helper-text">
-              Kad promeniš aktivni model, otvori novu OpenCode sesiju da agent stvarno preuzme novu postavku.
-            </p>
-          </article>
-        </div>
-        <div className="models-toolbar-note-grid">
-          <article className="models-toolbar-note">
-            <strong>OpenCode i aktivacija</strong>
-            <p className="helper-text">
-              Aktiviraj menja aktivni lokalni model odmah, ali OpenCode taj novi model preuzima tek
-              u novoj sesiji. Ako je OpenCode već otvoren, zatvori ga i otvori ponovo.
-            </p>
-          </article>
-          <article className="models-toolbar-note">
-            <strong>MTP i runtime fallback</strong>
-            <p className="helper-text">
-              MTP modeli sada koriste llama.cpp draft-mtp put. Ako je TurboQuant izabran, panel će
-              za takav model automatski pasti nazad na llama.cpp.
-            </p>
-          </article>
-        </div>
-        <div className="inline-actions compact-actions">
-          <button
-            type="button"
-            className="secondary-button"
-            onClick={() => {
-              if (!models.local.length && !models.curated.length && !models.huggingFace.length && !models.unsloth.length) {
-                return;
-              }
-              const firstModel =
-                filteredItems[0] ??
-                models.curated[0] ??
-                models.local[0] ??
-                models.huggingFace[0] ??
-                models.unsloth[0];
-              if (!firstModel) {
-                return;
-              }
-              onOpenCompatibilityTab?.({
-                title: firstModel.label,
-                request: buildCompatibilityRequestFromModelEntry(firstModel),
-              });
-            }}
-          >
-            Tab kompatibilnosti
-          </button>
-        </div>
-      </section>
+        </section>
 
-        <FilterResultsCard
-          filter={modelsFilter}
-          items={filteredItems}
-          onChanged={reloadModels}
-          onCheckCompatibility={(item) => {
-            setCompatibilityTitle(item.label);
-            setCompatibilityRequest(buildCompatibilityRequestFromModelEntry(item));
-          }}
-        />
+        <section className="status-card runtimepilot-section-shell primary-page-support-card runtime-faceplate-support">
+          <div className="runtime-faceplate-head">
+            <div className="runtime-faceplate-headline">
+              <span className="runtime-faceplate-module-glyph" aria-hidden="true">
+                <RuntimePilotIcon className="runtime-faceplate-module-icon" name="browser" />
+              </span>
+              <div className="runtime-faceplate-module-copy">
+                <span className="status-label">Dodaj ili proširi katalog</span>
+                <strong className="status-value">Lokalni GGUF prvo, ostali izvori po potrebi</strong>
+              </div>
+            </div>
+            <div className="runtime-faceplate-status-lights" aria-hidden="true">
+              <span className="runtime-faceplate-status-light runtime-faceplate-status-light-active" />
+              <span className="runtime-faceplate-status-light runtime-faceplate-status-light-active-soft" />
+              <span className="runtime-faceplate-status-light" />
+            </div>
+          </div>
+          <div className="runtime-faceplate-copy">
+            <p className="helper-text">
+              Za većinu ljudi najbrži put je lokalni GGUF. Unsloth i Hugging Face ostaju dostupni, ali su spušteni u napredni sloj da ne guše glavni tok.
+            </p>
+          </div>
+          <div className="runtime-faceplate-rail runtime-faceplate-rail-stack">
+            <span className="status-label">Dodavanje</span>
+            <button type="button" className="action-button-soft deck-control-button deck-control-button-secondary" onClick={revealAddModel}>
+              <span className="deck-control-symbol" aria-hidden="true">▶</span>
+              <span className="deck-control-copy">Dodaj lokalni GGUF</span>
+            </button>
+            <button type="button" className="action-button-soft deck-control-button deck-control-button-secondary" onClick={revealAdvancedCatalog}>
+              <span className="deck-control-symbol" aria-hidden="true">▶</span>
+              <span className="deck-control-copy">Otvori napredne izvore</span>
+            </button>
+          </div>
+        </section>
+      </div>
+
+      {quickModels.length ? (
+        <section className="status-card wide-card runtimepilot-section-shell">
+          <div className="section-header">
+            <div>
+              <span className="status-label">Brzi izbor modela</span>
+              <strong className="status-value">Promeni model bez lutanja po katalogu</strong>
+            </div>
+            <div className="inline-actions compact-actions">
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => {
+                  setModelsFilter("installed");
+                  revealLocalModels();
+                }}
+              >
+                Samo skinuti
+              </button>
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={revealAdvancedCatalog}
+              >
+                Ceo katalog
+              </button>
+            </div>
+          </div>
+          <div className="model-quick-grid">
+            {quickModels.map((item) => (
+              <QuickModelCard
+                key={item.id}
+                item={item}
+                pendingAction={Boolean(pendingAction)}
+                onActivate={handleQuickActivate}
+                onDownload={handleQuickDownload}
+                onCheckCompatibility={(model) => {
+                  setCompatibilityTitle(model.label);
+                  setCompatibilityRequest(buildCompatibilityRequestFromModelEntry(model));
+                }}
+              />
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      <ActionResultPanel result={result} />
+      <ModelDownloadProgressCard progress={downloadProgress} />
+
       <CompatibilityCalculatorModal
         isOpen={Boolean(compatibilityRequest)}
         title={compatibilityTitle}
@@ -1220,15 +1378,208 @@ export function ModelsPage({
           ) : null
         }
       />
-      <ModelDownloadProgressCard progress={downloadProgress} />
-
-      <section className="status-card wide-card">
-        <span className="status-label">Dodavanje modela</span>
-        <strong className="status-value">Lokalni GGUF, Unsloth i Hugging Face ulazna tačka</strong>
-        <p className="helper-text">
-          Sve tri opcije rade različitu stvar: lokalni GGUF odmah kopira fajl u model folder, dok
-          Unsloth i Hugging Face prvo dodaju zapis u katalog pa tek onda ide preuzimanje.
+      <details
+        className="status-card wide-card runtimepilot-section-shell runtimepilot-advanced-disclosure"
+        open={advancedCatalogOpen}
+        onToggle={(event) => setAdvancedCatalogOpen(event.currentTarget.open)}
+        ref={advancedCatalogRef}
+      >
+        <summary>Napredni katalog i izvori</summary>
+        <p className="helper-text runtimepilot-advanced-summary">
+          Ovde ostaju filteri, puni katalog, hide/delete tokovi, lokalni GGUF unos, Unsloth i Hugging Face izvori i preporučeni starter modeli. Glavni put je gore, a ovo otvaraš kada tražiš tačno određenu kombinaciju ili čistiš listu.
         </p>
+
+        <section className="status-card wide-card models-browser-shell runtimepilot-faceplate-module runtimepilot-advanced-module">
+          <div className="runtimepilot-advanced-module-shell">
+            <div className="runtime-faceplate-head">
+              <span className="status-label">Model browser</span>
+              <strong className="status-value">Pregled model kataloga i aktivacije</strong>
+            </div>
+            <div className="runtime-faceplate-copy">
+              <p className="helper-text">
+                Ovde su puni filteri, brojke i savet za prelazak iz kataloga u aktivan rad. Glavni izbor modela je gore, a ovde tražiš tačno određenu kombinaciju.
+              </p>
+            </div>
+            <div className="runtime-faceplate-rail runtime-faceplate-rail-stack">
+              <span className="status-label">Brza akcija</span>
+              <button
+                type="button"
+                className="action-button-soft deck-control-button deck-control-button-secondary"
+                onClick={() => {
+                  if (!models.local.length && !models.curated.length && !models.huggingFace.length && !models.unsloth.length) {
+                    return;
+                  }
+                  const firstModel =
+                    filteredItems[0] ??
+                    models.curated[0] ??
+                    models.local[0] ??
+                    models.huggingFace[0] ??
+                    models.unsloth[0];
+                  if (!firstModel) {
+                    return;
+                  }
+                  onOpenCompatibilityTab?.({
+                    title: firstModel.label,
+                    request: buildCompatibilityRequestFromModelEntry(firstModel),
+                  });
+                }}
+              >
+                <span className="deck-control-symbol" aria-hidden="true">▶</span>
+                <span className="deck-control-copy">Otvori kompatibilnost</span>
+              </button>
+            </div>
+          </div>
+          <div className="inline-actions compact-actions runtimepilot-toolbar-rack">
+              <button
+                type="button"
+                className={`secondary-button ${modelsFilter === "all" ? "nav-button-active" : ""}`}
+                onClick={() => setModelsFilter("all")}
+              >
+                Svi
+              </button>
+              <button
+                type="button"
+                className={`secondary-button ${modelsFilter === "installed" ? "nav-button-active" : ""}`}
+                onClick={() => setModelsFilter("installed")}
+              >
+                Skinuti
+              </button>
+              <button
+                type="button"
+                className={`secondary-button ${modelsFilter === "active" ? "nav-button-active" : ""}`}
+                onClick={() => setModelsFilter("active")}
+              >
+                Aktivni
+              </button>
+              <button
+                type="button"
+                className={`secondary-button ${modelsFilter === "no-mtp" ? "nav-button-active" : ""}`}
+                onClick={() => setModelsFilter("no-mtp")}
+              >
+                Bez MTP
+              </button>
+              <button
+                type="button"
+                className={`secondary-button ${modelsFilter === "has-mtp" ? "nav-button-active" : ""}`}
+                onClick={() => setModelsFilter("has-mtp")}
+              >
+                Ima MTP
+              </button>
+              <button
+                type="button"
+                className={`secondary-button ${modelsFilter === "unknown-mtp" ? "nav-button-active" : ""}`}
+                onClick={() => setModelsFilter("unknown-mtp")}
+              >
+                Nepoznato MTP
+              </button>
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() =>
+                  setCollapsedGroups({
+                    curated: false,
+                    local: false,
+                    huggingFace: false,
+                    unsloth: false,
+                  })
+                }
+              >
+                Proširi sve
+              </button>
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() =>
+                  setCollapsedGroups({
+                    curated: true,
+                    local: true,
+                    huggingFace: true,
+                    unsloth: true,
+                  })
+                }
+              >
+                Skupi sve
+              </button>
+          </div>
+          <div className="models-summary-grid">
+            <article className="models-summary-card">
+              <span className="status-label">Trenutni prikaz</span>
+              <strong>{buildModelsFilterLabel(modelsFilter)}</strong>
+              <p className="helper-text">
+                {modelsFilter === "all"
+                  ? "Gledaš ceo katalog bez dodatnog filtriranja."
+                  : "Filtrirani prikaz ti sužava fokus pre aktivacije ili čišćenja liste."}
+              </p>
+            </article>
+            <article className="models-summary-card">
+              <span className="status-label">U ovom prikazu</span>
+              <strong>{filteredSummary.total} modela</strong>
+              <p className="helper-text">
+                Skinuto: {filteredSummary.installed} · Aktivno: {filteredSummary.active}
+              </p>
+            </article>
+            <article className="models-summary-card">
+              <span className="status-label">Ukupan katalog</span>
+              <strong>{summary.total} modela</strong>
+              <p className="helper-text">
+                Ukupno skinuto: {summary.installed}. To ti govori koliki je stvarni lokalni fond.
+              </p>
+            </article>
+            <article className="models-summary-card">
+              <span className="status-label">Brzi savet</span>
+              <strong>Model pa nova sesija</strong>
+              <p className="helper-text">
+                Kad promeniš aktivni model, otvori novu OpenCode sesiju da agent stvarno preuzme novu postavku.
+              </p>
+            </article>
+          </div>
+          <div className="models-toolbar-note-grid">
+            <article className="models-toolbar-note">
+              <strong>OpenCode i aktivacija</strong>
+              <p className="helper-text">
+                Aktiviraj menja aktivni lokalni model odmah, ali OpenCode taj novi model preuzima tek
+                u novoj sesiji. Ako je OpenCode već otvoren, zatvori ga i otvori ponovo.
+              </p>
+            </article>
+            <article className="models-toolbar-note">
+              <strong>MTP i runtime fallback</strong>
+              <p className="helper-text">
+                MTP modeli sada koriste llama.cpp draft-mtp put. Ako je TurboQuant izabran, panel će
+                za takav model automatski pasti nazad na llama.cpp.
+              </p>
+            </article>
+          </div>
+        </section>
+
+        <FilterResultsCard
+          filter={modelsFilter}
+          items={filteredItems}
+          onChanged={reloadModels}
+          onCheckCompatibility={(item) => {
+            setCompatibilityTitle(item.label);
+            setCompatibilityRequest(buildCompatibilityRequestFromModelEntry(item));
+          }}
+        />
+
+      <section className="status-card wide-card runtimepilot-faceplate-module runtimepilot-command-module" ref={addModelRef}>
+        <div className="runtimepilot-advanced-module-shell">
+          <div className="runtime-faceplate-head">
+            <span className="status-label">Dodavanje modela</span>
+            <strong className="status-value">Lokalni GGUF, Unsloth i Hugging Face ulazna tačka</strong>
+          </div>
+          <div className="runtime-faceplate-copy">
+            <p className="helper-text">
+              Sve tri opcije rade različitu stvar: lokalni GGUF odmah kopira fajl u model folder, dok
+              Unsloth i Hugging Face prvo dodaju zapis u katalog pa tek onda ide preuzimanje.
+            </p>
+          </div>
+          <div className="runtime-faceplate-rail runtime-faceplate-rail-stack">
+            <span className="status-label">Pravilo rada</span>
+            <p className="helper-text runtime-faceplate-note">
+              Dodaj ovde, pa tek onda pređi na preuzimanje ili aktivaciju. Time je jasnije gde se rezultat pojavi posle klika.
+            </p>
+          </div>
+        </div>
         <div className="models-import-grid">
           <article className="models-import-card">
             <span className="status-label">Dodaj lokalni GGUF</span>
@@ -1431,14 +1782,27 @@ export function ModelsPage({
 
       <ActionResultPanel result={result} />
 
-      <section className="status-card wide-card">
-        <span className="status-label">Unsloth GGUF preporuke</span>
-        <p className="helper-text">
-          Ovo su preporučeni non-MTP GGUF izbori za RTX 3060 12 GB + llama.cpp + TurboQuant.
-        </p>
-        <p className="helper-text">
-          Fokus je na Qwen3.6 35B A3B i Qwen3.6 27B varijantama kao što su UD-IQ2_M i UD-IQ3_XXS.
-        </p>
+      <section className="status-card wide-card runtimepilot-faceplate-module runtimepilot-advanced-module">
+        <div className="runtimepilot-advanced-module-shell">
+          <div className="runtime-faceplate-head">
+            <span className="status-label">Unsloth GGUF preporuke</span>
+            <strong className="status-value">Preporučeni starter izbori za ovu mašinu</strong>
+          </div>
+          <div className="runtime-faceplate-copy">
+            <p className="helper-text">
+              Ovo su preporučeni non-MTP GGUF izbori za RTX 3060 12 GB + llama.cpp + TurboQuant.
+            </p>
+            <p className="helper-text">
+              Fokus je na Qwen3.6 35B A3B i Qwen3.6 27B varijantama kao što su UD-IQ2_M i UD-IQ3_XXS.
+            </p>
+          </div>
+          <div className="runtime-faceplate-rail runtime-faceplate-rail-stack">
+            <span className="status-label">Brzi izbor</span>
+            <p className="helper-text runtime-faceplate-note">
+              Ovde biraš preporučeni model kada ne želiš da ručno tražiš repo i filename.
+            </p>
+          </div>
+        </div>
         <div className="model-list">
           {recommendedModels.map((item) => (
             <article className="model-item" key={item.id}>
@@ -1533,6 +1897,7 @@ export function ModelsPage({
           setCompatibilityRequest(buildCompatibilityRequestFromModelEntry(item));
         }}
       />
+      </details>
     </>
   );
 }
