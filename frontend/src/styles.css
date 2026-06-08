@@ -6445,6 +6445,85 @@ select:-webkit-autofill {
   outline: none;
 }
 
+.tuning-lab-slot-precision-rack {
+  display: grid;
+  gap: 10px;
+}
+
+.tuning-lab-slot-precision-group {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--app-panel-elevated-border) 68%, var(--app-card-soft-border));
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.024), rgba(255, 255, 255, 0.01)),
+    color-mix(in srgb, var(--app-card-soft-bg) 92%, var(--app-overlay-solid-fill) 8%);
+}
+
+.tuning-lab-slot-precision-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.tuning-lab-slot-precision-control {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--app-panel-elevated-border) 62%, var(--app-card-soft-border));
+  background: color-mix(in srgb, var(--app-card-soft-bg) 90%, transparent);
+}
+
+.tuning-lab-slot-precision-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.tuning-lab-slot-precision-head span {
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--app-text-muted);
+}
+
+.tuning-lab-slot-precision-head strong {
+  font-size: 0.92rem;
+  line-height: 1.2;
+}
+
+.tuning-lab-slot-precision-track {
+  position: relative;
+  height: 10px;
+  border-radius: 999px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(0, 0, 0, 0.18)),
+    color-mix(in srgb, var(--app-panel-bg) 88%, transparent);
+  box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.04);
+}
+
+.tuning-lab-slot-precision-thumb {
+  position: absolute;
+  top: 50%;
+  width: 16px;
+  height: 16px;
+  border-radius: 6px;
+  transform: translate(-50%, -50%);
+  background:
+    linear-gradient(180deg, rgba(255, 214, 127, 0.96), rgba(150, 112, 41, 0.96));
+  box-shadow:
+    inset 0 1px 2px rgba(255, 255, 255, 0.14),
+    0 1px 4px rgba(0, 0, 0, 0.28);
+}
+
+.tuning-lab-slot-precision-control input {
+  width: 100%;
+}
+
 .tuning-lab-cockpit {
   display: grid;
   gap: 16px;

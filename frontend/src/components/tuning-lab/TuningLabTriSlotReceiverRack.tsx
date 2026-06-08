@@ -1,28 +1,13 @@
 import type { TuningLabSettingsPatch, TuningLabSlot } from "../../lib/types";
 import { TuningLabSlotDisplayPanel } from "./TuningLabSlotDisplayPanel";
 import { TuningLabSlotIdentityPanel } from "./TuningLabSlotIdentityPanel";
+import { TuningLabSlotPrecisionRack } from "./TuningLabSlotPrecisionRack";
 
 type TuningLabTriSlotReceiverRackProps = {
   slots: TuningLabSlot[];
   buildInferenceSummary: (slot: TuningLabSlot) => string;
   onPatchSlot: (slotId: string, patch: Partial<TuningLabSettingsPatch>) => void;
 };
-
-const PRECISION_FIELDS = [
-  ["Temperature", "temperature"],
-  ["Top-k", "topK"],
-  ["Top-p", "topP"],
-  ["Min-p", "minP"],
-  ["Repeat", "repeatPenalty"],
-  ["Last N", "repeatLastN"],
-  ["Presence", "presencePenalty"],
-  ["Frequency", "frequencyPenalty"],
-  ["Seed", "seed"],
-] as const;
-
-function getFieldStep(key: keyof TuningLabSettingsPatch) {
-  return key === "repeatLastN" || key === "seed" || key === "topK" ? 1 : 0.05;
-}
 
 export function TuningLabTriSlotReceiverRack({
   slots,
@@ -42,23 +27,7 @@ export function TuningLabTriSlotReceiverRack({
 
             <TuningLabSlotDisplayPanel slot={slot} onPatchSlot={onPatchSlot} />
 
-            <div className="tuning-lab-compact-grid">
-              {PRECISION_FIELDS.map(([label, key]) => (
-                <label className="settings-compact-field" key={`${slot.id}-${key}`}>
-                  <span>{label}</span>
-                  <input
-                    type="number"
-                    step={getFieldStep(key)}
-                    value={slot.settingsPatch[key]}
-                    onChange={(event) =>
-                      onPatchSlot(slot.id, {
-                        [key]: Number(event.target.value || 0),
-                      } as Partial<TuningLabSettingsPatch>)
-                    }
-                  />
-                </label>
-              ))}
-            </div>
+            <TuningLabSlotPrecisionRack slot={slot} onPatchSlot={onPatchSlot} />
           </article>
         ))}
       </div>

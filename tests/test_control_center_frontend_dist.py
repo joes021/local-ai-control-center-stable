@@ -741,6 +741,11 @@ def test_server_and_tuning_lab_sources_show_runtime_gpu_diagnostics():
     assert "tuning-lab-slot-led-row" in tuning_source
     assert "tuning-lab-slot-display-panel" in tuning_source
     assert "tuning-lab-slot-display-box" in tuning_source
+    assert "tuning-lab-slot-precision-rack" in tuning_source
+    assert "tuning-lab-slot-precision-group" in tuning_source
+    assert "Sampling" in tuning_source
+    assert "Stability" in tuning_source
+    assert "Bias" in tuning_source
     assert "Profil" in tuning_source
     assert "Thinking" in tuning_source
     assert "Source" in tuning_source
@@ -787,6 +792,8 @@ def test_server_and_tuning_lab_sources_show_runtime_gpu_diagnostics():
     assert ".tuning-lab-slot-led-row" in styles_source
     assert ".tuning-lab-slot-display-panel" in styles_source
     assert ".tuning-lab-slot-display-box" in styles_source
+    assert ".tuning-lab-slot-precision-rack" in styles_source
+    assert ".tuning-lab-slot-precision-group" in styles_source
     assert ".tuning-lab-results-table" in styles_source
     assert ".tuning-lab-history-card" in styles_source
     assert ".tuning-lab-history-toolbar" in styles_source
