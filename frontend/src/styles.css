@@ -509,6 +509,25 @@ code {
   line-height: 1.2;
 }
 
+.runtimepilot-page-loading {
+  display: grid;
+  gap: 10px;
+  min-height: 220px;
+  align-content: center;
+  padding: 18px;
+  border-radius: 18px;
+  border: 1px solid var(--app-card-soft-border);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.01)),
+    color-mix(in srgb, var(--app-card-soft-bg) 78%, transparent);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.runtimepilot-page-loading-title {
+  font-size: 1.08rem;
+  line-height: 1.2;
+}
+
 .runtimepilot-page-shell-summary {
   margin: 0;
   align-self: center;

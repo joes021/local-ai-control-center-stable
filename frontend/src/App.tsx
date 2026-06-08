@@ -1,7 +1,8 @@
 ﻿import { useEffect, useMemo, useRef, useState } from "react";
 
+import { Suspense, lazy } from "react";
+
 import { BrandLockup } from "./components/BrandLockup";
-import { GuidedFlowPanel } from "./components/GuidedFlowPanel";
 import { Layout } from "./components/Layout";
 import type { RuntimePilotIconName } from "./components/RuntimePilotIcon";
 import { RuntimePilotIcon } from "./components/RuntimePilotIcon";
@@ -16,26 +17,36 @@ import {
 import type { CompatibilityLaunchTarget } from "./lib/compatibility";
 import { applyTheme, readStoredTheme, THEME_CHANGED_EVENT } from "./lib/theme";
 import type { ProjectMemoryPayload, StatusPayload } from "./lib/types";
-import { BenchmarkPage } from "./pages/BenchmarkPage";
-import { BrowserPage } from "./pages/BrowserPage";
-import { CompatibilityPage } from "./pages/CompatibilityPage";
-import { FleetPage } from "./pages/FleetPage";
-import { HomePage } from "./pages/HomePage";
-import { HelpPage } from "./pages/HelpPage";
-import { JobsPage } from "./pages/JobsPage";
-import { KnowledgePage } from "./pages/KnowledgePage";
-import { LogsPage } from "./pages/LogsPage";
-import { ModelsPage } from "./pages/ModelsPage";
-import { ObservabilityPage } from "./pages/ObservabilityPage";
-import { OpenCodePage } from "./pages/OpenCodePage";
-import { ProjectMemoryPage } from "./pages/ProjectMemoryPage";
-import { RepairPage } from "./pages/RepairPage";
-import { SearchPage } from "./pages/SearchPage";
-import { ServerPage } from "./pages/ServerPage";
-import { SettingsPage } from "./pages/SettingsPage";
-import { TuningLabPage } from "./pages/TuningLabPage";
-import { UpdatesPage } from "./pages/UpdatesPage";
-import { WorkflowsPage } from "./pages/WorkflowsPage";
+
+const GuidedFlowPanel = lazy(async () => ({
+  default: (await import("./components/GuidedFlowPanel")).GuidedFlowPanel,
+}));
+const BenchmarkPage = lazy(async () => ({ default: (await import("./pages/BenchmarkPage")).BenchmarkPage }));
+const BrowserPage = lazy(async () => ({ default: (await import("./pages/BrowserPage")).BrowserPage }));
+const CompatibilityPage = lazy(async () => ({
+  default: (await import("./pages/CompatibilityPage")).CompatibilityPage,
+}));
+const FleetPage = lazy(async () => ({ default: (await import("./pages/FleetPage")).FleetPage }));
+const HomePage = lazy(async () => ({ default: (await import("./pages/HomePage")).HomePage }));
+const HelpPage = lazy(async () => ({ default: (await import("./pages/HelpPage")).HelpPage }));
+const JobsPage = lazy(async () => ({ default: (await import("./pages/JobsPage")).JobsPage }));
+const KnowledgePage = lazy(async () => ({ default: (await import("./pages/KnowledgePage")).KnowledgePage }));
+const LogsPage = lazy(async () => ({ default: (await import("./pages/LogsPage")).LogsPage }));
+const ModelsPage = lazy(async () => ({ default: (await import("./pages/ModelsPage")).ModelsPage }));
+const ObservabilityPage = lazy(async () => ({
+  default: (await import("./pages/ObservabilityPage")).ObservabilityPage,
+}));
+const OpenCodePage = lazy(async () => ({ default: (await import("./pages/OpenCodePage")).OpenCodePage }));
+const ProjectMemoryPage = lazy(async () => ({
+  default: (await import("./pages/ProjectMemoryPage")).ProjectMemoryPage,
+}));
+const RepairPage = lazy(async () => ({ default: (await import("./pages/RepairPage")).RepairPage }));
+const SearchPage = lazy(async () => ({ default: (await import("./pages/SearchPage")).SearchPage }));
+const ServerPage = lazy(async () => ({ default: (await import("./pages/ServerPage")).ServerPage }));
+const SettingsPage = lazy(async () => ({ default: (await import("./pages/SettingsPage")).SettingsPage }));
+const TuningLabPage = lazy(async () => ({ default: (await import("./pages/TuningLabPage")).TuningLabPage }));
+const UpdatesPage = lazy(async () => ({ default: (await import("./pages/UpdatesPage")).UpdatesPage }));
+const WorkflowsPage = lazy(async () => ({ default: (await import("./pages/WorkflowsPage")).WorkflowsPage }));
 
 const PAGE_META = {
   home: { label: "Početna", cue: "Pregled", icon: "home" },
@@ -463,99 +474,111 @@ export default function App() {
         setPage("settings");
       }}
     >
-      {page === "home" ? (
-        <HomePage
-          onOpenBenchmark={() => setPage("benchmark")}
-          onOpenCompatibility={() => setPage("compatibility")}
-          onOpenModels={() => setPage("models")}
-          onOpenOpenCode={() => setPage("opencode")}
-          onOpenProjectMemory={() => setPage("projectMemory")}
-          onOpenServer={() => setPage("server")}
-          onOpenTuningLab={() => setPage("tuningLab")}
-          onStartGuidedFlow={() => setPage("guidedFlow")}
-        />
-      ) : null}
-      {page === "guidedFlow" ? (
-        <GuidedFlowPanel
-          title="Vodi me redom"
-          summary="Ako ne želiš da razmišljaš gde prvo treba da klikneš, prati ovaj tok: runtime, zatim lokalni model, pa tek onda OpenCode rad."
-          steps={guidedFlowSteps}
-        />
-      ) : null}
-      {page === "server" ? <ServerPage /> : null}
-      {page === "fleet" ? <FleetPage /> : null}
-      {page === "jobs" ? <JobsPage /> : null}
-      {page === "workflows" ? (
-        <WorkflowsPage
-          onOpenBenchmark={() => setPage("benchmark")}
-          onOpenKnowledge={() => setPage("knowledge")}
-          onOpenSearch={() => setPage("search")}
-        />
-      ) : null}
-      {page === "opencode" ? <OpenCodePage /> : null}
-      {page === "models" ? (
-        <ModelsPage
-          onOpenCompatibilityTab={(target) => {
-            setCompatibilityLaunchTarget(target);
-            setPage("compatibility");
-          }}
-        />
-      ) : null}
-      {page === "browser" ? (
-        <BrowserPage
-          onOpenCompatibilityTab={(target) => {
-            setCompatibilityLaunchTarget(target);
-            setPage("compatibility");
-          }}
-        />
-      ) : null}
-      {page === "knowledge" ? <KnowledgePage onOpenSearch={() => setPage("search")} /> : null}
-      {page === "search" ? <SearchPage onOpenSettings={() => setPage("settings")} /> : null}
-      {page === "compatibility" ? (
-        <CompatibilityPage
-          launchTarget={compatibilityLaunchTarget}
-          onOpenBrowser={() => setPage("browser")}
-          onOpenModels={() => setPage("models")}
-        />
-      ) : null}
-      {page === "observability" ? <ObservabilityPage /> : null}
-      {page === "benchmark" ? (
-        <BenchmarkPage
-          onOpenLogs={() => setPage("logs")}
-          onOpenTuningLab={() => setPage("tuningLab")}
-        />
-      ) : null}
-      {page === "tuningLab" ? <TuningLabPage /> : null}
-      {page === "projectMemory" ? (
-        <ProjectMemoryPage
-          memory={projectMemory}
-          loading={projectMemoryLoading}
-          error={projectMemoryError}
-          onMemoryChange={setProjectMemory}
-          onRefresh={refreshProjectMemory}
-          onOpenTuningLab={() => setPage("tuningLab")}
-        />
-      ) : null}
-      {page === "settings" ? (
-        <SettingsPage
-          focusSectionId={settingsFocusSection}
-          onFocusHandled={() => setSettingsFocusSection(null)}
-        />
-      ) : null}
-      {page === "logs" ? <LogsPage /> : null}
-      {page === "repair" ? <RepairPage /> : null}
-      {page === "updates" ? <UpdatesPage /> : null}
-      {page === "help" ? (
-        <HelpPage
-          onOpenBenchmark={() => setPage("benchmark")}
-          onOpenModels={() => setPage("models")}
-          onOpenOpenCode={() => setPage("opencode")}
-          onOpenSearch={() => setPage("search")}
-          onOpenServer={() => setPage("server")}
-          onOpenSettings={() => setPage("settings")}
-          onOpenTuningLab={() => setPage("tuningLab")}
-        />
-      ) : null}
+      <Suspense
+        fallback={
+          <section className="runtimepilot-page-loading" aria-live="polite">
+            <span className="status-label">Učitavanje modula</span>
+            <strong className="runtimepilot-page-loading-title">Otvaram traženu stranu</strong>
+            <p className="helper-text">
+              UI se deli na manje delove da portal startuje brže i bez prevelikog Vite chunk-a.
+            </p>
+          </section>
+        }
+      >
+        {page === "home" ? (
+          <HomePage
+            onOpenBenchmark={() => setPage("benchmark")}
+            onOpenCompatibility={() => setPage("compatibility")}
+            onOpenModels={() => setPage("models")}
+            onOpenOpenCode={() => setPage("opencode")}
+            onOpenProjectMemory={() => setPage("projectMemory")}
+            onOpenServer={() => setPage("server")}
+            onOpenTuningLab={() => setPage("tuningLab")}
+            onStartGuidedFlow={() => setPage("guidedFlow")}
+          />
+        ) : null}
+        {page === "guidedFlow" ? (
+          <GuidedFlowPanel
+            title="Vodi me redom"
+            summary="Ako ne želiš da razmišljaš gde prvo treba da klikneš, prati ovaj tok: runtime, zatim lokalni model, pa tek onda OpenCode rad."
+            steps={guidedFlowSteps}
+          />
+        ) : null}
+        {page === "server" ? <ServerPage /> : null}
+        {page === "fleet" ? <FleetPage /> : null}
+        {page === "jobs" ? <JobsPage /> : null}
+        {page === "workflows" ? (
+          <WorkflowsPage
+            onOpenBenchmark={() => setPage("benchmark")}
+            onOpenKnowledge={() => setPage("knowledge")}
+            onOpenSearch={() => setPage("search")}
+          />
+        ) : null}
+        {page === "opencode" ? <OpenCodePage /> : null}
+        {page === "models" ? (
+          <ModelsPage
+            onOpenCompatibilityTab={(target) => {
+              setCompatibilityLaunchTarget(target);
+              setPage("compatibility");
+            }}
+          />
+        ) : null}
+        {page === "browser" ? (
+          <BrowserPage
+            onOpenCompatibilityTab={(target) => {
+              setCompatibilityLaunchTarget(target);
+              setPage("compatibility");
+            }}
+          />
+        ) : null}
+        {page === "knowledge" ? <KnowledgePage onOpenSearch={() => setPage("search")} /> : null}
+        {page === "search" ? <SearchPage onOpenSettings={() => setPage("settings")} /> : null}
+        {page === "compatibility" ? (
+          <CompatibilityPage
+            launchTarget={compatibilityLaunchTarget}
+            onOpenBrowser={() => setPage("browser")}
+            onOpenModels={() => setPage("models")}
+          />
+        ) : null}
+        {page === "observability" ? <ObservabilityPage /> : null}
+        {page === "benchmark" ? (
+          <BenchmarkPage
+            onOpenLogs={() => setPage("logs")}
+            onOpenTuningLab={() => setPage("tuningLab")}
+          />
+        ) : null}
+        {page === "tuningLab" ? <TuningLabPage /> : null}
+        {page === "projectMemory" ? (
+          <ProjectMemoryPage
+            memory={projectMemory}
+            loading={projectMemoryLoading}
+            error={projectMemoryError}
+            onMemoryChange={setProjectMemory}
+            onRefresh={refreshProjectMemory}
+            onOpenTuningLab={() => setPage("tuningLab")}
+          />
+        ) : null}
+        {page === "settings" ? (
+          <SettingsPage
+            focusSectionId={settingsFocusSection}
+            onFocusHandled={() => setSettingsFocusSection(null)}
+          />
+        ) : null}
+        {page === "logs" ? <LogsPage /> : null}
+        {page === "repair" ? <RepairPage /> : null}
+        {page === "updates" ? <UpdatesPage /> : null}
+        {page === "help" ? (
+          <HelpPage
+            onOpenBenchmark={() => setPage("benchmark")}
+            onOpenModels={() => setPage("models")}
+            onOpenOpenCode={() => setPage("opencode")}
+            onOpenSearch={() => setPage("search")}
+            onOpenServer={() => setPage("server")}
+            onOpenSettings={() => setPage("settings")}
+            onOpenTuningLab={() => setPage("tuningLab")}
+          />
+        ) : null}
+      </Suspense>
     </Layout>
   );
 }

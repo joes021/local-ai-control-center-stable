@@ -29,6 +29,23 @@ def test_control_center_serves_built_frontend_asset():
     assert asset_response.status_code == 200
 
 
+def test_packaged_frontend_js_chunks_stay_under_vite_warning_threshold():
+    dist_root = Path(
+        "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
+    )
+    js_assets = list((dist_root / "assets").glob("*.js"))
+
+    assert js_assets
+
+    oversized_assets = [
+        f"{path.name}={path.stat().st_size}"
+        for path in js_assets
+        if path.stat().st_size > 500 * 1024
+    ]
+
+    assert oversized_assets == []
+
+
 def test_runtimepilot_favicon_is_declared_and_packaged():
     source_index = Path("frontend/index.html").read_text(encoding="utf-8")
     dist_root = Path(
@@ -54,7 +71,7 @@ def test_packaged_settings_ui_uses_numeric_preset_dropdowns_with_custom_inputs()
     dist_root = Path(
         "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
     )
-    js_assets = list((dist_root / "assets").glob("index-*.js"))
+    js_assets = list((dist_root / "assets").glob("*.js"))
 
     assert js_assets
     bundled_text = "\n".join(path.read_text(encoding="utf-8") for path in js_assets)
@@ -155,7 +172,7 @@ def test_home_source_exposes_command_deck_intro_and_primary_flow_grid():
     dist_root = Path(
         "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
     )
-    js_assets = list((dist_root / "assets").glob("index-*.js"))
+    js_assets = list((dist_root / "assets").glob("*.js"))
     css_assets = list((dist_root / "assets").glob("index-*.css"))
 
     assert "Nastavi direktan rad" in home_source
@@ -206,7 +223,7 @@ def test_app_and_layout_source_and_packaged_frontend_show_global_active_model_st
     dist_root = Path(
         "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
     )
-    js_assets = list((dist_root / "assets").glob("index-*.js"))
+    js_assets = list((dist_root / "assets").glob("*.js"))
     css_assets = list((dist_root / "assets").glob("index-*.css"))
 
     assert "activeModelStrip" in layout_source
@@ -252,7 +269,7 @@ def test_project_memory_source_and_packaged_frontend_keep_project_memory_as_page
     dist_root = Path(
         "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
     )
-    js_assets = list((dist_root / "assets").glob("index-*.js"))
+    js_assets = list((dist_root / "assets").glob("*.js"))
     css_assets = list((dist_root / "assets").glob("index-*.css"))
 
     assert "projectMemory" in app_source
@@ -301,7 +318,7 @@ def test_live_resource_strip_source_and_packaged_frontend_use_compact_clickable_
     dist_root = Path(
         "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
     )
-    js_assets = list((dist_root / "assets").glob("index-*.js"))
+    js_assets = list((dist_root / "assets").glob("*.js"))
     css_assets = list((dist_root / "assets").glob("index-*.css"))
 
     assert "live-resource-inline-row" in strip_source
@@ -397,7 +414,7 @@ def test_settings_source_mentions_vram_fit_tuning_and_manual_gpu_layers_override
     dist_root = Path(
         "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
     )
-    js_assets = list((dist_root / "assets").glob("index-*.js"))
+    js_assets = list((dist_root / "assets").glob("*.js"))
 
     assert "VRAM fit tuning" in settings_source
     assert "GPU layers override" in settings_source
@@ -529,7 +546,7 @@ def test_app_source_and_packaged_frontend_use_primary_tabs_plus_more_menu():
     dist_root = Path(
         "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
     )
-    js_assets = list((dist_root / "assets").glob("index-*.js"))
+    js_assets = list((dist_root / "assets").glob("*.js"))
     css_assets = list((dist_root / "assets").glob("index-*.css"))
 
     assert "Više" in app_source
@@ -818,7 +835,7 @@ def test_server_and_opencode_source_include_equivalent_launch_command_panels():
     dist_root = Path(
         "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
     )
-    js_assets = list((dist_root / "assets").glob("index-*.js"))
+    js_assets = list((dist_root / "assets").glob("*.js"))
 
     assert js_assets
     bundled_text = "\n".join(path.read_text(encoding="utf-8") for path in js_assets)
@@ -860,7 +877,7 @@ def test_settings_source_clearly_separates_general_search_and_turboquant_section
     dist_root = Path(
         "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
     )
-    js_assets = list((dist_root / "assets").glob("index-*.js"))
+    js_assets = list((dist_root / "assets").glob("*.js"))
 
     assert "Kako da koristiš ovu stranu" in settings_source
     assert "Opšta podešavanja" in settings_source
@@ -957,7 +974,7 @@ def test_models_page_source_requires_explicit_confirmation_before_forced_risky_a
     dist_root = Path(
         "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
     )
-    js_assets = list((dist_root / "assets").glob("index-*.js"))
+    js_assets = list((dist_root / "assets").glob("*.js"))
 
     assert "Ovaj model verovatno neće moći da radi ili će raditi loše na ovoj mašini." in source
     assert "Da li želiš ipak da pokušaš aktivaciju?" in source
@@ -1022,7 +1039,7 @@ def test_packaged_browser_ui_contains_quant_sort_labels():
     dist_root = Path(
         "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
     )
-    js_assets = list((dist_root / "assets").glob("index-*.js"))
+    js_assets = list((dist_root / "assets").glob("*.js"))
 
     assert js_assets
     bundled_text = "\n".join(path.read_text(encoding="utf-8") for path in js_assets)
@@ -1081,7 +1098,7 @@ def test_app_source_and_packaged_frontend_include_updates_navigation():
     dist_root = Path(
         "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
     )
-    js_assets = list((dist_root / "assets").glob("index-*.js"))
+    js_assets = list((dist_root / "assets").glob("*.js"))
 
     assert js_assets
     bundled_text = "\n".join(path.read_text(encoding="utf-8") for path in js_assets)
@@ -1105,7 +1122,7 @@ def test_app_source_and_packaged_frontend_include_benchmark_navigation():
     dist_root = Path(
         "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
     )
-    js_assets = list((dist_root / "assets").glob("index-*.js"))
+    js_assets = list((dist_root / "assets").glob("*.js"))
 
     assert js_assets
     bundled_text = "\n".join(path.read_text(encoding="utf-8") for path in js_assets)
@@ -1124,7 +1141,7 @@ def test_app_source_and_packaged_frontend_include_search_navigation():
     dist_root = Path(
         "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
     )
-    js_assets = list((dist_root / "assets").glob("index-*.js"))
+    js_assets = list((dist_root / "assets").glob("*.js"))
 
     assert js_assets
     bundled_text = "\n".join(path.read_text(encoding="utf-8") for path in js_assets)
@@ -1156,7 +1173,7 @@ def test_app_source_and_packaged_frontend_include_knowledge_navigation():
     dist_root = Path(
         "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
     )
-    js_assets = list((dist_root / "assets").glob("index-*.js"))
+    js_assets = list((dist_root / "assets").glob("*.js"))
 
     assert js_assets
     bundled_text = "\n".join(path.read_text(encoding="utf-8") for path in js_assets)
@@ -1312,7 +1329,7 @@ def test_packaged_frontend_contains_benchmark_compare_export_copy():
     dist_root = Path(
         "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
     )
-    js_assets = list((dist_root / "assets").glob("index-*.js"))
+    js_assets = list((dist_root / "assets").glob("*.js"))
 
     assert js_assets
     bundled_text = "\n".join(path.read_text(encoding="utf-8") for path in js_assets)
@@ -1428,7 +1445,7 @@ def test_compatibility_modal_source_and_packaged_frontend_include_runtime_breakd
     dist_root = Path(
         "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
     )
-    js_assets = list((dist_root / "assets").glob("index-*.js"))
+    js_assets = list((dist_root / "assets").glob("*.js"))
 
     assert js_assets
     bundled_text = "\n".join(path.read_text(encoding="utf-8") for path in js_assets)
@@ -1447,7 +1464,7 @@ def test_app_source_and_packaged_frontend_include_compatibility_navigation():
     dist_root = Path(
         "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
     )
-    js_assets = list((dist_root / "assets").glob("index-*.js"))
+    js_assets = list((dist_root / "assets").glob("*.js"))
 
     assert js_assets
     bundled_text = "\n".join(path.read_text(encoding="utf-8") for path in js_assets)
@@ -1565,7 +1582,7 @@ def test_settings_and_workflows_source_include_generation_sampling_controls():
     dist_root = Path(
         "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
     )
-    js_assets = list((dist_root / "assets").glob("index-*.js"))
+    js_assets = list((dist_root / "assets").glob("*.js"))
 
     assert "Generacija i sampling" in settings_source
     assert "Temperature" in settings_source
@@ -1598,7 +1615,7 @@ def test_settings_and_workflows_source_make_inference_settings_visible_without_d
     dist_root = Path(
         "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
     )
-    js_assets = list((dist_root / "assets").glob("index-*.js"))
+    js_assets = list((dist_root / "assets").glob("*.js"))
 
     assert "Aktivna inference podešavanja" in settings_source
     assert "Temp" in settings_source
@@ -1624,7 +1641,7 @@ def test_settings_source_explains_inference_parameters_and_uses_compact_summary_
     dist_root = Path(
         "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
     )
-    js_assets = list((dist_root / "assets").glob("index-*.js"))
+    js_assets = list((dist_root / "assets").glob("*.js"))
     css_assets = list((dist_root / "assets").glob("index-*.css"))
 
     assert "Šta radi i kada da ga menjaš" in settings_source
@@ -1821,7 +1838,7 @@ def test_runtimepilot_phase_two_copy_is_present_in_source_and_bundle():
     dist_root = Path(
         "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
     )
-    js_assets = list((dist_root / "assets").glob("index-*.js"))
+    js_assets = list((dist_root / "assets").glob("*.js"))
 
     assert "RuntimePilot je stvarno pokušao GPU offload" in server_source
     assert "ručni ekvivalent onoga što RuntimePilot radi" in server_source
@@ -1937,7 +1954,7 @@ def test_runtimepilot_phase_six_visual_redesign_surfaces_icons_and_control_deck_
     dist_root = Path(
         "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
     )
-    js_assets = list((dist_root / "assets").glob("index-*.js"))
+    js_assets = list((dist_root / "assets").glob("*.js"))
     css_assets = list((dist_root / "assets").glob("index-*.css"))
 
     assert "runtimepilot-nav-button-glyph" in app_source
@@ -1983,7 +2000,7 @@ def test_help_page_and_more_menu_include_runtimepilot_help_center():
     dist_root = Path(
         "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
     )
-    js_assets = list((dist_root / "assets").glob("index-*.js"))
+    js_assets = list((dist_root / "assets").glob("*.js"))
     css_assets = list((dist_root / "assets").glob("index-*.css"))
 
     assert "HelpPage" in app_source
@@ -2077,7 +2094,7 @@ def test_runtimepilot_ux_rewrite_shell_exposes_primary_flow_and_guided_entry():
     dist_root = Path(
         "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
     )
-    js_assets = list((dist_root / "assets").glob("index-*.js"))
+    js_assets = list((dist_root / "assets").glob("*.js"))
     css_assets = list((dist_root / "assets").glob("index-*.css"))
 
     assert "Vodi me redom" in app_source
@@ -2103,7 +2120,7 @@ def test_runtimepilot_ux_rewrite_uses_shared_save_and_apply_language():
     dist_root = Path(
         "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
     )
-    js_assets = list((dist_root / "assets").glob("index-*.js"))
+    js_assets = list((dist_root / "assets").glob("*.js"))
     css_assets = list((dist_root / "assets").glob("index-*.css"))
 
     assert "Sačuvaj i primeni" in settings_source
@@ -2130,7 +2147,7 @@ def test_runtimepilot_ux_rewrite_home_centers_three_primary_zones():
     dist_root = Path(
         "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
     )
-    js_assets = list((dist_root / "assets").glob("index-*.js"))
+    js_assets = list((dist_root / "assets").glob("*.js"))
     css_assets = list((dist_root / "assets").glob("index-*.css"))
 
     assert "Nastavi direktan rad" in home_source
@@ -2165,7 +2182,7 @@ def test_runtimepilot_ux_rewrite_runtime_models_and_opencode_pages_use_new_prima
     dist_root = Path(
         "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
     )
-    js_assets = list((dist_root / "assets").glob("index-*.js"))
+    js_assets = list((dist_root / "assets").glob("*.js"))
     css_assets = list((dist_root / "assets").glob("index-*.css"))
 
     assert "Runtime cockpit" in server_source
@@ -2220,7 +2237,7 @@ def test_runtimepilot_runtime_advanced_diagnostics_use_deck_rack_layout():
     dist_root = Path(
         "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
     )
-    js_assets = list((dist_root / "assets").glob("index-*.js"))
+    js_assets = list((dist_root / "assets").glob("*.js"))
     css_assets = list((dist_root / "assets").glob("index-*.css"))
 
     assert "runtimepilot-advanced-rack" in server_source
@@ -2251,7 +2268,7 @@ def test_runtimepilot_models_and_opencode_advanced_sections_use_deck_modules():
     dist_root = Path(
         "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
     )
-    js_assets = list((dist_root / "assets").glob("index-*.js"))
+    js_assets = list((dist_root / "assets").glob("*.js"))
     css_assets = list((dist_root / "assets").glob("index-*.css"))
 
     assert "runtimepilot-advanced-module-shell" in models_source
@@ -2390,7 +2407,7 @@ def test_runtimepilot_hi_fi_shell_uses_flat_status_rails_and_rack_style_resource
     dist_root = Path(
         "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
     )
-    js_assets = list((dist_root / "assets").glob("index-*.js"))
+    js_assets = list((dist_root / "assets").glob("*.js"))
     css_assets = list((dist_root / "assets").glob("index-*.css"))
 
     assert "runtimepilot-status-rail" in app_source
@@ -2441,7 +2458,7 @@ def test_home_faceplate_modules_use_full_width_active_model_telemetry_and_second
     dist_root = Path(
         "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
     )
-    js_assets = list((dist_root / "assets").glob("index-*.js"))
+    js_assets = list((dist_root / "assets").glob("*.js"))
     css_assets = list((dist_root / "assets").glob("index-*.css"))
 
     assert "runtimepilot-active-model-layout" in app_source
@@ -2501,7 +2518,7 @@ def test_primary_flow_and_runtime_pages_use_hifi_deck_controls_for_main_actions(
     dist_root = Path(
         "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
     )
-    js_assets = list((dist_root / "assets").glob("index-*.js"))
+    js_assets = list((dist_root / "assets").glob("*.js"))
     css_assets = list((dist_root / "assets").glob("index-*.css"))
 
     assert '"play"' in icon_source
@@ -2534,3 +2551,4 @@ def test_primary_flow_and_runtime_pages_use_hifi_deck_controls_for_main_actions(
     assert "Otvori OpenCode" in bundled_js
     assert ".deck-control-button" in bundled_css
     assert ".deck-control-symbol" in bundled_css
+
