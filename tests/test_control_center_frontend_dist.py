@@ -6,6 +6,16 @@ from fastapi.testclient import TestClient
 from local_ai_control_center_installer.control_center_backend.main import app
 
 
+def _read_tuning_lab_frontend_sources() -> str:
+    parts = [Path("frontend/src/pages/TuningLabPage.tsx").read_text(encoding="utf-8")]
+    tuning_components = Path("frontend/src/components/tuning-lab")
+    if tuning_components.is_dir():
+        for path in sorted(tuning_components.glob("*")):
+            if path.suffix in {".ts", ".tsx"}:
+                parts.append(path.read_text(encoding="utf-8"))
+    return "\n".join(parts)
+
+
 def test_packaged_frontend_dist_contains_built_assets():
     dist_root = Path(
         "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
@@ -147,6 +157,32 @@ def test_theme_source_and_packaged_frontend_include_named_themes():
     assert '[data-theme="dark"]' in styles_source
     assert '[data-theme="neon-green"]' in styles_source
     assert '[data-theme="marine-blue"]' in styles_source
+
+
+def test_layout_source_and_packaged_frontend_include_scroll_to_top_control():
+    layout_source = Path("frontend/src/components/Layout.tsx").read_text(encoding="utf-8")
+    styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
+    dist_root = Path(
+        "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
+    )
+    js_assets = list((dist_root / "assets").glob("*.js"))
+    css_assets = list((dist_root / "assets").glob("index-*.css"))
+
+    assert "window.scrollTo({ top: 0, behavior: \"smooth\" })" in layout_source
+    assert "runtimepilot-scroll-top-button" in layout_source
+    assert "Na vrh" in layout_source
+    assert ".runtimepilot-scroll-top-button" in styles_source
+    assert ".runtimepilot-scroll-top-button-visible" in styles_source
+    assert ".runtimepilot-scroll-top-button-symbol" in styles_source
+    assert js_assets
+    assert css_assets
+
+    bundled_js = "\n".join(path.read_text(encoding="utf-8") for path in js_assets)
+    bundled_css = "\n".join(path.read_text(encoding="utf-8") for path in css_assets)
+
+    assert "Na vrh" in bundled_js
+    assert ".runtimepilot-scroll-top-button" in bundled_css
+    assert ".runtimepilot-scroll-top-button-visible" in bundled_css
 
 
 def test_workflow_preset_source_mentions_core_presets():
@@ -678,7 +714,7 @@ def test_tuning_lab_source_and_navigation_are_present():
 
 def test_server_and_tuning_lab_sources_show_runtime_gpu_diagnostics():
     server_source = Path("frontend/src/pages/ServerPage.tsx").read_text(encoding="utf-8")
-    tuning_source = Path("frontend/src/pages/TuningLabPage.tsx").read_text(encoding="utf-8")
+    tuning_source = _read_tuning_lab_frontend_sources()
     styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
 
     assert "GPU offload dijagnostika" in server_source
@@ -697,7 +733,9 @@ def test_server_and_tuning_lab_sources_show_runtime_gpu_diagnostics():
     assert "Instaliraj ili popravi OpenCode" in tuning_source
     assert "OpenCode nedostaje za Tuning Lab" in tuning_source
     assert "Aktivni run cockpit" in tuning_source
-    assert "tuning-lab-slot-grid" in tuning_source
+    assert "TuningLabTriSlotReceiverRack" in tuning_source
+    assert "tuning-lab-receiver-rack" in tuning_source
+    assert "tuning-lab-slot-row" in tuning_source
     assert "tuning-lab-results-table" in tuning_source
     assert "tuning-lab-history-card" in tuning_source
     assert "Zašto je ovaj slot pobedio" in tuning_source

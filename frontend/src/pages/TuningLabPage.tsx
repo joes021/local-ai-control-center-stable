@@ -3,6 +3,7 @@
 import { ActionResultPanel } from "../components/ActionResultPanel";
 import { PageDataStateCard } from "../components/PageDataStateCard";
 import { PageFlowCard } from "../components/PageFlowCard";
+import { TuningLabTriSlotReceiverRack } from "../components/tuning-lab/TuningLabTriSlotReceiverRack";
 import {
   applyTuningLabWinner,
   bootstrapOpenCode,
@@ -2090,115 +2091,16 @@ export function TuningLabPage() {
       <div className="tuning-lab-mixer-deck">
       <section className="status-card wide-card runtimepilot-faceplate-module tuning-rack-module">
         <span className="status-label">Tri slota</span>
-        <div className="tuning-lab-slot-grid">
-          {draft.slots.map((slot) => (
-            <article className="status-card tuning-lab-slot-card" key={slot.id}>
-              <span className="status-label">{slot.label}</span>
-              <strong className="status-value">{slot.source}</strong>
-              <p className="helper-text">{buildInferenceSummary(slot)}</p>
-              <div className="tuning-lab-compact-grid">
-                <label className="settings-compact-field">
-                  <span>Profil</span>
-                  <select
-                    value={slot.settingsPatch.profile}
-                    onChange={(event) =>
-                      setDraft({
-                        ...draft,
-                        slots: patchSlotSettings(draft.slots, slot.id, {
-                          profile: event.target.value,
-                        }),
-                      })
-                    }
-                  >
-                    <option value="balanced">balanced</option>
-                    <option value="speed">speed</option>
-                    <option value="video">video</option>
-                  </select>
-                </label>
-                <label className="settings-compact-field">
-                  <span>Thinking</span>
-                  <select
-                    value={slot.settingsPatch.thinkingMode}
-                    onChange={(event) =>
-                      setDraft({
-                        ...draft,
-                        slots: patchSlotSettings(draft.slots, slot.id, {
-                          thinkingMode: event.target.value,
-                        }),
-                      })
-                    }
-                  >
-                    <option value="no-thinking">no-thinking</option>
-                    <option value="low">low</option>
-                    <option value="mid">mid</option>
-                    <option value="high">high</option>
-                    <option value="extra-high">extra-high</option>
-                  </select>
-                </label>
-                <label className="settings-compact-field">
-                  <span>Context</span>
-                  <input
-                    type="number"
-                    value={slot.settingsPatch.context}
-                    onChange={(event) =>
-                      setDraft({
-                        ...draft,
-                        slots: patchSlotSettings(draft.slots, slot.id, {
-                          context: Number(event.target.value || 0),
-                        }),
-                      })
-                    }
-                  />
-                </label>
-                <label className="settings-compact-field">
-                  <span>Output</span>
-                  <input
-                    type="number"
-                    value={slot.settingsPatch.outputTokens}
-                    onChange={(event) =>
-                      setDraft({
-                        ...draft,
-                        slots: patchSlotSettings(draft.slots, slot.id, {
-                          outputTokens: Number(event.target.value || 0),
-                        }),
-                      })
-                    }
-                  />
-                </label>
-                {(
-                  [
-                    ["Temperature", "temperature"],
-                    ["Top-k", "topK"],
-                    ["Top-p", "topP"],
-                    ["Min-p", "minP"],
-                    ["Repeat", "repeatPenalty"],
-                    ["Last N", "repeatLastN"],
-                    ["Presence", "presencePenalty"],
-                    ["Frequency", "frequencyPenalty"],
-                    ["Seed", "seed"],
-                  ] as const
-                ).map(([label, key]) => (
-                  <label className="settings-compact-field" key={`${slot.id}-${key}`}>
-                    <span>{label}</span>
-                    <input
-                      type="number"
-                      step={key === "repeatLastN" || key === "seed" || key === "topK" ? 1 : 0.05}
-                      value={slot.settingsPatch[key]}
-                      onChange={(event) =>
-                        setDraft({
-                          ...draft,
-                          slots: patchSlotSettings(draft.slots, slot.id, {
-                            [key]: Number(event.target.value || 0),
-                          } as Partial<TuningLabSettingsPatch>),
-                        })
-                      }
-                    />
-                  </label>
-                ))}
-              </div>
-            </article>
-          ))}
-        </div>
+        <TuningLabTriSlotReceiverRack
+          slots={draft.slots}
+          buildInferenceSummary={buildInferenceSummary}
+          onPatchSlot={(slotId, patch) =>
+            setDraft({
+              ...draft,
+              slots: patchSlotSettings(draft.slots, slotId, patch),
+            })
+          }
+        />
       </section>
       </div>
 
