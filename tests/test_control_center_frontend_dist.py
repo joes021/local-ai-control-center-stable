@@ -2601,6 +2601,16 @@ def test_layout_and_app_source_drop_guided_flow_from_header_nav():
     assert "runtimepilot-nav-shell-title" in layout_source
 
 
+def test_home_hifi_component_split_exists():
+    module_source = Path("frontend/src/components/home/HomeHiFiModule.tsx").read_text(encoding="utf-8")
+    command_source = Path("frontend/src/components/home/HomeHiFiCommandButton.tsx").read_text(encoding="utf-8")
+    rail_source = Path("frontend/src/components/home/HomeHiFiSignalRail.tsx").read_text(encoding="utf-8")
+
+    assert "export function HomeHiFiModule" in module_source
+    assert "export function HomeHiFiCommandButton" in command_source
+    assert "export function HomeHiFiSignalRail" in rail_source
+
+
 def test_runtimepilot_source_copy_uses_real_diacritics_instead_of_literal_unicode_escape_sequences():
     allowed_sequences = {
         Path("frontend/src/components/TelemetryPanel.tsx"): ["\\u00A0"],
