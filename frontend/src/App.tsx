@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useRef, useState } from "react";
+﻿import { useEffect, useState } from "react";
 
 import { Suspense, lazy } from "react";
 
@@ -22,6 +22,7 @@ const GuidedFlowPanel = lazy(async () => ({
   default: (await import("./components/GuidedFlowPanel")).GuidedFlowPanel,
 }));
 const BenchmarkPage = lazy(async () => ({ default: (await import("./pages/BenchmarkPage")).BenchmarkPage }));
+const AdvancedPage = lazy(async () => ({ default: (await import("./pages/AdvancedPage")).AdvancedPage }));
 const BrowserPage = lazy(async () => ({ default: (await import("./pages/BrowserPage")).BrowserPage }));
 const CompatibilityPage = lazy(async () => ({
   default: (await import("./pages/CompatibilityPage")).CompatibilityPage,
@@ -52,6 +53,7 @@ const PAGE_META = {
   home: { label: "Početna", cue: "Pregled", icon: "home" },
   server: { label: "Runtime", cue: "Engine", icon: "server" },
   guidedFlow: { label: "Vodi me redom", cue: "Koraci", icon: "control" },
+  advanced: { label: "Napredno", cue: "Alati", icon: "control" },
   fleet: { label: "Flota", cue: "Mašine", icon: "fleet" },
   jobs: { label: "Poslovi", cue: "Red", icon: "jobs" },
   workflows: { label: "Radni tokovi", cue: "Automatika", icon: "workflows" },
@@ -74,37 +76,8 @@ const PAGE_META = {
 
 type PageKey = keyof typeof PAGE_META;
 
-const PAGE_LABELS = Object.fromEntries(
-  Object.entries(PAGE_META).map(([key, value]) => [key, value.label]),
-) as Record<PageKey, string>;
-
-const PRIMARY_PAGES: PageKey[] = ["home", "server", "models", "opencode"];
+const PRIMARY_PAGES: PageKey[] = ["home", "server", "models", "opencode", "advanced"];
 const GUIDED_FLOW_PAGE: PageKey = "guidedFlow";
-
-const MORE_PAGE_SECTIONS: Array<{ label: string; pages: PageKey[] }> = [
-  {
-    label: "Analiza i alati",
-    pages: ["browser", "knowledge", "compatibility", "benchmark", "observability", "tuningLab"],
-  },
-  {
-    label: "Tokovi i automatizacija",
-    pages: ["workflows", "jobs", "fleet"],
-  },
-  {
-    label: "Održavanje",
-    pages: ["logs", "repair", "updates"],
-  },
-  {
-    label: "Fokus projekta",
-    pages: ["projectMemory"],
-  },
-  {
-    label: "Pomoć",
-    pages: ["help"],
-  },
-];
-
-const MORE_PAGES = MORE_PAGE_SECTIONS.flatMap((section) => section.pages);
 
 const runtimePilotDeckTitle = "RuntimePilot Control Deck";
 const runtimePilotDeckSummary =
@@ -122,8 +95,14 @@ export default function App() {
   const [themeId, setThemeId] = useState<string>(readStoredTheme);
   const [compatibilityLaunchTarget, setCompatibilityLaunchTarget] =
     useState<CompatibilityLaunchTarget | null>(null);
-  const [isMoreOpen, setIsMoreOpen] = useState(false);
-  const moreMenuRef = useRef<HTMLDivElement | null>(null);
+  async function loadStatus() {
+    try {
+      const payload = await fetchStatus();
+      setStatus(payload);
+    } catch {
+      setStatus(null);
+    }
+  }
 
   useEffect(() => {
     let active = true;
@@ -135,23 +114,20 @@ export default function App() {
     void primeServerStatusCache().catch(() => null);
     void primeSettingsCache().catch(() => null);
 
-    const loadStatus = async () => {
-      try {
-        const payload = await fetchStatus();
-        if (active) {
-          setStatus(payload);
-        }
-      } catch {
-        if (active) {
-          setStatus(null);
-        }
+    void loadStatus();
+    const statusTimer = window.setInterval(() => {
+      if (active) {
+        void loadStatus();
+      }
+    }, STATUS_REFRESH_MS);
+
+    const handleStatusRefresh = () => {
+      if (active) {
+        void loadStatus();
       }
     };
 
-    void loadStatus();
-    const statusTimer = window.setInterval(() => {
-      void loadStatus();
-    }, STATUS_REFRESH_MS);
+    window.addEventListener("runtimepilot:status-refresh-requested", handleStatusRefresh);
 
     fetchSettings()
       .then((payload) => {
@@ -176,6 +152,7 @@ export default function App() {
       active = false;
       window.clearTimeout(modelsWarmTimer);
       window.clearInterval(statusTimer);
+      window.removeEventListener("runtimepilot:status-refresh-requested", handleStatusRefresh);
       window.removeEventListener(THEME_CHANGED_EVENT, handleThemeChanged as EventListener);
     };
   }, []);
@@ -217,36 +194,6 @@ export default function App() {
     document.title = `RuntimePilot${versionSuffix}`;
   }, [status?.version]);
 
-  useEffect(() => {
-    setIsMoreOpen(false);
-  }, [page]);
-
-  useEffect(() => {
-    if (!isMoreOpen) {
-      return undefined;
-    }
-
-    const handlePointerDown = (event: MouseEvent) => {
-      if (!moreMenuRef.current?.contains(event.target as Node)) {
-        setIsMoreOpen(false);
-      }
-    };
-
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setIsMoreOpen(false);
-      }
-    };
-
-    window.addEventListener("mousedown", handlePointerDown);
-    window.addEventListener("keydown", handleEscape);
-
-    return () => {
-      window.removeEventListener("mousedown", handlePointerDown);
-      window.removeEventListener("keydown", handleEscape);
-    };
-  }, [isMoreOpen]);
-
   const refreshProjectMemory = async () => {
     setProjectMemoryLoading(true);
     try {
@@ -261,8 +208,6 @@ export default function App() {
       setProjectMemoryLoading(false);
     }
   };
-
-  const isMoreActive = MORE_PAGES.includes(page);
 
   const guidedFlowSteps = [
     {
@@ -296,13 +241,6 @@ export default function App() {
       onAction: () => setPage("opencode"),
     },
   ] as const;
-
-  const activeMoreLabel = useMemo(() => {
-    if (!isMoreActive) {
-      return null;
-    }
-    return PAGE_LABELS[page];
-  }, [isMoreActive, page]);
 
   const activeModelName =
     status?.activeModel && status.activeModel.trim() && status.activeModel.trim() !== "--"
@@ -378,71 +316,6 @@ export default function App() {
             </button>
           ))}
         </div>
-        <button
-          className={`nav-button nav-button-guided ${page === GUIDED_FLOW_PAGE ? "nav-button-active" : ""}`}
-          onClick={() => setPage(GUIDED_FLOW_PAGE)}
-          type="button"
-        >
-          <span className="runtimepilot-nav-button-glyph">
-            <RuntimePilotIcon className="runtimepilot-nav-icon" name={PAGE_META.guidedFlow.icon} />
-          </span>
-          <span className="runtimepilot-nav-button-copy">
-            <span className="runtimepilot-nav-button-label">{PAGE_META.guidedFlow.label}</span>
-            <span className="runtimepilot-nav-button-cue">{PAGE_META.guidedFlow.cue}</span>
-          </span>
-        </button>
-      </div>
-      <div className="nav-more-shell" ref={moreMenuRef}>
-        <button
-          aria-expanded={isMoreOpen ? "true" : "false"}
-          aria-haspopup="menu"
-          className={`nav-button nav-more-button ${isMoreOpen || isMoreActive ? "nav-button-active" : ""}`}
-          onClick={() => setIsMoreOpen((current) => !current)}
-          type="button"
-        >
-          <span className="runtimepilot-nav-button-glyph">
-            <RuntimePilotIcon className="runtimepilot-nav-icon" name="control" />
-          </span>
-          <span className="runtimepilot-nav-button-copy">
-            <span className="runtimepilot-nav-button-label">Više</span>
-            <span className="runtimepilot-nav-button-cue">{activeMoreLabel ?? "Analiza + alati"}</span>
-          </span>
-          <span aria-hidden="true" className={`nav-more-chevron ${isMoreOpen ? "nav-more-chevron-open" : ""}`}>
-            ▾
-          </span>
-        </button>
-        {isMoreOpen ? (
-          <div className="nav-menu-panel" role="menu">
-            {activeMoreLabel ? <p className="nav-menu-current">Aktivno: {activeMoreLabel}</p> : null}
-            {MORE_PAGE_SECTIONS.map((section) => (
-              <section className="nav-menu-section" key={section.label}>
-                <p className="nav-menu-section-label">{section.label}</p>
-                <div className="nav-menu-grid">
-                  {section.pages.map((key) => (
-                    <button
-                      className={`nav-menu-item ${page === key ? "nav-menu-item-active" : ""}`}
-                      key={key}
-                      onClick={() => {
-                        setPage(key);
-                        setIsMoreOpen(false);
-                      }}
-                      role="menuitem"
-                      type="button"
-                    >
-                      <span className="runtimepilot-nav-menu-glyph">
-                        <RuntimePilotIcon className="runtimepilot-nav-menu-icon" name={PAGE_META[key].icon} />
-                      </span>
-                      <span className="runtimepilot-nav-menu-copy">
-                        <span className="runtimepilot-nav-menu-label">{PAGE_META[key].label}</span>
-                        <span className="runtimepilot-nav-menu-cue">{PAGE_META[key].cue}</span>
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </section>
-            ))}
-          </div>
-        ) : null}
       </div>
     </>
   );
@@ -504,6 +377,7 @@ export default function App() {
             steps={guidedFlowSteps}
           />
         ) : null}
+        {page === "advanced" ? <AdvancedPage /> : null}
         {page === "server" ? <ServerPage /> : null}
         {page === "fleet" ? <FleetPage /> : null}
         {page === "jobs" ? <JobsPage /> : null}

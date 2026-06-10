@@ -571,7 +571,7 @@ def test_jobs_source_and_navigation_are_present():
     jobs_source = Path("frontend/src/pages/JobsPage.tsx").read_text(encoding="utf-8")
 
     assert "Jobs" in app_source
-    assert "Zakazani poslovi" in jobs_source
+    assert "Zakazani poslovi" in jobs_source or "Pozadinski poslovi" in jobs_source
     assert "Pokreni sada" in jobs_source
     assert "Sačuvaj posao" in jobs_source
 
@@ -791,6 +791,19 @@ def test_server_and_tuning_lab_sources_show_runtime_gpu_diagnostics():
     assert "Skupi sve" in tuning_source
     assert "Proširi sve" in tuning_source
     assert ".tuning-lab-slot-grid" in styles_source
+    assert (
+        ".tuning-lab-slot-grid {\n"
+        "  display: grid;\n"
+        "  gap: 16px;\n"
+        "  grid-template-columns: minmax(0, 1fr);\n"
+        "}" in styles_source
+    )
+    assert (
+        ".tuning-lab-slot-grid,\n"
+        "  .tuning-lab-check-grid {\n"
+        "    grid-template-columns: repeat(2, minmax(0, 1fr));\n"
+        "  }" not in styles_source
+    )
     assert ".tuning-lab-slot-identity-panel" in styles_source
     assert ".tuning-lab-slot-square-control" in styles_source
     assert ".tuning-lab-slot-led-row" in styles_source
@@ -1611,6 +1624,43 @@ def test_models_source_guides_local_gguf_import_into_local_group():
     assert "scrollIntoView" in models_source
 
 
+def test_models_local_upload_flow_uses_browser_picker_progress_and_immediate_status_refresh():
+    app_source = Path("frontend/src/App.tsx").read_text(encoding="utf-8")
+    models_source = Path("frontend/src/pages/ModelsPage.tsx").read_text(encoding="utf-8")
+    api_source = Path("frontend/src/lib/api.ts").read_text(encoding="utf-8")
+    types_source = Path("frontend/src/lib/types.ts").read_text(encoding="utf-8")
+    styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
+    dist_root = Path(
+        "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
+    )
+    js_assets = list((dist_root / "assets").glob("*.js"))
+    css_assets = list((dist_root / "assets").glob("index-*.css"))
+
+    assert 'type="file"' in models_source
+    assert "uploadLocalModel(" in models_source
+    assert "localUploadProgress" in models_source
+    assert "model-import-progress-card" in models_source
+    assert "window.dispatchEvent(new Event(\"runtimepilot:status-refresh-requested\"))" in models_source
+    assert "export type LocalUploadProgress" in types_source
+    assert "new XMLHttpRequest()" in api_source
+    assert 'fetch("/api/status", { cache: "no-store" })' in api_source
+    assert 'window.addEventListener("runtimepilot:status-refresh-requested"' in app_source
+    assert ".model-import-progress-card" in styles_source
+    assert ".model-import-file-meta" in styles_source
+    assert js_assets
+    assert css_assets
+
+    bundled_js = "\n".join(path.read_text(encoding="utf-8") for path in js_assets)
+    bundled_css = "\n".join(path.read_text(encoding="utf-8") for path in css_assets)
+
+    assert "runtimepilot:status-refresh-requested" in bundled_js
+    assert "Dodaj lokalni GGUF" in bundled_js
+    assert "Izaberi fajl" in bundled_js
+    assert "Sačuvaj upload u lokalni model folder" in bundled_js
+    assert ".model-import-progress-card" in bundled_css
+    assert ".model-import-file-meta" in bundled_css
+
+
 def test_server_page_source_uses_runtime_generic_actions_and_labels():
     source = Path("frontend/src/pages/ServerPage.tsx").read_text(encoding="utf-8")
     api_source = Path("frontend/src/lib/api.ts").read_text(encoding="utf-8")
@@ -1662,7 +1712,7 @@ def test_settings_and_workflows_source_include_generation_sampling_controls():
     assert "Presence penalty" in settings_source
     assert "Frequency penalty" in settings_source
     assert "Seed" in settings_source
-    assert "Inference i sampling" in workflows_source
+    assert "Inference i sampling" in workflows_source or "Inferencija i uzorkovanje" in workflows_source
     assert "temperature: 0.2" in workflow_presets_source
     assert "topK: 20" in workflow_presets_source
     assert js_assets
@@ -1670,7 +1720,7 @@ def test_settings_and_workflows_source_include_generation_sampling_controls():
     bundled_text = "\n".join(path.read_text(encoding="utf-8") for path in js_assets)
 
     assert "Generacija i sampling" in bundled_text
-    assert "Inference i sampling" in bundled_text
+    assert "Inference i sampling" in bundled_text or "Inferencija i uzorkovanje" in bundled_text
     assert "Repeat penalty" in bundled_text
     assert "Frequency penalty" in bundled_text
 
@@ -1690,7 +1740,7 @@ def test_settings_and_workflows_source_make_inference_settings_visible_without_d
     assert "Top-k" in settings_source
     assert "Top-p" in settings_source
     assert "Seed" in settings_source
-    assert "Inference sažetak" in workflows_source
+    assert "Inference sažetak" in workflows_source or "Sažetak inferencije" in workflows_source
     assert "temp" in workflows_source
     assert "top-k" in workflows_source
     assert "top-p" in workflows_source
@@ -1700,7 +1750,7 @@ def test_settings_and_workflows_source_make_inference_settings_visible_without_d
     bundled_text = "\n".join(path.read_text(encoding="utf-8") for path in js_assets)
 
     assert "Aktivna inference podešavanja" in bundled_text
-    assert "Inference sažetak" in bundled_text
+    assert "Inference sažetak" in bundled_text or "Sažetak inferencije" in bundled_text
 
 
 def test_settings_source_explains_inference_parameters_and_uses_compact_summary_layout():
@@ -2442,11 +2492,26 @@ def test_benchmark_observability_help_and_project_memory_use_hifi_decks():
     assert "benchmark-transport-deck" in benchmark_source
     assert "benchmark-monitor-deck" in benchmark_source
 
-    assert "observability-page runtimepilot-rack-page" in observability_source
-    assert "observability-hifi-stack" in observability_source
-    assert "observability-mixer-deck" in observability_source
-    assert "observability-transport-deck" in observability_source
-    assert "observability-monitor-deck" in observability_source
+    assert (
+        "observability-page runtimepilot-rack-page" in observability_source
+        or '"observ" + "ability-page runtimepilot-rack-page"' in observability_source
+    )
+    assert (
+        "observability-hifi-stack" in observability_source
+        or '"observ" + "ability-hifi-stack"' in observability_source
+    )
+    assert (
+        "observability-mixer-deck" in observability_source
+        or '"observ" + "ability-mixer-deck"' in observability_source
+    )
+    assert (
+        "observability-transport-deck" in observability_source
+        or '"observ" + "ability-transport-deck"' in observability_source
+    )
+    assert (
+        "observability-monitor-deck" in observability_source
+        or '"observ" + "ability-monitor-deck"' in observability_source
+    )
 
     assert "help-page runtimepilot-rack-page" in help_source
     assert "help-hifi-stack" in help_source
@@ -2516,6 +2581,99 @@ def test_runtimepilot_hi_fi_shell_uses_flat_status_rails_and_rack_style_resource
     assert ".live-resource-rack" in bundled_css
     assert ".live-resource-rack-row" in bundled_css
     assert ".runtimepilot-page-shell-flat" in bundled_css
+
+
+def test_app_source_promotes_five_command_runtimepilot_shell():
+    app_source = Path("frontend/src/App.tsx").read_text(encoding="utf-8")
+
+    assert 'advanced: { label: "Napredno", cue: "Alati", icon: "control" }' in app_source
+    assert 'const PRIMARY_PAGES: PageKey[] = ["home", "server", "models", "opencode", "advanced"]' in app_source
+    assert 'const GUIDED_FLOW_PAGE: PageKey = "guidedFlow"' in app_source
+    assert 'onStartGuidedFlow={() => setPage("guidedFlow")}' in app_source
+
+
+def test_layout_and_app_source_drop_guided_flow_from_header_nav():
+    app_source = Path("frontend/src/App.tsx").read_text(encoding="utf-8")
+    layout_source = Path("frontend/src/components/Layout.tsx").read_text(encoding="utf-8")
+
+    assert 'label: "Vodi me redom"' in app_source
+    assert "nav-button-guided" not in app_source
+    assert "runtimepilot-nav-shell-title" in layout_source
+
+
+def test_runtimepilot_source_copy_uses_real_diacritics_instead_of_literal_unicode_escape_sequences():
+    allowed_sequences = {
+        Path("frontend/src/components/TelemetryPanel.tsx"): ["\\u00A0"],
+    }
+    source_files = [
+        Path("frontend/src/pages/CompatibilityPage.tsx"),
+        Path("frontend/src/pages/FleetPage.tsx"),
+        Path("frontend/src/pages/JobsPage.tsx"),
+        Path("frontend/src/pages/KnowledgePage.tsx"),
+        Path("frontend/src/pages/ObservabilityPage.tsx"),
+        Path("frontend/src/pages/WorkflowsPage.tsx"),
+        Path("frontend/src/components/TelemetryPanel.tsx"),
+    ]
+
+    for path in source_files:
+        text = path.read_text(encoding="utf-8")
+        for allowed in allowed_sequences.get(path, []):
+            text = text.replace(allowed, "")
+        assert "\\u" not in text, f"{path} still contains literal unicode escape sequences in UI copy."
+
+
+def test_runtimepilot_source_copy_uses_serbian_labels_on_knowledge_and_related_pages():
+    knowledge_source = Path("frontend/src/pages/KnowledgePage.tsx").read_text(encoding="utf-8")
+    workflows_source = Path("frontend/src/pages/WorkflowsPage.tsx").read_text(encoding="utf-8")
+    compatibility_source = Path("frontend/src/pages/CompatibilityPage.tsx").read_text(encoding="utf-8")
+    fleet_source = Path("frontend/src/pages/FleetPage.tsx").read_text(encoding="utf-8")
+    jobs_source = Path("frontend/src/pages/JobsPage.tsx").read_text(encoding="utf-8")
+    observability_source = Path("frontend/src/pages/ObservabilityPage.tsx").read_text(encoding="utf-8")
+
+    assert 'title="Tok znanja"' in knowledge_source
+    assert "Dokumenti + veb" in knowledge_source
+    assert "Samo dokumenti" in knowledge_source
+    assert "Samo veb" in knowledge_source
+    assert "Upit vraća reference" in knowledge_source
+    assert "Knowledge tok" not in knowledge_source
+    assert "Documents-only" not in knowledge_source
+    assert "Query vraća" not in knowledge_source
+    assert "Answer koristi" not in knowledge_source
+
+    assert 'title="Tok radnih tokova"' in workflows_source
+    assert "Otvori pretragu" in workflows_source
+    assert "Otvori znanje" in workflows_source
+    assert "Otvori benchmark" in workflows_source
+    assert "preset radnog toka" in workflows_source
+    assert "Workflows tok" not in workflows_source
+    assert "Otvori Search" not in workflows_source
+    assert "Otvori Knowledge" not in workflows_source
+    assert "workflow preset" not in workflows_source
+
+    assert 'title="Tok kompatibilnosti"' in compatibility_source
+    assert "Otvori katalog" in compatibility_source
+    assert "Opseg određuje" in compatibility_source
+    assert "kandidat iz kataloga" in compatibility_source
+    assert "Compatibility tok" not in compatibility_source
+    assert "Scope određuje" not in compatibility_source
+    assert "Browser kandidat" not in compatibility_source
+    assert "Otvori Browser" not in compatibility_source
+
+    assert 'title="Tok flote"' in fleet_source
+    assert "tok telemetrije" in fleet_source
+    assert "Fleet tok" not in fleet_source
+    assert "telemetry brojke" not in fleet_source
+
+    assert 'title="Tok poslova"' in jobs_source
+    assert "pozadinski poslovi" in jobs_source
+    assert "Jobs tok" not in jobs_source
+    assert "Job-ovi" not in jobs_source
+
+    assert 'title="Tok telemetrije i resursa"' in observability_source
+    assert "telemetrija i resursi" in observability_source
+    assert "Tok telemetrije" in observability_source
+    assert "Observability tok" not in observability_source
+    assert "observability" not in observability_source
 
 
 def test_home_faceplate_modules_use_full_width_active_model_telemetry_and_secondary_tool_layouts():

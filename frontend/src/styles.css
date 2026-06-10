@@ -598,6 +598,12 @@ code {
   align-self: center;
 }
 
+.runtimepilot-advanced-shell {
+  display: grid;
+  gap: 12px;
+  padding: 20px;
+}
+
 .runtimepilot-content-grid {
   gap: 18px;
 }
@@ -905,7 +911,7 @@ code {
 
 .runtimepilot-primary-flows {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(170px, 192px);
+  grid-template-columns: minmax(0, 1fr);
   align-items: stretch;
   gap: 8px;
   flex: 1 1 760px;
@@ -913,7 +919,7 @@ code {
 
 .top-nav-primary {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   grid-auto-rows: minmax(70px, auto);
   flex: 1 1 auto;
   gap: 8px;
@@ -4747,6 +4753,33 @@ select:-webkit-autofill {
   background: linear-gradient(180deg, rgba(242, 184, 75, 0.12), rgba(77, 54, 22, 0.12));
 }
 
+.model-import-file-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-top: 10px;
+  padding: 9px 12px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--app-card-soft-border) 88%, transparent);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.012)),
+    rgba(18, 14, 10, 0.14);
+  color: var(--app-text-primary);
+  font-size: 0.94rem;
+}
+
+.model-import-file-meta span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.model-import-progress-card {
+  gap: 12px;
+}
+
 *::-webkit-scrollbar {
   width: 12px;
   height: 12px;
@@ -5552,16 +5585,149 @@ select:-webkit-autofill {
 .browser-detail-top {
   padding: 18px;
   display: grid;
+  gap: 18px;
+}
+
+.browser-detail-rack {
+  display: grid;
   gap: 16px;
+}
+
+.browser-detail-copy {
+  display: grid;
+  gap: 10px;
+}
+
+.browser-detail-pill-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.browser-detail-action-rail {
+  align-content: start;
+}
+
+.browser-detail-action-rail .deck-control-button {
+  width: 100%;
+}
+
+.browser-detail-module-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.14fr) minmax(280px, 0.86fr);
+  gap: 16px;
+}
+
+.browser-detail-module {
+  display: grid;
+  gap: 14px;
+  padding: 16px 18px;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--app-card-soft-border) 90%, transparent);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.01)),
+    color-mix(in srgb, var(--app-card-soft-bg) 82%, var(--app-overlay-solid-fill));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.2);
+}
+
+.browser-detail-module-header {
+  display: grid;
+  gap: 4px;
+}
+
+.browser-metadata-grid-hifi {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.browser-readout-card {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--app-card-soft-border) 88%, transparent);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.015)),
+    rgba(18, 14, 10, 0.16);
+}
+
+.browser-readout-card .status-value {
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+.browser-detail-chip-row {
+  margin-top: 2px;
+}
+
+.model-download-monitor-card {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+}
+
+.model-download-monitor-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.model-download-monitor-copy {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.model-download-monitor-copy .helper-text,
+.model-download-monitor-note {
+  margin: 0;
+}
+
+.model-download-status-pill {
+  align-self: flex-start;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.model-download-status-good {
+  background: rgba(80, 170, 120, 0.18);
+  border-color: rgba(80, 170, 120, 0.38);
+}
+
+.model-download-status-bad {
+  background: rgba(190, 70, 70, 0.18);
+  border-color: rgba(190, 70, 70, 0.38);
+}
+
+.model-download-status-active {
+  background: rgba(242, 184, 75, 0.18);
+  border-color: rgba(242, 184, 75, 0.38);
+}
+
+.model-download-status-idle {
+  background: rgba(137, 126, 118, 0.2);
+}
+
+.model-download-monitor-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
 }
 
 .download-progress-track {
   width: 100%;
-  height: 12px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
+  height: 10px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--app-card-soft-border) 88%, transparent);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.01)),
+    rgba(0, 0, 0, 0.18);
   overflow: hidden;
-  margin-bottom: 4px;
+  margin-bottom: 2px;
 }
 
 .download-progress-fill {
@@ -5876,6 +6042,10 @@ select:-webkit-autofill {
   padding: 14px;
 }
 
+.browser-detail-guidance .browser-callout {
+  margin-top: 4px;
+}
+
 .browser-compat-card {
   padding: 16px;
 }
@@ -5906,6 +6076,30 @@ select:-webkit-autofill {
 
 .browser-check-fail {
   border-color: rgba(190, 70, 70, 0.28);
+}
+
+@media (max-width: 1080px) {
+  .browser-detail-module-grid,
+  .model-download-monitor-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 820px) {
+  .browser-detail-top,
+  .model-download-monitor-card {
+    padding: 16px 14px;
+  }
+
+  .browser-detail-module-grid,
+  .browser-metadata-grid-hifi,
+  .model-download-monitor-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .model-download-monitor-top {
+    flex-direction: column;
+  }
 }
 
 .browser-reasoning-list {
@@ -6332,12 +6526,13 @@ select:-webkit-autofill {
 .tuning-lab-slot-grid {
   display: grid;
   gap: 16px;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .tuning-lab-slot-card {
   display: grid;
   gap: 14px;
+  min-width: 0;
 }
 
 .tuning-lab-receiver-rack {
@@ -6347,12 +6542,13 @@ select:-webkit-autofill {
 
 .tuning-lab-slot-row {
   padding: 16px;
+  min-width: 0;
 }
 
 .tuning-lab-slot-zones {
   display: grid;
-  gap: 14px;
-  grid-template-columns: minmax(0, 1.1fr) minmax(220px, 0.8fr) minmax(0, 1fr);
+  gap: 16px;
+  grid-template-columns: minmax(240px, 1fr) minmax(220px, 0.9fr) minmax(340px, 1.3fr);
   align-items: start;
 }
 
@@ -6394,6 +6590,7 @@ select:-webkit-autofill {
 
 .tuning-lab-slot-square-control select {
   width: 100%;
+  min-width: 0;
 }
 
 .tuning-lab-slot-led-row {
@@ -6421,6 +6618,7 @@ select:-webkit-autofill {
 .tuning-lab-slot-display-panel {
   display: grid;
   gap: 10px;
+  align-content: start;
 }
 
 .tuning-lab-slot-display-box {
@@ -6443,6 +6641,8 @@ select:-webkit-autofill {
 }
 
 .tuning-lab-slot-display-box input {
+  width: 100%;
+  min-width: 0;
   border: none;
   background: transparent;
   color: #dff7d8;
@@ -6458,6 +6658,7 @@ select:-webkit-autofill {
 .tuning-lab-slot-precision-rack {
   display: grid;
   gap: 10px;
+  min-width: 0;
 }
 
 .tuning-lab-slot-precision-group {
@@ -6532,6 +6733,7 @@ select:-webkit-autofill {
 
 .tuning-lab-slot-precision-control input {
   width: 100%;
+  min-width: 0;
 }
 
 .tuning-lab-slot-state-draft {
@@ -7720,7 +7922,6 @@ select:-webkit-autofill {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .tuning-lab-slot-grid,
   .tuning-lab-check-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }

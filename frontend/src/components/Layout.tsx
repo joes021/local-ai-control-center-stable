@@ -1,5 +1,6 @@
 ﻿import type { PropsWithChildren, ReactNode } from "react";
 
+import { useEffect, useState } from "react";
 import { LiveResourceStrip } from "./LiveResourceStrip";
 import { RuntimePilotIcon } from "./RuntimePilotIcon";
 
@@ -16,6 +17,8 @@ type LayoutProps = PropsWithChildren<{
   onOpenSettingsSection?: (sectionId: string) => void;
 }>;
 
+const SCROLL_TOP_VISIBILITY_OFFSET = 360;
+
 export function Layout({
   title,
   subtitle,
@@ -29,6 +32,25 @@ export function Layout({
   themeId = "dark-chocolate",
   onOpenSettingsSection,
 }: LayoutProps) {
+  const [showScrollTop, setShowScrollTop] = useState(false);
+
+  useEffect(() => {
+    const syncScrollTopVisibility = () => {
+      setShowScrollTop(window.scrollY > SCROLL_TOP_VISIBILITY_OFFSET);
+    };
+
+    syncScrollTopVisibility();
+    window.addEventListener("scroll", syncScrollTopVisibility, { passive: true });
+
+    return () => {
+      window.removeEventListener("scroll", syncScrollTopVisibility);
+    };
+  }, []);
+
+  const handleScrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
   return (
     <div className="app-shell" data-theme={themeId}>
       <header className="hero runtimepilot-hero-panel">
@@ -56,7 +78,7 @@ export function Layout({
           <div className="runtimepilot-nav-shell-copy">
             <span className="status-label">Glavni tokovi</span>
             <strong className="runtimepilot-nav-shell-title">
-              Biraj direktan rad ili klikni na vodič kada želiš jasan redosled koraka.
+              Biraj jedan od četiri glavna toka ili otvori Napredno kada ti trebaju analiza i dodatni alati.
             </strong>
           </div>
           <nav className="top-nav runtimepilot-nav-surface">
@@ -91,6 +113,19 @@ export function Layout({
         </div>
         <main className="content-grid runtimepilot-content-grid">{children}</main>
       </section>
+      <button
+        aria-hidden={showScrollTop ? "false" : "true"}
+        aria-label="Vrati na vrh stranice"
+        className={`runtimepilot-scroll-top-button ${showScrollTop ? "runtimepilot-scroll-top-button-visible" : ""}`}
+        onClick={handleScrollToTop}
+        tabIndex={showScrollTop ? 0 : -1}
+        type="button"
+      >
+        <span aria-hidden="true" className="runtimepilot-scroll-top-button-symbol">
+          ↑
+        </span>
+        <span className="runtimepilot-scroll-top-button-label">Na vrh</span>
+      </button>
     </div>
   );
 }
