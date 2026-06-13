@@ -8,6 +8,16 @@ Installer-managed local control panel for running `llama.cpp`, `TurboQuant`, GGU
 [![Ubuntu x86_64](https://img.shields.io/badge/platform-Ubuntu%20x86__64%20(in%20progress)-d29922)](https://github.com/joes021/local-ai-control-center-stable)
 [![Repository scope](https://img.shields.io/badge/scope-installer%20%2B%20control%20panel-c58a1f)](https://github.com/joes021/local-ai-control-center-stable)
 
+## What RuntimePilot Is
+
+RuntimePilot is a local AI control center built around one clear path:
+
+1. start a local runtime like `llama.cpp` or `TurboQuant`
+2. choose a local GGUF model
+3. use that model through `OpenCode`
+
+The goal is to remove guesswork. Instead of manually stitching together runtimes, model folders, context limits, and agent setup, the installer gives you one local portal for launch, monitoring, model browsing, compatibility checks, benchmarking, search, and `OpenCode` handoff.
+
 ## Download
 
 Start here:
@@ -17,6 +27,28 @@ Start here:
 - [Browse all releases](https://github.com/joes021/local-ai-control-center-stable/releases)
 
 The Windows product is intended to be launched with a double-click. No ZIP extraction and no manual PowerShell command are required for the packaged installer path.
+
+## Quick Install
+
+For a normal Windows install:
+
+1. Download [`RuntimePilotSetup-latest.exe`](https://github.com/joes021/local-ai-control-center-stable/releases/latest/download/RuntimePilotSetup-latest.exe).
+2. Run the installer and keep the default path unless you have a strong reason to change it.
+3. Launch `RuntimePilot` from the Desktop shortcut or Start Menu.
+4. Let the launcher finish initialization and open the local portal in your default browser.
+
+After first launch, the portal is normally available at `http://127.0.0.1:3210/`.
+
+## Known Issues And Trust Prompts
+
+Before installing, it helps to know these realities:
+
+- the Windows installer is currently **not Authenticode signed**
+- Windows SmartScreen may ask for manual confirmation
+- `Avast` can incorrectly flag the launcher flow because RuntimePilot starts local services and opens your browser automatically
+- if your antivirus is too aggressive, add an exception for the RuntimePilot install folder instead of disabling protection globally
+
+RuntimePilot does **not** need a cloud backend for its main control-panel flow. The default path is focused on local runtime orchestration.
 
 ## What You Get
 
@@ -30,6 +62,24 @@ The Windows product is intended to be launched with a double-click. No ZIP extra
 - a shared `SearxNG` search workspace for local web results and local-model answers
 - a local `Knowledge` workspace for installer-managed document indexing, query, and answer flows
 - truthful logs, reports, and runtime status
+
+## First Things To Try
+
+If you want the shortest successful path after install:
+
+1. open `Runtime`
+2. start or verify the runtime health signal
+3. open `Models`
+4. choose the active local model
+5. open `OpenCode`
+6. launch the installer-managed `OpenCode` path
+
+If you want to test fit and speed before real work:
+
+1. open `Compatibility`
+2. check context and VRAM fit
+3. open `Benchmark`
+4. run a short or full battery
 
 ## Product Screens
 
@@ -73,6 +123,16 @@ The current Windows milestone includes:
 - visible `Compatibility` workspace instead of a hidden calculator modal
 
 The current default `recommended-6gb` starter model is `gemma-4-E4B-it-Q4_K_M.gguf`.
+
+## Who This Is For
+
+RuntimePilot is mainly aimed at users who want local AI without spending the first day figuring out:
+
+- which runtime is active
+- where the model actually lives
+- whether the model fits VRAM
+- whether `OpenCode` is really using the selected local model
+- where benchmark, search, knowledge, and troubleshooting tools are hidden
 
 ## Installed Product Layout
 
@@ -227,3 +287,20 @@ This repository does not yet claim:
 
 - stable core first
 - shell and polish second
+
+## Help And Troubleshooting
+
+If something feels unclear, these are the best starting points:
+
+- latest public release: [Releases](https://github.com/joes021/local-ai-control-center-stable/releases)
+- Windows validation checklist: [2026-05-25-windows-real-world-test-checklist.md](docs/release-validation/2026-05-25-windows-real-world-test-checklist.md)
+- locked requirements: [PRODUCT_REQUIREMENTS.md](docs/requirements/PRODUCT_REQUIREMENTS.md)
+
+When reporting an issue, include:
+
+- RuntimePilot version
+- active runtime (`llama.cpp` or `TurboQuant`)
+- active model
+- what you clicked
+- what you expected
+- what happened instead
