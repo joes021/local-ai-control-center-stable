@@ -272,6 +272,7 @@ def test_app_and_layout_source_and_packaged_frontend_show_global_active_model_st
     css_assets = list((dist_root / "assets").glob("index-*.css"))
 
     assert "SystemStatusLayer" in app_source
+    assert "systemStatusLayer={systemStatusLayer}" in app_source
     assert "systemStatusLayer" in layout_source
     assert "LiveResourceStrip" in layer_source
     assert "runtimepilot-active-model-strip" in app_source
@@ -318,8 +319,10 @@ def test_shell_source_uses_unified_system_status_layer():
     ).read_text(encoding="utf-8")
 
     assert "SystemStatusLayer" in app_source
-    assert "systemStatusLayer={" in layout_source
+    assert "systemStatusLayer={systemStatusLayer}" in app_source
+    assert "systemStatusLayer?: ReactNode" in layout_source
     assert "activeModelStrip={" not in app_source
+    assert "activeModelStrip?: ReactNode" not in layout_source
     assert "LiveResourceStrip" in layer_source
     assert "sticky" in layer_source.lower()
 
@@ -330,6 +333,42 @@ def test_styles_source_includes_full_and_compact_system_status_modes():
     assert ".runtimepilot-system-status-layer" in styles_source
     assert ".runtimepilot-system-status-layer-sticky" in styles_source
     assert ".runtimepilot-system-status-layer-compact" in styles_source
+
+
+def test_shell_source_shares_live_resource_state_between_full_and_compact_modes():
+    layer_source = Path(
+        "frontend/src/components/shell/SystemStatusLayer.tsx"
+    ).read_text(encoding="utf-8")
+    strip_source = Path("frontend/src/components/LiveResourceStrip.tsx").read_text(
+        encoding="utf-8"
+    )
+
+    assert "useLiveResourceStripState" in layer_source
+    assert layer_source.count("state={liveResourceStripState}") == 2
+    assert "type LiveResourceStripSharedState" in strip_source
+    assert "state?: LiveResourceStripSharedState" in strip_source
+    assert "compact?: boolean" in strip_source
+
+
+def test_packaged_frontend_includes_unified_system_status_layer():
+    dist_root = Path(
+        "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
+    )
+    js_assets = list((dist_root / "assets").glob("*.js"))
+    css_assets = list((dist_root / "assets").glob("index-*.css"))
+
+    assert js_assets
+    assert css_assets
+
+    bundled_js = "\n".join(path.read_text(encoding="utf-8") for path in js_assets)
+    bundled_css = "\n".join(path.read_text(encoding="utf-8") for path in css_assets)
+
+    assert "Aktivni model" in bundled_js
+    assert "Živi resursi" in bundled_js
+    assert ".runtimepilot-system-status-layer" in bundled_css
+    assert ".runtimepilot-system-status-layer-sticky" in bundled_css
+    assert ".runtimepilot-system-status-layer-compact" in bundled_css
+    assert ".live-resource-strip-compact" in bundled_css
 
 
 def test_project_memory_source_and_packaged_frontend_keep_project_memory_as_page_and_nav_tool():

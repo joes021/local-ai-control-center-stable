@@ -31,6 +31,18 @@ type ResourceMetric = {
   toneClassName?: string;
 };
 
+export type LiveResourceStripSharedState = {
+  error: string;
+  observability: ObservabilityPayload | null;
+  selectedMetricKey: ResourceMetricKey | null;
+  setSelectedMetricKey: (
+    value:
+      | ResourceMetricKey
+      | null
+      | ((current: ResourceMetricKey | null) => ResourceMetricKey | null),
+  ) => void;
+};
+
 function formatPercent(value: number | null | undefined) {
   if (typeof value !== "number" || !Number.isFinite(value)) {
     return "--";
@@ -200,9 +212,16 @@ function buildContextStatusLabel(
 type LiveResourceStripProps = {
   onOpenSettingsSection?: (sectionId: string) => void;
   compact?: boolean;
+  state?: LiveResourceStripSharedState;
 };
 
-export function LiveResourceStrip({ onOpenSettingsSection, compact = false }: LiveResourceStripProps) {
+type LiveResourceStripViewProps = {
+  compact: boolean;
+  onOpenSettingsSection?: (sectionId: string) => void;
+  state: LiveResourceStripSharedState;
+};
+
+export function useLiveResourceStripState(): LiveResourceStripSharedState {
   const [observability, setObservability] = useState<ObservabilityPayload | null>(null);
   const [error, setError] = useState("");
   const [selectedMetricKey, setSelectedMetricKey] = useState<ResourceMetricKey | null>(null);
@@ -236,6 +255,21 @@ export function LiveResourceStrip({ onOpenSettingsSection, compact = false }: Li
       window.clearInterval(timer);
     };
   }, []);
+
+  return {
+    error,
+    observability,
+    selectedMetricKey,
+    setSelectedMetricKey,
+  };
+}
+
+function LiveResourceStripView({
+  compact,
+  onOpenSettingsSection,
+  state,
+}: LiveResourceStripViewProps) {
+  const { error, observability, selectedMetricKey, setSelectedMetricKey } = state;
 
   const selectedGpu = useMemo(
     () => observability?.system.gpuDevices.find((item) => item.selected) ?? observability?.system.gpuDevices[0] ?? null,
@@ -712,5 +746,43 @@ export function LiveResourceStrip({ onOpenSettingsSection, compact = false }: Li
         )}
       </div>
     </section>
+  );
+}
+
+function LiveResourceStripWithInternalState({
+  compact = false,
+  onOpenSettingsSection,
+}: Omit<LiveResourceStripProps, "state">) {
+  const liveResourceStripState = useLiveResourceStripState();
+
+  return (
+    <LiveResourceStripView
+      compact={compact}
+      onOpenSettingsSection={onOpenSettingsSection}
+      state={liveResourceStripState}
+    />
+  );
+}
+
+export function LiveResourceStrip({
+  compact = false,
+  onOpenSettingsSection,
+  state,
+}: LiveResourceStripProps) {
+  if (state) {
+    return (
+      <LiveResourceStripView
+        compact={compact}
+        onOpenSettingsSection={onOpenSettingsSection}
+        state={state}
+      />
+    );
+  }
+
+  return (
+    <LiveResourceStripWithInternalState
+      compact={compact}
+      onOpenSettingsSection={onOpenSettingsSection}
+    />
   );
 }

@@ -83,7 +83,6 @@ export function Layout({
           </div>
         </div>
       </header>
-      {/* Legacy source anchor for regression tests: systemStatusLayer={systemStatusLayer} */}
       {systemStatusLayer}
       <section className="runtimepilot-page-shell runtimepilot-page-shell-flat">
         {suppressPageShellHeader ? null : (

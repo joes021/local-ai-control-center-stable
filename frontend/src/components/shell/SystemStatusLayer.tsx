@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
-import { LiveResourceStrip } from "../LiveResourceStrip";
+import { LiveResourceStrip, useLiveResourceStripState } from "../LiveResourceStrip";
 
 type SystemStatusLayerProps = {
   activeModelStrip: ReactNode;
@@ -14,6 +14,7 @@ export function SystemStatusLayer({
   onOpenSettingsSection,
 }: SystemStatusLayerProps) {
   const fullLayerRef = useRef<HTMLDivElement | null>(null);
+  const liveResourceStripState = useLiveResourceStripState();
   const [stickyVisible, setStickyVisible] = useState(false);
 
   useEffect(() => {
@@ -41,7 +42,10 @@ export function SystemStatusLayer({
     <div className="runtimepilot-system-status-layer">
       <div className="runtimepilot-system-status-layer-full" ref={fullLayerRef}>
         <div className="runtimepilot-status-rack">{activeModelStrip}</div>
-        <LiveResourceStrip onOpenSettingsSection={onOpenSettingsSection} />
+        <LiveResourceStrip
+          onOpenSettingsSection={onOpenSettingsSection}
+          state={liveResourceStripState}
+        />
       </div>
       <div
         aria-hidden={stickyVisible ? undefined : true}
@@ -53,7 +57,11 @@ export function SystemStatusLayer({
             <div className="runtimepilot-status-rack runtimepilot-status-rack-compact">
               {activeModelStrip}
             </div>
-            <LiveResourceStrip compact onOpenSettingsSection={onOpenSettingsSection} />
+            <LiveResourceStrip
+              compact
+              onOpenSettingsSection={onOpenSettingsSection}
+              state={liveResourceStripState}
+            />
           </div>
         ) : null}
       </div>
