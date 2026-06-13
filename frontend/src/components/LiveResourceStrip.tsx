@@ -199,9 +199,10 @@ function buildContextStatusLabel(
 
 type LiveResourceStripProps = {
   onOpenSettingsSection?: (sectionId: string) => void;
+  compact?: boolean;
 };
 
-export function LiveResourceStrip({ onOpenSettingsSection }: LiveResourceStripProps) {
+export function LiveResourceStrip({ onOpenSettingsSection, compact = false }: LiveResourceStripProps) {
   const [observability, setObservability] = useState<ObservabilityPayload | null>(null);
   const [error, setError] = useState("");
   const [selectedMetricKey, setSelectedMetricKey] = useState<ResourceMetricKey | null>(null);
@@ -633,7 +634,12 @@ export function LiveResourceStrip({ onOpenSettingsSection }: LiveResourceStripPr
   }
 
   return (
-    <section className="live-resource-strip live-resource-rack runtimepilot-command-deck" aria-label="Živi resursi sistema">
+    <section
+      className={`live-resource-strip live-resource-rack runtimepilot-command-deck${
+        compact ? " live-resource-strip-compact" : ""
+      }`}
+      aria-label="Živi resursi sistema"
+    >
       <div className="live-resource-rack-head">
         <span className="status-label live-resource-strip-heading">Živi resursi</span>
         <span className="live-resource-rack-helper">Instrument tabla sistema</span>

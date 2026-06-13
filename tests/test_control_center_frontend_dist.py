@@ -241,10 +241,14 @@ def test_observability_source_and_navigation_are_present():
 
 
 def test_layout_and_benchmark_source_show_persistent_resource_strip_and_mode_labels():
-    layout_source = Path("frontend/src/components/Layout.tsx").read_text(encoding="utf-8")
+    app_source = Path("frontend/src/App.tsx").read_text(encoding="utf-8")
+    layer_source = Path(
+        "frontend/src/components/shell/SystemStatusLayer.tsx"
+    ).read_text(encoding="utf-8")
     benchmark_source = Path("frontend/src/pages/BenchmarkPage.tsx").read_text(encoding="utf-8")
 
-    assert "LiveResourceStrip" in layout_source
+    assert "SystemStatusLayer" in app_source
+    assert "LiveResourceStrip" in layer_source
     assert "CPU uživo" in benchmark_source
     assert "RAM uživo" in benchmark_source
     assert "VRAM uživo" in benchmark_source
@@ -257,6 +261,9 @@ def test_layout_and_benchmark_source_show_persistent_resource_strip_and_mode_lab
 def test_app_and_layout_source_and_packaged_frontend_show_global_active_model_strip():
     app_source = Path("frontend/src/App.tsx").read_text(encoding="utf-8")
     layout_source = Path("frontend/src/components/Layout.tsx").read_text(encoding="utf-8")
+    layer_source = Path(
+        "frontend/src/components/shell/SystemStatusLayer.tsx"
+    ).read_text(encoding="utf-8")
     styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
     dist_root = Path(
         "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
@@ -264,7 +271,9 @@ def test_app_and_layout_source_and_packaged_frontend_show_global_active_model_st
     js_assets = list((dist_root / "assets").glob("*.js"))
     css_assets = list((dist_root / "assets").glob("index-*.css"))
 
-    assert "activeModelStrip" in layout_source
+    assert "SystemStatusLayer" in app_source
+    assert "systemStatusLayer" in layout_source
+    assert "LiveResourceStrip" in layer_source
     assert "runtimepilot-active-model-strip" in app_source
     assert "runtimepilot-utility-module" in app_source
     assert "runtimepilot-active-model-layout" in app_source
@@ -273,6 +282,7 @@ def test_app_and_layout_source_and_packaged_frontend_show_global_active_model_st
     assert "Otvori modele" in app_source
     assert "Runtime aktivan" in app_source
     assert "Nema aktivnog modela" in app_source
+    assert ".runtimepilot-system-status-layer" in styles_source
     assert ".runtimepilot-active-model-strip" in styles_source
     assert ".runtimepilot-utility-module" in styles_source
     assert ".runtimepilot-utility-head" in styles_source
@@ -289,12 +299,37 @@ def test_app_and_layout_source_and_packaged_frontend_show_global_active_model_st
     assert "Otvori modele" in bundled_js
     assert "Runtime aktivan" in bundled_js
     assert "Nema aktivnog modela" in bundled_js
+    assert ".runtimepilot-system-status-layer" in bundled_css
     assert ".runtimepilot-active-model-strip" in bundled_css
     assert ".runtimepilot-utility-module" in bundled_css
     assert ".runtimepilot-utility-head" in bundled_css
     assert ".runtimepilot-utility-title" in bundled_css
     assert ".runtimepilot-active-model-open" in bundled_css
     assert ".runtimepilot-active-model-meta" in bundled_css
+
+
+def test_shell_source_uses_unified_system_status_layer():
+    app_source = Path("frontend/src/App.tsx").read_text(encoding="utf-8")
+    layout_source = Path("frontend/src/components/Layout.tsx").read_text(
+        encoding="utf-8"
+    )
+    layer_source = Path(
+        "frontend/src/components/shell/SystemStatusLayer.tsx"
+    ).read_text(encoding="utf-8")
+
+    assert "SystemStatusLayer" in app_source
+    assert "systemStatusLayer={" in layout_source
+    assert "activeModelStrip={" not in app_source
+    assert "LiveResourceStrip" in layer_source
+    assert "sticky" in layer_source.lower()
+
+
+def test_styles_source_includes_full_and_compact_system_status_modes():
+    styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
+
+    assert ".runtimepilot-system-status-layer" in styles_source
+    assert ".runtimepilot-system-status-layer-sticky" in styles_source
+    assert ".runtimepilot-system-status-layer-compact" in styles_source
 
 
 def test_project_memory_source_and_packaged_frontend_keep_project_memory_as_page_and_nav_tool():
@@ -313,7 +348,7 @@ def test_project_memory_source_and_packaged_frontend_keep_project_memory_as_page
     assert "projectMemory" in app_source
     assert "Project Memory" in app_source
     assert "projectMemoryStrip" not in app_source
-    assert "activeModelStrip" in layout_source
+    assert "systemStatusLayer" in layout_source
     assert "projectMemoryStrip" not in layout_source
     assert "Posej iz task teksta" in page_source
     assert "Sačuvaj Project Memory" in page_source
@@ -2771,6 +2806,9 @@ def test_runtimepilot_hi_fi_shell_uses_flat_status_rails_and_rack_style_resource
     app_source = Path("frontend/src/App.tsx").read_text(encoding="utf-8")
     layout_source = Path("frontend/src/components/Layout.tsx").read_text(encoding="utf-8")
     live_strip_source = Path("frontend/src/components/LiveResourceStrip.tsx").read_text(encoding="utf-8")
+    system_layer_source = Path(
+        "frontend/src/components/shell/SystemStatusLayer.tsx"
+    ).read_text(encoding="utf-8")
     primary_flow_source = Path("frontend/src/components/PrimaryFlowCard.tsx").read_text(encoding="utf-8")
     styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
     dist_root = Path(
@@ -2783,12 +2821,14 @@ def test_runtimepilot_hi_fi_shell_uses_flat_status_rails_and_rack_style_resource
     assert "runtimepilot-utility-module" in app_source
     assert "runtimepilot-active-model-layout" in app_source
     assert "runtimepilot-utility-title" in app_source
-    assert "runtimepilot-status-rack" in layout_source
+    assert "systemStatusLayer" in layout_source
+    assert "runtimepilot-system-status-layer" in system_layer_source
     assert "runtimepilot-faceplate-module" in primary_flow_source
     assert "runtimepilot-nav-shell-subtle" in layout_source
     assert "live-resource-rack" in live_strip_source
     assert "live-resource-rack-row" in live_strip_source
     assert ".runtimepilot-status-rail" in styles_source
+    assert ".runtimepilot-system-status-layer" in styles_source
     assert ".runtimepilot-status-rack" in styles_source
     assert ".runtimepilot-faceplate-module" in styles_source
     assert ".runtimepilot-utility-module" in styles_source
@@ -2963,10 +3003,11 @@ def test_home_source_promotes_mixed_hifi_shell_and_vertical_modules():
     assert ".runtimepilot-home-mission-grid" in styles_source
 
 
-def test_app_source_hides_global_active_model_strip_on_home():
+def test_app_source_keeps_unified_system_status_layer_on_home():
     app_source = Path("frontend/src/App.tsx").read_text(encoding="utf-8")
 
-    assert 'activeModelStrip={page === "home" ? null : activeModelStrip}' in app_source
+    assert "SystemStatusLayer" in app_source
+    assert 'activeModelStrip={page === "home" ? null : activeModelStrip}' not in app_source
 
 
 def test_runtimepilot_source_copy_uses_real_diacritics_instead_of_literal_unicode_escape_sequences():

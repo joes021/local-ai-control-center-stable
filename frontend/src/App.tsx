@@ -6,6 +6,7 @@ import { BrandLockup } from "./components/BrandLockup";
 import { Layout } from "./components/Layout";
 import type { RuntimePilotIconName } from "./components/RuntimePilotIcon";
 import { RuntimePilotIcon } from "./components/RuntimePilotIcon";
+import { SystemStatusLayer } from "./components/shell/SystemStatusLayer";
 import {
   fetchProjectMemory,
   fetchSettings,
@@ -306,6 +307,20 @@ export default function App() {
     </section>
   );
 
+  const openSettingsSection = (sectionId: string) => {
+    setSettingsFocusSection(sectionId);
+    setPage("settings");
+  };
+
+  const systemStatusLayerProps = {
+    activeModelStrip,
+    onOpenSettingsSection: openSettingsSection,
+  };
+
+  const systemStatusLayer = (
+    <SystemStatusLayer {...systemStatusLayerProps} />
+  );
+
   const nav = (
     <>
       <div className="runtimepilot-primary-flows">
@@ -345,7 +360,7 @@ export default function App() {
       deckTitle={runtimePilotDeckTitle}
       eyebrow="LOCAL AI RUNTIME CONTROL CENTER"
       nav={nav}
-      activeModelStrip={page === "home" ? null : activeModelStrip}
+      systemStatusLayer={systemStatusLayer}
       suppressPageShellHeader={page === "home" || page === "opencode"}
       subtitle={
         <>
@@ -356,10 +371,6 @@ export default function App() {
       }
       themeId={themeId}
       title={`RuntimePilot${status?.version ? ` ${status.version}` : ""}`}
-      onOpenSettingsSection={(sectionId) => {
-        setSettingsFocusSection(sectionId);
-        setPage("settings");
-      }}
     >
       <Suspense
         fallback={

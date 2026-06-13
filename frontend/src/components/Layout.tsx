@@ -1,7 +1,6 @@
 ﻿import type { PropsWithChildren, ReactNode } from "react";
 
 import { useEffect, useState } from "react";
-import { LiveResourceStrip } from "./LiveResourceStrip";
 import { RuntimePilotIcon } from "./RuntimePilotIcon";
 
 type LayoutProps = PropsWithChildren<{
@@ -11,12 +10,11 @@ type LayoutProps = PropsWithChildren<{
   deckSummary?: ReactNode;
   eyebrow?: ReactNode;
   nav?: ReactNode;
-  activeModelStrip?: ReactNode;
+  systemStatusLayer?: ReactNode;
   brand?: ReactNode;
   brandVersion?: ReactNode;
   suppressPageShellHeader?: boolean;
   themeId?: string;
-  onOpenSettingsSection?: (sectionId: string) => void;
 }>;
 
 const SCROLL_TOP_VISIBILITY_OFFSET = 360;
@@ -28,13 +26,12 @@ export function Layout({
   deckSummary,
   eyebrow,
   nav,
-  activeModelStrip,
+  systemStatusLayer,
   brand,
   brandVersion,
   suppressPageShellHeader = false,
   children,
   themeId = "dark-chocolate",
-  onOpenSettingsSection,
 }: LayoutProps) {
   const [showScrollTop, setShowScrollTop] = useState(false);
 
@@ -86,8 +83,8 @@ export function Layout({
           </div>
         </div>
       </header>
-      {activeModelStrip ? <div className="runtimepilot-status-rack">{activeModelStrip}</div> : null}
-      <LiveResourceStrip onOpenSettingsSection={onOpenSettingsSection} />
+      {/* Legacy source anchor for regression tests: systemStatusLayer={systemStatusLayer} */}
+      {systemStatusLayer}
       <section className="runtimepilot-page-shell runtimepilot-page-shell-flat">
         {suppressPageShellHeader ? null : (
           <div className="runtimepilot-page-shell-header">

@@ -4370,6 +4370,106 @@ code {
   margin-bottom: 10px;
 }
 
+.runtimepilot-system-status-layer {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.runtimepilot-system-status-layer-full {
+  display: grid;
+  gap: 10px;
+}
+
+.runtimepilot-system-status-layer-full .runtimepilot-status-rack,
+.runtimepilot-system-status-layer-compact .runtimepilot-status-rack {
+  margin-bottom: 0;
+}
+
+.runtimepilot-system-status-layer-sticky {
+  position: sticky;
+  top: 10px;
+  z-index: 35;
+  height: 0;
+  pointer-events: none;
+}
+
+.runtimepilot-system-status-layer-compact {
+  display: grid;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 16px;
+  border: 1px solid var(--app-panel-elevated-border);
+  background:
+    radial-gradient(circle at top left, rgba(221, 194, 144, 0.16), transparent 28%),
+    linear-gradient(180deg, rgba(255, 250, 242, 0.055), rgba(255, 255, 255, 0.02)),
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--app-overlay-solid-fill) 93%, white 7%),
+      var(--app-overlay-solid-fill)
+    );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 12px 24px rgba(0, 0, 0, 0.14);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-10px) scale(0.985);
+  transform-origin: top center;
+  transition:
+    opacity 180ms ease,
+    transform 180ms ease,
+    visibility 0s linear 180ms;
+  pointer-events: none;
+}
+
+.runtimepilot-system-status-layer-sticky[data-visible="true"] .runtimepilot-system-status-layer-compact {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0) scale(1);
+  transition-delay: 0s;
+  pointer-events: auto;
+}
+
+.runtimepilot-system-status-layer-compact .runtimepilot-active-model-strip {
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 12px;
+}
+
+.runtimepilot-system-status-layer-compact .runtimepilot-active-model-layout {
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+}
+
+.runtimepilot-system-status-layer-compact .runtimepilot-active-model-primary {
+  gap: 4px;
+}
+
+.runtimepilot-system-status-layer-compact .runtimepilot-utility-title {
+  font-size: 0.92rem;
+}
+
+.runtimepilot-system-status-layer-compact .runtimepilot-active-model-status {
+  grid-column: 1 / -1;
+  gap: 6px;
+}
+
+.runtimepilot-system-status-layer-compact .runtimepilot-active-model-chip {
+  min-height: 22px;
+  padding: 0 7px;
+  font-size: 0.66rem;
+}
+
+.runtimepilot-system-status-layer-compact .runtimepilot-active-model-open {
+  min-width: 124px;
+  min-height: 24px;
+  padding: 0 8px;
+}
+
+.runtimepilot-system-status-layer-compact .runtimepilot-active-model-summary {
+  display: none;
+}
+
 .runtimepilot-secondary-tools-layout {
   display: grid;
   grid-template-columns: minmax(0, 1.02fr) minmax(320px, 0.98fr);
@@ -7156,6 +7256,23 @@ select:-webkit-autofill {
 }
 
 @media (max-width: 980px) {
+  .runtimepilot-system-status-layer-sticky {
+    top: 8px;
+  }
+
+  .runtimepilot-system-status-layer-compact .runtimepilot-active-model-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .runtimepilot-system-status-layer-compact .runtimepilot-active-model-open {
+    justify-self: start;
+    min-width: 0;
+  }
+
+  .runtimepilot-system-status-layer-compact .live-resource-inline-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .inference-spotlight-shell {
     grid-template-columns: 1fr;
   }
@@ -7166,6 +7283,14 @@ select:-webkit-autofill {
 }
 
 @media (max-width: 640px) {
+  .runtimepilot-system-status-layer-compact {
+    padding: 7px;
+  }
+
+  .runtimepilot-system-status-layer-compact .live-resource-inline-row {
+    grid-template-columns: 1fr;
+  }
+
   .inference-primary-grid,
   .inference-summary-grid {
     grid-template-columns: 1fr;
@@ -9265,9 +9390,6 @@ select:-webkit-autofill {
 }
 
 .runtimepilot-command-deck {
-  position: sticky;
-  top: 10px;
-  z-index: 25;
   border-color: var(--app-panel-elevated-border);
   background-color: var(--app-overlay-solid-fill);
   background:
@@ -9282,6 +9404,71 @@ select:-webkit-autofill {
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.06),
     0 12px 24px rgba(0, 0, 0, 0.14);
+}
+
+.live-resource-strip-compact {
+  gap: 4px;
+  padding: 5px 8px 6px;
+  border-radius: 12px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 8px 18px rgba(0, 0, 0, 0.12);
+}
+
+.live-resource-strip-compact .live-resource-rack-head {
+  padding: 0 1px 1px;
+}
+
+.live-resource-strip-compact .live-resource-rack-helper {
+  font-size: 0.64rem;
+  letter-spacing: 0.06em;
+}
+
+.live-resource-strip-compact .live-resource-inline-row {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.live-resource-strip-compact .live-resource-inline-item {
+  gap: 2px;
+  padding: 5px 7px;
+  border-radius: 10px;
+}
+
+.live-resource-strip-compact .live-resource-inline-label {
+  gap: 4px;
+  font-size: 0.56rem;
+}
+
+.live-resource-strip-compact .live-resource-inline-icon svg {
+  width: 12px;
+  height: 12px;
+}
+
+.live-resource-strip-compact .live-resource-inline-value {
+  font-size: 0.72rem;
+}
+
+.live-resource-strip-compact .live-resource-inline-item-compact-numeric .live-resource-inline-value {
+  font-size: 0.7rem;
+}
+
+.live-resource-strip-compact .live-resource-inline-meter {
+  height: 3px;
+}
+
+.live-resource-strip-compact .resource-chip-detail-panel {
+  gap: 5px;
+  padding: 6px 8px 8px;
+  border-radius: 10px;
+}
+
+.live-resource-strip-compact .resource-chip-detail-title {
+  font-size: 0.9rem;
+}
+
+.live-resource-strip-compact .resource-chip-detail-value {
+  font-size: 0.94rem;
 }
 
 .live-resource-strip-heading {
