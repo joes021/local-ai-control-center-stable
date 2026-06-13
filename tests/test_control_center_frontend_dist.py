@@ -205,29 +205,38 @@ def test_workflow_preset_source_mentions_core_presets():
 def test_home_source_exposes_command_deck_intro_and_primary_flow_grid():
     home_source = Path("frontend/src/pages/HomePage.tsx").read_text(encoding="utf-8")
     styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
-    dist_root = Path(
-        "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
+
+    assert "Brzi signal" in home_source
+    assert "HomeStatusDeck" in home_source
+    assert 'variant="home"' in home_source
+    assert ".runtimepilot-home-status-grid" in styles_source
+    assert ".runtimepilot-home-status-deck" in styles_source
+    assert ".telemetry-panel-home" in styles_source
+
+
+def test_home_source_uses_five_card_status_deck_in_locked_order():
+    home_source = Path("frontend/src/pages/HomePage.tsx").read_text(encoding="utf-8")
+    deck_source = Path("frontend/src/components/shell/HomeStatusDeck.tsx").read_text(
+        encoding="utf-8"
     )
-    js_assets = list((dist_root / "assets").glob("*.js"))
-    css_assets = list((dist_root / "assets").glob("index-*.css"))
+    styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
 
-    assert "Jedinstven pregled lokalnog AI sistema" in home_source
-    assert "Pregled sistema" in home_source
-    assert "runtimepilot-home-control-shell" in home_source
-    assert "runtimepilot-home-flow-grid" in home_source
-    assert ".primary-flow-grid" in styles_source
-    assert ".runtimepilot-home-control-intro" in styles_source
-    assert ".runtimepilot-home-flow-grid" in styles_source
-    assert js_assets
-    assert css_assets
+    assert "HomeStatusDeck" in home_source
+    assert '"Health"' in deck_source
+    assert '"Runtime"' in deck_source
+    assert '"Model"' in deck_source
+    assert '"Context"' in deck_source
+    assert '"OpenCode"' in deck_source
+    assert ".runtimepilot-home-status-deck" in styles_source
 
-    bundled_js = "\n".join(path.read_text(encoding="utf-8") for path in js_assets)
-    bundled_css = "\n".join(path.read_text(encoding="utf-8") for path in css_assets)
 
-    assert "Jedinstven pregled lokalnog AI sistema" in bundled_js
-    assert "Pregled sistema" in bundled_js
-    assert ".primary-flow-grid" in bundled_css
-    assert ".runtimepilot-home-control-intro" in bundled_css
+def test_home_source_drops_big_runtime_model_opencode_modules():
+    home_source = Path("frontend/src/pages/HomePage.tsx").read_text(encoding="utf-8")
+
+    assert 'title="Runtime"' not in home_source
+    assert 'title="Lokalni model"' not in home_source
+    assert 'title="OpenCode"' not in home_source
+    assert "Brzi signal" in home_source
 
 
 def test_observability_source_and_navigation_are_present():
@@ -1510,7 +1519,8 @@ def test_home_page_source_uses_command_deck_intro_and_telemetry_support():
     assert "BENCHMARK_REALTIME_REFRESH_MS = 1000" in source
     assert "async function loadBenchmarkOnly()" in source
     assert "void loadBenchmarkOnly();" in source
-    assert "Jedinstven pregled lokalnog AI sistema" in source
+    assert "HomeStatusDeck" in source
+    assert "Brzi signal" in source
     assert "TelemetryPanel" in source
     assert "Puls tokena" in telemetry_source
     assert "Ulaz 24h" in telemetry_source
@@ -1521,9 +1531,10 @@ def test_home_page_source_uses_command_deck_intro_and_telemetry_support():
     assert "Control. Monitor. Optimize." in app_source
     assert "RuntimePilot" in app_source
     assert "Runtime" in source
-    assert "Lokalni model" in source
+    assert "Model" in source
+    assert "Context" in source
     assert "OpenCode" in source
-    assert "Pregled sistema" in source
+    assert 'variant="home"' in source
 
 
 def test_telemetry_source_and_styles_keep_live_now_layout_stable_when_signal_drops():
@@ -1869,8 +1880,9 @@ def test_home_and_opencode_source_use_backend_open_action_contract():
     home_source = Path("frontend/src/pages/HomePage.tsx").read_text(encoding="utf-8")
     opencode_source = Path("frontend/src/pages/OpenCodePage.tsx").read_text(encoding="utf-8")
 
-    assert "opencode?.openActionLabel" in home_source
-    assert "opencode?.canOpen === false" in home_source
+    assert "opencode?.openActionLabel" not in home_source
+    assert "opencode?.canOpen === false" not in home_source
+    assert "onOpenOpenCode" in home_source
     assert "opencode.openActionLabel" in opencode_source
     assert "opencode.canOpen === false" in opencode_source
     assert "bootstrapActionLabel" in opencode_source
@@ -2005,13 +2017,11 @@ def test_shared_ux_components_and_guided_flow_copy_are_present_in_core_pages():
     assert "Pokušaj ponovo" in state_component
     assert "page-data-state-card" in state_component
 
-    assert "Jedinstven pregled lokalnog AI sistema" in home_source
-    assert "runtimepilot-home-control-shell" in home_source
-    assert "runtimepilot-home-mixed-shell" in home_source
-    assert "Mission Control" in home_source
-    assert "Pregled sistema" in home_source
-    assert "runtimepilot-home-mission-grid" in home_source
-    assert "runtimepilot-home-flow-grid" in home_source
+    assert "HomeStatusDeck" in home_source
+    assert "Brzi signal" in home_source
+    assert 'variant="home"' in home_source
+    assert ".runtimepilot-home-status-grid" in styles_source
+    assert ".runtimepilot-home-status-deck" in styles_source
 
     assert "Runtime cockpit" in server_source
     assert "runtime-page-top-grid" in server_source
@@ -2315,8 +2325,8 @@ def test_runtimepilot_phase_six_visual_redesign_surfaces_icons_and_control_deck_
     assert "runtimepilot-page-shell-signal" in layout_source
     assert "runtimepilot-section-glyph" in flow_source
     assert "telemetry-radar-shell" in telemetry_source
-    assert "Komandni pregled" in home_source
-    assert "Jedinstven pregled lokalnog AI sistema" in home_source
+    assert "Brzi signal" in home_source
+    assert "HomeStatusDeck" in home_source
     assert ".runtimepilot-nav-button-glyph" in styles_source
     assert ".runtimepilot-hero-brandline" in styles_source
     assert ".runtimepilot-hero-copy" in styles_source
@@ -2326,21 +2336,23 @@ def test_runtimepilot_phase_six_visual_redesign_surfaces_icons_and_control_deck_
     assert ".runtimepilot-page-shell-signal" in styles_source
     assert ".runtimepilot-section-glyph" in styles_source
     assert ".telemetry-radar-shell" in styles_source
-    assert ".primary-flow-grid" in styles_source
-    assert ".runtimepilot-home-control-intro" in styles_source
-    assert ".runtimepilot-home-mission-grid" in styles_source
+    assert ".runtimepilot-home-status-deck" in styles_source
+    assert ".runtimepilot-home-status-grid" in styles_source
+    assert ".telemetry-home-header" in styles_source
     assert js_assets
     assert css_assets
 
     bundled_js = "\n".join(path.read_text(encoding="utf-8") for path in js_assets)
     bundled_css = "\n".join(path.read_text(encoding="utf-8") for path in css_assets)
 
-    assert "Komandni pregled" in bundled_js
-    assert "Jedinstven pregled lokalnog AI sistema" in bundled_js
+    assert "Brzi signal" in bundled_js
+    assert "Kompaktan signal rada" in bundled_js
     assert "Control. Monitor. Optimize." in bundled_js
     assert ".runtimepilot-hero-brandline" in bundled_css
     assert ".runtimepilot-hero-copy" in bundled_css
     assert ".brand-lockup" in bundled_css
+    assert ".runtimepilot-home-status-deck" in bundled_css
+    assert ".runtimepilot-home-status-grid" in bundled_css
     assert ".runtimepilot-page-shell-signal" in bundled_css
     assert ".runtimepilot-section-glyph" in bundled_css
     assert ".telemetry-radar-shell" in bundled_css
@@ -2497,7 +2509,7 @@ def test_runtimepilot_ux_rewrite_uses_shared_save_and_apply_language():
     assert ".apply-state-chip" in bundled_css
 
 
-def test_runtimepilot_ux_rewrite_home_centers_three_primary_zones():
+def test_runtimepilot_ux_rewrite_home_centers_status_deck_and_compact_telemetry():
     home_source = Path("frontend/src/pages/HomePage.tsx").read_text(encoding="utf-8")
     styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
     dist_root = Path(
@@ -2506,31 +2518,26 @@ def test_runtimepilot_ux_rewrite_home_centers_three_primary_zones():
     js_assets = list((dist_root / "assets").glob("*.js"))
     css_assets = list((dist_root / "assets").glob("index-*.css"))
 
-    assert "Jedinstven pregled lokalnog AI sistema" in home_source
-    assert "Mission Control" in home_source
-    assert "Pregled sistema" in home_source
-    assert "primary-flow-sequence-rail" in home_source
-    assert ".primary-flow-grid" in styles_source
-    assert ".primary-flow-card" in styles_source
-    assert ".primary-flow-sequence-rail" in styles_source
-    assert ".runtimepilot-home-control-intro" in styles_source
-    assert ".runtimepilot-home-mission-grid" in styles_source
-    assert ".runtimepilot-home-transport" in styles_source
-    assert "grid-template-columns: 1fr;" in styles_source
+    assert "HomeStatusDeck" in home_source
+    assert "Brzi signal" in home_source
+    assert 'TelemetryPanel benchmark={benchmark} variant="home"' in home_source
+    assert ".runtimepilot-home-status-deck" in styles_source
+    assert ".runtimepilot-home-status-grid" in styles_source
+    assert ".telemetry-home-header" in styles_source
+    assert ".telemetry-home-display-title" in styles_source
+    assert "grid-template-columns: repeat(5, minmax(0, 1fr));" in styles_source
     assert js_assets
     assert css_assets
 
     bundled_js = "\n".join(path.read_text(encoding="utf-8") for path in js_assets)
     bundled_css = "\n".join(path.read_text(encoding="utf-8") for path in css_assets)
 
-    assert "Jedinstven pregled lokalnog AI sistema" in bundled_js
-    assert "Mission Control" in bundled_js
-    assert "Runtime → Lokalni model → OpenCode" in bundled_js
-    assert ".primary-flow-grid" in bundled_css
-    assert ".primary-flow-card" in bundled_css
-    assert ".primary-flow-sequence-rail" in bundled_css
-    assert ".runtimepilot-home-control-intro" in bundled_css
-    assert ".runtimepilot-home-mission-grid" in bundled_css
+    assert "Brzi signal" in bundled_js
+    assert "Kompaktan signal rada" in bundled_js
+    assert "Otvori context" in bundled_js
+    assert ".runtimepilot-home-status-deck" in bundled_css
+    assert ".runtimepilot-home-status-grid" in bundled_css
+    assert ".telemetry-home-header" in bundled_css
 
 
 def test_runtimepilot_ux_rewrite_runtime_models_and_opencode_pages_use_new_primary_shell():
@@ -2914,7 +2921,7 @@ def test_app_source_promotes_five_command_runtimepilot_shell():
     assert 'advanced: { label: "Napredno", cue: "Alati", icon: "control" }' in app_source
     assert 'const PRIMARY_PAGES: PageKey[] = ["home", "server", "models", "opencode", "advanced"]' in app_source
     assert 'const GUIDED_FLOW_PAGE: PageKey = "guidedFlow"' in app_source
-    assert 'onStartGuidedFlow={() => setPage("guidedFlow")}' in app_source
+    assert 'onStartGuidedFlow={() => setPage("guidedFlow")}' not in app_source
 
 
 def test_layout_and_app_source_drop_guided_flow_from_header_nav():
@@ -3039,17 +3046,18 @@ def test_home_hifi_component_split_exists():
     assert "export function HomeHiFiSignalRail" in rail_source
 
 
-def test_home_source_promotes_mixed_hifi_shell_and_vertical_modules():
+def test_home_source_promotes_status_dashboard_and_compact_telemetry():
     home_source = Path("frontend/src/pages/HomePage.tsx").read_text(encoding="utf-8")
     styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
 
-    assert "runtimepilot-home-control-shell" in home_source
-    assert "Runtime → Lokalni model → OpenCode" in home_source
-    assert "Vodi me redom" in home_source
-    assert "Mission Control" in home_source
-    assert ".runtimepilot-home-mixed-shell" in styles_source
-    assert ".runtimepilot-home-control-intro" in styles_source
-    assert ".runtimepilot-home-mission-grid" in styles_source
+    assert "HomeStatusDeck" in home_source
+    assert "Brzi signal" in home_source
+    assert "onOpenSettingsContext" in home_source
+    assert 'variant="home"' in home_source
+    assert "HomeHiFiModule" not in home_source
+    assert ".runtimepilot-home-status-deck" in styles_source
+    assert ".runtimepilot-home-status-card" in styles_source
+    assert ".telemetry-panel-home" in styles_source
 
 
 def test_app_source_keeps_unified_system_status_layer_on_home():
@@ -3148,11 +3156,11 @@ def test_home_faceplate_modules_use_full_width_active_model_telemetry_and_second
     assert "runtimepilot-active-model-layout" in app_source
     assert "runtimepilot-active-model-status" in app_source
     assert "runtimepilot-active-model-open" in app_source
-    assert "runtimepilot-home-support-stack" in home_source
-    assert "runtimepilot-secondary-tools-layout" in home_source
-    assert "HomeSecondaryToolCard" in home_source
-    assert "onOpenBenchmark" in home_source
-    assert "onOpenProjectMemory" in home_source
+    assert "HomeStatusDeck" in home_source
+    assert "runtimepilot-home-support-stack" not in home_source
+    assert "HomeSecondaryToolCard" not in home_source
+    assert "onOpenBenchmark" not in home_source
+    assert "onOpenProjectMemory" not in home_source
     assert "telemetry-home-deck" in telemetry_source
     assert "telemetry-home-display" in telemetry_source
     assert "telemetry-home-meter-bank" in telemetry_source
@@ -3160,9 +3168,9 @@ def test_home_faceplate_modules_use_full_width_active_model_telemetry_and_second
     assert ".runtimepilot-active-model-layout" in styles_source
     assert ".runtimepilot-active-model-strip::before" in styles_source
     assert ".runtimepilot-active-model-status" in styles_source
-    assert ".runtimepilot-home-support-stack" in styles_source
-    assert ".runtimepilot-secondary-tools-layout" in styles_source
-    assert ".runtimepilot-advanced-tool-card" in styles_source
+    assert ".runtimepilot-home-status-deck" in styles_source
+    assert ".runtimepilot-home-status-grid" in styles_source
+    assert ".runtimepilot-home-status-card" in styles_source
     assert ".telemetry-home-deck" in styles_source
     assert ".telemetry-home-display" in styles_source
     assert ".telemetry-home-meter-bank" in styles_source
@@ -3173,19 +3181,19 @@ def test_home_faceplate_modules_use_full_width_active_model_telemetry_and_second
     bundled_css = "\n".join(path.read_text(encoding="utf-8") for path in css_assets)
 
     assert "Aktivni model" in bundled_js
-    assert "Pregled sistema" in bundled_js
+    assert "Brzi signal" in bundled_js
     assert "Puls tokena" in bundled_js
     assert "runtimepilot-active-model-layout" in bundled_js
-    assert "runtimepilot-home-support-stack" in bundled_js
+    assert "runtimepilot-home-status-deck" in bundled_js
     assert "telemetry-home-deck" in bundled_js
-    assert "Otvori Benchmark" in bundled_js
-    assert "Otvori Project Memory" in bundled_js
+    assert "Otvori context" in bundled_js
+    assert "Kompaktan signal rada" in bundled_js
     assert ".runtimepilot-active-model-layout" in bundled_css
     assert ".runtimepilot-active-model-strip:before" in bundled_css
     assert ".runtimepilot-active-model-status" in bundled_css
-    assert ".runtimepilot-home-support-stack" in bundled_css
-    assert ".runtimepilot-secondary-tools-layout" in bundled_css
-    assert ".runtimepilot-secondary-tool-link" in bundled_css
+    assert ".runtimepilot-home-status-deck" in bundled_css
+    assert ".runtimepilot-home-status-grid" in bundled_css
+    assert ".runtimepilot-home-status-card" in bundled_css
     assert ".telemetry-home-deck" in bundled_css
     assert ".telemetry-home-display" in bundled_css
 
@@ -3210,8 +3218,9 @@ def test_primary_flow_and_runtime_pages_use_hifi_deck_controls_for_main_actions(
     assert "secondaryActionIcon" in flow_source
     assert "deck-control-button" in flow_source
     assert "deck-control-symbol" in flow_source
-    assert "runtimepilot-home-transport" in home_source
-    assert 'disabled={opencode?.canOpen === false}' in home_source
+    assert "HomeStatusDeck" in home_source
+    assert "runtimepilot-home-transport" not in home_source
+    assert 'disabled={opencode?.canOpen === false}' not in home_source
     assert 'primaryActionIcon={runtimeStarted ? "reload" : "play"}' in server_source
     assert 'secondaryActionIcon="stop"' in server_source
     assert 'primaryActionIcon="play"' in opencode_source
@@ -3220,7 +3229,7 @@ def test_primary_flow_and_runtime_pages_use_hifi_deck_controls_for_main_actions(
     assert ".deck-control-symbol" in styles_source
     assert ".deck-control-button-primary" in styles_source
     assert ".deck-control-button-secondary" in styles_source
-    assert ".runtimepilot-home-transport" in styles_source
+    assert ".runtimepilot-home-status-card-action" in styles_source
     assert js_assets
     assert css_assets
 
@@ -3232,11 +3241,13 @@ def test_primary_flow_and_runtime_pages_use_hifi_deck_controls_for_main_actions(
     assert "Pokreni runtime" in bundled_js
     assert "Zaustavi runtime" in bundled_js
     assert "Otvori OpenCode" in bundled_js
+    assert "Otvori context" in bundled_js
     assert ".deck-control-button" in bundled_css
     assert ".deck-control-symbol" in bundled_css
+    assert ".runtimepilot-home-status-card-action" in bundled_css
 
 
-def test_home_preview_target_uses_guided_top_deck_and_numbered_hifi_navigation():
+def test_home_preview_target_uses_status_dashboard_and_shell_navigation():
     app_source = Path("frontend/src/App.tsx").read_text(encoding="utf-8")
     layout_source = Path("frontend/src/components/Layout.tsx").read_text(encoding="utf-8")
     home_source = Path("frontend/src/pages/HomePage.tsx").read_text(encoding="utf-8")
@@ -3255,17 +3266,14 @@ def test_home_preview_target_uses_guided_top_deck_and_numbered_hifi_navigation()
     assert "runtimepilot-shell-nav-code" in app_source
     assert "runtimepilot-shell-nav-marker" in app_source
     assert "runtimepilot-shell-brand-version" in layout_source
-    assert "Kreni redom, bez lutanja" in home_source
     assert "Brzi signal" in home_source
-    assert "Klik na modul otvara sledeći korak" in home_source
-    assert "Veliki modul 1" in home_source
-    assert "runtimepilot-home-guided-top-grid" in home_source
-    assert "runtimepilot-home-now-grid" in home_source
+    assert "HomeStatusDeck" in home_source
+    assert "onOpenSettingsContext" in home_source
     assert ".runtimepilot-shell-nav-code" in styles_source
     assert ".runtimepilot-shell-nav-marker" in styles_source
     assert ".runtimepilot-shell-brand-version" in styles_source
-    assert ".runtimepilot-home-guided-top-grid" in styles_source
-    assert ".runtimepilot-home-now-grid" in styles_source
+    assert ".runtimepilot-home-status-grid" in styles_source
+    assert ".telemetry-home-header" in styles_source
     assert js_assets
     assert css_assets
 
@@ -3274,17 +3282,15 @@ def test_home_preview_target_uses_guided_top_deck_and_numbered_hifi_navigation()
 
     assert "VOĐENI ULAZ" in bundled_js
     assert "Brzi signal" in bundled_js
-    assert "Kreni redom, bez lutanja" in bundled_js
-    assert "Veliki modul 1" in bundled_js
+    assert "Otvori context" in bundled_js
+    assert "Kompaktan signal rada" in bundled_js
     assert ".runtimepilot-shell-nav-code" in bundled_css
-    assert ".runtimepilot-home-guided-top-grid" in bundled_css
+    assert ".runtimepilot-home-status-grid" in bundled_css
 
 
-def test_home_runtime_access_card_exposes_clickable_local_portal_link():
+def test_home_status_deck_context_card_routes_into_settings_focus():
+    app_source = Path("frontend/src/App.tsx").read_text(encoding="utf-8")
     home_source = Path("frontend/src/pages/HomePage.tsx").read_text(encoding="utf-8")
-    module_source = Path("frontend/src/components/home/HomeHiFiModule.tsx").read_text(
-        encoding="utf-8"
-    )
     styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
     dist_root = Path(
         "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
@@ -3292,24 +3298,21 @@ def test_home_runtime_access_card_exposes_clickable_local_portal_link():
     js_assets = list((dist_root / "assets").glob("*.js"))
     css_assets = list((dist_root / "assets").glob("index-*.css"))
 
-    assert 'label: "Pristup"' in home_source
-    assert "runtimepilot-home-hifi-footer-link" in home_source
-    assert "serverStatus?.localWebUrl || status?.localUrl || status?.uiUrl" in home_source
-    assert 'target="_blank"' in home_source
-    assert "detail: ReactNode" in module_source
-    assert ".runtimepilot-home-hifi-footer-link" in styles_source
+    assert "onOpenSettingsContext" in home_source
+    assert "label: \"Context\"" in home_source
+    assert 'onOpenSettingsContext={() => openSettingsSection("context")}' in app_source
+    assert ".runtimepilot-home-status-card-context" in styles_source
     assert js_assets
     assert css_assets
 
     bundled_js = "\n".join(path.read_text(encoding="utf-8") for path in js_assets)
     bundled_css = "\n".join(path.read_text(encoding="utf-8") for path in css_assets)
 
-    assert "runtimepilot-home-hifi-footer-link" in bundled_js
-    assert ".runtimepilot-home-hifi-footer-link" in bundled_css
+    assert "Otvori context" in bundled_js
+    assert ".runtimepilot-home-status-card-context" in bundled_css
 
 
-def test_home_profile_footer_opens_settings_profiles_and_all_three_big_modules_share_hifi_primary_layout():
-    app_source = Path("frontend/src/App.tsx").read_text(encoding="utf-8")
+def test_home_status_dashboard_drops_profile_footer_shortcuts_and_big_modules():
     home_source = Path("frontend/src/pages/HomePage.tsx").read_text(encoding="utf-8")
     settings_source = Path("frontend/src/pages/SettingsPage.tsx").read_text(encoding="utf-8")
     styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
@@ -3319,22 +3322,20 @@ def test_home_profile_footer_opens_settings_profiles_and_all_three_big_modules_s
     js_assets = list((dist_root / "assets").glob("*.js"))
     css_assets = list((dist_root / "assets").glob("index-*.css"))
 
-    assert 'label: "Profil"' in home_source
-    assert "onOpenSettingsProfile" in home_source
-    assert "runtimepilot-home-hifi-footer-button" in home_source
-    assert home_source.count('variant="runtime-primary"') >= 3
-    assert 'setSettingsFocusSection("profile")' in app_source
+    assert "onOpenSettingsProfile" not in home_source
+    assert "HomeHiFiModule" not in home_source
+    assert "HomeStatusDeck" in home_source
     assert "profileSectionRef" in settings_source
     assert "scrollIntoView({ behavior: \"smooth\", block: \"start\" })" in settings_source
-    assert ".runtimepilot-home-hifi-footer-button" in styles_source
+    assert ".runtimepilot-home-status-card-action" in styles_source
     assert js_assets
     assert css_assets
 
     bundled_js = "\n".join(path.read_text(encoding="utf-8") for path in js_assets)
     bundled_css = "\n".join(path.read_text(encoding="utf-8") for path in css_assets)
 
-    assert "runtimepilot-home-hifi-footer-button" in bundled_js
-    assert ".runtimepilot-home-hifi-footer-button" in bundled_css
+    assert "Otvori modele" in bundled_js
+    assert ".runtimepilot-home-status-card-action" in bundled_css
 
 
 def test_models_page_source_highlights_where_results_appear_after_actions():

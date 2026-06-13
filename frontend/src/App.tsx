@@ -385,18 +385,10 @@ export default function App() {
       >
         {page === "home" ? (
           <HomePage
-            onOpenBenchmark={() => setPage("benchmark")}
-            onOpenCompatibility={() => setPage("compatibility")}
             onOpenModels={() => setPage("models")}
             onOpenOpenCode={() => setPage("opencode")}
-            onOpenProjectMemory={() => setPage("projectMemory")}
             onOpenServer={() => setPage("server")}
-            onOpenSettingsProfile={() => {
-              setSettingsFocusSection("profile");
-              setPage("settings");
-            }}
-            onOpenTuningLab={() => setPage("tuningLab")}
-            onStartGuidedFlow={() => setPage("guidedFlow")}
+            onOpenSettingsContext={() => openSettingsSection("context")}
           />
         ) : null}
         {page === "guidedFlow" ? (

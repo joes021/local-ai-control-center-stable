@@ -103,14 +103,25 @@ export function TelemetryPanel({
   if (variant === "home") {
     return (
       <section className="status-card wide-card telemetry-panel runtimepilot-telemetry-shell telemetry-panel-home runtimepilot-faceplate-module">
+        <div className="telemetry-home-header">
+          <div>
+            <span className="status-label">Puls tokena</span>
+            <strong className="telemetry-page-title">Kompaktan signal rada</strong>
+          </div>
+          <div className="telemetry-home-header-meta">
+            <span className={`telemetry-state-badge telemetry-state-${liveStateClass}`}>{liveStateLabel}</span>
+            <span className="helper-text">24h ulaz, izlaz i throughput bez ogromnog hero bloka.</span>
+          </div>
+        </div>
+
         <div className="telemetry-home-deck">
           <div className="telemetry-home-display">
             <div className="telemetry-home-display-head">
               <div>
-                <span className="status-label">Puls tokena</span>
-                <strong className="telemetry-page-title">Signal rada i ritam poslednjih 24 sata</strong>
+                <span className="telemetry-live-label">Uživo sada</span>
+                <strong className="telemetry-home-display-title">Signal rada i ritam poslednjih 24 sata</strong>
               </div>
-              <span className={`telemetry-state-badge telemetry-state-${liveStateClass}`}>{liveStateLabel}</span>
+              <span className="browser-badge">Rute {activeRoutes}</span>
             </div>
             <div className="telemetry-home-live-shell">
               <span className="telemetry-home-live-glyph" aria-hidden="true">
