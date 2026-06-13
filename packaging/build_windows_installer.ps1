@@ -15,9 +15,15 @@ $frontendTsc = Join-Path $frontendRoot "node_modules\\typescript\\bin\\tsc"
 $frontendVite = Join-Path $frontendRoot "node_modules\\vite\\bin\\vite.js"
 $windowsInstallerIcon = Join-Path $packageRoot "assets\\windows\\runtimepilot-icon.ico"
 $specPath = $null
+$originalDontWriteBytecode = $env:PYTHONDONTWRITEBYTECODE
 
 Push-Location $repoRoot
 try {
+    $env:PYTHONDONTWRITEBYTECODE = "1"
+
+    Get-ChildItem -Path $repoRoot -Recurse -Directory -Filter "__pycache__" -ErrorAction SilentlyContinue |
+        Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+
     & $PythonExe -m local_ai_control_center_installer.release_preflight --repo-root $repoRoot --scope installer --scope public
     if ($LASTEXITCODE -ne 0) {
         throw "Release preflight failed. Sanitize hardcoded personal or machine-specific data before building."
@@ -169,6 +175,7 @@ try {
     Write-Host $latestSetupPath
 }
 finally {
+    $env:PYTHONDONTWRITEBYTECODE = $originalDontWriteBytecode
     if ($specPath -and (Test-Path $specPath)) {
         Remove-Item -Force $specPath
     }
