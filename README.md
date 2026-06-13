@@ -87,13 +87,13 @@ If you want to test fit and speed before real work:
 
 ![Home overview](.github/assets/home-overview.png)
 
-### Browser
+### Models
 
-![Browser catalog](.github/assets/browser-catalog.png)
+![Models control deck](.github/assets/models-control-deck.png)
 
-### Settings
+### OpenCode
 
-![Settings and profiles](.github/assets/settings-profiles.png)
+![OpenCode workflow](.github/assets/opencode-workflow.png)
 
 ## What This Repository Delivers
 
