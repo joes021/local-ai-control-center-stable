@@ -61,6 +61,16 @@ def test_build_windows_installer_script_can_skip_npm_when_node_modules_are_alrea
     assert 'throw "npm is required to install missing frontend dependencies."' in script
 
 
+def test_build_windows_installer_script_disables_bytecode_and_cleans_pycache_dirs():
+    script = Path("packaging/build_windows_installer.ps1").read_text(encoding="utf-8")
+
+    assert '$originalDontWriteBytecode = $env:PYTHONDONTWRITEBYTECODE' in script
+    assert '$env:PYTHONDONTWRITEBYTECODE = "1"' in script
+    assert 'Get-ChildItem -Path $repoRoot -Recurse -Directory -Filter "__pycache__"' in script
+    assert 'Remove-Item -Recurse -Force -ErrorAction SilentlyContinue' in script
+    assert '$env:PYTHONDONTWRITEBYTECODE = $originalDontWriteBytecode' in script
+
+
 def test_publish_github_release_script_uploads_latest_setup_alias():
     script = Path("packaging/publish_github_release.ps1").read_text(encoding="utf-8")
 
@@ -77,3 +87,9 @@ def test_readme_promotes_direct_latest_setup_download():
     assert "RuntimePilotSetup-latest.exe" in readme
     assert "releases/latest/download/RuntimePilotSetup-latest.exe" in readme
     assert "RuntimePilotSetup-v0.4.37.exe" not in readme
+
+
+def test_manifest_excludes_pycache_and_compiled_python_files():
+    manifest = Path("MANIFEST.in").read_text(encoding="utf-8")
+
+    assert "global-exclude __pycache__ *.py[cod]" in manifest

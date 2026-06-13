@@ -136,6 +136,61 @@ def test_status_route_falls_back_to_windows_display_version_when_package_metadat
     assert response.status_code == 200
     payload = response.json()
     assert payload["version"] == "0.4.1"
+    assert payload["installedVersion"] == "0.4.1"
+
+
+def test_status_route_prefers_running_source_version_over_installed_report_version(
+    tmp_path: Path,
+    monkeypatch,
+):
+    install_root = tmp_path / "install-root"
+    llama_root = install_root / "runtime" / "llama.cpp"
+    llama_root.mkdir(parents=True)
+    (llama_root / "llama-server.exe").write_text("llama", encoding="utf-8")
+    _write_active_model_config(
+        install_root,
+        filename="gemma-4-E4B-it-Q4_K_M.gguf",
+    )
+    _write_runtime_endpoint_config(
+        install_root / "config" / "runtime-endpoint.json",
+        port=39281,
+    )
+    logs_root = install_root / "logs"
+    logs_root.mkdir(parents=True, exist_ok=True)
+    (logs_root / "install-report.json").write_text(
+        json.dumps({"product_version": "0.4.90"}, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.status_service._read_running_version_from_source_tree",
+        lambda: "0.4.92",
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.status_service.package_version",
+        lambda _: "0.4.90",
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.status_service.probe_server_health",
+        lambda *args, **kwargs: "ready",
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.status_service.detect_tailscale_ip",
+        lambda: "",
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.status_service.find_runtime_pid",
+        lambda *args, **kwargs: 4242,
+    )
+
+    client = TestClient(app)
+    response = client.get("/api/status")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["version"] == "0.4.92"
+    assert payload["installedVersion"] == "0.4.90"
 
 
 def test_status_route_reports_ui_not_exposed_when_tailscale_is_missing(
