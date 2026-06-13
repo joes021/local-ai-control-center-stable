@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "call \"%ProgramFiles%\\nodejs\\node.exe\" .\\node_modules\\typescript\\bin\\tsc -b && call \"%ProgramFiles%\\nodejs\\node.exe\" .\\node_modules\\vite\\bin\\vite.js build"
+    "build": "tsc -b && vite build"
   },
   "dependencies": {
     "react": "^19.0.0",
