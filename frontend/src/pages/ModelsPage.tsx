@@ -4,8 +4,8 @@ import { ActionResultPanel } from "../components/ActionResultPanel";
 import { CompatibilityCalculatorModal } from "../components/CompatibilityCalculatorModal";
 import { ModelDownloadProgressCard } from "../components/ModelDownloadProgressCard";
 import { PageDataStateCard } from "../components/PageDataStateCard";
-import { PrimaryFlowCard } from "../components/PrimaryFlowCard";
 import { RuntimePilotIcon } from "../components/RuntimePilotIcon";
+import { PrimaryTabRack } from "../components/shell/PrimaryTabRack";
 import {
   activateModel,
   addHfModel,
@@ -1206,6 +1206,19 @@ export function ModelsPage({
     return bucket.slice(0, 4);
   }, [activeModel, models]);
 
+  const focusModel =
+    activeModel ??
+    quickModels[0] ??
+    filteredItems[0] ??
+    models?.local[0] ??
+    models?.curated[0] ??
+    models?.huggingFace[0] ??
+    models?.unsloth[0] ??
+    null;
+  const activationTarget =
+    quickModels.find((item) => item.installed && supportsRuntimeActivation(item) && !item.active) ??
+    focusModel;
+
   async function runTopLevelAction(label: string, run: () => Promise<ActionResult>) {
     try {
       showPendingAction(label);
@@ -1259,144 +1272,129 @@ export function ModelsPage({
   return (
     <>
       {error ? <div className="error-panel wide-card">{error}</div> : null}
-      <div className="primary-page-top-grid runtime-page-top-grid wide-card">
-        <PrimaryFlowCard
-          className="runtime-faceplate-card"
-          eyebrow="Modeli"
-          title="Aktivni model i brza promena"
-          stateTitle={activeModel?.label || "Nema aktivnog modela"}
-          stateSummary={
-            activeModel
-              ? "Ovo je model koji runtime i nova OpenCode sesija trenutno treba da koriste."
-              : "Prvo dodaj ili preuzmi model, pa ga aktiviraj pre nego što pređeš u OpenCode rad."
-          }
-          icon="models"
-          primaryLabel="Glavna akcija"
-          primaryActionLabel={activeModel ? "Skoči na lokalne modele" : "Dodaj lokalni GGUF"}
-          onPrimaryAction={() => {
-            if (activeModel) {
-              revealLocalModels();
-              return;
-            }
-            revealAddModel();
-          }}
-          secondaryLabel="Sekundarna akcija"
-          secondaryActionLabel="Tab kompatibilnosti"
-          onSecondaryAction={() => {
-            const focusModel =
-              activeModel ??
-              filteredItems[0] ??
-              models.local[0] ??
-              models.curated[0] ??
-              models.huggingFace[0] ??
-              models.unsloth[0];
-            if (!focusModel) {
-              return;
-            }
-            onOpenCompatibilityTab?.({
-              title: focusModel.label,
-              request: buildCompatibilityRequestFromModelEntry(focusModel),
-            });
-          }}
-          resultLabel="Rezultat posle klika"
-          resultSummary={
-            result
-              ? result.summary
-              : "Posle klika vidiš novi aktivni model, status preuzimanja ili upozorenje da model ne staje na mašinu."
-          }
-          stateMeta={
-            <>
-              <span>Ukupno: {summary.total}</span>
-              <span>Skinuto: {summary.installed}</span>
-              <span>Aktivno u prikazu: {filteredSummary.active}</span>
-            </>
-          }
-          liveResult={
-            <div className="primary-flow-inline-result">
-              <strong>OpenCode i aktivacija</strong>
-              <p className="helper-text">
-                Kad promeniš aktivni model, otvori novu OpenCode sesiju da agent stvarno preuzme novu postavku.
-              </p>
-            </div>
-          }
-        />
-
-        <section className="status-card runtimepilot-section-shell primary-page-support-card runtime-faceplate-support">
-          <div className="runtime-faceplate-head">
-            <div className="runtime-faceplate-headline">
-              <span className="runtime-faceplate-module-glyph" aria-hidden="true">
-                <RuntimePilotIcon className="runtime-faceplate-module-icon" name="search" />
-              </span>
-              <div className="runtime-faceplate-module-copy">
-                <span className="status-label">Brzi izbor modela</span>
-                <strong className="status-value">
-                  {quickModels.length ? `${quickModels.length} modela za direktan rad` : "Još nema brzih kandidata"}
-                </strong>
-              </div>
-            </div>
-            <div className="runtime-faceplate-status-lights" aria-hidden="true">
-              <span className="runtime-faceplate-status-light runtime-faceplate-status-light-active" />
-              <span className="runtime-faceplate-status-light" />
-              <span className="runtime-faceplate-status-light" />
-            </div>
-          </div>
-          <div className="runtime-faceplate-copy">
-            <p className="helper-text">
-              Gore vidiš samo modele koji imaju smisla za sledeći klik: aktivni, lokalno spremni ili odmah dostupni za download.
+      <PrimaryTabRack
+        eyebrow="Modeli"
+        title="Aktivni model i brza promena"
+        signal={
+          <div className="runtimepilot-primary-tab-rack-body">
+            <strong className="runtimepilot-primary-tab-rack-state">
+              {activeModel?.label || "Nema aktivnog modela"}
+            </strong>
+            <p className="helper-text runtimepilot-primary-tab-rack-copy">
+              {activeModel
+                ? "Ovo je model koji runtime i nova OpenCode sesija trenutno treba da koriste."
+                : "Prvo dodaj ili preuzmi model, pa ga aktiviraj pre nego što pređeš u OpenCode rad."}
             </p>
             <div className="summary-metrics">
-              <span>Filter: {buildModelsFilterLabel(modelsFilter)}</span>
-              <span>Lokalni: {models.local.length}</span>
-              <span>Kurirani: {models.curated.length}</span>
-            </div>
-          </div>
-          <div className="runtime-faceplate-rail">
-            <span className="status-label">Sledeći klik</span>
-            <button type="button" className="action-button-soft deck-control-button deck-control-button-secondary" onClick={() => {
-              setModelsFilter("installed");
-              revealLocalModels();
-            }}>
-              <span className="deck-control-symbol" aria-hidden="true">▶</span>
-              <span className="deck-control-copy">Prikaži skinute modele</span>
-            </button>
-          </div>
-        </section>
-
-        <section className="status-card runtimepilot-section-shell primary-page-support-card runtime-faceplate-support">
-          <div className="runtime-faceplate-head">
-            <div className="runtime-faceplate-headline">
-              <span className="runtime-faceplate-module-glyph" aria-hidden="true">
-                <RuntimePilotIcon className="runtime-faceplate-module-icon" name="browser" />
+              <span>Lifecycle: {activeModel?.lifecycleLabel ?? "Nema aktivnog lifecycle signala"}</span>
+              <span>
+                Fit:{" "}
+                {activeModel
+                  ? `${formatMiB(activeModel.minimumGpuMiB)} GPU · RAM ${formatGiB(activeModel.minimumRamGiB ?? null)}`
+                  : "pokreni kompatibilnost"}
               </span>
-              <div className="runtime-faceplate-module-copy">
-                <span className="status-label">Dodaj ili proširi katalog</span>
-                <strong className="status-value">Lokalni GGUF prvo, ostali izvori po potrebi</strong>
-              </div>
+              <span>Lokalni katalog: {models.local.length}</span>
+              <span>Skinuto: {summary.installed}</span>
             </div>
-            <div className="runtime-faceplate-status-lights" aria-hidden="true">
-              <span className="runtime-faceplate-status-light runtime-faceplate-status-light-active" />
-              <span className="runtime-faceplate-status-light runtime-faceplate-status-light-active-soft" />
-              <span className="runtime-faceplate-status-light" />
-            </div>
-          </div>
-          <div className="runtime-faceplate-copy">
-            <p className="helper-text">
-              Za većinu ljudi najbrži put je lokalni GGUF. Unsloth i Hugging Face ostaju dostupni, ali su spušteni u napredni sloj da ne guše glavni tok.
+            <p className="helper-text runtimepilot-primary-tab-rack-copy">
+              Rezultat posle klika:{" "}
+              {result
+                ? result.summary
+                : "Posle klika vidiš novi aktivni model, status preuzimanja ili upozorenje da model ne staje na mašinu."}
             </p>
           </div>
-          <div className="runtime-faceplate-rail runtime-faceplate-rail-stack">
-            <span className="status-label">Dodavanje</span>
-            <button type="button" className="action-button-soft deck-control-button deck-control-button-secondary" onClick={revealAddModel}>
-              <span className="deck-control-symbol" aria-hidden="true">▶</span>
+        }
+        commands={
+          <div className="runtimepilot-primary-tab-rack-command-grid">
+            <button
+              type="button"
+              className="action-button deck-control-button deck-control-button-primary"
+              disabled={
+                Boolean(pendingAction) ||
+                !activationTarget ||
+                !activationTarget.installed ||
+                !supportsRuntimeActivation(activationTarget) ||
+                Boolean(activationTarget.active)
+              }
+              title={
+                activationTarget
+                  ? requiresForceActivationConfirmation(activationTarget)
+                    ? activationRiskSummary(activationTarget)
+                    : (mtpActivationGuidance(activationTarget) ?? undefined)
+                  : "Nema instaliranog modela spremnog za aktivaciju."
+              }
+              onClick={() => {
+                if (activationTarget && activationTarget.installed && !activationTarget.active) {
+                  void handleQuickActivate(activationTarget);
+                }
+              }}
+            >
+              <span className="deck-control-symbol" aria-hidden="true">
+                MOD
+              </span>
+              <span className="deck-control-copy">Aktivacija</span>
+            </button>
+            <button
+              type="button"
+              className="action-button-soft deck-control-button deck-control-button-secondary"
+              onClick={() => {
+                setModelsFilter("installed");
+                revealLocalModels();
+              }}
+            >
+              <span className="deck-control-symbol" aria-hidden="true">
+                QCK
+              </span>
+              <span className="deck-control-copy">Brza promena</span>
+            </button>
+            <button
+              type="button"
+              className="action-button-soft deck-control-button deck-control-button-secondary"
+              disabled={!focusModel}
+              onClick={() => {
+                if (!focusModel) {
+                  return;
+                }
+                onOpenCompatibilityTab?.({
+                  title: focusModel.label,
+                  request: buildCompatibilityRequestFromModelEntry(focusModel),
+                });
+              }}
+            >
+              <span className="deck-control-symbol" aria-hidden="true">
+                FIT
+              </span>
+              <span className="deck-control-copy">Kompatibilnost</span>
+            </button>
+            <button
+              type="button"
+              className="action-button-soft deck-control-button deck-control-button-secondary"
+              onClick={revealAddModel}
+            >
+              <span className="deck-control-symbol" aria-hidden="true">
+                GGU
+              </span>
               <span className="deck-control-copy">Dodaj lokalni GGUF</span>
             </button>
-            <button type="button" className="action-button-soft deck-control-button deck-control-button-secondary" onClick={revealAdvancedCatalog}>
-              <span className="deck-control-symbol" aria-hidden="true">▶</span>
-              <span className="deck-control-copy">Otvori napredne izvore</span>
-            </button>
           </div>
-        </section>
-      </div>
+        }
+        deep={
+          <div className="runtimepilot-primary-tab-rack-detail-stack">
+            <p className="helper-text runtimepilot-primary-tab-rack-copy">
+              <strong>Gde gledaš ishod:</strong> ne traži rezultat po celoj strani. Za svaku od ove tri akcije signal je već mapiran gore.
+            </p>
+            <div className="model-action-clarity-grid">
+              {MODEL_ACTION_CLARITY_ROUTES.map((route) => (
+                <article className="model-action-clarity-card" key={`rack-${route.label}`}>
+                  <span className="status-label">{route.label}</span>
+                  <strong>{route.title}</strong>
+                  <p className="helper-text">{route.detail}</p>
+                </article>
+              ))}
+            </div>
+          </div>
+        }
+      />
 
       {quickModels.length ? (
         <section className="status-card wide-card runtimepilot-section-shell runtimepilot-faceplate-module">

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { ActionResultPanel } from "../components/ActionResultPanel";
-import { PrimaryFlowCard } from "../components/PrimaryFlowCard";
+import { PrimaryTabRack } from "../components/shell/PrimaryTabRack";
 import {
   fetchServerStatus,
   peekServerStatusCache,
@@ -193,68 +193,78 @@ export function ServerPage({ onOpenContextSettings }: ServerPageProps) {
     ? result.summary
     : "Posle ovog klika odmah vidiš da li je runtime pokrenut, restartovan ili blokiran.";
 
+  const openRuntimeDiagnostics = () => {
+    const details = document.getElementById("runtime-advanced-rack");
+    if (details instanceof HTMLDetailsElement) {
+      details.open = true;
+      details.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  };
+
   return (
     <>
       {error ? <div className="error-panel wide-card">{error}</div> : null}
 
-      <div className="primary-page-top-grid runtime-page-top-grid wide-card">
-        <PrimaryFlowCard
-          className="runtime-faceplate-card"
-          eyebrow="Runtime"
-          title="Runtime cockpit"
-          stateTitle={runtimeStateTitle}
-          stateSummary={runtimeStateSummary}
-          icon="server"
-          primaryLabel="Glavna akcija"
-          primaryActionLabel={primaryActionLabel}
-          primaryActionIcon={runtimeStarted ? "reload" : "play"}
-          onPrimaryAction={() => void runAction(runtimeStarted ? restartServer : startServer)}
-          primaryDisabled={runtimeStarted ? false : serverStatus?.canStart === false}
-          primaryTitle={runtimeStarted ? undefined : serverStatus?.startBlockedReason || undefined}
-          secondaryLabel="Sekundarna akcija"
-          secondaryActionLabel="Zaustavi runtime"
-          secondaryActionIcon="stop"
-          onSecondaryAction={() => void runAction(stopServer)}
-          secondaryDisabled={serverStatus?.canStop === false}
-          secondaryTitle={serverStatus?.stopBlockedReason || undefined}
-          resultLabel="Rezultat posle klika"
-          resultSummary={actionSummary}
-          stateMeta={
-            <>
+      <PrimaryTabRack
+        eyebrow="Runtime"
+        title="Runtime cockpit"
+        signal={
+          <div className="runtimepilot-primary-tab-rack-body">
+            <strong className="runtimepilot-primary-tab-rack-state">{runtimeStateTitle}</strong>
+            <p className="helper-text runtimepilot-primary-tab-rack-copy">{runtimeStateSummary}</p>
+            <div className="summary-metrics">
               <span>Status: {serverStatus?.status || "--"}</span>
               <span>Health: {serverStatus?.health || "--"}</span>
-              <span>PID: {serverStatus?.pid ? String(serverStatus.pid) : "nije potvrđen"}</span>
-            </>
-          }
-          liveResult={
-            <div className="primary-flow-inline-result">
-              <strong>Šta radi sada</strong>
-              <p className="helper-text">
-                Runtime signal: {serverStatus?.runtimeLiveStatus || "--"} ·{" "}
-                {serverStatus?.runtimeLiveReason || "Nema dodatnog runtime signala."}
-              </p>
+              <span>
+                Context: {serverStatus?.runtimeDiagnostics?.contextAlignmentLabel || "Čeka proveru"}
+              </span>
+              <span>
+                Režim: {serverStatus?.runtimeDiagnostics?.executionModeLabel || "Nije potvrđen"}
+              </span>
             </div>
-          }
-        />
-
-        <section className="status-card runtimepilot-section-shell primary-page-support-card runtime-faceplate-support">
-          <div className="runtime-faceplate-head">
-            <span className="status-label">Health i pristup</span>
-            <strong className="status-value">{serverStatus?.healthReason || "Čeka health signal"}</strong>
-          </div>
-          <div className="runtime-faceplate-copy">
-            <p className="helper-text">
-              Lokalni web: {serverStatus?.localWebUrl || "nije dostupan"} · Tailscale:{" "}
-              {serverStatus?.tailscaleWebUrl || "nije izložen"}
+            <p className="helper-text runtimepilot-primary-tab-rack-copy">
+              Runtime signal: {serverStatus?.runtimeLiveStatus || "--"} ·{" "}
+              {serverStatus?.runtimeLiveReason || "Nema dodatnog runtime signala."}
             </p>
-            <div className="summary-metrics">
-              <span>Port: {serverStatus ? String(serverStatus.port) : "--"}</span>
-              <span>Server: {serverStatus?.status || "--"}</span>
-              <span>Health URL: {serverStatus?.healthUrl || "--"}</span>
-            </div>
           </div>
-          <div className="runtime-faceplate-rail">
-            <span className="status-label">Brza akcija</span>
+        }
+        commands={
+          <div className="runtimepilot-primary-tab-rack-command-grid">
+            <button
+              type="button"
+              className="action-button deck-control-button deck-control-button-primary"
+              disabled={runtimeStarted || serverStatus?.canStart === false}
+              title={runtimeStarted ? "Runtime je već pokrenut." : serverStatus?.startBlockedReason || undefined}
+              onClick={() => void runAction(startServer)}
+            >
+              <span className="deck-control-symbol" aria-hidden="true">
+                ▶
+              </span>
+              <span className="deck-control-copy">Pokreni runtime</span>
+            </button>
+            <button
+              type="button"
+              className="action-button-soft deck-control-button deck-control-button-secondary"
+              disabled={!runtimeStarted}
+              onClick={() => void runAction(restartServer)}
+            >
+              <span className="deck-control-symbol" aria-hidden="true">
+                ↻
+              </span>
+              <span className="deck-control-copy">Restartuj runtime</span>
+            </button>
+            <button
+              type="button"
+              className="action-button-soft deck-control-button deck-control-button-secondary"
+              disabled={serverStatus?.canStop === false}
+              title={serverStatus?.stopBlockedReason || undefined}
+              onClick={() => void runAction(stopServer)}
+            >
+              <span className="deck-control-symbol" aria-hidden="true">
+                ■
+              </span>
+              <span className="deck-control-copy">Zaustavi runtime</span>
+            </button>
             <button
               type="button"
               className="action-button-soft deck-control-button deck-control-button-secondary"
@@ -263,55 +273,60 @@ export function ServerPage({ onOpenContextSettings }: ServerPageProps) {
               onClick={openServerWebNow}
             >
               <span className="deck-control-symbol" aria-hidden="true">
-                ▶
+                ↗
               </span>
               <span className="deck-control-copy">Otvori runtime veb</span>
             </button>
           </div>
-        </section>
-
-        <section className="status-card runtimepilot-section-shell primary-page-support-card runtime-faceplate-support">
-          <div className="runtime-faceplate-head">
-            <span className="status-label">Context i GPU fit</span>
-            <strong className="status-value">
-              {serverStatus?.runtimeDiagnostics?.contextAlignmentLabel || "Čeka proveru"}
-            </strong>
-          </div>
-          <div className="runtime-faceplate-copy">
-            <p className="helper-text">
-              Config ctx: {formatContext(serverStatus?.runtimeDiagnostics?.configuredContext)} · Živi ctx:{" "}
-              {formatContext(serverStatus?.runtimeDiagnostics?.effectiveProcessContext)}
-            </p>
-            <div className="summary-metrics">
-              <span>{serverStatus?.runtimeDiagnostics?.executionModeLabel || "Režim nije potvrđen"}</span>
-              <span>{serverStatus?.runtimeDiagnostics?.confirmedSummary || "Čeka runtime log"}</span>
-            </div>
-          </div>
-          <div className="runtime-faceplate-rail">
-            <span className="status-label">Poravnanje</span>
-            <p className="helper-text runtime-faceplate-note">
+        }
+        deep={
+          <div className="runtimepilot-primary-tab-rack-detail-stack">
+            {renderRuntimeStatusLink("Health URL", serverStatus?.healthUrl, "--")}
+            {renderRuntimeStatusLink(
+              "Lokalni web",
+              serverStatus?.localWebUrl || serverStatus?.webUrl,
+              "nije dostupan",
+            )}
+            <p className="helper-text runtimepilot-primary-tab-rack-copy">
               {serverStatus?.runtimeDiagnostics?.contextAlignmentSummary ||
                 "Ovde odmah vidiš da li runtime zaista radi sa istim context-om koji je upisan u config."}
             </p>
-            {serverStatus?.runtimeDiagnostics?.contextMismatch ? (
+            <div className="runtimepilot-primary-tab-rack-command-grid runtimepilot-primary-tab-rack-command-grid-compact">
               <button
                 type="button"
                 className="action-button-soft deck-control-button deck-control-button-secondary"
-                onClick={() => void runAction(restartServer)}
+                onClick={() => onOpenContextSettings?.()}
+                disabled={!onOpenContextSettings}
               >
                 <span className="deck-control-symbol" aria-hidden="true">
-                  ↻
+                  CTX
                 </span>
-                <span className="deck-control-copy">Poravnaj restartom</span>
+                <span className="deck-control-copy">Otvori context</span>
               </button>
-            ) : null}
+              <button
+                type="button"
+                className="action-button-soft deck-control-button deck-control-button-secondary"
+                onClick={openRuntimeDiagnostics}
+              >
+                <span className="deck-control-symbol" aria-hidden="true">
+                  ADV
+                </span>
+                <span className="deck-control-copy">Dijagnostika</span>
+              </button>
+            </div>
+            <p className="helper-text runtimepilot-primary-tab-rack-copy">
+              Rezultat posle klika: {actionSummary}
+            </p>
           </div>
-        </section>
-      </div>
+        }
+      />
 
       <ActionResultPanel result={result} />
 
-      <details className="status-card wide-card runtimepilot-section-shell runtimepilot-advanced-disclosure">
+      <details
+        id="runtime-advanced-rack"
+        className="status-card wide-card runtimepilot-section-shell runtimepilot-advanced-disclosure"
+      >
         <summary>
           <span className="runtimepilot-advanced-summary-copy">
             <span className="status-label">Runtime rack</span>

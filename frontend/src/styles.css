@@ -3449,6 +3449,116 @@ code {
   max-width: 42ch;
 }
 
+.runtimepilot-primary-tab-rack {
+  display: grid;
+  grid-template-columns: minmax(0, 1.16fr) minmax(280px, 0.96fr) minmax(320px, 1fr);
+  gap: 16px;
+  align-items: stretch;
+  padding: 18px 20px;
+  border-radius: 20px;
+  background:
+    linear-gradient(90deg, rgba(242, 184, 75, 0.08), transparent 12%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.012)),
+    color-mix(in srgb, var(--app-card-soft-bg) 82%, var(--app-overlay-solid-fill));
+}
+
+.runtimepilot-primary-tab-rack-signal,
+.runtimepilot-primary-tab-rack-commands,
+.runtimepilot-primary-tab-rack-deep {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+  min-width: 0;
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px solid color-mix(in srgb, var(--app-card-soft-border) 92%, transparent);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.032), rgba(255, 255, 255, 0.01)),
+    color-mix(in srgb, var(--app-card-soft-bg) 78%, var(--app-overlay-solid-fill));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.18);
+}
+
+.runtimepilot-primary-tab-rack-signal {
+  gap: 14px;
+}
+
+.runtimepilot-primary-tab-rack-heading {
+  display: grid;
+  gap: 6px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid color-mix(in srgb, var(--app-card-soft-border) 88%, transparent);
+}
+
+.runtimepilot-primary-tab-rack-title {
+  display: block;
+  font-size: clamp(1.35rem, 1.9vw, 1.92rem);
+  line-height: 1.1;
+  color: var(--app-text);
+}
+
+.runtimepilot-primary-tab-rack-panel,
+.runtimepilot-primary-tab-rack-body,
+.runtimepilot-primary-tab-rack-detail-stack {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.runtimepilot-primary-tab-rack-state {
+  display: block;
+  font-size: clamp(1.14rem, 1.7vw, 1.52rem);
+  line-height: 1.18;
+  color: var(--app-text);
+}
+
+.runtimepilot-primary-tab-rack-copy {
+  margin: 0;
+}
+
+.runtimepilot-primary-tab-rack-command-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.runtimepilot-primary-tab-rack-command-grid .deck-control-button {
+  width: 100%;
+}
+
+.runtimepilot-primary-tab-rack-command-grid-compact {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.runtimepilot-primary-tab-rack-detail-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.runtimepilot-primary-tab-rack-detail-card {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  padding: 12px 13px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--app-card-soft-border) 92%, transparent);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.028), rgba(255, 255, 255, 0.008)),
+    color-mix(in srgb, var(--app-card-soft-bg) 74%, var(--app-overlay-solid-fill));
+}
+
+.runtimepilot-primary-tab-rack-detail-card .helper-text {
+  margin: 0;
+}
+
+.runtimepilot-primary-tab-rack-detail-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 4px;
+}
+
 .primary-page-top-grid {
   display: grid;
   gap: 16px;
@@ -11520,6 +11630,15 @@ select:-webkit-autofill {
     grid-template-columns: 1fr;
   }
 
+  .runtimepilot-primary-tab-rack {
+    grid-template-columns: 1fr;
+  }
+
+  .runtimepilot-primary-tab-rack-command-grid,
+  .runtimepilot-primary-tab-rack-detail-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .runtimepilot-opencode-shell-actions,
   .runtimepilot-opencode-shell-topgrid,
   .runtimepilot-opencode-shell-readout-grid {
@@ -11597,6 +11716,16 @@ select:-webkit-autofill {
 @media (max-width: 760px) {
   .runtimepilot-nav-shell-copy {
     gap: 6px;
+  }
+
+  .runtimepilot-primary-tab-rack {
+    padding: 16px;
+  }
+
+  .runtimepilot-primary-tab-rack-command-grid,
+  .runtimepilot-primary-tab-rack-command-grid-compact,
+  .runtimepilot-primary-tab-rack-detail-actions {
+    grid-template-columns: 1fr;
   }
 
   .runtimepilot-opencode-shell {

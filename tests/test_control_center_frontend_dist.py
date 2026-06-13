@@ -580,6 +580,7 @@ def test_opencode_source_and_styles_use_service_bay_layout_for_advanced_tools():
     page_source = Path("frontend/src/pages/OpenCodePage.tsx").read_text(encoding="utf-8")
     styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
 
+    assert "PrimaryTabRack" in page_source
     assert "Servisni tok OpenCode-a" in page_source
     assert "Komande i launcher" in page_source
     assert "Presetovi i ponašanje agenta" in page_source
@@ -590,8 +591,8 @@ def test_opencode_source_and_styles_use_service_bay_layout_for_advanced_tools():
     assert "runtimepilot-opencode-field-stack" in page_source
     assert "runtimepilot-opencode-preset-grid" in page_source
     assert "runtimepilot-opencode-instance-grid" in page_source
-    assert "runtimepilot-opencode-shell-actions-panel" in page_source
-    assert "runtimepilot-opencode-shell-signal-topline" in page_source
+    assert "runtimepilot-primary-tab-rack-detail-grid" in page_source
+    assert "runtimepilot-primary-tab-rack-detail-actions" in page_source
     assert "runtimepilot-opencode-inline-transport" in page_source
     assert "runtimepilot-opencode-form-actions" in page_source
     assert "runtimepilot-opencode-settings-row" in page_source
@@ -609,8 +610,8 @@ def test_opencode_source_and_styles_use_service_bay_layout_for_advanced_tools():
     assert ".runtimepilot-opencode-field-stack" in styles_source
     assert ".runtimepilot-opencode-preset-grid" in styles_source
     assert ".runtimepilot-opencode-instance-grid" in styles_source
-    assert ".runtimepilot-opencode-shell-actions-panel" in styles_source
-    assert ".runtimepilot-opencode-shell-signal-topline" in styles_source
+    assert ".runtimepilot-primary-tab-rack" in styles_source
+    assert ".runtimepilot-primary-tab-rack-detail-grid" in styles_source
     assert ".runtimepilot-opencode-inline-transport" in styles_source
     assert ".runtimepilot-opencode-form-actions" in styles_source
     assert ".runtimepilot-opencode-settings-row" in styles_source
@@ -1070,8 +1071,8 @@ def test_server_and_opencode_source_include_equivalent_launch_command_panels():
     assert "opencode-config-grid" in opencode_source
     assert "opencode-env-grid" in opencode_source
     assert "Efektivna local-lacc inference podrazumevana" in opencode_source
-    assert "Desktop GUI kada je dostupan" in opencode_source
-    assert "CLI fallback" in opencode_source
+    assert "Otvori rezultat" in opencode_source
+    assert "Napredni alati" in opencode_source
     assert "izolovanom workspace-u" in opencode_source
 
     dist_root = Path(
@@ -1493,7 +1494,7 @@ def test_settings_and_opencode_source_include_web_search_controls_and_guidance()
     assert "Tema boja" in settings_source
     assert "local-lacc" in settings_source
     assert "local-lacc" in opencode_source
-    assert "RuntimePilot search sloj" in opencode_source
+    assert "iz trenutnog RuntimePilot okruženja" in opencode_source
 
 
 def test_search_page_source_makes_web_results_clickable_and_guides_toward_answer():
@@ -1868,7 +1869,8 @@ def test_server_page_source_uses_runtime_generic_actions_and_labels():
     assert "Restartuj runtime" in source
     assert "Zaustavi runtime" in source
     assert "Otvori runtime veb" in source
-    assert "Poravnaj restartom" in source
+    assert "Otvori context" in source
+    assert "Dijagnostika" in source
     assert "serverStatus?.canStart === false" in source
     assert "serverStatus?.canOpenWeb === false" in source
     assert "restartServer" in api_source
@@ -2024,16 +2026,16 @@ def test_shared_ux_components_and_guided_flow_copy_are_present_in_core_pages():
     assert ".runtimepilot-home-status-deck" in styles_source
 
     assert "Runtime cockpit" in server_source
-    assert "runtime-page-top-grid" in server_source
-    assert "runtime-faceplate-card" in server_source
-    assert "runtime-faceplate-support" in server_source
+    assert "PrimaryTabRack" in server_source
+    assert "runtimepilot-primary-tab-rack" in styles_source
     assert "Napredna dijagnostika i ručne komande" in server_source
-    assert "PrimaryFlowCard" in server_source
+    assert "PrimaryFlowCard" not in server_source
 
     assert "Aktivni model i brza promena" in models_source
     assert "Brzi izbor modela" in models_source
     assert "Napredni katalog i izvori" in models_source
-    assert "PrimaryFlowCard" in models_source
+    assert "PrimaryTabRack" in models_source
+    assert "PrimaryFlowCard" not in models_source
     assert "PageDataStateCard" in models_source
 
     assert "Browser tok" in browser_source
@@ -2050,9 +2052,10 @@ def test_shared_ux_components_and_guided_flow_copy_are_present_in_core_pages():
 
     assert "OpenCode radni tok" in opencode_source
     assert "Otvori u izolovanom workspace-u" in opencode_source
-    assert "Desktop GUI kada je dostupan" in opencode_source
+    assert "Izolovan workspace" in opencode_source
+    assert "PrimaryTabRack" in opencode_source
     assert "Napredni OpenCode alati" in opencode_source
-    assert "PrimaryFlowCard" in opencode_source
+    assert "PrimaryFlowCard" not in opencode_source
     assert "PageDataStateCard" in opencode_source
 
     assert "Benchmark tok" in benchmark_source
@@ -2203,7 +2206,7 @@ def test_runtimepilot_phase_two_copy_is_present_in_source_and_bundle():
 
     assert "RuntimePilot je stvarno pokušao GPU offload" in server_source
     assert "ručni ekvivalent onoga što RuntimePilot radi" in server_source
-    assert "isti RuntimePilot search sloj" in opencode_source
+    assert "OpenCode ekran" in opencode_source
     assert "što RuntimePilot radi kada otvara OpenCode" in opencode_source
     assert "iz trenutnog RuntimePilot okruženja" in opencode_source
     assert "Zajednička RuntimePilot web pretraga" in search_source
@@ -2553,25 +2556,19 @@ def test_runtimepilot_ux_rewrite_runtime_models_and_opencode_pages_use_new_prima
 
     assert "Runtime cockpit" in server_source
     assert "Napredna dijagnostika i ručne komande" in server_source
+    assert "PrimaryTabRack" in server_source
     assert "Aktivni model i brza promena" in models_source
-    assert "runtime-page-top-grid" in models_source
-    assert "runtime-faceplate-support" in models_source
-    assert "runtime-faceplate-headline" in models_source
+    assert "PrimaryTabRack" in models_source
     assert "Brzi izbor modela" in models_source
     assert "Napredni katalog i izvori" in models_source
-    assert "OpenCode radni tok" in opencode_source
-    assert "runtime-page-top-grid" in opencode_source
-    assert "runtime-faceplate-support" in opencode_source
-    assert "runtime-faceplate-headline" in opencode_source
-    assert "Otvorena CLI sesija i sledeći klik" in opencode_source
+    assert "PrimaryTabRack" in opencode_source
+    assert "OpenCode ekran" in opencode_source
+    assert "Otvori rezultat" in opencode_source
     assert "Napredni OpenCode alati" in opencode_source
-    assert ".primary-page-top-grid" in styles_source
-    assert ".runtime-page-top-grid" in styles_source
-    assert ".runtime-faceplate-card" in styles_source
-    assert ".runtime-faceplate-support" in styles_source
-    assert ".runtime-faceplate-headline" in styles_source
-    assert ".runtime-faceplate-module-glyph" in styles_source
-    assert ".primary-page-support-card" in styles_source
+    assert ".runtimepilot-primary-tab-rack" in styles_source
+    assert ".runtimepilot-primary-tab-rack-signal" in styles_source
+    assert ".runtimepilot-primary-tab-rack-commands" in styles_source
+    assert ".runtimepilot-primary-tab-rack-deep" in styles_source
     assert ".runtimepilot-advanced-disclosure" in styles_source
     assert ".model-quick-grid" in styles_source
     assert js_assets
@@ -2581,18 +2578,15 @@ def test_runtimepilot_ux_rewrite_runtime_models_and_opencode_pages_use_new_prima
     bundled_css = "\n".join(path.read_text(encoding="utf-8") for path in css_assets)
 
     assert "Runtime cockpit" in bundled_js
-    assert "runtime-page-top-grid" in bundled_js
+    assert "Otvori context" in bundled_js
     assert "Aktivni model i brza promena" in bundled_js
     assert "Brzi izbor modela" in bundled_js
-    assert "OpenCode radni tok" in bundled_js
+    assert "OpenCode ekran" in bundled_js
     assert "Napredni OpenCode alati" in bundled_js
-    assert ".primary-page-top-grid" in bundled_css
-    assert ".runtime-page-top-grid" in bundled_css
-    assert ".runtime-faceplate-card" in bundled_css
-    assert ".runtime-faceplate-support" in bundled_css
-    assert ".runtime-faceplate-headline" in bundled_css
-    assert ".runtime-faceplate-module-glyph" in bundled_css
-    assert ".primary-page-support-card" in bundled_css
+    assert ".runtimepilot-primary-tab-rack" in bundled_css
+    assert ".runtimepilot-primary-tab-rack-signal" in bundled_css
+    assert ".runtimepilot-primary-tab-rack-commands" in bundled_css
+    assert ".runtimepilot-primary-tab-rack-deep" in bundled_css
     assert ".runtimepilot-advanced-disclosure" in bundled_css
     assert ".model-quick-grid" in bundled_css
 
@@ -3221,10 +3215,12 @@ def test_primary_flow_and_runtime_pages_use_hifi_deck_controls_for_main_actions(
     assert "HomeStatusDeck" in home_source
     assert "runtimepilot-home-transport" not in home_source
     assert 'disabled={opencode?.canOpen === false}' not in home_source
-    assert 'primaryActionIcon={runtimeStarted ? "reload" : "play"}' in server_source
-    assert 'secondaryActionIcon="stop"' in server_source
-    assert 'primaryActionIcon="play"' in opencode_source
-    assert 'secondaryActionIcon="reload"' in opencode_source
+    assert "PrimaryTabRack" in server_source
+    assert "PrimaryTabRack" in opencode_source
+    assert "Pokreni runtime" in server_source
+    assert "Otvori runtime veb" in server_source
+    assert "Izolovan workspace" in opencode_source
+    assert "Otvori rezultat" in opencode_source
     assert ".deck-control-button" in styles_source
     assert ".deck-control-symbol" in styles_source
     assert ".deck-control-button-primary" in styles_source
@@ -3365,6 +3361,29 @@ def test_models_page_source_highlights_where_results_appear_after_actions():
     assert "Status preuzimanja i Lokalni modeli" in bundled_js
     assert ".model-action-clarity-grid" in bundled_css
     assert ".model-quick-next" in bundled_css
+
+
+def test_primary_pages_share_primary_tab_rack():
+    rack_source = Path("frontend/src/components/shell/PrimaryTabRack.tsx").read_text(
+        encoding="utf-8"
+    )
+    server_source = Path("frontend/src/pages/ServerPage.tsx").read_text(
+        encoding="utf-8"
+    )
+    models_source = Path("frontend/src/pages/ModelsPage.tsx").read_text(
+        encoding="utf-8"
+    )
+    opencode_source = Path("frontend/src/pages/OpenCodePage.tsx").read_text(
+        encoding="utf-8"
+    )
+
+    assert "PrimaryTabRack" in rack_source
+    assert "Signal" in rack_source
+    assert "Komande" in rack_source
+    assert "Duboko" in rack_source
+    assert "PrimaryTabRack" in server_source
+    assert "PrimaryTabRack" in models_source
+    assert "PrimaryTabRack" in opencode_source
 
 
 def test_settings_page_source_maps_general_save_actions_to_editor_config_and_live_result():

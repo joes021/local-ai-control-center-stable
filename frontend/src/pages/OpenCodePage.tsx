@@ -4,6 +4,7 @@ import { ActionResultPanel } from "../components/ActionResultPanel";
 import { CustomSelect } from "../components/CustomSelect";
 import { PageDataStateCard } from "../components/PageDataStateCard";
 import { RuntimePilotIcon } from "../components/RuntimePilotIcon";
+import { PrimaryTabRack } from "../components/shell/PrimaryTabRack";
 import {
   applyOpenCodeSettings,
   bootstrapOpenCode,
@@ -214,224 +215,114 @@ export function OpenCodePage() {
     <>
       {error ? <div className="error-panel wide-card">{error}</div> : null}
 
-      <div
-        className="visually-hidden"
-        aria-hidden="true"
-        data-legacy-markers={
-          'runtime-page-top-grid runtime-faceplate-support runtime-faceplate-headline PrimaryFlowCard primaryActionIcon="play" secondaryActionIcon="reload"'
-        }
-      >
-        <span>Desktop GUI kada je dostupan</span>
-        <span>RuntimePilot search sloj</span>
-        <span>isti RuntimePilot search sloj</span>
-        <span>local-lacc koristi isti RuntimePilot search sloj kao i Search tab kada je to uključeno.</span>
-        <span>Otvorena CLI sesija i sledeći klik ostaju vidljivi u sesijskom deck-u ispod.</span>
-        <span>runtime-page-top-grid</span>
-        <span>runtime-faceplate-support</span>
-        <span>runtime-faceplate-headline</span>
-        <span>PrimaryFlowCard</span>
-        <span>primaryActionIcon="play"</span>
-        <span>secondaryActionIcon="reload"</span>
-      </div>
-
-      <section className="status-card wide-card runtimepilot-section-shell runtimepilot-opencode-shell runtimepilot-faceplate-module">
-        <div className="runtimepilot-opencode-shell-header">
-          <div className="runtimepilot-opencode-shell-heading">
-            <span className="status-label">OpenCode ekran</span>
-            <strong className="runtimepilot-opencode-shell-title">Od otvaranja sesije do rezultata</strong>
-            <p className="helper-text runtimepilot-opencode-shell-summary">
-              Ovde je fokus da korisnik odmah vidi da li se OpenCode stvarno otvorio, u kom workspace-u
-              radi i da li koristi aktivni model koji je prethodno izabran.
-            </p>
-          </div>
-          <div className="runtimepilot-opencode-shell-actions-panel">
-            <span className="status-label runtimepilot-opencode-shell-actions-label">Transport deck</span>
-            <div className="runtimepilot-opencode-shell-actions">
+      <div className="runtimepilot-opencode-shell runtimepilot-faceplate-module">
+        <PrimaryTabRack
+          eyebrow="OpenCode ekran"
+          title="Od otvaranja sesije do rezultata"
+          signal={
+            <div className="runtimepilot-primary-tab-rack-body">
+              <strong className="runtimepilot-primary-tab-rack-state">{sessionSignalTitle}</strong>
+              <p className="helper-text runtimepilot-primary-tab-rack-copy">{sessionSignalSummary}</p>
+              <div className="summary-metrics">
+                <span>Sesija: {opencode.sessionState}</span>
+                <span>Runtime: {opencode.runtimeConnected ? "povezan" : opencode.runtimeLiveStatus || "--"}</span>
+                <span>Instanci: {opencode.instanceCount ?? 0}</span>
+                <span>PID: {currentInstance?.pid ?? "nepoznat"}</span>
+              </div>
+              <p className="helper-text runtimepilot-primary-tab-rack-copy">{openCodeStateSummary}</p>
+            </div>
+          }
+          commands={
+            <div className="runtimepilot-primary-tab-rack-command-grid">
               <button
                 type="button"
-                className="runtimepilot-opencode-shell-action runtimepilot-opencode-shell-action-primary"
+                className="action-button deck-control-button deck-control-button-primary"
                 onClick={() =>
                   void runOpenCodeAction(() => openOpenCode(opencode.profile || "balanced", "direct"))
                 }
                 disabled={opencode.canOpen === false}
                 title={opencode.openBlockedReason || undefined}
               >
-                <span className="runtimepilot-opencode-shell-action-symbol" aria-hidden="true">
-                  <RuntimePilotIcon name="play" />
+                <span className="deck-control-symbol" aria-hidden="true">
+                  GUI
                 </span>
-                <span className="runtimepilot-opencode-shell-action-copy">{directActionLabel}</span>
+                <span className="deck-control-copy">{directActionLabel}</span>
               </button>
               <button
                 type="button"
-                className="runtimepilot-opencode-shell-action"
+                className="action-button-soft deck-control-button deck-control-button-secondary"
                 onClick={() =>
                   void runOpenCodeAction(() => openOpenCode(opencode.profile || "balanced", "isolated"))
                 }
                 disabled={opencode.canOpen === false}
                 title={opencode.openBlockedReason || undefined}
               >
-                <span className="runtimepilot-opencode-shell-action-symbol" aria-hidden="true">
-                  <RuntimePilotIcon name="reload" />
+                <span className="deck-control-symbol" aria-hidden="true">
+                  ISO
                 </span>
-                <span className="runtimepilot-opencode-shell-action-copy">Izolovan workspace</span>
+                <span className="deck-control-copy">Izolovan workspace</span>
               </button>
               <button
                 type="button"
-                className="runtimepilot-opencode-shell-action"
-                onClick={openAdvancedTools}
+                className="action-button-soft deck-control-button deck-control-button-secondary"
+                onClick={() => void runOpenCodeAction(bootstrapOpenCode)}
+                disabled={opencode.canBootstrap === false}
+                title={opencode.bootstrapBlockedReason || undefined}
               >
-                <span className="runtimepilot-opencode-shell-action-symbol" aria-hidden="true">
-                  <RuntimePilotIcon name="opencode" />
+                <span className="deck-control-symbol" aria-hidden="true">
+                  FIX
                 </span>
-                <span className="runtimepilot-opencode-shell-action-copy">CLI signal</span>
+                <span className="deck-control-copy">{bootstrapActionLabel}</span>
               </button>
             </div>
-          </div>
-        </div>
-
-        <div className="runtimepilot-opencode-shell-topgrid">
-          <article className="runtimepilot-opencode-shell-signal">
-            <div className="runtimepilot-opencode-shell-signal-topline">
-              <span className="runtimepilot-opencode-shell-signal-code">CLI</span>
-              <span className="runtimepilot-opencode-shell-signal-lights" aria-hidden="true">
-                <span className="runtimepilot-opencode-shell-signal-light runtimepilot-opencode-shell-signal-light-active" />
-                <span className="runtimepilot-opencode-shell-signal-light" />
-                <span className="runtimepilot-opencode-shell-signal-light" />
-              </span>
-            </div>
-            <span className="status-label">CLI sesija sada</span>
-            <strong>{sessionSignalTitle}</strong>
-            <p className="helper-text">{sessionSignalSummary}</p>
-            <div className="summary-metrics">
-              <span>PID: {currentInstance?.pid ?? "nepoznat"}</span>
-              <span>Stanje: {opencode.sessionState}</span>
-              <span>Instanci: {opencode.instanceCount ?? 0}</span>
-            </div>
-          </article>
-
-          <article className="runtimepilot-opencode-shell-signal">
-            <div className="runtimepilot-opencode-shell-signal-topline">
-              <span className="runtimepilot-opencode-shell-signal-code">CFG</span>
-              <span className="runtimepilot-opencode-shell-signal-lights" aria-hidden="true">
-                <span className="runtimepilot-opencode-shell-signal-light runtimepilot-opencode-shell-signal-light-active-soft" />
-                <span className="runtimepilot-opencode-shell-signal-light" />
-                <span className="runtimepilot-opencode-shell-signal-light" />
-              </span>
-            </div>
-            <span className="status-label">Managed config</span>
-            <strong>{workspaceLabel}</strong>
-            <p className="helper-text">Jasna putanja gde se radi i šta je aktivno.</p>
-            <div className="summary-metrics">
-              <span>Provider: {managedProviderLabel}</span>
-              <span>Model: {managedModelLabel}</span>
-            </div>
-          </article>
-
-          <article className="runtimepilot-opencode-shell-signal">
-            <div className="runtimepilot-opencode-shell-signal-topline">
-              <span className="runtimepilot-opencode-shell-signal-code">RSL</span>
-              <span className="runtimepilot-opencode-shell-signal-lights" aria-hidden="true">
-                <span className="runtimepilot-opencode-shell-signal-light runtimepilot-opencode-shell-signal-light-result" />
-                <span className="runtimepilot-opencode-shell-signal-light" />
-                <span className="runtimepilot-opencode-shell-signal-light" />
-              </span>
-            </div>
-            <span className="status-label">Rezultat posle klika</span>
-            <strong>{resultSignalTitle}</strong>
-            <p className="helper-text">{resultSignalSummary}</p>
-            <div className="summary-metrics">
-              <span>Backend: {opencode.runtimeConnected ? "povezan" : opencode.runtimeLiveStatus || "--"}</span>
-              <span>Search proxy: {opencode.localProviderUsesSearchProxy ? "uključen" : "isključen"}</span>
-            </div>
-          </article>
-        </div>
-
-        <div className="runtimepilot-opencode-shell-main">
-          <section className="runtimepilot-opencode-shell-primary">
-            <span className="status-label">OpenCode radni tok</span>
-            <strong className="runtimepilot-opencode-shell-section-title">Prvo otvori, pa radi</strong>
-            <p className="helper-text runtimepilot-opencode-shell-body">
-              Kada klikneš na otvaranje, ishod mora odmah da bude jasan: da li je pokrenuta desktop
-              aplikacija, da li je runtime veza zdrava i da li je radni folder baš onaj koji očekuješ.
-            </p>
-            <div className="runtimepilot-opencode-shell-pills">
-              <span className="runtimepilot-opencode-shell-pill">Posle klika: status prelazi u otvoreno</span>
-              <span className="runtimepilot-opencode-shell-pill">Ako ne uspe: jasan razlog i sledeći korak</span>
-              <span className="runtimepilot-opencode-shell-pill">Aktivni profil: {opencode.profile || "--"}</span>
-            </div>
-            <div className="runtimepilot-opencode-shell-readout-grid">
-              <article className="runtimepilot-opencode-shell-readout">
-                <span className="status-label">CLI signal</span>
-                <strong>
-                  {currentInstance?.name || (opencode.active ? "Sesija je aktivna" : "Sesija još nije otvorena")}
-                </strong>
-                <p className="helper-text">{openCodeStateSummary}</p>
-              </article>
-              <article className="runtimepilot-opencode-shell-readout">
+          }
+          deep={
+            <div className="runtimepilot-primary-tab-rack-detail-grid">
+              <article className="runtimepilot-primary-tab-rack-detail-card">
                 <span className="status-label">Managed config</span>
                 <strong>{managedModelLabel}</strong>
                 <p className="helper-text">
                   Provider: {managedProviderLabel} · Base URL: {managedBaseUrlLabel}
                 </p>
               </article>
-              <article className="runtimepilot-opencode-shell-readout">
-                <span className="status-label">Rezultat</span>
-                <strong>{result ? result.status.toUpperCase() : "Čeka akciju"}</strong>
-                <p className="helper-text">{actionSummary}</p>
+              <article className="runtimepilot-primary-tab-rack-detail-card">
+                <span className="status-label">Aktivni workspace</span>
+                <strong>{workspaceLabel}</strong>
+                <p className="helper-text">
+                  {currentInstance?.name || "Sesija još nije otvorena"} · Profil {opencode.profile || "--"}
+                </p>
+              </article>
+              <article className="runtimepilot-primary-tab-rack-detail-card">
+                <span className="status-label">Poslednji rezultat</span>
+                <strong>{resultSignalTitle}</strong>
+                <p className="helper-text">{resultSignalSummary}</p>
+                <div className="runtimepilot-primary-tab-rack-detail-actions">
+                  <button
+                    type="button"
+                    className="action-button-soft deck-control-button deck-control-button-secondary"
+                    onClick={scrollToActionResult}
+                  >
+                    <span className="deck-control-symbol" aria-hidden="true">
+                      LOG
+                    </span>
+                    <span className="deck-control-copy">Otvori rezultat</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="action-button-soft deck-control-button deck-control-button-secondary"
+                    onClick={openAdvancedTools}
+                  >
+                    <span className="deck-control-symbol" aria-hidden="true">
+                      CLI
+                    </span>
+                    <span className="deck-control-copy">Napredni alati</span>
+                  </button>
+                </div>
               </article>
             </div>
-          </section>
-
-          <aside className="runtimepilot-opencode-shell-secondary">
-            <span className="status-label">Sekundarne akcije</span>
-            <strong className="runtimepilot-opencode-shell-section-title">Bez gušenja glavnog toka</strong>
-            <div className="runtimepilot-opencode-shell-secondary-list">
-              <button
-                type="button"
-                className="runtimepilot-opencode-shell-secondary-action"
-                onClick={() =>
-                  void runOpenCodeAction(() => openOpenCode(opencode.profile || "balanced", "isolated"))
-                }
-                disabled={opencode.canOpen === false}
-                title={opencode.openBlockedReason || undefined}
-              >
-                <span className="runtimepilot-opencode-shell-secondary-action-code">ISO</span>
-                <span className="runtimepilot-opencode-shell-secondary-action-copy">
-                  Otvori u izolovanom workspace-u
-                </span>
-              </button>
-              <button
-                type="button"
-                className="runtimepilot-opencode-shell-secondary-action"
-                onClick={() => void runOpenCodeAction(bootstrapOpenCode)}
-                disabled={opencode.canBootstrap === false}
-                title={opencode.bootstrapBlockedReason || undefined}
-              >
-                <span className="runtimepilot-opencode-shell-secondary-action-code">FIX</span>
-                <span className="runtimepilot-opencode-shell-secondary-action-copy">{bootstrapActionLabel}</span>
-              </button>
-              <button
-                type="button"
-                className="runtimepilot-opencode-shell-secondary-action"
-                onClick={scrollToActionResult}
-              >
-                <span className="runtimepilot-opencode-shell-secondary-action-code">LOG</span>
-                <span className="runtimepilot-opencode-shell-secondary-action-copy">Otvori poslednji rezultat</span>
-              </button>
-              <button
-                type="button"
-                className="runtimepilot-opencode-shell-secondary-action"
-                onClick={openAdvancedTools}
-              >
-                <span className="runtimepilot-opencode-shell-secondary-action-code">CLI</span>
-                <span className="runtimepilot-opencode-shell-secondary-action-copy">
-                  CLI signal, launcher i napredni alati
-                </span>
-              </button>
-            </div>
-          </aside>
-        </div>
-      </section>
+          }
+        />
+      </div>
 
       <div id="opencode-action-result">
         <ActionResultPanel result={result} />
