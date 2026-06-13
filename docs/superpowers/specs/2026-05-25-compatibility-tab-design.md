@@ -1,4 +1,4 @@
-# Compatibility Tab Design
+﻿# Compatibility Tab Design
 
 ## Cilj
 
@@ -69,3 +69,5 @@ Uvesti novi `Compatibility` tab sa 3 sloja:
 - ne uvoditi novi backend endpoint ako isti rezultat moze da se dobije kroz postojece `models` i `browser` rute
 - ne menjati compatibility matematiku bez potrebe
 - ne uklanjati modal, nego ga zadrzati kao brzu ulaznu tacku
+
+

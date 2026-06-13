@@ -1,4 +1,4 @@
-# Windows OpenCode Live-Route Verification Implementation Plan
+﻿# Windows OpenCode Live-Route Verification Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -661,3 +661,5 @@ git commit -m "docs: describe opencode live-route verification"
   - marker seen + upstream invalid/failure maps to `opencode-live-route-proof`
 - [ ] `README.md` now says `installer-managed OpenCode live-route verification`
 - [ ] `product_installation_status` remains `incomplete`
+
+

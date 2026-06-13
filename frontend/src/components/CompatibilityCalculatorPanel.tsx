@@ -235,6 +235,13 @@ export function CompatibilityCalculatorPanel({
     ],
     [liveSnapshot?.context, liveSnapshot?.outputTokens, liveTurbo, overrides],
   );
+  const changedEditorCount = useMemo(
+    () => editorDiffs.filter((item) => item.active !== item.editor).length,
+    [editorDiffs],
+  );
+  const lastActionSummary =
+    result?.summary ||
+    "Još nema nove akcije. Posle provere ili primene potvrda se pojavljuje ovde i u aktivnom stanju ispod.";
 
   async function handleRecheck(
     nextOverrides?: CompatibilityCheckRequest["overrides"],
@@ -519,6 +526,50 @@ export function CompatibilityCalculatorPanel({
                   </button>
                 </div>
               </div>
+              <div className="compatibility-action-route-grid">
+                <article className="compatibility-action-route-card">
+                  <span className="status-label">Proveri ponovo</span>
+                  <strong className="status-value">Fit, budžet i preporuke gore</strong>
+                  <p className="helper-text">
+                    Ovaj klik osvežava kalkulator, pa rezultat prvo čitaš u gornjim fit i budget karticama.
+                  </p>
+                </article>
+                <article className="compatibility-action-route-card">
+                  <span className="status-label">Primeni</span>
+                  <strong className="status-value">Aktivno sada na runtime-u</strong>
+                  <p className="helper-text">
+                    Kad klikneš `Primeni`, prvo gledaj `Aktivno sada na runtime-u`.
+                  </p>
+                </article>
+                <article className="compatibility-action-route-card">
+                  <span className="status-label">Napredna izmena</span>
+                  <strong className="status-value">Editor čeka proveru</strong>
+                  <p className="helper-text">
+                    Napredne izmene menjaju samo editor. Tek posle `Proveri` ili `Primeni` poredi ih sa aktivnim stanjem.
+                  </p>
+                </article>
+              </div>
+              <div className="apply-state-panel compatibility-apply-state-panel">
+                <article className="apply-state-chip">
+                  <span className="apply-state-chip-title">Editor čeka proveru</span>
+                  <strong className="apply-state-chip-value">
+                    {changedEditorCount
+                      ? `${changedEditorCount} polja se razlikuju od aktivnog stanja`
+                      : "Editor je usklađen sa aktivnim stanjem"}
+                  </strong>
+                </article>
+                <article className="apply-state-chip">
+                  <span className="apply-state-chip-title">Aktivno sada</span>
+                  <strong className="apply-state-chip-value">
+                    {runtimeLabel(liveTurbo?.runtimePreference ?? null)} | ctx{" "}
+                    {formatInteger(liveSnapshot?.context ?? null)}
+                  </strong>
+                </article>
+                <article className="apply-state-chip">
+                  <span className="apply-state-chip-title">Poslednja akcija</span>
+                  <strong className="apply-state-chip-value">{lastActionSummary}</strong>
+                </article>
+              </div>
               <section className="compatibility-live-settings-panel runtimepilot-faceplate-module">
                 <div className="compatibility-live-settings-heading">
                   <span className="runtimepilot-section-glyph">
@@ -567,7 +618,7 @@ export function CompatibilityCalculatorPanel({
                   </article>
                 </div>
                 <p className="helper-text">
-                  Proveri ili primeni da bi aktivno stanje ispod bilo ažurirano.
+                  Proveri ili primeni da bi aktivno stanje ispod bilo ažurirano. Kad klikneš `Primeni`, prvo gledaj ove vrednosti. Ako brojevi ostanu isti, akcija još nije stigla do živog runtime-a.
                 </p>
               </section>
               {payload.recommendations?.length ? (
@@ -626,7 +677,7 @@ export function CompatibilityCalculatorPanel({
                 `Primeni` aktivno stanje iznad treba da se promeni.
               </p>
               <div className="compat-advanced-grid">
-                <label className="browser-field">
+                <label className="browser-field compat-advanced-control">
                   <span>Kontekst</span>
                   <input
                     type="number"
@@ -639,7 +690,7 @@ export function CompatibilityCalculatorPanel({
                     }
                   />
                 </label>
-                <label className="browser-field">
+                <label className="browser-field compat-advanced-control">
                   <span>Izlaz</span>
                   <input
                     type="number"
@@ -652,7 +703,7 @@ export function CompatibilityCalculatorPanel({
                     }
                   />
                 </label>
-                <label className="browser-field">
+                <label className="browser-field compat-advanced-control">
                   <span>ctk</span>
                   <CustomSelect
                     value={overrides?.ctk ?? "turbo4"}
@@ -663,7 +714,7 @@ export function CompatibilityCalculatorPanel({
                     ariaLabel="Compatibility ctk"
                   />
                 </label>
-                <label className="browser-field">
+                <label className="browser-field compat-advanced-control">
                   <span>ctv</span>
                   <CustomSelect
                     value={overrides?.ctv ?? "turbo3"}
@@ -674,7 +725,7 @@ export function CompatibilityCalculatorPanel({
                     ariaLabel="Compatibility ctv"
                   />
                 </label>
-                <label className="browser-field">
+                <label className="browser-field compat-advanced-control">
                   <span>ncmoe</span>
                   <input
                     type="number"
@@ -687,7 +738,7 @@ export function CompatibilityCalculatorPanel({
                     }
                   />
                 </label>
-                <label className="browser-field">
+                <label className="browser-field compat-advanced-control">
                   <span>Runtime</span>
                   <CustomSelect
                     value={overrides?.runtimePreference ?? "turboquant"}

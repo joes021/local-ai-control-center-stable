@@ -1,4 +1,4 @@
-# Windows Validation - Telemetry Live Now Truth
+﻿# Windows Validation - Telemetry Live Now Truth
 
 Datum: 2026-05-28  
 Verzija: v0.4.44
@@ -88,3 +88,5 @@ To potvrđuje da se stari throughput više ne prikazuje kao aktivan `Uživo sada
 
 - stvarno trenutno live stanje
 - poslednji throughput signal kao referentni, manji prikaz
+
+

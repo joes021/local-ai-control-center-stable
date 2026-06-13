@@ -1,4 +1,4 @@
-# Windows Control Center Stop Race Validation - 2026-05-26
+﻿# Windows Control Center Stop Race Validation - 2026-05-26
 
 ## Scope
 
@@ -75,7 +75,7 @@ Potvrdjeno:
 
 Ovaj fix je potvrden stvarnim upgrade tokom na:
 
-- `<remote-user>@192.0.2.10`
+- `operator@192.0.2.10`
 - install root:
   - `C:\Users\<remote-user>\LocalAIControlCenter`
 
@@ -97,3 +97,5 @@ Posebna ivica koja i dalje ostaje van ovog fixa:
 - kada se Control Center pokrece iz cistog non-interactive SSH toka, panel proces ne ostaje pouzdano ziv posle zatvaranja te SSH sesije
 - to nije blokiralo installer uspesnost niti upgrade na `192.0.2.10`
 - to ostaje zaseban remote-launch polish ako kasnije budemo hteli da i taj put bude potpuno robustan
+
+

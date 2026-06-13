@@ -52,7 +52,7 @@ export function RepairPage() {
           },
         ]}
       />
-      <section className="status-card wide-card">
+      <section className="status-card wide-card runtimepilot-faceplate-module">
         <span className="status-label">Bezbedan tok popravke</span>
         <strong className="status-value">
           Ako nešto nije u redu, ovde pokrećete jednu jasnu i bezbednu popravku.
@@ -64,6 +64,7 @@ export function RepairPage() {
         <div className="inline-actions">
           <button
             type="button"
+            className="action-button"
             disabled={Boolean(busyKind)}
             onClick={() => triggerRepair("install")}
           >
@@ -71,6 +72,7 @@ export function RepairPage() {
           </button>
           <button
             type="button"
+            className="action-button"
             disabled={Boolean(busyKind)}
             onClick={() => triggerRepair("model")}
           >
@@ -78,6 +80,7 @@ export function RepairPage() {
           </button>
           <button
             type="button"
+            className="action-button"
             disabled={Boolean(busyKind)}
             onClick={() => triggerRepair("runtime")}
           >
@@ -85,6 +88,7 @@ export function RepairPage() {
           </button>
           <button
             type="button"
+            className="action-button"
             disabled={Boolean(busyKind)}
             onClick={() => triggerRepair("config")}
           >
@@ -93,7 +97,7 @@ export function RepairPage() {
         </div>
       </section>
       {result ? (
-        <section className="status-card wide-card">
+        <section className="status-card wide-card runtimepilot-faceplate-module">
           <span className="status-label">{result.title ?? "Rezultat popravke"}</span>
           <strong className="status-value">{result.userMessage ?? result.summary}</strong>
           <p className="status-text">

@@ -1,4 +1,4 @@
-# Windows Compatibility Calculator Validation - 2026-05-25
+﻿# Windows Compatibility Calculator Validation - 2026-05-25
 
 ## Scope
 
@@ -87,3 +87,5 @@ Observed live behavior on the installed app:
   - not supported as a `TurboQuant` runtime path
 - compatibility math is heuristic guidance, not a formal upstream memory model
 - live compatibility smoke on this pass validated the installed backend payload; it did not include a separate manual browser click-through of every calculator interaction
+
+

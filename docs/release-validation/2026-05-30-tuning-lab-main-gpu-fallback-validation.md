@@ -1,4 +1,4 @@
-# 2026-05-30 Tuning Lab `main_gpu` fallback validation
+﻿# 2026-05-30 Tuning Lab `main_gpu` fallback validation
 
 ## Scope
 
@@ -49,3 +49,5 @@ Dodat je ciljani test za scenario:
 
 - verzija podignuta na `0.4.80`
 - novi setup artefakti napravljeni u `dist/`
+
+

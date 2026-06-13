@@ -46,23 +46,23 @@ type WorkflowPresetDraft = {
 };
 
 const PROFILE_OPTIONS = [
-  { value: "balanced", label: "balanced" },
-  { value: "speed", label: "speed" },
+  { value: "balanced", label: "balansirano" },
+  { value: "speed", label: "brzina" },
   { value: "video", label: "video" },
 ];
 
 const THINKING_MODE_OPTIONS = [
-  { value: "no-thinking", label: "no-thinking" },
-  { value: "low", label: "low" },
-  { value: "mid", label: "mid" },
-  { value: "high", label: "high" },
-  { value: "extra-high", label: "extra-high" },
+  { value: "no-thinking", label: "bez razmišljanja" },
+  { value: "low", label: "nisko" },
+  { value: "mid", label: "srednje" },
+  { value: "high", label: "visoko" },
+  { value: "extra-high", label: "vrlo visoko" },
 ];
 
 const WEB_SEARCH_MODE_OPTIONS = [
-  { value: "off", label: "Off" },
-  { value: "on-demand", label: "On-demand" },
-  { value: "always", label: "Always" },
+  { value: "off", label: "Isključeno" },
+  { value: "on-demand", label: "Na zahtev" },
+  { value: "always", label: "Uvek" },
 ];
 
 const SEARCH_ACTION_OPTIONS = [
@@ -78,8 +78,8 @@ const KNOWLEDGE_MODE_OPTIONS = [
 ];
 
 const BENCHMARK_TARGET_OPTIONS = [
-  { value: "selected", label: "Pokreni selected scenario" },
-  { value: "battery", label: "Pokreni celu battery sekvencu" },
+  { value: "selected", label: "Pokreni izabrani scenario" },
+  { value: "battery", label: "Pokreni celu sekvencu baterije" },
 ];
 
 const WORKFLOW_PRESET_SUMMARY_MAX_LENGTH = 220;
@@ -374,7 +374,7 @@ export function WorkflowsPage({
     return (
       <PageDataStateCard
         error={inlineError}
-        loadingText="U\u010ditavam radni prostor za radne tokove..."
+        loadingText="Učitavam radni prostor za radne tokove..."
         onRetry={() => {
           setError(null);
           void load();
@@ -385,7 +385,7 @@ export function WorkflowsPage({
 
   if (!settingsPayload || !editorDraft) {
     return (
-      <section className="status-card wide-card">
+      <section className="status-card wide-card runtimepilot-faceplate-module">
         Učitavam radni prostor za radne tokove...
       </section>
     );
@@ -400,46 +400,46 @@ export function WorkflowsPage({
     <>
       {inlineError ? <div className="error-panel wide-card">{inlineError}</div> : null}
       <PageFlowCard
-        title="Workflows tok"
-        summary="Ova strana je najjasnija kada je koristi\u0161 redom: prvo izaberi preset, zatim ga u\u010ditaj u editor, pa ga aktiviraj ili sa\u010duvaj kao svoju varijantu."
+        title="Tok radnih tokova"
+        summary="Ova strana je najjasnija kada je koristiš redom: prvo izaberi preset, zatim ga učitaj u editor, pa ga aktiviraj ili sačuvaj kao svoju varijantu."
         steps={[
           {
             title: "Izaberi preset",
-            detail: "Katalog slu\u017ei da odmah vidi\u0161 \u0161ta ve\u0107 postoji i koji preset je trenutno aktivan.",
+            detail: "Katalog služi da odmah vidiš šta već postoji i koji preset je trenutno aktivan.",
           },
           {
-            title: "U\u010ditaj u editor",
-            detail: "Editor je mesto za kloniranje, doterivanje i razumevanje preseta bez lutanja kroz vi\u0161e strana.",
+            title: "Učitaj u editor",
+            detail: "Editor je mesto za kloniranje, doterivanje i razumevanje preseta bez lutanja kroz više strana.",
           },
           {
-            title: "Aktiviraj ili sa\u010duvaj",
-            detail: "Aktiviraj kada ho\u0107e\u0161 da preset vodi RuntimePilot odmah, ili ga sa\u010duvaj kao novu korisni\u010dku varijantu.",
+            title: "Aktiviraj ili sačuvaj",
+            detail: "Aktiviraj kada hoćeš da preset vodi RuntimePilot odmah, ili ga sačuvaj kao novu korisničku varijantu.",
           },
         ]}
         actions={
           <>
             <button type="button" className="secondary-button" onClick={onOpenSearch}>
-              Otvori Search
+              Otvori pretragu
             </button>
             <button type="button" className="secondary-button" onClick={onOpenKnowledge}>
-              Otvori Knowledge
+              Otvori znanje
             </button>
             <button type="button" className="secondary-button" onClick={onOpenBenchmark}>
-              Otvori Benchmark
+              Otvori benchmark
             </button>
           </>
         }
       />
-      <section className="status-card wide-card">
+      <section className="status-card wide-card runtimepilot-faceplate-module">
         <span className="status-label">Radni tokovi</span>
         <strong className="status-value">Radni prostor za radne tokove</strong>
         <p className="helper-text">
-          Ovde vidiš ugrađene workflow preset-e, možeš da ih aktiviraš za ceo RuntimePilot i da
+          Ovde vidiš ugrađene presete radnog toka, a svaki preset radnog toka možeš da aktiviraš za ceo RuntimePilot i da
           napraviš svoje korisničke varijante bez ručnog lutanja kroz Podešavanja.
         </p>
       </section>
 
-      <section className="status-card wide-card">
+      <section className="status-card wide-card runtimepilot-faceplate-module">
         <span className="status-label">Katalog preseta</span>
         <div className="workflow-preset-grid">
           {presets.map((preset) => {
@@ -464,11 +464,12 @@ export function WorkflowsPage({
                   {preset.benchmarkDefaults.runLabel}
                 </p>
                 <p className="helper-text">
-                  Inference sažetak: {buildWorkflowInferenceSummary(preset)}
+                  Sažetak inferencije: {buildWorkflowInferenceSummary(preset)}
                 </p>
                 <div className="inline-actions">
                   <button
                     type="button"
+                    className="action-button"
                     disabled={busyPresetId === preset.id}
                     onClick={async () => {
                       setBusyPresetId(preset.id);
@@ -486,7 +487,7 @@ export function WorkflowsPage({
                         setError(
                           reason instanceof Error
                             ? reason.message
-                            : "Aktivacija workflow preseta nije uspela.",
+                            : "Aktivacija preseta radnog toka nije uspela.",
                         );
                       } finally {
                         setBusyPresetId("");
@@ -497,7 +498,7 @@ export function WorkflowsPage({
                   </button>
                   <button
                     type="button"
-                    className={isLoadedInEditor ? "secondary-button" : undefined}
+                    className={isLoadedInEditor ? "secondary-button" : "secondary-button"}
                     onClick={() => {
                       const nextBaseline = createDraftFromPreset(preset);
                       setEditorPresetId(preset.id);
@@ -514,13 +515,13 @@ export function WorkflowsPage({
                   >
                     Učitaj u editor
                   </button>
-                  <button type="button" onClick={onOpenSearch}>
+                  <button type="button" className="secondary-button" onClick={onOpenSearch}>
                     Otvori pretragu
                   </button>
-                  <button type="button" onClick={onOpenKnowledge}>
+                  <button type="button" className="secondary-button" onClick={onOpenKnowledge}>
                     Otvori znanje
                   </button>
-                  <button type="button" onClick={onOpenBenchmark}>
+                  <button type="button" className="secondary-button" onClick={onOpenBenchmark}>
                     Otvori benchmark
                   </button>
                 </div>
@@ -530,8 +531,8 @@ export function WorkflowsPage({
         </div>
       </section>
 
-      <section className="status-card wide-card">
-        <span className="status-label">Editor workflow preseta</span>
+      <section className="status-card wide-card runtimepilot-faceplate-module">
+        <span className="status-label">Editor preseta radnog toka</span>
         <strong className="status-value">{editorDraft.name || "Novi korisnički preset"}</strong>
         <div className="summary-metrics">
           <span>
@@ -584,7 +585,7 @@ export function WorkflowsPage({
           </article>
 
           <article className="settings-field settings-field-wide">
-            <span className="settings-field-label">Badge oznake</span>
+            <span className="settings-field-label">Oznake</span>
             <input
               type="text"
               value={editorDraft.badgesText}
@@ -596,7 +597,7 @@ export function WorkflowsPage({
               }
             />
             <p className="helper-text">
-              Upiši oznake razdvojene zarezima, na primer: code, web, custom. Najviše{" "}
+              Upiši oznake razdvojene zarezima, na primer: kod, veb, prilagođeno. Najviše{" "}
               {WORKFLOW_PRESET_BADGE_MAX_COUNT} oznaka, do {WORKFLOW_PRESET_BADGE_MAX_LENGTH} karaktera po oznaci.
             </p>
           </article>
@@ -612,12 +613,12 @@ export function WorkflowsPage({
                   profile: value,
                 })
               }
-              ariaLabel="Izaberi profil workflow preseta"
+              ariaLabel="Izaberi profil preseta radnog toka"
             />
           </article>
 
           <article className="settings-field">
-            <span className="settings-field-label">Context</span>
+            <span className="settings-field-label">Kontekst</span>
             <input
               type="number"
               value={editorDraft.context}
@@ -631,7 +632,7 @@ export function WorkflowsPage({
           </article>
 
           <article className="settings-field">
-            <span className="settings-field-label">Output tokens</span>
+            <span className="settings-field-label">Izlazni tokeni</span>
             <input
               type="number"
               value={editorDraft.outputTokens}
@@ -645,7 +646,7 @@ export function WorkflowsPage({
           </article>
 
           <article className="settings-field">
-            <span className="settings-field-label">Thinking mode</span>
+            <span className="settings-field-label">Režim razmišljanja</span>
             <CustomSelect
               value={editorDraft.thinkingMode}
               options={THINKING_MODE_OPTIONS}
@@ -655,14 +656,14 @@ export function WorkflowsPage({
                   thinkingMode: value,
                 })
               }
-              ariaLabel="Izaberi thinking režim workflow preseta"
+              ariaLabel="Izaberi režim razmišljanja preseta radnog toka"
             />
           </article>
 
           <article className="settings-field settings-field-wide">
-            <span className="settings-field-label">Inference i sampling</span>
+            <span className="settings-field-label">Inferencija i uzorkovanje</span>
             <p className="helper-text">
-              Ove vrednosti se čuvaju unutar workflow preseta i mogu da preuzmu runtime komande,
+              Ove vrednosti se čuvaju unutar preseta radnog toka i mogu da preuzmu runtime komande,
               lokalni model i `OpenCode local-lacc` fallback kada preset aktiviraš kroz RuntimePilot.
             </p>
             <div className="workflow-editor-grid">
@@ -796,7 +797,7 @@ export function WorkflowsPage({
           </article>
 
           <article className="settings-field">
-            <span className="settings-field-label">Web search mode</span>
+            <span className="settings-field-label">Veb režim pretrage</span>
             <CustomSelect
               value={editorDraft.webSearchMode}
               options={WEB_SEARCH_MODE_OPTIONS}
@@ -806,7 +807,7 @@ export function WorkflowsPage({
                   webSearchMode: value,
                 })
               }
-              ariaLabel="Izaberi web search mode workflow preseta"
+              ariaLabel="Izaberi veb režim pretrage preseta radnog toka"
             />
           </article>
 
@@ -822,7 +823,7 @@ export function WorkflowsPage({
                   searchProvider: value,
                 })
               }
-              ariaLabel="Izaberi podrazumevani provider workflow preseta"
+              ariaLabel="Izaberi podrazumevani provajder preseta radnog toka"
             />
           </article>
 
@@ -837,12 +838,12 @@ export function WorkflowsPage({
                   searchProvider: value,
                 })
               }
-              ariaLabel="Izaberi provider za Search tab"
+              ariaLabel="Izaberi provajder za tab Pretraga"
             />
           </article>
 
           <article className="settings-field">
-            <span className="settings-field-label">Search akcija</span>
+            <span className="settings-field-label">Akcija pretrage</span>
             <CustomSelect
               value={editorDraft.searchSuggestedAction}
               options={SEARCH_ACTION_OPTIONS}
@@ -852,12 +853,12 @@ export function WorkflowsPage({
                   searchSuggestedAction: value as WorkflowPresetDraft["searchSuggestedAction"],
                 })
               }
-              ariaLabel="Izaberi podrazumevanu Search akciju"
+              ariaLabel="Izaberi podrazumevanu akciju pretrage"
             />
           </article>
 
           <article className="settings-field settings-field-wide">
-            <span className="settings-field-label">Hint upita za pretragu</span>
+            <span className="settings-field-label">Nagoveštaj upita za pretragu</span>
             <textarea
               value={editorDraft.searchQueryHint}
               onChange={(event) =>
@@ -870,7 +871,7 @@ export function WorkflowsPage({
           </article>
 
           <article className="settings-field">
-            <span className="settings-field-label">Knowledge režim</span>
+            <span className="settings-field-label">Režim znanja</span>
             <CustomSelect
               value={editorDraft.knowledgeMode}
               options={KNOWLEDGE_MODE_OPTIONS}
@@ -880,12 +881,12 @@ export function WorkflowsPage({
                   knowledgeMode: value as WorkflowPresetDraft["knowledgeMode"],
                 })
               }
-              ariaLabel="Izaberi Knowledge režim"
+              ariaLabel="Izaberi režim znanja"
             />
           </article>
 
           <article className="settings-field settings-field-wide">
-            <span className="settings-field-label">Knowledge query hint</span>
+            <span className="settings-field-label">Nagoveštaj upita za znanje</span>
             <textarea
               value={editorDraft.knowledgeQueryHint}
               onChange={(event) =>
@@ -922,12 +923,12 @@ export function WorkflowsPage({
                   benchmarkLaunchTarget: value as WorkflowPresetDraft["benchmarkLaunchTarget"],
                 })
               }
-              ariaLabel="Izaberi benchmark launch target"
+              ariaLabel="Izaberi cilj pokretanja benchmark-a"
             />
           </article>
 
           <article className="settings-field settings-field-wide">
-            <span className="settings-field-label">Oznaka benchmark run-a</span>
+            <span className="settings-field-label">Oznaka benchmark pokretanja</span>
             <input
               type="text"
               value={editorDraft.benchmarkRunLabel}
@@ -972,7 +973,7 @@ export function WorkflowsPage({
               setResult({
                 status: "ok",
                 action: "reset-workflow-preset-editor",
-                summary: "Editor workflow preseta je vraćen na poslednju učitanu verziju.",
+                summary: "Editor preseta radnog toka je vraćen na poslednju učitanu verziju.",
                 details: { returncode: 0, stdout: "", stderr: "" },
               });
               setEditorBusy("");
@@ -1003,6 +1004,7 @@ export function WorkflowsPage({
 
           <button
             type="button"
+            className="action-button"
             disabled={editorBusy !== "" || editorValidationErrors.length > 0}
             onClick={async () => {
               setEditorBusy("save-new");
@@ -1014,7 +1016,7 @@ export function WorkflowsPage({
                 setError(
                   reason instanceof Error
                     ? reason.message
-                    : "Čuvanje novog workflow preseta nije uspelo.",
+                    : "Čuvanje novog preseta radnog toka nije uspelo.",
                 );
               } finally {
                 setEditorBusy("");
@@ -1026,6 +1028,7 @@ export function WorkflowsPage({
 
           <button
             type="button"
+            className="action-button"
             disabled={!isEditingUserPreset || editorBusy !== "" || editorValidationErrors.length > 0}
             onClick={async () => {
               if (!selectedPreset) {
@@ -1042,7 +1045,7 @@ export function WorkflowsPage({
                 setError(
                   reason instanceof Error
                     ? reason.message
-                    : "Ažuriranje workflow preseta nije uspelo.",
+                    : "Ažuriranje preseta radnog toka nije uspelo.",
                 );
               } finally {
                 setEditorBusy("");
@@ -1069,7 +1072,7 @@ export function WorkflowsPage({
                 setError(
                   reason instanceof Error
                     ? reason.message
-                    : "Brisanje korisničkog workflow preseta nije uspelo.",
+                    : "Brisanje korisničkog preseta radnog toka nije uspelo.",
                 );
               } finally {
                 setEditorBusy("");

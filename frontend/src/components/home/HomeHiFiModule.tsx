@@ -6,17 +6,23 @@ import type { HomeHiFiSignalItem } from "./HomeHiFiSignalRail";
 type HomeHiFiModuleProps = {
   eyebrow: string;
   title: string;
+  className?: string;
+  variant?: "default" | "runtime-primary";
+  headerBadge?: ReactNode;
   railItems: readonly HomeHiFiSignalItem[];
   summaryTitle: string;
   summaryText: string;
-  readouts: readonly { label: string; value: string; detail: string }[];
+  readouts: readonly { label: string; value: ReactNode; detail: ReactNode }[];
   actions: readonly ReactNode[];
-  footer: readonly { label: string; value: string; detail: string }[];
+  footer: readonly { label: string; value: ReactNode; detail: ReactNode }[];
 };
 
 export function HomeHiFiModule({
   eyebrow,
   title,
+  className,
+  variant = "default",
+  headerBadge,
   railItems,
   summaryTitle,
   summaryText,
@@ -25,12 +31,17 @@ export function HomeHiFiModule({
   footer,
 }: HomeHiFiModuleProps) {
   return (
-    <section className="status-card wide-card runtimepilot-home-hifi-module runtimepilot-faceplate-module">
+    <section
+      className={`status-card wide-card runtimepilot-home-hifi-module runtimepilot-faceplate-module ${
+        variant === "runtime-primary" ? "runtimepilot-home-hifi-module-runtime-primary" : ""
+      } ${className ?? ""}`.trim()}
+    >
       <header className="runtimepilot-home-hifi-module-header">
         <div>
           <span className="status-label">{eyebrow}</span>
           <strong className="status-value">{title}</strong>
         </div>
+        {headerBadge ? <div className="runtimepilot-home-hifi-module-header-badge">{headerBadge}</div> : null}
       </header>
       <div className="runtimepilot-home-hifi-module-grid">
         <HomeHiFiSignalRail items={railItems} />

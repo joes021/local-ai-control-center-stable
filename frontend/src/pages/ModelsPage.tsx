@@ -18,7 +18,7 @@ import {
   fetchModels,
   peekModelsCache,
   fetchTurboQuantSchema,
-  pickLocalGguf,
+  uploadLocalModel,
 } from "../lib/api";
 import {
   buildCompatibilityRequestFromModelEntry,
@@ -28,6 +28,7 @@ import type {
   ActionResult,
   CompatibilityCheckRequest,
   DownloadProgressPayload,
+  LocalUploadProgress,
   ModelEntry,
   ModelsPayload,
   RecommendedModel,
@@ -36,6 +37,30 @@ import type {
 type GroupKey = "curated" | "local" | "huggingFace" | "unsloth";
 type ModelsFilter = "all" | "installed" | "active" | "no-mtp" | "has-mtp" | "unknown-mtp";
 type ForceActivationPromptState = string | null;
+
+const MODEL_ACTION_CLARITY_ROUTES = [
+  {
+    label: "Aktiviraj",
+    title: "Aktivni model gore na strani",
+    detail: "Posle aktivacije prvo proveri vrh strane, pa tek onda otvori novu OpenCode sesiju.",
+  },
+  {
+    label: "Preuzmi",
+    title: "Status preuzimanja i Lokalni modeli",
+    detail: "Download napredak vidiš odmah u progress panelu, a završeni model se spušta u Lokalni modeli.",
+  },
+  {
+    label: "Obriši",
+    title: "Poslednja akcija i osvežena lista",
+    detail: "Brisanje potvrđuje poslednja akcija, a ista lista ispod odmah pokazuje da li je model nestao.",
+  },
+] as const;
+
+function announceStatusRefresh(result: ActionResult) {
+  if (result.status === "ok" && result.action === "activate-model") {
+    window.dispatchEvent(new Event("runtimepilot:status-refresh-requested"));
+  }
+}
 
 function buildModelsFilterLabel(filter: ModelsFilter) {
   if (filter === "all") {
@@ -91,6 +116,13 @@ function formatEta(seconds: number | null) {
     parts.push(`${secs}s`);
   }
   return parts.join(" ") || "0s";
+}
+
+function formatBytesAsGiB(bytes: number | null) {
+  if (bytes === null || Number.isNaN(bytes)) {
+    return "nepoznato";
+  }
+  return `${(bytes / 1024 ** 3).toFixed(2)} GiB`;
 }
 
 function formatMiB(value: number | null | undefined) {
@@ -411,65 +443,106 @@ function QuickModelCard({
       : item.canDownload
         ? downloadActionLabel(item)
         : "Pogledaj fit";
+  const statusSummary = item.active
+    ? "Trenutno aktivan model."
+    : item.installed
+      ? "Spreman za aktivaciju."
+      : "Još nije lokalno spreman.";
+  const quickFacts = [
+    { label: "Porodica", value: item.family ?? "Nepoznata familija" },
+    { label: "Veličina", value: formatGiB(item.approxSizeGiB ?? null) },
+    { label: "MTP", value: item.mtpStatusLabel ?? "MTP nepoznat" },
+  ];
+  const nextSignal = item.active
+    ? {
+        title: "Aktivni model gore na strani",
+        detail: "Ovde više nema novog klika. Sledeći realan korak je nova OpenCode sesija.",
+      }
+    : item.installed
+      ? {
+          title: "Aktivni model gore na strani",
+          detail: "Ako aktivacija prođe, vrh strane odmah menja aktivni model i status glavnog toka.",
+        }
+      : item.canDownload
+        ? {
+            title: "Status preuzimanja i Lokalni modeli",
+            detail: "Tokom downloada prati progress panel, a posle završetka traži model u Lokalni modeli.",
+          }
+        : {
+            title: "Poslednja akcija i osvežena lista",
+            detail: "Ako otvoriš kompatibilnost, signal ide kroz poslednju akciju i kalkulator koji se otvara.",
+          };
 
   return (
     <article className="status-card runtimepilot-section-shell model-quick-card">
-      <div className="model-quick-card-head">
-        <div>
-          <span className="status-label">{item.source === "curated" ? "Kurirani model" : "Lokalni model"}</span>
-          <strong className="status-value">{item.label}</strong>
+      <div className="model-quick-card-shell">
+        <div className="model-quick-card-head">
+          <div className="model-quick-card-title">
+            <span className="status-label">{item.source === "curated" ? "Kurirani model" : "Lokalni model"}</span>
+            <strong className="status-value">{item.label}</strong>
+          </div>
+          <span className={lifecycleTone(item.lifecycleStatus)}>{item.lifecycleLabel ?? "Status"}</span>
         </div>
-        <span className={lifecycleTone(item.lifecycleStatus)}>{item.lifecycleLabel ?? "Status"}</span>
-      </div>
-      <p className="helper-text">
-        {item.active ? "Trenutno aktivan model." : item.installed ? "Spreman za aktivaciju." : "Još nije lokalno spreman."}
-      </p>
-      <div className="summary-metrics">
-        <span>{item.family ?? "Nepoznata familija"}</span>
-        <span>{formatGiB(item.approxSizeGiB ?? null)}</span>
-        <span>{item.mtpStatusLabel ?? "MTP nepoznat"}</span>
-      </div>
-      <div className="model-quick-actions">
-        <button
-          type="button"
-          className="action-button"
-          disabled={
-            pendingAction ||
-            item.active ||
-            (!item.installed && !item.canDownload) ||
-            (item.installed && !supportsRuntimeActivation(item))
-          }
-          title={
-            item.active
-              ? "Ovaj model je već aktivan."
-              : !item.installed && !item.canDownload
-                ? "Model nema direktnu akciju za preuzimanje iz ovog prikaza."
-                : requiresForceActivationConfirmation(item)
-                  ? activationRiskSummary(item)
-                  : (mtpActivationGuidance(item) ?? undefined)
-          }
-          onClick={() => {
-            if (item.installed) {
-              void onActivate(item);
-              return;
-            }
-            if (item.canDownload) {
-              void onDownload(item);
-              return;
-            }
-            onCheckCompatibility(item);
-          }}
-        >
-          {primaryLabel}
-        </button>
-        <button
-          type="button"
-          className="action-button-soft"
-          disabled={pendingAction}
-          onClick={() => onCheckCompatibility(item)}
-        >
-          Kompatibilnost
-        </button>
+        <div className="model-quick-card-summary">
+          <p className="helper-text">{statusSummary}</p>
+        </div>
+        <div className="model-quick-card-facts">
+          {quickFacts.map((fact) => (
+            <article className="model-quick-card-fact" key={fact.label}>
+              <span className="model-quick-card-fact-label">{fact.label}</span>
+              <strong className="model-quick-card-fact-value">{fact.value}</strong>
+            </article>
+          ))}
+        </div>
+        <div className="model-quick-next model-quick-card-next">
+          <span className="status-label">Posle klika gledaj</span>
+          <strong>{nextSignal.title}</strong>
+          <p className="helper-text">{nextSignal.detail}</p>
+        </div>
+        <div className="model-quick-card-footer">
+          <div className="model-quick-actions">
+            <button
+              type="button"
+              className={`action-button model-quick-action-primary${item.active ? " model-quick-action-active" : ""}`}
+              disabled={
+                pendingAction ||
+                item.active ||
+                (!item.installed && !item.canDownload) ||
+                (item.installed && !supportsRuntimeActivation(item))
+              }
+              title={
+                item.active
+                  ? "Ovaj model je već aktivan."
+                  : !item.installed && !item.canDownload
+                    ? "Model nema direktnu akciju za preuzimanje iz ovog prikaza."
+                    : requiresForceActivationConfirmation(item)
+                      ? activationRiskSummary(item)
+                      : (mtpActivationGuidance(item) ?? undefined)
+              }
+              onClick={() => {
+                if (item.installed) {
+                  void onActivate(item);
+                  return;
+                }
+                if (item.canDownload) {
+                  void onDownload(item);
+                  return;
+                }
+                onCheckCompatibility(item);
+              }}
+            >
+              {primaryLabel}
+            </button>
+            <button
+              type="button"
+              className="action-button-soft"
+              disabled={pendingAction}
+              onClick={() => onCheckCompatibility(item)}
+            >
+              Kompatibilnost
+            </button>
+          </div>
+        </div>
       </div>
     </article>
   );
@@ -505,6 +578,7 @@ function FilterResultsCard({
       const actionResult = await run();
       const finalResult = await awaitModelActionResult(actionResult, setResult);
       setResult(finalResult);
+      announceStatusRefresh(finalResult);
       await onChanged();
     } catch (reason: unknown) {
       const message = reason instanceof Error ? reason.message : "Model akcija nije uspela.";
@@ -539,7 +613,7 @@ function FilterResultsCard({
   }
 
   return (
-    <section className="status-card wide-card">
+    <section className="status-card wide-card runtimepilot-faceplate-module">
       <div className="section-header">
         <div>
           <span className="status-label">Rezultati filtera</span>
@@ -559,6 +633,18 @@ function FilterResultsCard({
           <ModelGroupHeaderMeta items={items} />
         </div>
       </div>
+      <div className="model-action-clarity-grid">
+        {MODEL_ACTION_CLARITY_ROUTES.map((route) => (
+          <article className="model-action-clarity-card" key={route.label}>
+            <span className="status-label">{route.label}</span>
+            <strong>{route.title}</strong>
+            <p className="helper-text">{route.detail}</p>
+          </article>
+        ))}
+      </div>
+      <p className="helper-text model-action-clarity-note">
+        <strong>Gde gledaš ishod:</strong> ne traži rezultat po celoj strani. Za svaku od ove tri akcije signal je već mapiran gore.
+      </p>
       {items.length ? (
         <div className="model-list">
             {items.map((item) => (
@@ -715,6 +801,7 @@ function ModelGroup({
       const actionResult = await run();
       const finalResult = await awaitModelActionResult(actionResult, setResult);
       setResult(finalResult);
+      announceStatusRefresh(finalResult);
       await onChanged();
     } catch (reason: unknown) {
       const message = reason instanceof Error ? reason.message : "Model akcija nije uspela.";
@@ -753,7 +840,7 @@ function ModelGroup({
   }
 
   return (
-    <section className="status-card wide-card">
+    <section className="status-card wide-card runtimepilot-faceplate-module">
       <div className="section-header">
         <div>
           <span className="status-label">{title}</span>
@@ -901,6 +988,8 @@ export function ModelsPage({
   const [models, setModels] = useState<ModelsPayload | null>(() => peekModelsCache());
   const [error, setError] = useState<string | null>(null);
   const [localPath, setLocalPath] = useState("");
+  const [selectedLocalFile, setSelectedLocalFile] = useState<File | null>(null);
+  const [localUploadProgress, setLocalUploadProgress] = useState<LocalUploadProgress | null>(null);
   const [unslothRepo, setUnslothRepo] = useState("");
   const [unslothFilename, setUnslothFilename] = useState("");
   const [hfRepo, setHfRepo] = useState("");
@@ -925,6 +1014,7 @@ export function ModelsPage({
   const localGroupRef = useRef<HTMLDivElement | null>(null);
   const addModelRef = useRef<HTMLDivElement | null>(null);
   const advancedCatalogRef = useRef<HTMLDetailsElement | null>(null);
+  const localFileInputRef = useRef<HTMLInputElement | null>(null);
 
   function showClientError(summary: string) {
     setResult({
@@ -1122,6 +1212,7 @@ export function ModelsPage({
       const actionResult = await run();
       const finalResult = await awaitModelActionResult(actionResult, setResult);
       setResult(finalResult);
+      announceStatusRefresh(finalResult);
       await reloadModels();
     } catch (reason: unknown) {
       showClientError(reason instanceof Error ? reason.message : "Model akcija nije uspela.");
@@ -1308,7 +1399,7 @@ export function ModelsPage({
       </div>
 
       {quickModels.length ? (
-        <section className="status-card wide-card runtimepilot-section-shell">
+        <section className="status-card wide-card runtimepilot-section-shell runtimepilot-faceplate-module">
           <div className="section-header">
             <div>
               <span className="status-label">Brzi izbor modela</span>
@@ -1589,53 +1680,73 @@ export function ModelsPage({
             </p>
             <div className="form-grid">
               <input
+                ref={localFileInputRef}
+                type="file"
+                accept=".gguf"
+                className="visually-hidden"
+                onChange={(event) => {
+                  const nextFile = event.target.files?.[0] ?? null;
+                  setSelectedLocalFile(nextFile);
+                  setLocalUploadProgress(null);
+                  if (nextFile) {
+                    setLocalPath(nextFile.name);
+                    setLastAddedLocalModelId(null);
+                    setLastAddedLocalLabel(null);
+                    setResult({
+                      status: "ok",
+                      action: "pick-local-gguf",
+                      summary: `Izabran je lokalni GGUF: ${nextFile.name}`,
+                      details: { returncode: 0, stdout: nextFile.name, stderr: "" },
+                    });
+                    return;
+                  }
+                  setLocalPath("");
+                }}
+              />
+              <input
                 placeholder="/putanja/do/model.gguf"
                 value={localPath}
-                onChange={(event) => setLocalPath(event.target.value)}
+                onChange={(event) => {
+                  setLocalPath(event.target.value);
+                  if (selectedLocalFile && event.target.value !== selectedLocalFile.name) {
+                    setSelectedLocalFile(null);
+                  }
+                  setLocalUploadProgress(null);
+                }}
               />
               <button
                 type="button"
                 disabled={Boolean(pendingAction)}
-                onClick={() =>
-                  pickLocalGguf().then((payload) => {
-                    if (payload.path) {
-                      setLocalPath(payload.path);
-                      setResult({
-                        status: "ok",
-                        action: "pick-local-gguf",
-                        summary: payload.summary,
-                        details: { returncode: 0, stdout: payload.path, stderr: "" },
-                      });
-                    } else {
-                      setResult({
-                        status: payload.status === "cancelled" ? "cancelled" : "error",
-                        action: "pick-local-gguf",
-                        summary: payload.summary,
-                        details: {
-                          returncode: payload.status === "cancelled" ? 0 : 1,
-                          stdout: "",
-                          stderr: payload.summary,
-                        },
-                      });
-                    }
-                  })
-                }
+                onClick={() => {
+                  if (localFileInputRef.current) {
+                    localFileInputRef.current.value = "";
+                    localFileInputRef.current.click();
+                  }
+                }}
               >
                 Izaberi fajl
               </button>
               <button
                 type="button"
-                disabled={Boolean(pendingAction)}
+                disabled={Boolean(pendingAction) || (!selectedLocalFile && !localPath.trim())}
                 onClick={async () => {
-                  if (!localPath.trim()) {
+                  if (!selectedLocalFile && !localPath.trim()) {
                     showClientError("Izaberi lokalni GGUF fajl pre dodavanja.");
                     return;
                   }
                   const localPathValue = localPath.trim();
                   try {
                     showPendingAction("add local");
-                    const actionResult = await addLocalModel(localPathValue, "", "Custom");
-                    const finalResult = await awaitModelActionResult(actionResult, setResult);
+                    setLastAddedLocalModelId(null);
+                    setLastAddedLocalLabel(null);
+                    const actionResult = selectedLocalFile
+                      ? await uploadLocalModel(selectedLocalFile, "", "Custom", {
+                          onProgress: (progress) => setLocalUploadProgress(progress),
+                        })
+                      : await addLocalModel(localPathValue, "", "Custom");
+                    const finalResult = selectedLocalFile
+                      ? actionResult
+                      : await awaitModelActionResult(actionResult, setResult);
                     const reloadedModels = await reloadModels();
                     const localModelId = String(
                       (finalResult as { localModelId?: string }).localModelId ??
@@ -1648,12 +1759,15 @@ export function ModelsPage({
                       setLastAddedLocalModelId(localModelId);
                       setLastAddedLocalLabel(
                         addedItem?.label ||
+                          selectedLocalFile?.name.replace(/\.gguf$/i, "") ||
                           localPathValue.split(/[\\/]/).pop()?.replace(/\.gguf$/i, "") ||
                           "lokalni model",
                       );
                       setModelsFilter("installed");
                       setCollapsedGroups((current) => ({ ...current, local: false }));
                       setLocalPath("");
+                      setSelectedLocalFile(null);
+                      setLocalUploadProgress(null);
                       setResult({
                         ...finalResult,
                         summary:
@@ -1668,6 +1782,9 @@ export function ModelsPage({
                   } catch (reason: unknown) {
                     showClientError(reason instanceof Error ? reason.message : "Model akcija nije uspela.");
                   } finally {
+                    if (!selectedLocalFile) {
+                      setLocalUploadProgress(null);
+                    }
                     setPendingAction(null);
                   }
                 }}
@@ -1675,13 +1792,64 @@ export function ModelsPage({
                 Dodaj lokalni
               </button>
             </div>
+            {selectedLocalFile ? (
+              <div className="model-import-file-meta">
+                <span>{selectedLocalFile.name}</span>
+                <span>{formatBytesAsGiB(selectedLocalFile.size)}</span>
+              </div>
+            ) : null}
             {pendingAction === "add local" ? (
-              <div className="model-import-callout">
-                <strong>Kopiram lokalni GGUF u model folder.</strong>
+              <div className="model-import-callout model-import-progress-card">
+                <strong>Sačuvaj upload u lokalni model folder</strong>
                 <p className="helper-text">
-                  Za velike modele ovo može da traje neko vreme. Kada se kopiranje završi, RuntimePilot će
-                  otvoriti grupu <strong>Lokalni modeli</strong> niže na strani.
+                  {selectedLocalFile
+                    ? "Browser sada direktno prebacuje fajl u RuntimePilot model folder. Kada traka dođe do kraja, panel odmah finalizuje unos i otvara Lokalni modeli."
+                    : "Za velike modele ovo može da traje neko vreme. Kada se kopiranje završi, RuntimePilot će otvoriti grupu Lokalni modeli niže na strani."}
                 </p>
+                {localUploadProgress ? (
+                  <>
+                    <div className="download-progress-track" aria-hidden="true">
+                      <div
+                        className="download-progress-fill"
+                        style={{ width: `${Math.max(0, Math.min(localUploadProgress.percent ?? 0, 100))}%` }}
+                      />
+                    </div>
+                    <div className="model-download-monitor-grid">
+                      <article className="browser-readout-card">
+                        <span className="status-label">Fajl</span>
+                        <strong className="status-value">{localUploadProgress.fileName}</strong>
+                      </article>
+                      <article className="browser-readout-card">
+                        <span className="status-label">Procenat</span>
+                        <strong className="status-value">
+                          {localUploadProgress.percent === null
+                            ? "nepoznato"
+                            : `${localUploadProgress.percent.toFixed(1)}%`}
+                        </strong>
+                      </article>
+                      <article className="browser-readout-card">
+                        <span className="status-label">Kopirano</span>
+                        <strong className="status-value">
+                          {`${formatBytesAsGiB(localUploadProgress.loadedBytes)} / ${formatBytesAsGiB(localUploadProgress.totalBytes)}`}
+                        </strong>
+                      </article>
+                      <article className="browser-readout-card">
+                        <span className="status-label">Brzina</span>
+                        <strong className="status-value">{formatSpeed(localUploadProgress.speedMBps)}</strong>
+                      </article>
+                      <article className="browser-readout-card">
+                        <span className="status-label">ETA</span>
+                        <strong className="status-value">{formatEta(localUploadProgress.etaSeconds)}</strong>
+                      </article>
+                      <article className="browser-readout-card">
+                        <span className="status-label">Faza</span>
+                        <strong className="status-value">
+                          {localUploadProgress.phase === "finalizing" ? "Finalizujem upis" : "Upload u toku"}
+                        </strong>
+                      </article>
+                    </div>
+                  </>
+                ) : null}
               </div>
             ) : null}
             {lastAddedLocalModelId ? (

@@ -1,4 +1,4 @@
-# Windows TurboQuant Safe Default Validation
+﻿# Windows TurboQuant Safe Default Validation
 
 Date: 2026-05-24
 Branch: `codex/panel-integration`
@@ -11,7 +11,7 @@ does not exist yet.
 
 ## Root cause
 
-On <host> (`192.0.2.10`), packaged TurboQuant was installed correctly and its DLL sidecars
+On RemoteWorkstation (`192.0.2.10`), packaged TurboQuant was installed correctly and its DLL sidecars
 were present, but the product still failed through the normal panel flow because the missing
 TurboQuant config file caused the runtime to fall back to the built-in `daily` baseline:
 
@@ -89,9 +89,9 @@ Result:
 - `dist/local_ai_control_center_installer-0.4.12-py3-none-any.whl`
 - `dist/local_ai_control_center_installer-0.4.12.tar.gz`
 
-### Live remote validation on <host>
+### Live remote validation on RemoteWorkstation
 
-Using SSH on `<remote-user>@192.0.2.10`:
+Using SSH on `operator@192.0.2.10`:
 
 1. Wrote a TurboQuant config with `context = 131072`
 2. Set runtime selection to `turboquant`
@@ -114,3 +114,5 @@ TurboQuant baseline is reduced to the safe default.
 
 Ready for a Windows patch release that specifically fixes fresh-install TurboQuant startup on lower
 VRAM NVIDIA systems where no explicit TurboQuant config file exists yet.
+
+

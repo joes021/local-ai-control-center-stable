@@ -1,4 +1,4 @@
-# Windows managed SearxNG validation - 2026-05-25
+﻿# Windows managed SearxNG validation - 2026-05-25
 
 ## Scope
 
@@ -61,3 +61,5 @@ Potvrdeno:
 - Managed SearxNG bootstrap je trenutno namenjen `Windows + WSL` putu.
 - Provider state trenutno cuva WSL putanje sa `$HOME/...` oblikom, sto je namerno i citljivo, ali nisu ekspandovane Windows putanje.
 - Shared local search sloj i dalje vazi za `Search` tab i lokalni `local-lacc` runtime proxy; cloud `opencode` provider nije ukljucen u ovaj local proxy tok.
+
+

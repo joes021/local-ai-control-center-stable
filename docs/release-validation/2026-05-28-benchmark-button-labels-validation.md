@@ -1,4 +1,4 @@
-# Benchmark Button Labels Validation
+﻿# Benchmark Button Labels Validation
 
 ## Verzija
 
@@ -24,3 +24,5 @@
 - `python -m build` -> uspešno
 - `packaging/build_windows_installer.ps1 -PythonExe python` -> uspešno
 - lokalni installer upgrade na ovoj mašini -> uspešan
+
+

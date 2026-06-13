@@ -60,12 +60,19 @@ export function ModelDownloadProgressCard({ progress }: { progress: DownloadProg
       : progress.status === "completed" || progress.status === "already-installed"
         ? "Ako želiš novi pokušaj, klik na Preuzmi pokreće novi provereni tok za izabrani model."
         : "Dodaj HF i Dodaj Unsloth samo dodaju model u spisak. Pravo skidanje kreće tek na Preuzmi.";
+  const statusTone = downloadStatusTone(progress.status);
 
   return (
-    <section className="status-card wide-card">
-      <div className="section-header">
-        <span className="status-label">Status preuzimanja</span>
-        <strong className="status-value">{progress.status}</strong>
+    <section className="status-card wide-card model-download-monitor-card runtimepilot-faceplate-module">
+      <div className="model-download-monitor-top">
+        <div className="model-download-monitor-copy">
+          <span className="status-label">Status preuzimanja</span>
+          <strong className="status-value">{progress.status}</strong>
+          <p className="helper-text">{progress.message}</p>
+        </div>
+        <span className={`browser-badge model-download-status-pill model-download-status-${statusTone}`}>
+          {progress.status}
+        </span>
       </div>
       <div className="download-progress-track" aria-hidden="true">
         <div
@@ -73,36 +80,41 @@ export function ModelDownloadProgressCard({ progress }: { progress: DownloadProg
           style={{ width: `${Math.max(0, Math.min(percent ?? 42, 100))}%` }}
         />
       </div>
-      <div className="helper-text">
-        <strong>Model:</strong> {progress.modelId || progress.fileName || "nema aktivnog modela"}
+      <div className="model-download-monitor-grid">
+        <article className="browser-readout-card">
+          <span className="status-label">Model</span>
+          <strong className="status-value">{progress.modelId || progress.fileName || "nema aktivnog modela"}</strong>
+        </article>
+        <article className="browser-readout-card">
+          <span className="status-label">Procenat</span>
+          <strong className="status-value">{percentLabel}</strong>
+        </article>
+        <article className="browser-readout-card">
+          <span className="status-label">Preuzeto</span>
+          <strong className="status-value">{downloadedLabel}</strong>
+        </article>
+        <article className="browser-readout-card">
+          <span className="status-label">Brzina</span>
+          <strong className="status-value">{formatSpeed(progress.speedMBps)}</strong>
+        </article>
+        <article className="browser-readout-card">
+          <span className="status-label">ETA</span>
+          <strong className="status-value">{formatEta(progress.etaSeconds)}</strong>
+        </article>
+        {progress.source ? (
+          <article className="browser-readout-card">
+            <span className="status-label">Izvor</span>
+            <strong className="status-value">{progress.source}</strong>
+          </article>
+        ) : null}
       </div>
-      <div className="helper-text">
-        <strong>Procenat:</strong> {percentLabel}
-      </div>
-      <div className="helper-text">
-        <strong>Preuzeto:</strong> {downloadedLabel}
-      </div>
-      <div className="helper-text">
-        <strong>Brzina:</strong> {formatSpeed(progress.speedMBps)}
-      </div>
-      <div className="helper-text">
-        <strong>ETA:</strong> {formatEta(progress.etaSeconds)}
-      </div>
-      <div className="helper-text">
-        <strong>Poruka:</strong> {progress.message}
-      </div>
-      {progress.source ? (
-        <div className="helper-text">
-          <strong>Izvor:</strong> {progress.source}
-        </div>
-      ) : null}
       {usesIndeterminateProgress ? (
-        <div className="helper-text">
+        <div className="helper-text model-download-monitor-note">
           <strong>Napredak:</strong> Izvor trenutno ne prijavljuje ukupnu veličinu, pa kartica prati
           živi tok preuzetih podataka dok ne stigne završni snapshot.
         </div>
       ) : null}
-      <div className="helper-text">
+      <div className="helper-text model-download-monitor-note">
         <strong>Napomena:</strong> {nextStepNote}
       </div>
     </section>
@@ -111,4 +123,18 @@ export function ModelDownloadProgressCard({ progress }: { progress: DownloadProg
 
 function valueOrNull(value: number | null | undefined) {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function downloadStatusTone(status: string) {
+  const normalized = status.trim().toLowerCase();
+  if (normalized === "completed" || normalized === "already-installed") {
+    return "good";
+  }
+  if (normalized === "error" || normalized === "failed") {
+    return "bad";
+  }
+  if (normalized === "downloading" || normalized === "starting") {
+    return "active";
+  }
+  return "idle";
 }

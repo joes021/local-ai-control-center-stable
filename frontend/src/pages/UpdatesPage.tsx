@@ -60,7 +60,7 @@ function UpdateProgressCard({ progress }: { progress: UpdateProgressPayload | nu
             : "Ako pokreneš instalaciju ažuriranja, ovde ćeš videti ceo tok preuzimanja i pokretanja installera.";
 
   return (
-    <section className="status-card wide-card">
+    <section className="status-card wide-card runtimepilot-faceplate-module">
       <div className="section-header">
         <span className="status-label">Update status</span>
         <strong className="status-value">{progress.status}</strong>
@@ -212,7 +212,7 @@ export function UpdatesPage() {
           </button>
         }
       />
-      <section className="status-card wide-card">
+      <section className="status-card wide-card runtimepilot-faceplate-module">
         <span className="status-label">Ažuriranja</span>
         <p className="helper-text">
           Instalacija ažuriranja sada ide kao pozadinski tok: vidi se napredak preuzimanja, brzina,
@@ -221,6 +221,7 @@ export function UpdatesPage() {
         <div className="inline-actions">
           <button
             type="button"
+            className="secondary-button"
             onClick={() => {
               setError(null);
               void checkUpdates()
@@ -236,6 +237,7 @@ export function UpdatesPage() {
           </button>
           <button
             type="button"
+            className="action-button"
             onClick={() => {
               setError(null);
               void (async () => {

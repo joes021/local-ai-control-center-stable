@@ -1,7 +1,7 @@
-# Windows validation - navigation `Više` menu polish
+﻿# Windows validation - navigation `Više` menu polish
 
 Datum: 2026-05-29
-Repo: `C:\Users\<user>\Documents\local-ai-control-center-stable`
+Repo: `C:\repo\local-ai-control-center-stable`
 Verzija: `0.4.59`
 
 ## Šta je menjano
@@ -48,3 +48,5 @@ Verzija: `0.4.59`
 
 - `dist\SHA256SUMS-v0.4.59.txt` generisan
 - setup i latest alias imaju isti SHA256, što je očekivano jer latest pokazuje na isti build
+
+

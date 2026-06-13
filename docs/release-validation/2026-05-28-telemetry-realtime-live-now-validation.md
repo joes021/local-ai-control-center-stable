@@ -1,4 +1,4 @@
-# v0.4.45 - telemetry real-time live-now validation
+﻿# v0.4.45 - telemetry real-time live-now validation
 
 ## Šta je popravljeno
 
@@ -51,3 +51,5 @@ Zaključak:
 - broj u `Uživo sada` postoji samo dok benchmark stvarno generiše tokene
 - čim generacija stane, veliki broj nestaje
 - poslednji signal ostaje dostupan samo kao manji referentni throughput zapis
+
+

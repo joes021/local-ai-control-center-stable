@@ -255,7 +255,7 @@ export function SearchPage({ onOpenSettings }: SearchPageProps) {
           ) : null
         }
       />
-      <section className="status-card wide-card">
+      <section className="status-card wide-card runtimepilot-faceplate-module">
         <span className="status-label">Radni prostor za pretragu</span>
         <strong className="status-value">Zajednička RuntimePilot web pretraga + lokalni model + OpenCode local-lacc</strong>
         <p className="helper-text">{currentSettingsLine}</p>
@@ -270,7 +270,7 @@ export function SearchPage({ onOpenSettings }: SearchPageProps) {
         ) : null}
       </section>
 
-      <section className="status-card wide-card">
+      <section className="status-card wide-card runtimepilot-faceplate-module">
         <span className="status-label">Provider pretrage</span>
         <strong className="status-value">
           {providerLabel(selectedProvider, summary.availableProviders)}: {providerStatus.label}
@@ -293,6 +293,7 @@ export function SearchPage({ onOpenSettings }: SearchPageProps) {
           </div>
           <button
             type="button"
+            className="secondary-button"
             disabled={providerBusy !== ""}
             onClick={async () => {
               setProviderBusy("check");
@@ -313,6 +314,7 @@ export function SearchPage({ onOpenSettings }: SearchPageProps) {
           {isManagedSearxng ? (
             <button
               type="button"
+              className="action-button"
               disabled={providerBusy !== "" || providerStatus.canBootstrap === false}
               title={providerStatus.canBootstrap ? undefined : providerStatus.bootstrapSummary}
               onClick={async () => {
@@ -368,7 +370,7 @@ export function SearchPage({ onOpenSettings }: SearchPageProps) {
         )}
       </section>
 
-      <section className="status-card wide-card">
+      <section className="status-card wide-card runtimepilot-faceplate-module">
         <span className="status-label">Veb upit</span>
         <div className="settings-action-row">
           <input
@@ -394,6 +396,7 @@ export function SearchPage({ onOpenSettings }: SearchPageProps) {
           />
           <button
             type="button"
+            className="action-button"
             disabled={loadingSearch || !query.trim() || providerStatus.canQuery === false}
             onClick={() => {
               void handleSearchOnly();
@@ -403,6 +406,7 @@ export function SearchPage({ onOpenSettings }: SearchPageProps) {
           </button>
           <button
             type="button"
+            className="action-button"
             disabled={loadingAnswer || !query.trim() || providerStatus.canQuery === false}
             onClick={() => {
               void handleAnswer();
@@ -437,7 +441,7 @@ export function SearchPage({ onOpenSettings }: SearchPageProps) {
         ) : null}
       </section>
 
-      <section className="status-card wide-card">
+      <section className="status-card wide-card runtimepilot-faceplate-module">
         <span className="status-label">Veb izvori</span>
         <strong className="status-value">
           {searchPayload?.summary || (comparePayloads.length ? "Provider compare je spreman." : "Još nema rezultata.")}
@@ -450,6 +454,7 @@ export function SearchPage({ onOpenSettings }: SearchPageProps) {
             </p>
             <button
               type="button"
+              className="action-button"
               disabled={loadingAnswer || !query.trim() || providerStatus.canQuery === false}
               onClick={() => {
                 void handleAnswer();
@@ -480,7 +485,7 @@ export function SearchPage({ onOpenSettings }: SearchPageProps) {
         )}
       </section>
 
-      <section className="status-card wide-card">
+      <section className="status-card wide-card runtimepilot-faceplate-module">
         <span className="status-label">Konačan odgovor lokalnog modela</span>
         <strong className="status-value">
           {answerPayload?.answer ||
@@ -495,7 +500,7 @@ export function SearchPage({ onOpenSettings }: SearchPageProps) {
         </div>
       </section>
 
-      <section className="status-card wide-card">
+      <section className="status-card wide-card runtimepilot-faceplate-module">
         <span className="status-label">Skorašnja istorija pretrage</span>
         {summary.history.length ? (
           <div className="model-list">

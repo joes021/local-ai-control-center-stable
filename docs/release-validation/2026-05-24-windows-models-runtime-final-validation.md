@@ -1,4 +1,4 @@
-# Windows Models and Runtime Final Validation - 2026-05-24
+﻿# Windows Models and Runtime Final Validation - 2026-05-24
 
 ## Scope
 
@@ -166,3 +166,5 @@ Posle tog upgrade run-a proverena je ziva instalirana verzija na:
 
 - `MTP` modeli i dalje nisu podrzani kao aktivni runtime model; ostaju `download-only`.
 - Ovaj validation pass i dalje nije drugi fizicki Windows host; signal je zasnovan na packaged upgrade smoke-u i repo-local/live panel proverama na istoj workstation sesiji.
+
+

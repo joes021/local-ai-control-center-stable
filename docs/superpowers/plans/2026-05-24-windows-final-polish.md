@@ -1,4 +1,4 @@
-# Windows Final Polish Implementation Plan
+﻿# Windows Final Polish Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -66,3 +66,5 @@
 - [ ] **Step 4: Update README/current-scope language if validation reveals narrower truth**
 - [ ] **Step 5: Build Windows installer, wheel, and sdist**
 - [ ] **Step 6: Publish a new Windows release only after the validation checklist passes**
+
+

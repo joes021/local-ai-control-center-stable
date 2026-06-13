@@ -1,4 +1,4 @@
-# v0.4.72 - tuning lab cockpit validation
+﻿# v0.4.72 - tuning lab cockpit validation
 
 ## Problem
 
@@ -122,3 +122,5 @@ Ako je neki batch vec bio zapocet pre upgrada, njegov stari snapshot moze kratko
 ## Zakljucak
 
 `v0.4.72` zatvara glavni trust/UX problem u `Tuning Lab`-u: korisnik sada dobija jedan jasan aktivni run cockpit umesto razbacanih statusa, a backend ume da nosi live session detalje koji takav cockpit hrane.
+
+

@@ -1,4 +1,4 @@
-# Windows Real-World Test Checklist - 2026-05-25
+﻿# Windows Real-World Test Checklist - 2026-05-25
 
 ## Scope
 
@@ -321,3 +321,5 @@ Windows liniju smatramo dovoljno mirnom za prelazak na Ubuntu x64 ako:
 - `MTP` modeli nisu univerzalno podrzani na svakom hardveru
 - cloud `opencode` provider ne prolazi kroz lokalni search proxy
 - managed `SearxNG` lokalni setup koristi `Windows + WSL`
+
+

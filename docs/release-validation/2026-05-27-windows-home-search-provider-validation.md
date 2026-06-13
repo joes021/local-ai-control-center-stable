@@ -1,4 +1,4 @@
-## Windows Home + Search Provider Validation
+﻿## Windows Home + Search Provider Validation
 
 Datum: 2026-05-27
 Grana: `codex/panel-integration`
@@ -78,3 +78,5 @@ Rezultat:
 
 - `DuckDuckGo` koristi best-effort HTML parsing i ne predstavlja zvanican API backend.
 - `SearxNG` ostaje preporuceni managed/local provider kada korisnik zeli vecu kontrolu i lokalni setup.
+
+

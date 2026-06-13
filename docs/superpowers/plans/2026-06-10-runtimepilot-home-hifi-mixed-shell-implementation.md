@@ -1,4 +1,4 @@
-# RuntimePilot Home Hi-Fi Mixed Shell Implementation Plan
+﻿# RuntimePilot Home Hi-Fi Mixed Shell Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -582,3 +582,5 @@ Posle Task 5, proveriti rucno u browseru:
 - Ne uvoditi Vitest ili novi frontend test stack u ovoj iteraciji. Repo vec koristi Python source/bundle regresije kao glavni obrazac za frontend promene i treba pratiti taj obrazac.
 - Ne dirati `LiveResourceStrip` i duboke napredne stranice osim onoliko koliko je potrebno da novi shell ostane stabilan.
 - Ako `HomePage.tsx` ponovo krene da raste preko razumne granice, nastaviti ekstrakciju komponenti umesto vracanja na jedan veliki fajl.
+
+

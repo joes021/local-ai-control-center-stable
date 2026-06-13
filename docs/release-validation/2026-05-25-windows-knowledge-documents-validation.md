@@ -1,4 +1,4 @@
-# Windows Knowledge / Documents Validation
+﻿# Windows Knowledge / Documents Validation
 
 ## Scope
 
@@ -152,3 +152,5 @@ Ishod:
 ## Rezultat
 
 Knowledge vise nije samo ideja za sledeci korak, nego stvarni installer-managed workspace u aplikaciji. Na ovoj masini je potvrdjeno da radi source registry, lokalni indeks, query kroz dokumente i answer tok koji po potrebi spaja lokalne dokumente sa shared web-search slojem.
+
+

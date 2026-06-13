@@ -1,4 +1,4 @@
-# Control Center Themes, Fleet, Jobs, Observability, Knowledge, and Workflow Polish Plan
+﻿# Control Center Themes, Fleet, Jobs, Observability, Knowledge, and Workflow Polish Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -124,3 +124,5 @@
 - [ ] Build wheel/sdist and Windows installer.
 - [ ] Locally upgrade this machine and verify live panel behavior.
 - [ ] Push branch and prepare release checkpoint when green.
+
+

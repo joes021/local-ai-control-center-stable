@@ -1,4 +1,4 @@
-## Windows Benchmark Final Polish Validation
+﻿## Windows Benchmark Final Polish Validation
 
 Date: 2026-05-25
 Branch: `codex/panel-integration`
@@ -121,3 +121,5 @@ Observed results:
 
 - This validation used API-level benchmark smoke plus headless DOM proof; full visual interaction automation was not run because Playwright was not available in the local tool environment.
 - Throughput values depend on the currently active runtime, active model, and machine load; the numbers above are smoke evidence, not universal benchmark baselines.
+
+

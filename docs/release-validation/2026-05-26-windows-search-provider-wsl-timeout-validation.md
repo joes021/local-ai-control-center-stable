@@ -1,4 +1,4 @@
-# Windows Search Provider WSL Timeout Validation - 2026-05-26
+﻿# Windows Search Provider WSL Timeout Validation - 2026-05-26
 
 ## Scope
 
@@ -81,3 +81,5 @@ Kada WSL trenutno ne odgovara:
 - UI treba da dobije normalan payload
 - `searchProviderStatus` treba da kaze da managed bootstrap trenutno nije dostupan
 - sledeci request ne treba odmah opet da blokira na punom WSL timeout-u
+
+

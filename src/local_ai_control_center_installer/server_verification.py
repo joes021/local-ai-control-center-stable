@@ -569,6 +569,7 @@ def _build_server_command(
     port: int,
     *,
     ctx_size: int | None = None,
+    parallel: int | None = None,
     spec_type: str | None = None,
     temperature: float | None = None,
     top_k: int | None = None,
@@ -597,6 +598,8 @@ def _build_server_command(
     ]
     if isinstance(ctx_size, int) and ctx_size > 0:
         command.extend(["--ctx-size", str(ctx_size)])
+    if isinstance(parallel, int) and parallel > 0:
+        command.extend(["--parallel", str(parallel)])
     if isinstance(batch_size, int) and batch_size > 0:
         command.extend(["--batch-size", str(batch_size)])
     if isinstance(ubatch_size, int) and ubatch_size > 0:

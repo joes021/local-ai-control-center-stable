@@ -1,4 +1,4 @@
-# Windows Update Launcher Visibility Validation
+﻿# Windows Update Launcher Visibility Validation
 
 Date: 2026-05-24
 Branch: `codex/panel-integration`
@@ -98,3 +98,5 @@ Result:
 
 Ready for a Windows patch release that fixes the invisible auto-update installer window by letting
 the launched installer own its visible console session again.
+
+

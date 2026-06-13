@@ -239,6 +239,56 @@ def test_activate_model_route_updates_active_model_and_managed_opencode_config(
     }
 
 
+def test_add_local_upload_route_streams_file_into_local_models_folder_and_registry(
+    tmp_path: Path,
+    monkeypatch,
+):
+    install_root = tmp_path / "install-root"
+    curated_model_path = (
+        install_root / "models" / "recommended-6gb" / "gemma-4-E4B-it-Q4_K_M.gguf"
+    )
+    _write_active_model_config(
+        install_root,
+        model_id="recommended-6gb",
+        model_path=curated_model_path,
+    )
+    _write_runtime_endpoint_config(
+        install_root / "config" / "runtime-endpoint.json",
+        port=39281,
+    )
+
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+
+    client = TestClient(app)
+    response = client.post(
+        "/api/models/add-local-upload",
+        content=b"uploaded-model-binary",
+        headers={
+            "content-type": "application/octet-stream",
+            "x-file-name": "demo-local.gguf",
+            "x-model-label": "Demo Local",
+            "x-model-family": "Custom",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "ok"
+    assert payload["localModelId"] == "local-demo-local"
+
+    copied_model_path = install_root / "models" / "local" / "demo-local.gguf"
+    assert copied_model_path.is_file()
+    assert copied_model_path.read_bytes() == b"uploaded-model-binary"
+
+    registry_payload = json.loads(
+        (install_root / "config" / "control-center" / "custom-models.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert registry_payload["models"][0]["filename"] == "demo-local.gguf"
+    assert registry_payload["models"][0]["label"] == "Demo Local"
+
+
 def test_activate_model_route_accepts_mtp_variant_when_llama_supports_draft_mtp(
     tmp_path: Path,
     monkeypatch,

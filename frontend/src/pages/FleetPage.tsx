@@ -63,7 +63,7 @@ export function FleetPage() {
       });
       await load();
     } catch (reason: unknown) {
-      setError(reason instanceof Error ? reason.message : "Fleet akcija nije uspela.");
+      setError(reason instanceof Error ? reason.message : "Akcija flote nije uspela.");
     }
   }
 
@@ -87,7 +87,7 @@ export function FleetPage() {
     return (
       <PageDataStateCard
         error={error}
-        loadingText="U\u010ditavam flotu..."
+        loadingText="Učitavam flotu..."
         onRetry={() => {
           setError(null);
           void load();
@@ -100,16 +100,16 @@ export function FleetPage() {
     <>
       {error ? <div className="error-panel wide-card">{error}</div> : null}
       <PageFlowCard
-        title="Fleet tok"
-        summary="Ovde prvo doda\u0161 ma\u0161inu, zatim osve\u017ei\u0161 njen snapshot, pa tek onda koristi\u0161 udaljeni panel ili telemetry brojke za pore\u0111enje."
+        title="Tok flote"
+        summary="Ovde prvo dodaš mašinu, zatim osvežiš njen snimak, pa tek onda koristiš udaljeni panel ili telemetrijske brojke za poređenje."
         steps={[
           {
-            title: "Dodaj ma\u0161inu",
-            detail: "Naziv i osnovni URL su dovoljni da RuntimePilot po\u010dne da prati udaljenu instalaciju.",
+            title: "Dodaj mašinu",
+            detail: "Naziv i osnovni URL su dovoljni da RuntimePilot počne da prati udaljenu instalaciju.",
           },
           {
-            title: "Osve\u017ei snapshot",
-            detail: "Fleet ima smisla tek kada povu\u010de runtime, model i live signal sa druge ma\u0161ine.",
+            title: "Osveži snimak",
+            detail: "Tok flote ima smisla tek kada povuče runtime, model i tok telemetrije sa druge mašine.",
           },
           {
             title: "Otvori panel ili uporedi signal",
@@ -118,7 +118,7 @@ export function FleetPage() {
         ]}
       />
 
-      <section className="status-card wide-card">
+      <section className="status-card wide-card runtimepilot-faceplate-module">
         <span className="status-label">Flota</span>
         <strong className="status-value">Udaljene mašine</strong>
         <p className="helper-text">
@@ -130,13 +130,13 @@ export function FleetPage() {
           <span>Osveženo: {summary ? formatDateTime(summary.generatedAt) : "--"}</span>
         </div>
         <div className="inline-actions">
-          <button type="button" onClick={() => void runMutation(() => refreshFleetMachine())}>
+          <button type="button" className="secondary-button" onClick={() => void runMutation(() => refreshFleetMachine())}>
             Osveži sve
           </button>
         </div>
       </section>
 
-      <section className="status-card wide-card">
+      <section className="status-card wide-card runtimepilot-faceplate-module">
         <span className="status-label">Dodaj mašinu</span>
         <div className="settings-page-grid">
           <label className="settings-compact-field">
@@ -145,7 +145,7 @@ export function FleetPage() {
               type="text"
               value={name}
               onChange={(event) => setName(event.target.value)}
-              placeholder="Workstation, Laptop, GPU čvor..."
+              placeholder="Radna stanica, laptop, GPU čvor..."
             />
           </label>
           <label className="settings-compact-field settings-medium-field">
@@ -161,6 +161,7 @@ export function FleetPage() {
         <div className="inline-actions">
           <button
             type="button"
+            className="action-button"
             disabled={!name.trim() || !baseUrl.trim()}
             onClick={() =>
               void runMutation(async () => {
@@ -178,7 +179,7 @@ export function FleetPage() {
         </div>
       </section>
 
-      <section className="status-card wide-card">
+      <section className="status-card wide-card runtimepilot-faceplate-module">
         <span className="status-label">Katalog mašina</span>
         {machines.length ? (
           <div className="model-list">
@@ -236,18 +237,18 @@ function FleetMachineCard({
         {machine.lastError || machine.snapshot.runtimeSummary || "Nema dodatne runtime poruke."}
       </p>
       <div className="inline-actions">
-        <button type="button" onClick={onRefresh}>
+        <button type="button" className="secondary-button" onClick={onRefresh}>
           Osveži
         </button>
         <a
-          className="nav-button"
+          className="secondary-button"
           href={machine.snapshot.uiUrl || `${machine.baseUrl}/`}
           target="_blank"
           rel="noreferrer"
         >
           Otvori panel
         </a>
-        <button type="button" onClick={onRemove}>
+        <button type="button" className="danger-button" onClick={onRemove}>
           Ukloni
         </button>
       </div>

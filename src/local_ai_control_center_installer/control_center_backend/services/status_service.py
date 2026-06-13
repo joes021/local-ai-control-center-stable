@@ -8,6 +8,9 @@ from pathlib import Path
 import platform
 import socket
 import subprocess
+import threading
+import time
+import tomllib
 from urllib.error import HTTPError, URLError
 from urllib.request import urlopen
 
@@ -37,6 +40,19 @@ RUNTIME_SELECTION_FILE = "runtime-selection.json"
 SUPPORTED_RUNTIMES = {"llama.cpp", "turboquant"}
 LAUNCH_PROBE_SKIP_ENV = "LACC_SKIP_RUNTIME_LAUNCH_PROBE"
 LAUNCH_PROBE_TIMEOUT_SECONDS = 5.0
+RUNTIME_STATE_CACHE_TTL_SECONDS = 2.0
+RUNTIME_PID_CACHE_TTL_SECONDS = 2.0
+_RUNTIME_STATE_CACHE_LOCK = threading.Lock()
+_RUNTIME_STATE_CACHE: dict[
+    str,
+    tuple[float, tuple[tuple[str, int | None, int | None], ...], dict[str, object]],
+] = {}
+_RUNTIME_STATE_INFLIGHT: dict[
+    str,
+    tuple[threading.Event, tuple[tuple[str, int | None, int | None], ...]],
+] = {}
+_RUNTIME_PID_CACHE_LOCK = threading.Lock()
+_RUNTIME_PID_CACHE: dict[int, tuple[float, int | None]] = {}
 
 
 def load_status_payload(
@@ -61,7 +77,8 @@ def load_status_payload(
         "hostPlatform": host_platform,
         "hostPlatformLabel": host_platform_label,
         "hostShellLabel": "PowerShell" if host_platform == "windows" else "Shell",
-        "version": _detect_version(config),
+        "version": _detect_running_version(config),
+        "installedVersion": _detect_version(config),
         "health": "ok" if runtime_state["active_model"] != "unknown" else "unknown",
         "activeModel": runtime_state["active_model"],
         "profile": runtime_state["profile"],
@@ -104,22 +121,7 @@ def load_runtime_state(
 ) -> dict[str, object]:
     config = config or get_config()
     install_root = config.install_root
-
-    active_model_payload = _read_json_file(install_root / "config" / "active-model.json")
-    active_model_path = Path(str(active_model_payload.get("model_path", "") or "")).expanduser()
-    active_model_id = str(active_model_payload.get("model_id", "unknown") or "unknown")
-    active_model_label = active_model_path.name if active_model_path.name else str(
-        active_model_id
-    )
-
-    endpoint_path = install_root / "config" / "runtime-endpoint.json"
-    try:
-        endpoint = load_runtime_endpoint_config(endpoint_path)
-        port = endpoint.port
-        base_url = endpoint.base_url
-    except (OSError, UnicodeDecodeError, ValueError, json.JSONDecodeError):
-        port = DEFAULT_MANAGED_RUNTIME_PORT
-        base_url = build_runtime_endpoint_base_url(port)
+    cache_scope = str(install_root)
 
     runtime_manifest = load_runtime_manifest()
     llama_relative = runtime_manifest["runtime_artifact"]["install_subdir"]
@@ -130,78 +132,138 @@ def load_runtime_state(
     turbo_launch = turbo_artifact["launch"]["executable_relative_path"]
     turbo_binary = install_root / turbo_artifact["install_subdir"] / turbo_launch
 
-    llama_installed = llama_binary.is_file()
-    turbo_installed = turbo_binary.is_file()
-    llama_available, llama_reason = probe_runtime_binary_launchable(llama_binary)
-    turbo_available, turbo_reason = probe_runtime_binary_launchable(turbo_binary)
-    selection_state = _resolve_selected_runtime(
-        config,
-        llama_available=llama_available,
-        turbo_available=turbo_available,
-        active_model_id=active_model_id,
-        active_model_path=active_model_path,
-        llama_binary=llama_binary,
-        turbo_binary=turbo_binary,
-    )
-    requested_runtime = selection_state["requested_runtime"]
-    selection_source = selection_state["selection_source"]
-    active_runtime = selection_state["active_runtime"]
-    runtime_selection_summary = selection_state["selection_summary"]
+    while True:
+        cache_signature = _build_runtime_state_cache_signature(
+            config,
+            llama_binary=llama_binary,
+            turbo_binary=turbo_binary,
+        )
+        now = time.monotonic()
+        with _RUNTIME_STATE_CACHE_LOCK:
+            cached_payload = _RUNTIME_STATE_CACHE.get(cache_scope)
+            if cached_payload is not None:
+                cached_at, cached_signature, payload = cached_payload
+                if cached_signature == cache_signature and (now - cached_at) <= RUNTIME_STATE_CACHE_TTL_SECONDS:
+                    return payload
 
-    active_binary = ""
-    if active_runtime == "llama.cpp" and llama_available:
-        active_binary = str(llama_binary)
-    elif active_runtime == "turboquant" and turbo_available:
-        active_binary = str(turbo_binary)
+            inflight_payload = _RUNTIME_STATE_INFLIGHT.get(cache_scope)
+            if inflight_payload is None or inflight_payload[1] != cache_signature:
+                wait_event = threading.Event()
+                _RUNTIME_STATE_INFLIGHT[cache_scope] = (wait_event, cache_signature)
+                owns_compute = True
+            else:
+                wait_event = inflight_payload[0]
+                owns_compute = False
 
-    active_binary_path = (
-        Path(active_binary)
-        if active_binary
-        else (llama_binary if active_runtime == "llama.cpp" else turbo_binary)
-    )
-    active_model_supported, active_model_reason = classify_runtime_model_support(
-        model_id=active_model_id,
-        model_path=active_model_path,
-        runtime_name=active_runtime,
-        runtime_binary_path=active_binary_path,
-    )
+        if owns_compute:
+            break
 
-    health_status = probe_server_health(base_url)
-    runtime_pid = find_runtime_pid(port)
-    runtime_live_status, runtime_live_reason = _build_runtime_live_signal(
-        health_status,
-        runtime_pid,
-    )
-    if not active_model_supported and runtime_pid is None:
-        runtime_live_status = "stopped"
-        runtime_live_reason = active_model_reason
+        wait_event.wait(timeout=max(RUNTIME_STATE_CACHE_TTL_SECONDS, 0.5) + 15.0)
 
-    return {
-        "install_root": install_root,
-        "profile": _load_profile(config),
-        "active_model": active_model_label or "unknown",
-        "active_model_id": active_model_id,
-        "active_model_path": str(active_model_path) if active_model_path else "",
-        "active_model_supported": active_model_supported,
-        "active_model_reason": active_model_reason,
-        "port": port,
-        "base_url": base_url,
-        "llama_binary": str(llama_binary),
-        "turbo_binary": str(turbo_binary),
-        "llama_installed": llama_installed,
-        "turbo_installed": turbo_installed,
-        "llama_available": llama_available,
-        "turbo_available": turbo_available,
-        "requested_runtime": requested_runtime,
-        "active_runtime": active_runtime,
-        "runtime_selection_summary": runtime_selection_summary,
-        "active_binary": active_binary,
-        "active_binary_source": selection_source,
-        "runtime_live_status": runtime_live_status,
-        "runtime_live_reason": runtime_live_reason,
-        "llama_reason": llama_reason,
-        "turbo_reason": turbo_reason,
-    }
+    payload: dict[str, object] | None = None
+    try:
+        active_model_payload = _read_json_file(install_root / "config" / "active-model.json")
+        active_model_path = Path(str(active_model_payload.get("model_path", "") or "")).expanduser()
+        active_model_id = str(active_model_payload.get("model_id", "unknown") or "unknown")
+        active_model_label = active_model_path.name if active_model_path.name else str(
+            active_model_id
+        )
+
+        endpoint_path = install_root / "config" / "runtime-endpoint.json"
+        try:
+            endpoint = load_runtime_endpoint_config(endpoint_path)
+            port = endpoint.port
+            base_url = endpoint.base_url
+        except (OSError, UnicodeDecodeError, ValueError, json.JSONDecodeError):
+            port = DEFAULT_MANAGED_RUNTIME_PORT
+            base_url = build_runtime_endpoint_base_url(port)
+
+        llama_installed = llama_binary.is_file()
+        turbo_installed = turbo_binary.is_file()
+        llama_available, llama_reason = probe_runtime_binary_launchable(llama_binary)
+        turbo_available, turbo_reason = probe_runtime_binary_launchable(turbo_binary)
+        selection_state = _resolve_selected_runtime(
+            config,
+            llama_available=llama_available,
+            turbo_available=turbo_available,
+            active_model_id=active_model_id,
+            active_model_path=active_model_path,
+            llama_binary=llama_binary,
+            turbo_binary=turbo_binary,
+        )
+        requested_runtime = selection_state["requested_runtime"]
+        selection_source = selection_state["selection_source"]
+        active_runtime = selection_state["active_runtime"]
+        runtime_selection_summary = selection_state["selection_summary"]
+
+        active_binary = ""
+        if active_runtime == "llama.cpp" and llama_available:
+            active_binary = str(llama_binary)
+        elif active_runtime == "turboquant" and turbo_available:
+            active_binary = str(turbo_binary)
+
+        active_binary_path = (
+            Path(active_binary)
+            if active_binary
+            else (llama_binary if active_runtime == "llama.cpp" else turbo_binary)
+        )
+        active_model_supported, active_model_reason = classify_runtime_model_support(
+            model_id=active_model_id,
+            model_path=active_model_path,
+            runtime_name=active_runtime,
+            runtime_binary_path=active_binary_path,
+        )
+
+        health_status = probe_server_health(base_url)
+        runtime_pid = find_runtime_pid(port)
+        runtime_live_status, runtime_live_reason = _build_runtime_live_signal(
+            health_status,
+            runtime_pid,
+        )
+        if not active_model_supported and runtime_pid is None:
+            runtime_live_status = "stopped"
+            runtime_live_reason = active_model_reason
+
+        payload = {
+            "install_root": install_root,
+            "profile": _load_profile(config),
+            "active_model": active_model_label or "unknown",
+            "active_model_id": active_model_id,
+            "active_model_path": str(active_model_path) if active_model_path else "",
+            "active_model_supported": active_model_supported,
+            "active_model_reason": active_model_reason,
+            "port": port,
+            "base_url": base_url,
+            "llama_binary": str(llama_binary),
+            "turbo_binary": str(turbo_binary),
+            "llama_installed": llama_installed,
+            "turbo_installed": turbo_installed,
+            "llama_available": llama_available,
+            "turbo_available": turbo_available,
+            "requested_runtime": requested_runtime,
+            "active_runtime": active_runtime,
+            "runtime_selection_summary": runtime_selection_summary,
+            "active_binary": active_binary,
+            "active_binary_source": selection_source,
+            "runtime_live_status": runtime_live_status,
+            "runtime_live_reason": runtime_live_reason,
+            "llama_reason": llama_reason,
+            "turbo_reason": turbo_reason,
+        }
+        return payload
+    finally:
+        with _RUNTIME_STATE_CACHE_LOCK:
+            if payload is not None:
+                stored_signature = _build_runtime_state_cache_signature(
+                    config,
+                    llama_binary=llama_binary,
+                    turbo_binary=turbo_binary,
+                )
+                _RUNTIME_STATE_CACHE[cache_scope] = (time.monotonic(), stored_signature, payload)
+            inflight_payload = _RUNTIME_STATE_INFLIGHT.get(cache_scope)
+            if inflight_payload is not None and inflight_payload[0] is wait_event:
+                del _RUNTIME_STATE_INFLIGHT[cache_scope]
+                wait_event.set()
 
 
 def classify_runtime_model_support(
@@ -292,6 +354,15 @@ def probe_server_health(base_url: str) -> str:
 
 
 def find_runtime_pid(port: int) -> int | None:
+    if port <= 0:
+        return None
+    now = time.monotonic()
+    with _RUNTIME_PID_CACHE_LOCK:
+        cached_payload = _RUNTIME_PID_CACHE.get(port)
+        if cached_payload is not None:
+            cached_at, cached_pid = cached_payload
+            if (now - cached_at) <= RUNTIME_PID_CACHE_TTL_SECONDS:
+                return cached_pid
     result = subprocess.run(
         ["netstat", "-ano", "-p", "tcp"],
         capture_output=True,
@@ -299,6 +370,7 @@ def find_runtime_pid(port: int) -> int | None:
         encoding="utf-8",
         errors="replace",
         check=False,
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
     )
     if result.returncode != 0:
         return None
@@ -314,10 +386,43 @@ def find_runtime_pid(port: int) -> int | None:
         if local_address != expected_local_address or state != "LISTENING":
             continue
         try:
-            return int(pid_raw)
+            runtime_pid = int(pid_raw)
+            with _RUNTIME_PID_CACHE_LOCK:
+                _RUNTIME_PID_CACHE[port] = (time.monotonic(), runtime_pid)
+            return runtime_pid
         except ValueError:
             return None
+    with _RUNTIME_PID_CACHE_LOCK:
+        _RUNTIME_PID_CACHE[port] = (time.monotonic(), None)
     return None
+
+
+def _build_runtime_state_cache_signature(
+    config: ControlCenterConfig,
+    *,
+    llama_binary: Path,
+    turbo_binary: Path,
+) -> tuple[tuple[str, int | None, int | None], ...]:
+    runtime_selection_path = config.control_center_config_root / RUNTIME_SELECTION_FILE
+    settings_path = config.control_center_config_root / "settings.json"
+    watched_paths = (
+        config.active_model_config_path,
+        config.runtime_endpoint_config_path,
+        runtime_selection_path,
+        settings_path,
+        llama_binary,
+        turbo_binary,
+    )
+    return tuple(_path_signature(path) for path in watched_paths)
+
+
+def _path_signature(path: Path) -> tuple[str, int | None, int | None]:
+    resolved = Path(str(path))
+    try:
+        stat = resolved.stat()
+    except OSError:
+        return (str(resolved), None, None)
+    return (str(resolved), stat.st_mtime_ns, stat.st_size)
 
 
 def probe_runtime_binary_launchable(binary_path: Path) -> tuple[bool, str]:
@@ -603,6 +708,39 @@ def _detect_version(config: ControlCenterConfig | None = None) -> str:
         pass
 
     return "unknown"
+
+
+def _detect_running_version(config: ControlCenterConfig | None = None) -> str:
+    source_version = _read_running_version_from_source_tree()
+    if source_version:
+        return source_version
+
+    try:
+        return package_version("local-ai-control-center-installer")
+    except PackageNotFoundError:
+        pass
+
+    return _detect_version(config)
+
+
+def _read_running_version_from_source_tree() -> str | None:
+    current = Path(__file__).resolve()
+    for parent in current.parents:
+        pyproject_path = parent / "pyproject.toml"
+        if not pyproject_path.is_file():
+            continue
+        try:
+            payload = tomllib.loads(pyproject_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError, tomllib.TOMLDecodeError):
+            return None
+        project_payload = payload.get("project", {})
+        if not isinstance(project_payload, dict):
+            return None
+        version = str(project_payload.get("version", "") or "").strip()
+        if version:
+            return version
+        return None
+    return None
 
 
 def _query_windows_display_version() -> str | None:

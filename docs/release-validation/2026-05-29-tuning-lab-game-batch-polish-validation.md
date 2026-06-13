@@ -1,7 +1,7 @@
-# Windows validation - Tuning Lab Game Batch Polish
+﻿# Windows validation - Tuning Lab Game Batch Polish
 
 Datum: 2026-05-29
-Repo: `C:\Users\<user>\Documents\local-ai-control-center-stable`
+Repo: `C:\repo\local-ai-control-center-stable`
 Verzija: `0.4.63`
 
 ## Šta je ispolirano
@@ -74,3 +74,5 @@ Verzija: `0.4.63`
 
 - `dist\SHA256SUMS-v0.4.63.txt` generisan
 - `LocalAIControlCenterSetup-v0.4.63.exe` i `LocalAIControlCenterSetup-latest.exe` imaju isti SHA256, što je očekivano jer latest pokazuje na isti build
+
+

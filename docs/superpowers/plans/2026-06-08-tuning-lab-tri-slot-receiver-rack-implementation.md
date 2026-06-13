@@ -1,4 +1,4 @@
-# Tuning Lab Tri Slot Receiver Rack Implementation Plan
+﻿# Tuning Lab Tri Slot Receiver Rack Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -395,3 +395,5 @@ Rucno potvrditi:
 git add src/local_ai_control_center_installer/control_center_backend/frontend_dist
 git commit -m "build: refresh packaged frontend dist for tuning lab receiver rack"
 ```
+
+

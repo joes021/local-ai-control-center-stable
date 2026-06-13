@@ -1,7 +1,7 @@
-# Windows validation - inference spotlight helper polish
+﻿# Windows validation - inference spotlight helper polish
 
 Datum: 2026-05-28
-Repo: `C:\Users\<user>\Documents\local-ai-control-center-stable`
+Repo: `C:\repo\local-ai-control-center-stable`
 Verzija: `0.4.55`
 
 ## Šta je menjano
@@ -32,3 +32,5 @@ Verzija: `0.4.55`
 - `http://127.0.0.1:3210/api/status` -> `version = 0.4.55`
 - uninstall registry -> `DisplayVersion = 0.4.55`
 - `C:\Users\<user>\LocalAIControlCenter\logs\install-report.json` -> `product_installation_status = complete`
+
+

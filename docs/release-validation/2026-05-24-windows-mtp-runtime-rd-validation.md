@@ -1,4 +1,4 @@
-## Windows MTP runtime R&D validation - 2026-05-24
+﻿## Windows MTP runtime R&D validation - 2026-05-24
 
 Ovaj zapis dokumentuje eksperimentalni rezultat za MTP GGUF podrsku na grani `codex/mtp-runtime-rd`.
 
@@ -54,3 +54,5 @@ To potvrduje da fallback nije samo test stub logika, nego stvarno radi i nad ins
 - Ovo nije dokaz da svaki `MTP` GGUF radi; dokazano je da proizvodni put moze da radi za provereni instalirani `Qwen3.6-27B` `MTP` model na ovoj masini.
 - `TurboQuant` i dalje nema `draft-mtp` capability i ne treba ga reklamirati kao `MTP` runtime.
 - Ovaj rezultat je eksperimentalan i namerno ostaje na odvojenoj grani dok se ne odluci da li ide u glavni proizvodni tok.
+
+

@@ -1,4 +1,4 @@
-# v0.4.71 - browser catalog SSL hardening validation
+﻿# v0.4.71 - browser catalog SSL hardening validation
 
 ## Problem
 
@@ -85,3 +85,5 @@ Lokalni installer upgrade:
 ## Zaključak
 
 `v0.4.71` zatvara Browser katalog SSL kvar na ovoj mašini. `Refresh from internet` sada stvarno puni katalog umesto da ostane na `HF: 0`, `Unsloth: 0` i `CERTIFICATE_VERIFY_FAILED`.
+
+

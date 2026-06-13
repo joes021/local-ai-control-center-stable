@@ -3,6 +3,7 @@
   hostPlatformLabel: string;
   hostShellLabel: string;
   version: string;
+  installedVersion: string;
   health: string;
   activeModel: string;
   profile: string;
@@ -659,16 +660,10 @@ export type TuningLabRun = {
   elapsedMs?: number;
 };
 
-export type TuningLabSummaryPayload = {
+export type TuningLabOverviewPayload = {
   status: string;
   activeRun: TuningLabRun | null;
   queue: TuningLabRun[];
-  history: TuningLabRun[];
-  historyPage: number;
-  historyPageSize: number;
-  historyTotalItems: number;
-  historyFailedItems: number;
-  historyTotalPages: number;
   goalOptions: TuningLabGoalOption[];
   successCheckTemplates: TuningLabSuccessCheckTemplate[];
   batchPresets: TuningLabBatchPreset[];
@@ -689,6 +684,18 @@ export type TuningLabSummaryPayload = {
     recommendedOrigin: string;
   };
 };
+
+export type TuningLabHistoryPagePayload = {
+  status: string;
+  history: TuningLabRun[];
+  historyPage: number;
+  historyPageSize: number;
+  historyTotalItems: number;
+  historyFailedItems: number;
+  historyTotalPages: number;
+};
+
+export type TuningLabSummaryPayload = TuningLabOverviewPayload & TuningLabHistoryPagePayload;
 
 export type ProjectMemoryGoal = {
   text: string;
@@ -1525,6 +1532,16 @@ export type ActionResult = {
     stdout: string;
     stderr: string;
   };
+};
+
+export type LocalUploadProgress = {
+  fileName: string;
+  loadedBytes: number;
+  totalBytes: number | null;
+  percent: number | null;
+  speedMBps: number | null;
+  etaSeconds: number | null;
+  phase: "uploading" | "finalizing";
 };
 
 export type ModelActionStatusPayload = {

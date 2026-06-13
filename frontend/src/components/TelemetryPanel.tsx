@@ -198,7 +198,7 @@ export function TelemetryPanel({
 
   return (
     <section
-      className={`status-card wide-card telemetry-panel runtimepilot-telemetry-shell telemetry-panel-${variant}`}
+      className={`status-card wide-card telemetry-panel runtimepilot-telemetry-shell telemetry-panel-${variant} runtimepilot-faceplate-module`}
     >
       {variant === "benchmark" ? (
         <div className="telemetry-page-header">

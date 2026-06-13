@@ -1,4 +1,4 @@
-Release target: `v0.4.83`
+﻿Release target: `v0.4.83`
 
 Scope:
 - elegantniji `Context` chip u `Živim resursima`
@@ -22,3 +22,5 @@ Expected release artifacts:
 Notes:
 - `Context` strip sada prikazuje i stanje i brojke u jednom kompaktnom chip-u.
 - `Server` tab sada ima direktno dugme za restart runtime-a kada config i živi process nisu poravnati.
+
+

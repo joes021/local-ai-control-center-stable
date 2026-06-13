@@ -1,4 +1,4 @@
-# Windows Search UX Validation
+﻿# Windows Search UX Validation
 
 Date: `2026-05-25`
 Version: `0.4.28`
@@ -166,3 +166,5 @@ Results:
 Ovaj release ne menja search backend arhitekturu.
 
 Menja korisnicki tok tako da `Search` tab vise ne izgleda kao da je lista rezultata isto sto i finalan odgovor.
+
+

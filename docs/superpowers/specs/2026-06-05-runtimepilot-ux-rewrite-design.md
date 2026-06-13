@@ -1,4 +1,4 @@
-# RuntimePilot UX Rewrite Design
+﻿# RuntimePilot UX Rewrite Design
 
 **Datum:** 2026-06-05  
 **Status:** odobren dizajn, spreman za planiranje implementacije  
@@ -364,3 +364,5 @@ Sledeci ispravan korak posle ovog dokumenta je implementacioni plan koji ce pode
 3. Runtime / Modeli / OpenCode stranica
 4. naprednog action modela
 5. mobilnog polisha
+
+

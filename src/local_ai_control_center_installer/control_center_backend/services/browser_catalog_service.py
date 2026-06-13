@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 import json
 from pathlib import Path
@@ -70,8 +71,11 @@ def refresh_catalog(
     normalized_source = (source or "all").strip().lower()
 
     if normalized_source == "all":
-        fetched_hf = fetch_source_catalog("huggingface")
-        fetched_unsloth = fetch_source_catalog("unsloth")
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            hf_future = executor.submit(fetch_source_catalog, "huggingface")
+            unsloth_future = executor.submit(fetch_source_catalog, "unsloth")
+            fetched_hf = hf_future.result()
+            fetched_unsloth = unsloth_future.result()
         incoming_models = _gguf_only((fetched_hf.get("models") or []) + (fetched_unsloth.get("models") or []))
         merged_models = _merge_replaced_sources(current_models, incoming_models, {"huggingface", "unsloth"})
         refresh_sources = {

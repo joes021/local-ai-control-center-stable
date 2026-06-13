@@ -263,6 +263,73 @@ def activate_model(
     )
 
 
+def _register_local_model_artifact(
+    source_path: Path,
+    *,
+    target_filename: str | None = None,
+    label: str = "",
+    family: str = "Custom",
+    config: ControlCenterConfig | None = None,
+    move_source: bool = False,
+) -> dict[str, object]:
+    config = config or get_config()
+    source_path = Path(source_path).expanduser()
+    if not source_path.is_file():
+        return action_result(
+            "error",
+            "add-local-model",
+            "Lokalni GGUF fajl nije pronaÄ‘en.",
+            stderr="Lokalni GGUF fajl nije pronaÄ‘en.",
+        )
+    normalized_filename = Path(str(target_filename or source_path.name)).name
+    if Path(normalized_filename).suffix.lower() != ".gguf":
+        return action_result(
+            "error",
+            "add-local-model",
+            "Lokalni fajl mora da bude .gguf model.",
+            stderr="Lokalni fajl mora da bude .gguf model.",
+        )
+
+    target_root = config.install_root / "models" / "local"
+    target_root.mkdir(parents=True, exist_ok=True)
+    target_path = target_root / normalized_filename
+    try:
+        same_target = source_path.resolve() == target_path.resolve()
+    except OSError:
+        same_target = False
+    if move_source:
+        if not same_target:
+            target_path.unlink(missing_ok=True)
+            source_path.replace(target_path)
+    elif not same_target:
+        shutil.copy2(source_path, target_path)
+    size_gib = _to_gib(target_path.stat().st_size)
+    normalized_family = family.strip() or "Custom"
+    if normalized_family.lower() == "custom":
+        normalized_family = _infer_model_family(normalized_filename)
+
+    entry = {
+        "id": _build_local_model_id(normalized_filename),
+        "label": label.strip() or Path(normalized_filename).stem,
+        "filename": normalized_filename,
+        "family": normalized_family,
+        "source": "local",
+        "description": "Lokalno dodat GGUF model.",
+        "absolute_path": str(target_path),
+        "approxSizeGiB": size_gib,
+        "installedSizeGiB": size_gib,
+    }
+    _upsert_custom_registry_entry(config, entry)
+    result = action_result(
+        "ok",
+        "add-local-model",
+        f"Lokalni model je dodat: {entry['label']}",
+        stdout=str(target_path),
+    )
+    result["localModelId"] = entry["id"]
+    return result
+
+
 def add_local_model(
     path: str,
     label: str = "",
@@ -271,6 +338,12 @@ def add_local_model(
 ) -> dict[str, object]:
     config = config or get_config()
     source_path = Path(str(path or "").strip()).expanduser()
+    return _register_local_model_artifact(
+        source_path,
+        label=label,
+        family=family,
+        config=config,
+    )
     if not source_path.is_file():
         return action_result(
             "error",
@@ -315,6 +388,60 @@ def add_local_model(
     )
     result["localModelId"] = entry["id"]
     return result
+
+
+async def add_local_model_upload(
+    request_stream,
+    filename: str,
+    label: str = "",
+    family: str = "Custom",
+    config: ControlCenterConfig | None = None,
+) -> dict[str, object]:
+    config = config or get_config()
+    normalized_filename = Path(str(filename or "").strip()).name
+    if not normalized_filename:
+        return action_result(
+            "error",
+            "add-local-model",
+            "Nedostaje naziv lokalnog GGUF fajla.",
+            stderr="Nedostaje naziv lokalnog GGUF fajla.",
+        )
+    if Path(normalized_filename).suffix.lower() != ".gguf":
+        return action_result(
+            "error",
+            "add-local-model",
+            "Lokalni fajl mora da bude .gguf model.",
+            stderr="Lokalni fajl mora da bude .gguf model.",
+        )
+
+    target_root = config.install_root / "models" / "local"
+    target_root.mkdir(parents=True, exist_ok=True)
+    staging_path = target_root / f".upload-{uuid4().hex[:10]}-{normalized_filename}.part"
+
+    try:
+        with staging_path.open("wb") as handle:
+            async for chunk in request_stream:
+                if chunk:
+                    handle.write(chunk)
+        return _register_local_model_artifact(
+            staging_path,
+            target_filename=normalized_filename,
+            label=label,
+            family=family,
+            config=config,
+            move_source=True,
+        )
+    except Exception as exc:  # noqa: BLE001
+        try:
+            staging_path.unlink(missing_ok=True)
+        except OSError:
+            pass
+        return action_result(
+            "error",
+            "add-local-model",
+            f"Lokalni GGUF upload nije uspeo: {exc}",
+            stderr=str(exc),
+        )
 
 
 def add_hf_model(

@@ -6,7 +6,7 @@
 
 export function PageDataStateCard({ loadingText, error, onRetry }: PageDataStateCardProps) {
   return (
-    <section className="status-card wide-card page-data-state-card runtimepilot-data-state-shell">
+    <section className="status-card wide-card page-data-state-card runtimepilot-data-state-shell runtimepilot-faceplate-module">
       <span className="status-label">{error ? "Problem pri učitavanju" : "Učitavanje"}</span>
       <strong className="status-value">{error || loadingText}</strong>
       <p className="helper-text">
@@ -16,7 +16,7 @@ export function PageDataStateCard({ loadingText, error, onRetry }: PageDataState
       </p>
       {error && onRetry ? (
         <div className="inline-actions compact-actions">
-          <button type="button" onClick={onRetry}>
+          <button type="button" className="secondary-button" onClick={onRetry}>
             Pokušaj ponovo
           </button>
         </div>

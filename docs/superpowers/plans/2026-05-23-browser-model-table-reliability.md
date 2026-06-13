@@ -1,4 +1,4 @@
-# Browser Model Table Reliability Implementation Plan
+﻿# Browser Model Table Reliability Implementation Plan
 
 Date: 2026-05-23
 Spec: `docs/superpowers/specs/2026-05-23-browser-model-table-reliability-design.md`
@@ -116,3 +116,5 @@ Steps:
 - rebuild Windows installer
 - smoke-test the integrated panel and browser tab locally
 - bump version and publish new GitHub release only after the click-`Download` flow is actually working
+
+

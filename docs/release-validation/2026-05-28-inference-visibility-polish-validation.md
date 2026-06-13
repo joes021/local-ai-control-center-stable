@@ -1,4 +1,4 @@
-# 2026-05-28 Inference Visibility Polish Validation
+﻿# 2026-05-28 Inference Visibility Polish Validation
 
 ## Cilj
 
@@ -58,3 +58,5 @@ Popraviti UX problem zbog kog su inference argumenti postojali u sistemu, ali ni
 
 - pokušao sam i headless vizuelnu proveru kroz `playwright`, ali alat nije bio dostupan u lokalnom okruženju
 - zato je završni dokaz zatvoren kroz source, spakovani frontend bundle, API payload i pun test gate
+
+

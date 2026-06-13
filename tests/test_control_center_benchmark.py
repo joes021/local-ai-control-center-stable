@@ -1,4 +1,7 @@
+import importlib
 import json
+import threading
+import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -24,6 +27,208 @@ def _write_active_model_config(install_root: Path, *, filename: str = "gemma-4-E
         json.dumps({"model_id": "recommended-6gb", "model_path": str(model_path)}, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
+
+
+def test_load_benchmark_summary_reuses_recent_payload(monkeypatch, tmp_path: Path):
+    module = importlib.import_module(
+        "local_ai_control_center_installer.control_center_backend.services.benchmark_service"
+    )
+    module = importlib.reload(module)
+
+    install_root = tmp_path / "install-root"
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    config = get_config()
+
+    calls = {
+        "runtime": 0,
+        "settings": 0,
+        "history": 0,
+        "live": 0,
+        "record": 0,
+        "batteries": 0,
+        "run_state": 0,
+        "saved_runs": 0,
+    }
+
+    def fake_runtime_state(config=None):
+        calls["runtime"] += 1
+        return {"active_runtime": "llama.cpp", "active_model": "Demo.gguf", "port": 39281}
+
+    def fake_settings(config=None):
+        calls["settings"] += 1
+        return {"context": 262144, "outputTokens": 8192}
+
+    def fake_environment(runtime_state, settings_state):
+        return {"runtime": "llama.cpp", "context": 262144, "outputTokens": 8192}
+
+    def fake_history(config=None):
+        calls["history"] += 1
+        return []
+
+    def fake_live(config=None):
+        calls["live"] += 1
+        return None
+
+    def fake_record(config, sample):
+        calls["record"] += 1
+        return []
+
+    def fake_recent(signal_history):
+        return [], {}
+
+    def fake_batteries(config=None):
+        calls["batteries"] += 1
+        return {"batteries": []}
+
+    def fake_selected(batteries_payload):
+        return None
+
+    def fake_run_state(config=None):
+        calls["run_state"] += 1
+        return {}
+
+    def fake_saved_runs(config=None):
+        calls["saved_runs"] += 1
+        return []
+
+    monkeypatch.setattr(module, "load_runtime_state", fake_runtime_state)
+    monkeypatch.setattr(module, "load_effective_settings_state", fake_settings)
+    monkeypatch.setattr(module, "_build_benchmark_environment", fake_environment)
+    monkeypatch.setattr(module, "_load_history", fake_history)
+    monkeypatch.setattr(module, "_load_live_slot_metric", fake_live)
+    monkeypatch.setattr(module, "_record_live_history_sample", fake_record)
+    monkeypatch.setattr(module, "_build_recent_activities", fake_recent)
+    monkeypatch.setattr(module, "_load_batteries", fake_batteries)
+    monkeypatch.setattr(module, "_selected_battery", fake_selected)
+    monkeypatch.setattr(module, "_load_run_state", fake_run_state)
+    monkeypatch.setattr(module, "_load_saved_runs", fake_saved_runs)
+
+    first = module.load_benchmark_summary(config)
+    second = module.load_benchmark_summary(config)
+
+    assert first["requestCount"] == 0
+    assert second["requestCount"] == 0
+    assert calls == {
+        "runtime": 1,
+        "settings": 1,
+        "history": 1,
+        "live": 1,
+        "record": 1,
+        "batteries": 1,
+        "run_state": 1,
+        "saved_runs": 1,
+    }
+
+
+def test_load_benchmark_summary_deduplicates_parallel_cold_requests(monkeypatch, tmp_path: Path):
+    module = importlib.import_module(
+        "local_ai_control_center_installer.control_center_backend.services.benchmark_service"
+    )
+    module = importlib.reload(module)
+
+    install_root = tmp_path / "install-root"
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    config = get_config()
+
+    calls = {
+        "runtime": 0,
+        "settings": 0,
+        "history": 0,
+        "live": 0,
+        "record": 0,
+        "batteries": 0,
+        "run_state": 0,
+        "saved_runs": 0,
+    }
+    first_call_entered = threading.Event()
+    release_first_call = threading.Event()
+    results: list[dict[str, object]] = []
+    errors: list[BaseException] = []
+
+    def fake_runtime_state(config=None):
+        calls["runtime"] += 1
+        return {"active_runtime": "llama.cpp", "active_model": "Demo.gguf", "port": 39281}
+
+    def fake_settings(config=None):
+        calls["settings"] += 1
+        return {"context": 262144, "outputTokens": 8192}
+
+    def fake_environment(runtime_state, settings_state):
+        return {"runtime": "llama.cpp", "context": 262144, "outputTokens": 8192}
+
+    def fake_history(config=None):
+        calls["history"] += 1
+        if calls["history"] == 1:
+            first_call_entered.set()
+            assert release_first_call.wait(timeout=5)
+        return []
+
+    def fake_live(config=None):
+        calls["live"] += 1
+        return None
+
+    def fake_record(config, sample):
+        calls["record"] += 1
+        return []
+
+    def fake_recent(signal_history):
+        return [], {}
+
+    def fake_batteries(config=None):
+        calls["batteries"] += 1
+        return {"batteries": []}
+
+    def fake_selected(batteries_payload):
+        return None
+
+    def fake_run_state(config=None):
+        calls["run_state"] += 1
+        return {}
+
+    def fake_saved_runs(config=None):
+        calls["saved_runs"] += 1
+        return []
+
+    monkeypatch.setattr(module, "load_runtime_state", fake_runtime_state)
+    monkeypatch.setattr(module, "load_effective_settings_state", fake_settings)
+    monkeypatch.setattr(module, "_build_benchmark_environment", fake_environment)
+    monkeypatch.setattr(module, "_load_history", fake_history)
+    monkeypatch.setattr(module, "_load_live_slot_metric", fake_live)
+    monkeypatch.setattr(module, "_record_live_history_sample", fake_record)
+    monkeypatch.setattr(module, "_build_recent_activities", fake_recent)
+    monkeypatch.setattr(module, "_load_batteries", fake_batteries)
+    monkeypatch.setattr(module, "_selected_battery", fake_selected)
+    monkeypatch.setattr(module, "_load_run_state", fake_run_state)
+    monkeypatch.setattr(module, "_load_saved_runs", fake_saved_runs)
+
+    def worker() -> None:
+        try:
+            results.append(module.load_benchmark_summary(config))
+        except BaseException as exc:  # noqa: BLE001
+            errors.append(exc)
+
+    first_thread = threading.Thread(target=worker, daemon=True)
+    second_thread = threading.Thread(target=worker, daemon=True)
+    first_thread.start()
+    assert first_call_entered.wait(timeout=5)
+    second_thread.start()
+    time.sleep(0.1)
+    release_first_call.set()
+    first_thread.join(timeout=5)
+    second_thread.join(timeout=5)
+
+    assert errors == []
+    assert len(results) == 2
+    assert calls == {
+        "runtime": 1,
+        "settings": 1,
+        "history": 1,
+        "live": 1,
+        "record": 1,
+        "batteries": 1,
+        "run_state": 1,
+        "saved_runs": 1,
+    }
 
 
 def _write_settings_config(

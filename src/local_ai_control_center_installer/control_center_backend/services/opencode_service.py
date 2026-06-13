@@ -58,9 +58,13 @@ OPENCODE_DISPOSABLE_WORKSPACE_PREFIXES: dict[str, str] = {
     "gui-worktree-": "git-worktree",
 }
 OPENCODE_HYGIENE_POLL_SECONDS = 15 * 60.0
+OPENCODE_DEFAULT_AGENT = "build"
+WINDOWS_PROCESS_SNAPSHOT_CACHE_TTL_SECONDS = 5.0
 _HYGIENE_SCHEDULER_LOCK = threading.Lock()
 _HYGIENE_SCHEDULER_THREAD: threading.Thread | None = None
 _HYGIENE_SCHEDULER_STOP = threading.Event()
+_WINDOWS_PROCESS_SNAPSHOT_LOCK = threading.Lock()
+_WINDOWS_PROCESS_SNAPSHOT_CACHE: tuple[float, list[dict[str, object]]] | None = None
 
 
 def load_opencode_status_payload(
@@ -453,37 +457,39 @@ def open_opencode(
         )
     project_path = Path(str(workspace_info["workspacePath"])) if workspace_info else working_directory
 
+    desktop_available = bool(desktop_executable_path and desktop_executable_path.is_file())
     existing_desktop_instances = (
         []
         if normalized_launch_mode != "direct"
         else detect_opencode_desktop_instances(desktop_executable_path)
     )
-    if existing_desktop_instances:
-        return _result(
-            "ok",
-            "open-opencode",
-            "OpenCode GUI je već otvoren; koristi postojeći prozor.",
-        )
-    existing_instances = [] if normalized_launch_mode != "direct" else detect_opencode_instances(executable_path)
-    if existing_instances:
-        return _result(
-            "ok",
-            "open-opencode",
-            "OpenCode je već otvoren; backend je pripremljen za postojeću sesiju.",
-        )
 
-    if desktop_executable_path and desktop_executable_path.is_file():
+    if desktop_available:
         env = _build_opencode_launch_environment(
             managed_config_path=managed_config_path,
             settings=settings,
             profile=profile,
+        )
+        launch_arguments = _build_desktop_opencode_launch_arguments(
+            managed_config_path=managed_config_path,
+            project_path=project_path,
         )
         _launch_opencode_desktop(
             desktop_executable_path=desktop_executable_path,
             working_directory=project_path,
             project_path=project_path,
             env=env,
+            launch_arguments=launch_arguments,
         )
+        if existing_desktop_instances:
+            return _result(
+                "ok",
+                "open-opencode",
+                (
+                    "OpenCode GUI je ponovo pozvan sa aktivnim agentom i modelom nad radnim "
+                    f"direktorijumom: {project_path}"
+                ),
+            )
         return _result(
             "ok",
             "open-opencode",
@@ -493,6 +499,14 @@ def open_opencode(
                 workspace_info=workspace_info,
                 gui=True,
             ),
+        )
+
+    existing_instances = [] if normalized_launch_mode != "direct" else detect_opencode_instances(executable_path)
+    if existing_instances:
+        return _result(
+            "ok",
+            "open-opencode",
+            "OpenCode je već otvoren; backend je pripremljen za postojeću sesiju.",
         )
 
     launcher_name_override = None
@@ -1012,70 +1026,45 @@ def detect_opencode_launcher_instances(launcher_path: Path) -> list[dict[str, ob
 
 
 def _query_opencode_processes() -> list[dict[str, object]]:
-    completed = subprocess.run(
-        [
-            "powershell",
-            "-NoProfile",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-Command",
-            (
-                "$matches = Get-CimInstance Win32_Process "
-                "-Filter \"Name = 'opencode.exe'\" "
-                "| Select-Object ProcessId, Name, CommandLine; "
-                "$matches | ConvertTo-Json -Compress -Depth 3"
-            ),
-        ],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        check=False,
-    )
-    if completed.returncode != 0 or not completed.stdout.strip():
-        return []
-    try:
-        parsed = json.loads(completed.stdout)
-    except json.JSONDecodeError:
-        return []
-    return parsed if isinstance(parsed, list) else [parsed]
+    return [
+        item
+        for item in _query_windows_relevant_processes()
+        if str(item.get("Name") or item.get("name") or "").strip() == "opencode.exe"
+    ]
 
 
 def _query_opencode_desktop_processes() -> list[dict[str, object]]:
     if not is_windows_platform():
         return []
-    completed = subprocess.run(
-        [
-            "powershell",
-            "-NoProfile",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-Command",
-            (
-                "$matches = Get-CimInstance Win32_Process "
-                "-Filter \"Name = 'OpenCode.exe'\" "
-                "| Select-Object ProcessId, Name, CommandLine; "
-                "$matches | ConvertTo-Json -Compress -Depth 3"
-            ),
-        ],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        check=False,
-    )
-    if completed.returncode != 0 or not completed.stdout.strip():
-        return []
-    try:
-        parsed = json.loads(completed.stdout)
-    except json.JSONDecodeError:
-        return []
-    return parsed if isinstance(parsed, list) else [parsed]
+    return [
+        item
+        for item in _query_windows_relevant_processes()
+        if str(item.get("Name") or item.get("name") or "").strip() == "OpenCode.exe"
+    ]
 
 
 def _query_shell_launcher_processes() -> list[dict[str, object]]:
     if not is_windows_platform():
         return []
+    return [
+        item
+        for item in _query_windows_relevant_processes()
+        if str(item.get("Name") or item.get("name") or "").strip().lower() in {"cmd.exe", "wt.exe"}
+    ]
+
+
+def _query_windows_relevant_processes() -> list[dict[str, object]]:
+    global _WINDOWS_PROCESS_SNAPSHOT_CACHE
+
+    if not is_windows_platform():
+        return []
+    now = time.monotonic()
+    with _WINDOWS_PROCESS_SNAPSHOT_LOCK:
+        cached_payload = _WINDOWS_PROCESS_SNAPSHOT_CACHE
+        if cached_payload is not None:
+            cached_at, cached_items = cached_payload
+            if (now - cached_at) <= WINDOWS_PROCESS_SNAPSHOT_CACHE_TTL_SECONDS:
+                return list(cached_items)
     completed = subprocess.run(
         [
             "powershell",
@@ -1085,7 +1074,7 @@ def _query_shell_launcher_processes() -> list[dict[str, object]]:
             "-Command",
             (
                 "$matches = Get-CimInstance Win32_Process "
-                "| Where-Object { $_.Name -in @('cmd.exe', 'wt.exe') } "
+                "| Where-Object { $_.Name -in @('opencode.exe', 'OpenCode.exe', 'cmd.exe', 'wt.exe') } "
                 "| Select-Object ProcessId, Name, CommandLine; "
                 "$matches | ConvertTo-Json -Compress -Depth 3"
             ),
@@ -1095,14 +1084,27 @@ def _query_shell_launcher_processes() -> list[dict[str, object]]:
         encoding="utf-8",
         errors="replace",
         check=False,
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
     )
-    if completed.returncode != 0 or not completed.stdout.strip():
+    if completed.returncode != 0:
+        with _WINDOWS_PROCESS_SNAPSHOT_LOCK:
+            _WINDOWS_PROCESS_SNAPSHOT_CACHE = (time.monotonic(), [])
+        return []
+    if not completed.stdout.strip():
+        with _WINDOWS_PROCESS_SNAPSHOT_LOCK:
+            _WINDOWS_PROCESS_SNAPSHOT_CACHE = (time.monotonic(), [])
         return []
     try:
         parsed = json.loads(completed.stdout)
     except json.JSONDecodeError:
+        with _WINDOWS_PROCESS_SNAPSHOT_LOCK:
+            _WINDOWS_PROCESS_SNAPSHOT_CACHE = (time.monotonic(), [])
         return []
-    return parsed if isinstance(parsed, list) else [parsed]
+    payload = parsed if isinstance(parsed, list) else [parsed]
+    normalized_payload = [item for item in payload if isinstance(item, dict)]
+    with _WINDOWS_PROCESS_SNAPSHOT_LOCK:
+        _WINDOWS_PROCESS_SNAPSHOT_CACHE = (time.monotonic(), normalized_payload)
+    return list(normalized_payload)
 
 
 def _normalize_windows_path_token(value: str) -> str:
@@ -1184,6 +1186,24 @@ def _build_opencode_launch_environment(
     env["LACC_OPENCODE_GENERAL_STEPS"] = str(settings["generalSteps"])
     env["LACC_OPENCODE_EXPLORE_STEPS"] = str(settings["exploreSteps"])
     return env
+
+
+def _resolve_opencode_selected_model(managed_config_path: Path) -> str:
+    preview = _build_managed_opencode_config_preview(managed_config_path)
+    return str(preview.get("model", "") or "").strip()
+
+
+def _build_desktop_opencode_launch_arguments(
+    *,
+    managed_config_path: Path,
+    project_path: Path,
+) -> list[str]:
+    arguments = ["--agent", OPENCODE_DEFAULT_AGENT]
+    selected_model = _resolve_opencode_selected_model(managed_config_path)
+    if selected_model:
+        arguments.extend(["--model", selected_model])
+    arguments.append(str(project_path))
+    return arguments
 
 
 def _write_opencode_launcher(
@@ -1332,18 +1352,25 @@ def _build_opencode_launch_preview(
         }
 
     if desktop_executable_path and desktop_executable_path.is_file():
+        desktop_arguments = _build_desktop_opencode_launch_arguments(
+            managed_config_path=managed_config_path,
+            project_path=Path(str(settings["workingDirectory"])),
+        )
         powershell_lines = [
             f'Set-Location "{settings["workingDirectory"]}"',
             *(
                 f'$env:{item["key"]} = "{_escape_powershell_value(str(item["value"]))}"'
                 for item in env_items
             ),
-            f'Start-Process -FilePath "{desktop_executable_path}"',
+            '$arguments = @('
+            + ", ".join(f'"{_escape_powershell_value(argument)}"' for argument in desktop_arguments)
+            + ')',
+            f'Start-Process -FilePath "{desktop_executable_path}" -ArgumentList $arguments',
         ]
         return {
             "shellLabel": "Desktop",
             "launcherPath": str(desktop_executable_path),
-            "launcherCommand": str(desktop_executable_path),
+            "launcherCommand": subprocess.list2cmdline([str(desktop_executable_path), *desktop_arguments]),
             "powershellCommand": "\n".join(powershell_lines),
             "workingDirectory": str(settings["workingDirectory"]),
             "environment": env_items,
@@ -1407,9 +1434,11 @@ def _launch_opencode_desktop(
     working_directory: Path,
     project_path: Path,
     env: dict[str, str],
+    launch_arguments: list[str] | None = None,
 ) -> None:
+    arguments = list(launch_arguments or [str(project_path)])
     subprocess.Popen(
-        [str(desktop_executable_path), str(project_path)],
+        [str(desktop_executable_path), *arguments],
         cwd=str(working_directory),
         env=env,
     )

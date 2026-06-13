@@ -1,7 +1,7 @@
-# Windows validation - OpenCode command layout polish
+﻿# Windows validation - OpenCode command layout polish
 
 Datum: 2026-05-29
-Repo: `C:\Users\<user>\Documents\local-ai-control-center-stable`
+Repo: `C:\repo\local-ai-control-center-stable`
 Verzija: `0.4.58`
 
 ## Šta je menjano
@@ -30,3 +30,5 @@ Verzija: `0.4.58`
 - `http://127.0.0.1:3210/api/status` -> `version = 0.4.58`
 - uninstall registry -> `DisplayVersion = 0.4.58`
 - `C:\Users\<user>\LocalAIControlCenter\logs\install-report.json` -> `product_installation_status = complete`
+
+

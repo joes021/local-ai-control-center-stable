@@ -1,4 +1,4 @@
-# v0.4.76 - GPU offload diagnostics validation
+﻿# v0.4.76 - GPU offload diagnostics validation
 
 ## Scope
 
@@ -120,3 +120,5 @@ Posle smoke provere runtime izbor je vracen na:
 - glavni `llama.cpp` GPU offload je zivo potvrden kroz runtime log
 - `TurboQuant` i `Tuning Lab` koriste isti dijagnosticki model
 - `KV buffer` vise nije lazno naduvan sabiranjem starih restart blokova
+
+

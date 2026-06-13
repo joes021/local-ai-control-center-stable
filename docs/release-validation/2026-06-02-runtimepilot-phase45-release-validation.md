@@ -1,7 +1,7 @@
-# RuntimePilot Phase 4 + 5 Release Validation
+﻿# RuntimePilot Phase 4 + 5 Release Validation
 
 Datum: 2026-06-02  
-Repo: `C:\Users\<user>\Documents\local-ai-control-center-stable`
+Repo: `C:\repo\local-ai-control-center-stable`
 
 ## Scope
 
@@ -44,3 +44,5 @@ Repo: `C:\Users\<user>\Documents\local-ai-control-center-stable`
 
 - RuntimePilot `Phase 4` i `Phase 5` su spremne za release
 - novi javni artefakt naming i vidljiviji portal shell su provereni kroz testove, build i live preview
+
+

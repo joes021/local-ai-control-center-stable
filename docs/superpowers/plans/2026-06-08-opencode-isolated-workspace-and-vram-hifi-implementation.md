@@ -1,4 +1,4 @@
-# OpenCode Isolated Workspace And VRAM Hi-Fi Implementation Plan
+﻿# OpenCode Isolated Workspace And VRAM Hi-Fi Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -63,3 +63,5 @@
 - [ ] **Step 2: Pokrenuti `vite build`**
 - [ ] **Step 3: Osvežiti lokalni `frontend_dist`**
 - [ ] **Step 4: Proveriti u browseru da rade oba OpenCode režima i novi VRAM fit raspored**
+
+

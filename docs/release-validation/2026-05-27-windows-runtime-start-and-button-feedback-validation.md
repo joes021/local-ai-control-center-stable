@@ -1,4 +1,4 @@
-## Windows runtime start and button feedback validation
+﻿## Windows runtime start and button feedback validation
 
 Date: 2026-05-27
 
@@ -77,3 +77,5 @@ Poštena napomena:
 - poseban novi non-interactive SSH shell i dalje nije pouzdan dokaz da desktop panel proces ostaje ziv izvan korisnicke sesije
 - to je vec poznata ivica remote-admin toka
 - ali konkretni korisnicki kvar iz GUI panela je zatvoren: `Start runtime server` vise nije odbijen laznim compatibility hard-block-om
+
+

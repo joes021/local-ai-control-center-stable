@@ -1,4 +1,4 @@
-# RuntimePilot Hi-Fi System Polish Design
+﻿# RuntimePilot Hi-Fi System Polish Design
 
 **Datum:** 2026-06-13  
 **Status:** odobren dizajn, spreman za planiranje implementacije  
@@ -418,3 +418,5 @@ Posle ovog dokumenta ide:
 
 - implementacioni plan po fazama
 - pa tek onda stvarni polish sweep kroz kod
+
+

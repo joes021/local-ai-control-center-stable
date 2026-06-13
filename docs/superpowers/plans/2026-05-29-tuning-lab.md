@@ -1,4 +1,4 @@
-# Tuning Lab Implementation Plan
+﻿# Tuning Lab Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -340,3 +340,5 @@ Record:
   - `first_run_validation.py`
 - Keep new JSON state installer-managed and UTF-8.
 - Do not touch unrelated untracked docs from `2026-05-20`.
+
+

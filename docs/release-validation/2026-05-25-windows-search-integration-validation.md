@@ -1,4 +1,4 @@
-# Windows Search Integration Validation
+﻿# Windows Search Integration Validation
 
 ## Scope
 
@@ -157,3 +157,5 @@ Ishod:
 ## Rezultat
 
 Search vise nije samo ideja u UI-ju, nego stvarni shared backend sloj sa jednim skupom podesavanja, jednim Search workspace-om i istim web-search augmentation putem za lokalni model i `OpenCode local-lacc`. Ova masina je vec na `0.4.23`, a zivi API smoke je potvrdio da rade i `Search` answer tok i `runtime-proxy` on-demand web search put.
+
+

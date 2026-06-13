@@ -1,4 +1,4 @@
-# Windows Control Panel Integration Design
+﻿# Windows Control Panel Integration Design
 
 ## Goal
 
@@ -445,3 +445,5 @@ The Windows product is complete for this milestone only when all of the followin
 6. harden `Settings`, `TurboQuant`, and `OpenCode`
 7. integrate installer auto-launch and final product messaging
 8. verify packaging and run full regression
+
+

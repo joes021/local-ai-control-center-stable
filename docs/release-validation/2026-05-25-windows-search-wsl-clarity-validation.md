@@ -1,4 +1,4 @@
-# Windows Search WSL Clarity Validation
+﻿# Windows Search WSL Clarity Validation
 
 Date: `2026-05-25`
 Version: `0.4.27`
@@ -135,3 +135,5 @@ It makes the shipped UI honest and explicit about the two supported modes:
 
 1. managed local SearxNG via `Windows + WSL`
 2. manual SearxNG URL without WSL
+
+

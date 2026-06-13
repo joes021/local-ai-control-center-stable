@@ -1,4 +1,4 @@
-# Windows Control Center Reuse Validation - 2026-05-26
+﻿# Windows Control Center Reuse Validation - 2026-05-26
 
 ## Scope
 
@@ -59,3 +59,5 @@ Sve komande treba da prodju za release `v0.4.31`.
 - ako je isti zdrav panel vec podignut iz istog install root-a, installer ga reuse-uje
 - ako panel nije isti ili nije zdrav, stari stop/replace tok i dalje ostaje aktivan
 - ovo ne krije stvarne konflikte sa tudjim procesom ili drugim install root-om
+
+

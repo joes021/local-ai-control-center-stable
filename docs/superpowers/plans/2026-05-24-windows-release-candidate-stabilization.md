@@ -1,4 +1,4 @@
-# Windows Release Candidate Stabilization Implementation Plan
+﻿# Windows Release Candidate Stabilization Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -127,3 +127,5 @@
 - [ ] Lock explicit arm64 support boundaries, including TurboQuant availability
 - [ ] Port the Ubuntu x86_64 path with arm64-specific runtime manifest and capability rules
 - [ ] Validate parity only after Ubuntu x86_64 is working
+
+

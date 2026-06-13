@@ -1,4 +1,4 @@
-# Windows Installer/Runtime Completion Implementation Plan
+﻿# Windows Installer/Runtime Completion Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -531,3 +531,5 @@ Expected: only known unrelated untracked artifacts plus the intended tracked cha
 git add README.md src/local_ai_control_center_installer/defaults.py src/local_ai_control_center_installer/main.py tests/test_package_smoke.py
 git commit -m "docs: finalize installer runtime completion milestone"
 ```
+
+

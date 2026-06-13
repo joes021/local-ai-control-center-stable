@@ -1,6 +1,8 @@
 ﻿import { useEffect, useMemo, useRef, useState } from "react";
 
 import { CustomSelect } from "../components/CustomSelect";
+import { HomeHiFiCommandButton } from "../components/home/HomeHiFiCommandButton";
+import { HomeHiFiModule } from "../components/home/HomeHiFiModule";
 import { PageDataStateCard } from "../components/PageDataStateCard";
 import { PageFlowCard } from "../components/PageFlowCard";
 import { RuntimeResourcePanel } from "../components/RuntimeResourcePanel";
@@ -140,6 +142,26 @@ function formatCompactTokens(value: number | undefined | null) {
     return `${numericValue / 1024}k`;
   }
   return `${numericValue}`;
+}
+
+function formatBenchmarkState(status: string | undefined | null) {
+  const normalized = String(status || "").trim().toLowerCase();
+  if (normalized === "running") {
+    return "U toku";
+  }
+  if (normalized === "queued") {
+    return "U redu";
+  }
+  if (normalized === "completed" || normalized === "done") {
+    return "Završeno";
+  }
+  if (normalized === "failed" || normalized === "error") {
+    return "Greška";
+  }
+  if (normalized === "idle") {
+    return "Miruje";
+  }
+  return normalized ? normalized : "Spremno";
 }
 
 function formatDateTimeLabel(value: string | undefined | null) {
@@ -435,7 +457,6 @@ export function BenchmarkPage({
       setSettingsPayload(nextSettings);
       setObservability(nextObservability);
       setError(null);
-      setActionMessage("");
       setSelectedScenarioId((current) => current || payload.selectedBattery?.scenarios?.[0]?.id || "");
       setBatteryName(payload.selectedBattery?.name ?? "");
       setScenariosDraft(payload.selectedBattery?.scenarios ?? []);
@@ -485,6 +506,7 @@ export function BenchmarkPage({
     () => METRIC_OPTIONS.find((option) => option.key === selectedMetricKey) ?? METRIC_OPTIONS[2],
     [selectedMetricKey],
   );
+  const selectedRangeOption = useMemo(() => findRangeByKey(selectedRangeKey), [selectedRangeKey]);
 
   useEffect(() => {
     if (selectedCompareRunIds.length < 2) {
@@ -524,6 +546,32 @@ export function BenchmarkPage({
   const activeRun = benchmark?.activeRun;
   const benchmarkEnvironment = benchmark?.environment;
   const savedRuns = benchmark?.savedRuns ?? [];
+  const selectedScenario =
+    selectedBattery.scenarios.find((scenario) => scenario.id === selectedScenarioId) ??
+    selectedBattery.scenarios[0] ??
+    null;
+  const benchmarkStateTitle = formatBenchmarkState(
+    activeRun?.status && activeRun.status !== "idle" ? activeRun.status : benchmark?.liveState?.status,
+  );
+  const benchmarkStateDetail =
+    actionMessage ||
+    activeRun?.message ||
+    benchmark?.liveState?.reason ||
+    "Pokreni scenario ili celu bateriju, pa prati signal uživo i istoriju ispod.";
+  const benchmarkLiveThroughput =
+    benchmark?.telemetry?.liveNowTokensPerSecond ??
+    benchmark?.telemetry?.lastSignalTokensPerSecond ??
+    benchmark?.averages?.totalTokensPerSecond;
+  const benchmarkThroughputLabel = formatThroughput(benchmarkLiveThroughput);
+  const benchmarkRunHeadline =
+    activeRun?.mode === "battery" && activeRun?.totalScenarios
+      ? `${Math.max(activeRun.currentIndex || 0, 1)}/${activeRun.totalScenarios} · ${
+          activeRun.currentScenarioName || selectedBattery.name
+        }`
+      : activeRun?.scenarioName || selectedScenario?.name || "Nema izabranog testa";
+  const benchmarkPresetSummary = currentWorkflowPreset
+    ? `${currentWorkflowPreset.label} · ${currentWorkflowPreset.benchmarkDefaults.runLabel}`
+    : "Ručno pokretanje benchmarka";
 
   const savedRunsTotalPages = useMemo(
     () => Math.max(1, Math.ceil(savedRuns.length / SAVED_RUNS_PER_PAGE)),
@@ -762,76 +810,204 @@ export function BenchmarkPage({
           ) : null
         }
       />
+
+      <HomeHiFiModule
+        className="benchmark-primary-module"
+        variant="runtime-primary"
+        eyebrow="Veliki modul 8"
+        title="Benchmark"
+        headerBadge={<span className="runtimepilot-home-guidance-pill">Prvo pokreni, pa uporedi</span>}
+        railItems={[
+          {
+            label: "Signal",
+            value: benchmarkStateTitle,
+            detail: benchmark?.liveState?.reason || "Status run-a i živi signal ostaju usklađeni.",
+            tone: benchmark?.liveState?.hasLiveSignal ? "success" : "signal",
+          },
+          {
+            label: "Ishod",
+            value: benchmark.activity.stability.label,
+            detail: benchmark.activity.stability.reason,
+            tone: "accent",
+          },
+          {
+            label: "Tip toka",
+            value: selectedBattery.name,
+            detail: `${selectedBattery.scenarios.length} scenarija · ${benchmarkEnvironment?.runtimeLabel || "--"}`,
+            tone: "signal",
+          },
+        ]}
+        summaryTitle="Pokreni scenario ili celu bateriju bez lutanja po stranici."
+        summaryText="Glavne komande su ovde, a editor, živi graf i istorija ostaju u deck-ovima ispod da signal ostane čist."
+        readouts={[
+          {
+            label: "Šta vidiš ovde",
+            value: "Scenario, baterija i run",
+            detail: "Jedan klik za brzi test, drugi za širu proveru kroz celu bateriju.",
+          },
+          {
+            label: "Glavni rezultat",
+            value: benchmarkRunHeadline,
+            detail: benchmarkStateDetail,
+          },
+          {
+            label: "Zašto je ovde",
+            value: "Pre Tuning Lab-a",
+            detail: "Prvo potvrdi throughput i stabilnost, pa tek onda idi u dublje poređenje setova.",
+          },
+        ]}
+        actions={[
+          <HomeHiFiCommandButton
+            key="benchmark-run-selected"
+            code="RUN"
+            title="Pokreni izabrani test"
+            subtitle="SCENARIO + SIGNAL"
+            tone="primary"
+            icon="play"
+            disabled={!selectedScenarioId}
+            onClick={() => void handleRunSelected()}
+          />,
+          <HomeHiFiCommandButton
+            key="benchmark-run-battery"
+            code="BAT"
+            title="Pokreni celu bateriju"
+            subtitle="VIŠE RUN-OVA"
+            icon="benchmark"
+            disabled={!selectedBattery.scenarios.length}
+            onClick={() => void handleRunBattery(1)}
+          />,
+          <HomeHiFiCommandButton
+            key="benchmark-open-tuning"
+            code="LAB"
+            title="Otvori Tuning Lab"
+            subtitle="SLOTOVI + WINNER"
+            icon="tuning"
+            disabled={!onOpenTuningLab}
+            onClick={() => onOpenTuningLab?.()}
+          />,
+          <HomeHiFiCommandButton
+            key="benchmark-open-logs"
+            code="LOG"
+            title="Otvori puni live log"
+            subtitle="TRAG + PORUKE"
+            icon="logs"
+            onClick={onOpenLogs}
+          />,
+        ]}
+        footer={[
+          {
+            label: "Scenario",
+            value: selectedScenario?.name || "Nije izabran",
+            detail: "Brza provera jednog testa.",
+          },
+          {
+            label: "Baterija",
+            value: selectedBattery.name,
+            detail: `${selectedBattery.scenarios.length} scenarija u nizu.`,
+          },
+          {
+            label: "Kontekst",
+            value: formatCompactTokens(benchmarkEnvironment?.context),
+            detail: benchmarkPresetSummary,
+          },
+          {
+            label: "Signal",
+            value: benchmarkThroughputLabel,
+            detail: benchmark?.telemetry?.lastSignalStateLabel || "Čeka sledeći throughput signal.",
+          },
+        ]}
+      />
+
       <div className="benchmark-hifi-stack">
       <div className="benchmark-mixer-deck">
-      <section className="status-card wide-card">
-        <span className="status-label">Kontrole benchmarka</span>
-        {currentWorkflowPreset ? (
-          <p className="helper-text">
-            Preset radnog toka: {currentWorkflowPreset.label} | {currentWorkflowPreset.benchmarkDefaults.runLabel}
-          </p>
-        ) : null}
-        <div className="inline-actions" style={{ flexWrap: "wrap", gap: "12px" }}>
-          <CustomSelect
-            value={selectedScenarioId}
-            options={scenarioOptions}
-            onChange={setSelectedScenarioId}
-            ariaLabel="Izaberi benchmark scenario"
-          />
-          <button type="button" onClick={handleRunSelected}>
-            Pokreni izabrani test
-          </button>
-          <button type="button" onClick={() => void handleRunBattery(1)}>
-            Pokreni celu bateriju
-          </button>
-          <button
-            type="button"
-            className="secondary-button"
-            title="Pokreni bateriju x2"
-            onClick={() => void handleRunBattery(2)}
-          >
-            BX2
-          </button>
-          <button
-            type="button"
-            className="secondary-button"
-            title="Pokreni bateriju x5"
-            onClick={() => void handleRunBattery(5)}
-          >
-            BX5
-          </button>
-          <button
-            type="button"
-            className="secondary-button"
-            title="Pokreni bateriju x10"
-            onClick={() => void handleRunBattery(10)}
-          >
-            BX10
-          </button>
-          <button type="button" onClick={handleSaveBattery}>
-            Sačuvaj bateriju
-          </button>
-          <span className="helper-text">Učitaj bateriju</span>
-          <CustomSelect
-            value={selectedBattery.id}
-            options={batteryOptions}
-            onChange={(batteryId) => void handleLoadBattery(batteryId)}
-            ariaLabel="Učitaj benchmark bateriju"
-          />
-          <button type="button" onClick={handleRestoreDefaults}>
-            Vrati podrazumevane testove
-          </button>
-          <button type="button" className="secondary-button" onClick={handleClearHistory}>
-            Obriši benchmark vrednosti
-          </button>
+      <section className="status-card wide-card runtimepilot-section-shell runtimepilot-faceplate-module benchmark-faceplate-panel">
+        <div className="benchmark-faceplate-headline">
+          <div>
+            <span className="status-label">Kontrole benchmarka</span>
+            <strong className="status-value">Komandni dek</strong>
+          </div>
+          {currentWorkflowPreset ? (
+            <span className="runtimepilot-home-guidance-pill">
+              Preset radnog toka: {currentWorkflowPreset.label}
+            </span>
+          ) : null}
         </div>
-        <p className="helper-text">
+        <div className="benchmark-command-grid">
+          <div className="benchmark-command-row">
+            <div className="benchmark-select-shell">
+              <span className="status-label">Scenario</span>
+              <CustomSelect
+                value={selectedScenarioId}
+                options={scenarioOptions}
+                onChange={setSelectedScenarioId}
+                ariaLabel="Izaberi benchmark scenario"
+              />
+            </div>
+            <button type="button" className="action-button" onClick={handleRunSelected}>
+              Pokreni izabrani test
+            </button>
+            <button type="button" className="action-button" onClick={() => void handleRunBattery(1)}>
+              Pokreni celu bateriju
+            </button>
+            <button
+              type="button"
+              className="secondary-button"
+              title="Pokreni bateriju x2"
+              onClick={() => void handleRunBattery(2)}
+            >
+              BX2
+            </button>
+            <button
+              type="button"
+              className="secondary-button"
+              title="Pokreni bateriju x5"
+              onClick={() => void handleRunBattery(5)}
+            >
+              BX5
+            </button>
+            <button
+              type="button"
+              className="secondary-button"
+              title="Pokreni bateriju x10"
+              onClick={() => void handleRunBattery(10)}
+            >
+              BX10
+            </button>
+          </div>
+          <div className="benchmark-command-row benchmark-command-row-secondary">
+            <div className="benchmark-select-shell">
+              <span className="status-label">Učitaj bateriju</span>
+              <CustomSelect
+                value={selectedBattery.id}
+                options={batteryOptions}
+                onChange={(batteryId) => void handleLoadBattery(batteryId)}
+                ariaLabel="Učitaj benchmark bateriju"
+              />
+            </div>
+            <button type="button" className="action-button-soft" onClick={handleSaveBattery}>
+              Sačuvaj bateriju
+            </button>
+            <button type="button" className="action-button-soft" onClick={handleRestoreDefaults}>
+              Vrati podrazumevane testove
+            </button>
+            <button type="button" className="secondary-button" onClick={handleClearHistory}>
+              Obriši benchmark vrednosti
+            </button>
+          </div>
+        </div>
+        <p className="helper-text benchmark-command-note">
           {actionMessage || "Benchmark testovi mogu da se pokrenu pojedinačno ili kao cela baterija."}
         </p>
       </section>
 
-      <section className="status-card wide-card">
-        <span className="status-label">Editor baterije</span>
+      <section className="status-card wide-card runtimepilot-section-shell runtimepilot-faceplate-module benchmark-faceplate-panel">
+        <div className="benchmark-faceplate-headline">
+          <div>
+            <span className="status-label">Editor baterije</span>
+            <strong className="status-value">Scenario i prompt</strong>
+          </div>
+          <span className="runtimepilot-home-guidance-pill">Jedan izbor, jedna izmena</span>
+        </div>
         <div className="battery-editor-shell">
           <div className="battery-editor-topline">
             <input
@@ -894,18 +1070,23 @@ export function BenchmarkPage({
       </div>
 
       <div className="benchmark-transport-deck">
-      <section className="status-card wide-card">
-        <span className="status-label">Kontekst benchmarka</span>
-        <div className="benchmark-context-grid">
-          <div className="benchmark-context-main">
-            <strong className="status-value">
-              Model: {benchmarkEnvironment?.modelLabel || "Nema aktivnog modela"}
-            </strong>
-            <p className="helper-text">
-              Runtime: {benchmarkEnvironment?.runtimeLabel || "--"} | Profil: {benchmarkEnvironment?.profile || "--"} |
-              Razmišljanje: {benchmarkEnvironment?.thinkingMode || "--"}
-            </p>
-          </div>
+      <section className="status-card wide-card runtimepilot-section-shell runtimepilot-faceplate-module benchmark-faceplate-panel benchmark-support-shell benchmark-context-shell">
+        <div className="runtime-faceplate-head">
+          <span className="status-label">Kontekst benchmarka</span>
+          <strong className="status-value">
+            {benchmarkEnvironment?.modelLabel || "Nema aktivnog modela"}
+          </strong>
+        </div>
+        <div className="runtime-faceplate-copy benchmark-context-main">
+          <p className="helper-text">
+            Model: {benchmarkEnvironment?.modelLabel || "--"} | Runtime: {benchmarkEnvironment?.runtimeLabel || "--"} |
+            Profil: {benchmarkEnvironment?.profile || "--"} | Razmišljanje:{" "}
+            {benchmarkEnvironment?.thinkingMode || "--"}
+          </p>
+          <p className="helper-text">{benchmark?.liveState?.reason}</p>
+        </div>
+        <div className="runtime-faceplate-rail">
+          <span className="status-label">Brzi signal</span>
           <div className="browser-chip-row">
             <span className="browser-badge">Kontekst {formatCompactTokens(benchmarkEnvironment?.context)}</span>
             <span className="browser-badge">Izlaz {formatCompactTokens(benchmarkEnvironment?.outputTokens)}</span>
@@ -914,27 +1095,41 @@ export function BenchmarkPage({
             </span>
           </div>
         </div>
-        <p className="helper-text">{benchmark?.liveState?.reason}</p>
       </section>
 
-      <section className="status-card wide-card">
-        <span className="status-label">Pokretanje benchmarka</span>
-        <div className="benchmark-run-summary">
-          <div className="benchmark-run-main">
+      <section className="status-card wide-card runtimepilot-section-shell runtimepilot-faceplate-module benchmark-faceplate-panel benchmark-run-shell">
+        <div className="benchmark-support-shell">
+          <div className="runtime-faceplate-head">
+            <span className="status-label">Pokretanje benchmarka</span>
             <strong className="status-value">
               {activeRun?.mode === "battery"
-                ? `${activeRun.currentIndex}/${activeRun.totalScenarios} | ${
+                ? `${activeRun.currentIndex}/${activeRun.totalScenarios} · ${
                     activeRun.currentScenarioName || "čeka"
                   }`
                 : activeRun?.scenarioName || "nema aktivnog testa"}
             </strong>
-            <span className={`scenario-status-badge scenario-status-${activeRun?.status || "idle"}`}>
-              {activeRun?.status || "idle"}
-            </span>
           </div>
-          <div className="benchmark-run-meta">
-            <span>{activeRun?.percent ?? 0}%</span>
-            <span>{activeRun?.message || "Benchmark nije pokrenut."}</span>
+          <div className="runtime-faceplate-copy">
+            <div className="benchmark-run-summary">
+              <div className="benchmark-run-main">
+                <strong className="status-value">{activeRun?.message || "Benchmark nije pokrenut."}</strong>
+                <span className={`scenario-status-badge scenario-status-${activeRun?.status || "idle"}`}>
+                  {activeRun?.status || "idle"}
+                </span>
+              </div>
+              <div className="benchmark-run-meta">
+                <span>Napredak {activeRun?.percent ?? 0}%</span>
+                <span>Scenarija {activeRun?.totalScenarios ?? 0}</span>
+              </div>
+            </div>
+          </div>
+          <div className="runtime-faceplate-rail">
+            <span className="status-label">Run signal</span>
+            <p className="helper-text">
+              {activeRun?.mode === "battery"
+                ? "Baterija vrti scenarije redom i ovde odmah vidiš gde je stala."
+                : "Jedan scenario daje najbrži signal pre šire baterije."}
+            </p>
           </div>
         </div>
         <div className="benchmark-run-status-list">
@@ -951,30 +1146,29 @@ export function BenchmarkPage({
         <div style={{ display: "none" }}>queued running done failed</div>
       </section>
 
-      <section className="status-card wide-card">
-        <span className="status-label">Aktivnost zahteva</span>
-        <p className="helper-text">
-          Zahtevi: {benchmark.requestCount} | Stabilnost: {benchmark.activity.stability.label} (
-          {benchmark.activity.stability.score})
-        </p>
-        <p className="helper-text">{benchmark.activity.stability.reason}</p>
-        <div className="inline-actions">
-          <button type="button" onClick={onOpenLogs}>
-            Otvori puni live log
-          </button>
+      <section className="status-card wide-card runtimepilot-section-shell runtimepilot-faceplate-module benchmark-faceplate-panel benchmark-activity-shell">
+        <div className="benchmark-support-shell">
+          <div className="runtime-faceplate-head">
+            <span className="status-label">Aktivnost zahteva</span>
+            <strong className="status-value">
+              {benchmark.activity.stability.label} ({benchmark.activity.stability.score})
+            </strong>
+          </div>
+          <div className="runtime-faceplate-copy">
+            <p className="helper-text">Zahtevi: {benchmark.requestCount}</p>
+            <p className="helper-text">{benchmark.activity.stability.reason}</p>
+          </div>
+          <div className="runtime-faceplate-rail">
+            <span className="status-label">Trag uživo</span>
+            <div className="inline-actions">
+              <button type="button" className="action-button-soft" onClick={onOpenLogs}>
+                Otvori puni live log
+              </button>
+            </div>
+          </div>
         </div>
         <p className="helper-text">Zadnjih 30 linija</p>
-        <pre
-          className="helper-text"
-          style={{
-            whiteSpace: "pre-wrap",
-            maxHeight: "260px",
-            overflowY: "auto",
-            background: "rgba(0,0,0,0.12)",
-            padding: "12px",
-            borderRadius: "12px",
-          }}
-        >
+        <pre className="helper-text benchmark-log-preview">
           {(benchmark.liveLog.lines.length
             ? benchmark.liveLog.lines
             : ["Još nema dostupnog live log preview-ja."]).join("\n")}
@@ -983,60 +1177,76 @@ export function BenchmarkPage({
       </div>
 
       <div className="benchmark-monitor-deck">
-      <TelemetryPanel benchmark={benchmark} variant="benchmark" />
-      <p className="helper-text">
-        CPU uživo, RAM uživo i VRAM uživo su stalno vidljivi, a ispod odmah dobijaš i jasno
-        objašnjenje režima izvršavanja: Režim izvršavanja može biti GPU VRAM dominantno, Hibrid VRAM + RAM
-        ili CPU + RAM.
-        Tako se na jednom mestu vidi i koliko je resursa zauzeto i da li model stvarno koristi GPU.
+      <p className="helper-text benchmark-monitor-note">
+        CPU uživo, RAM uživo i VRAM uživo ostaju odmah vidljivi dok telemetrija, offload i istorija
+        rade kao jedan hi-fi nadzorni dek. Režim izvršavanja brzo razlikuje GPU VRAM dominantno,
+        Hibrid VRAM + RAM i CPU + RAM tok.
       </p>
+      <TelemetryPanel benchmark={benchmark} variant="benchmark" />
       <RuntimeResourcePanel observability={observability} />
 
-      <section className="status-card wide-card">
+      <section className="status-card wide-card runtimepilot-section-shell runtimepilot-faceplate-module benchmark-faceplate-panel benchmark-chart-shell">
         <div className="benchmark-card-header">
-          <div>
+          <div className="benchmark-chart-head">
             <span className="status-label">Grafikon benchmarka</span>
             <strong className="status-value benchmark-chart-status">{chartModel.statusText}</strong>
-          </div>
-          <div className="benchmark-chart-controls">
-            <div>
-              <span className="status-label">Prikaz na grafikonu</span>
-              <div className="benchmark-range-segment" role="tablist" aria-label="Prikaz na grafikonu">
-                {METRIC_OPTIONS.map((option) => (
-                  <button
-                    type="button"
-                    key={option.key}
-                    className={`benchmark-range-button${
-                      option.key === selectedMetricKey ? " benchmark-range-button-active" : ""
-                    }`}
-                    onClick={() => setSelectedMetricKey(option.key)}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div>
-              <span className="status-label">Vremenski opseg</span>
-              <div className="benchmark-range-segment" role="tablist" aria-label="Benchmark range">
-                {RANGE_OPTIONS.map((option) => (
-                  <button
-                    type="button"
-                    key={option.key}
-                    className={`benchmark-range-button${
-                      option.key === selectedRangeKey ? " benchmark-range-button-active" : ""
-                    }`}
-                    onClick={() => setSelectedRangeKey(option.key)}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
+            <div className="benchmark-chart-readouts">
+              <article className="benchmark-chart-readout">
+                <span className="status-label">Metrika</span>
+                <strong>{selectedMetricOption.shortLabel}</strong>
+                <p className="helper-text">Aktivna linija na display-u.</p>
+              </article>
+              <article className="benchmark-chart-readout">
+                <span className="status-label">Opseg</span>
+                <strong>{selectedRangeOption.label}</strong>
+                <p className="helper-text">Vremenski prozor prikaza.</p>
+              </article>
+              <article className="benchmark-chart-readout">
+                <span className="status-label">Uzorci</span>
+                <strong>{chartModel.visibleSamples.length}</strong>
+                <p className="helper-text">Tačke trenutno vidljive na grafu.</p>
+              </article>
             </div>
           </div>
         </div>
         <div className="benchmark-chart-layout">
           <div className="benchmark-chart-panel">
+            <div className="benchmark-chart-panel-topline">
+              <div className="benchmark-chart-panel-metric-controls">
+                <span className="status-label">Prikaz na grafikonu</span>
+                <div className="benchmark-range-segment" role="tablist" aria-label="Prikaz na grafikonu">
+                  {METRIC_OPTIONS.map((option) => (
+                    <button
+                      type="button"
+                      key={option.key}
+                      className={`benchmark-range-button${
+                        option.key === selectedMetricKey ? " benchmark-range-button-active" : ""
+                      }`}
+                      onClick={() => setSelectedMetricKey(option.key)}
+                    >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+              <div className="benchmark-chart-panel-range-controls">
+                <span className="status-label">Vremenski opseg</span>
+                <div className="benchmark-range-segment" role="tablist" aria-label="Benchmark range">
+                  {RANGE_OPTIONS.map((option) => (
+                    <button
+                      type="button"
+                      key={option.key}
+                      className={`benchmark-range-button${
+                        option.key === selectedRangeKey ? " benchmark-range-button-active" : ""
+                      }`}
+                      onClick={() => setSelectedRangeKey(option.key)}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
             <svg
               viewBox={`0 0 ${CHART_WIDTH + 60} ${CHART_HEIGHT + 50}`}
               width="100%"
@@ -1145,80 +1355,109 @@ export function BenchmarkPage({
                   : "Nema uzoraka u izabranom opsegu. Graf i dalje prati vreme u realnom intervalu od 5s."}
               </p>
             ) : null}
-          </div>
-          <div className="benchmark-legend">
-            <span className="status-label">Aktivna metrika</span>
-            <div className="helper-text">
-              <span
-                style={{
-                  display: "inline-block",
-                  width: "14px",
-                  height: "14px",
-                  background: selectedMetricOption.color,
-                  marginRight: "8px",
-                  borderRadius: "999px",
-                }}
-              />
-              {selectedMetricOption.shortLabel}
-            </div>
-            <div className="helper-text">
-              <span
-                style={{
-                  display: "inline-block",
-                  width: "14px",
-                  height: "2px",
-                  background: "#9a948a",
-                  marginRight: "8px",
-                  verticalAlign: "middle",
-                }}
-              />
-              Neaktivan period
-            </div>
-            <p className="helper-text benchmark-chart-metric-note">
-              Skala Y ose se sada prilagođava samo izabranoj metrici, tako da graf ne razvlače druge serije.
-            </p>
-            <div className="benchmark-source-summary">
-              <span className="status-label">Izvori llama.cpp signala</span>
-              <p className="helper-text">
-                Graf sada prati sav llama.cpp-kompatibilni /slots throughput, pa se ovde vide i
-                tuning run-ovi i drugi lokalni tokovi, ne samo ručno pokrenut benchmark.
-              </p>
-              <div className="benchmark-source-chip-row">
-                {chartSourceSummary.length ? (
-                  chartSourceSummary.map((item) => (
-                    <span className="browser-chip" key={item.key}>
-                      {item.label} · {item.count}
-                    </span>
-                  ))
-                ) : (
-                  <>
-                    <span className="browser-chip">Aktivni runtime</span>
-                    <span className="browser-chip">Tuning Lab</span>
-                    <span className="browser-chip">Drugi llama.cpp tok</span>
-                  </>
-                )}
+            <div className="benchmark-legend benchmark-legend-horizontal">
+              <div className="benchmark-legend-strip">
+                <article className="benchmark-legend-item benchmark-legend-item-title">
+                  <span className="status-label">Aktivna metrika</span>
+                  <strong>{selectedMetricOption.shortLabel}</strong>
+                  <p className="helper-text">Skala i linija prate samo ovu metriku.</p>
+                </article>
+                <div className="benchmark-legend-readout">
+                  <span
+                    style={{
+                      display: "inline-block",
+                      width: "14px",
+                      height: "14px",
+                      background: selectedMetricOption.color,
+                      marginRight: "8px",
+                      borderRadius: "999px",
+                    }}
+                  />
+                  {selectedMetricOption.shortLabel}
+                </div>
+                <div className="benchmark-legend-readout benchmark-legend-readout-muted">
+                  <span
+                    style={{
+                      display: "inline-block",
+                      width: "14px",
+                      height: "2px",
+                      background: "#9a948a",
+                      marginRight: "8px",
+                      verticalAlign: "middle",
+                    }}
+                  />
+                  Neaktivan period
+                </div>
+                <article className="benchmark-legend-item">
+                  <span className="status-label">Napomena</span>
+                  <strong>Skala Y ose je fokusirana</strong>
+                  <p className="helper-text">
+                    Druge serije više ne razvlače prikaz dok porediš aktivni signal.
+                  </p>
+                </article>
               </div>
-              <p className="helper-text benchmark-chart-metric-note">
-                U izabranom opsegu prikazujemo samo izvore koji su stvarno poslali signal. Ako sada
-                nema uzoraka, oznake gore ostaju kao orijentir šta će graf uhvatiti čim tokeni krenu.
-              </p>
+              <div className="benchmark-source-summary">
+                <span className="status-label">Izvori llama.cpp signala</span>
+                <p className="helper-text">
+                  Graf sada prati sav llama.cpp-kompatibilni /slots throughput, pa se ovde vide i
+                  tuning run-ovi i drugi lokalni tokovi, ne samo ručno pokrenut benchmark.
+                </p>
+                <div className="benchmark-source-chip-row">
+                  {chartSourceSummary.length ? (
+                    chartSourceSummary.map((item) => (
+                      <span className="browser-chip" key={item.key}>
+                        {item.label} · {item.count}
+                      </span>
+                    ))
+                  ) : (
+                    <>
+                      <span className="browser-chip">Aktivni runtime</span>
+                      <span className="browser-chip">Tuning Lab</span>
+                      <span className="browser-chip">Drugi llama.cpp tok</span>
+                    </>
+                  )}
+                </div>
+                <p className="helper-text benchmark-chart-metric-note">
+                  U izabranom opsegu prikazujemo samo izvore koji su stvarno poslali signal. Ako sada
+                  nema uzoraka, oznake gore ostaju kao orijentir šta će graf uhvatiti čim tokeni krenu.
+                </p>
+              </div>
             </div>
           </div>
         </div>
       </section>
 
-      <section className="status-card wide-card">
-        <span className="status-label">Benchmark istorija</span>
+      <section className="status-card wide-card runtimepilot-section-shell runtimepilot-faceplate-module benchmark-faceplate-panel benchmark-history-shell">
+        <div className="benchmark-history-head">
+          <div className="benchmark-history-headline">
+            <span className="status-label">Benchmark istorija</span>
+            <strong className="status-value">Sačuvani run-ovi i compare izlaz</strong>
+          </div>
+          <div className="browser-chip-row">
+            <span className="browser-badge">Run-ovi {savedRuns.length}</span>
+            <span className="browser-badge">Compare izbor {selectedCompareRunIds.length}</span>
+          </div>
+        </div>
         <div className="inline-actions benchmark-export-row">
-          <button type="button" onClick={() => void handleExport("json")}>
-            Izvezi JSON
+          <button type="button" className="benchmark-export-button benchmark-export-button-primary" onClick={() => void handleExport("json")}>
+            <span className="benchmark-export-code">JSN</span>
+            <span className="benchmark-export-copy">
+              <span className="benchmark-export-title">Izvezi JSON</span>
+              <span className="benchmark-export-subtitle">RAW RUN ISTORIJA</span>
+            </span>
           </button>
-          <button type="button" onClick={() => void handleExport("csv")}>
-            Izvezi CSV
+          <button type="button" className="benchmark-export-button" onClick={() => void handleExport("csv")}>
+            <span className="benchmark-export-code">CSV</span>
+            <span className="benchmark-export-copy">
+              <span className="benchmark-export-title">Izvezi CSV</span>
+              <span className="benchmark-export-subtitle">TABELARNI PRESEK</span>
+            </span>
           </button>
-          <span className="helper-text">
-            Uporedi izabrana pokretanja: {selectedCompareRunIds.length}
-          </span>
+          <article className="benchmark-history-compare-readout">
+            <span className="status-label">Compare signal</span>
+            <strong>Uporedi izabrana pokretanja: {selectedCompareRunIds.length}</strong>
+            <p className="helper-text">Kad čekiraš dva ili više run-a, dole se pali compare blok.</p>
+          </article>
         </div>
         {savedRuns.length ? (
           <div className="browser-pagination">
@@ -1251,7 +1490,7 @@ export function BenchmarkPage({
           {comparePayload ? (
             <>
               <div className="benchmark-compare-grid">
-                <article className="status-card">
+                <article className="status-card benchmark-compare-summary-card">
                   <span className="status-label">Best total tok/s</span>
                   <strong className="status-value">
                     {formatThroughput(comparePayload.comparison.totalTokensPerSecond.bestValue)}
@@ -1260,7 +1499,7 @@ export function BenchmarkPage({
                     Run: {comparePayload.comparison.totalTokensPerSecond.bestRunId || "--"}
                   </p>
                 </article>
-                <article className="status-card">
+                <article className="status-card benchmark-compare-summary-card">
                   <span className="status-label">Best output tok/s</span>
                   <strong className="status-value">
                     {formatThroughput(comparePayload.comparison.completionTokensPerSecond.bestValue)}
@@ -1269,7 +1508,7 @@ export function BenchmarkPage({
                     Run: {comparePayload.comparison.completionTokensPerSecond.bestRunId || "--"}
                   </p>
                 </article>
-                <article className="status-card">
+                <article className="status-card benchmark-compare-summary-card">
                   <span className="status-label">Fastest avg ms</span>
                   <strong className="status-value">
                     {comparePayload.comparison.totalMs.bestValue !== null
@@ -1279,20 +1518,33 @@ export function BenchmarkPage({
                   <p className="helper-text">Run: {comparePayload.comparison.totalMs.bestRunId || "--"}</p>
                 </article>
               </div>
-              <p className="helper-text">{comparePayload.summary}</p>
+              <article className="benchmark-history-empty">
+                <span className="status-label">Compare rezime</span>
+                <strong>{comparePayload.summary}</strong>
+                <p className="helper-text">
+                  Ovde je namerno samo kratak zaključak, da ne tražiš bitan signal po karticama ispod.
+                </p>
+              </article>
             </>
           ) : (
-            <p className="helper-text">
-              Izaberi najmanje dva saved run-a da bi compare prikaz bio aktivan.
-            </p>
+            <article className="benchmark-history-empty">
+              <span className="status-label">Compare čeka izbor</span>
+              <strong>Izaberi najmanje dva saved run-a da bi compare prikaz bio aktivan.</strong>
+              <p className="helper-text">
+                Čim čekiraš dva run-a, ovde ćeš dobiti pobednika bez ručnog poređenja po metrikama.
+              </p>
+            </article>
           )}
         </div>
         <div className="model-list">
           {savedRuns.length ? (
             paginatedSavedRuns.map((run) => (
               <article className="model-item benchmark-saved-run-card" key={run.runId}>
-                <div className="section-header">
-                  <div>
+                <div className="benchmark-saved-run-topline">
+                  <div className="benchmark-saved-run-head">
+                    <span className="status-label">
+                      {run.mode === "battery" ? "Battery run" : "Single scenario"}
+                    </span>
                     <strong>{run.mode === "battery" ? run.batteryName : run.scenarioName}</strong>
                     <div className="muted-line">
                       {run.status} | {run.runtimeLabel} | {run.modelLabel}
@@ -1307,26 +1559,56 @@ export function BenchmarkPage({
                     Compare
                   </label>
                 </div>
-                <div className="browser-chip-row">
-                  <span className="browser-badge">Kontekst {formatCompactTokens(run.context)}</span>
-                  <span className="browser-badge">Izlaz {formatCompactTokens(run.outputTokens)}</span>
-                  <span className="browser-badge">Profil {run.profile}</span>
-                  <span className="browser-badge">Razmišljanje {run.thinkingMode}</span>
+                <div className="benchmark-saved-run-strip">
+                  <article className="benchmark-saved-run-readout">
+                    <span className="status-label">Kontekst</span>
+                    <strong>{formatCompactTokens(run.context)}</strong>
+                    <p className="helper-text">Aktivni context za taj run.</p>
+                  </article>
+                  <article className="benchmark-saved-run-readout">
+                    <span className="status-label">Izlaz</span>
+                    <strong>{formatCompactTokens(run.outputTokens)}</strong>
+                    <p className="helper-text">Maksimalni output token limit.</p>
+                  </article>
+                  <article className="benchmark-saved-run-readout">
+                    <span className="status-label">Profil</span>
+                    <strong>{run.profile}</strong>
+                    <p className="helper-text">Profil koji je bio aktivan.</p>
+                  </article>
+                  <article className="benchmark-saved-run-readout">
+                    <span className="status-label">Razmišljanje</span>
+                    <strong>{run.thinkingMode}</strong>
+                    <p className="helper-text">Inference način za ovaj run.</p>
+                  </article>
                 </div>
-                <div className="muted-line">
+                <div className="benchmark-saved-run-meta-line">
                   Start {formatDateTimeLabel(run.startedAt)}{" "}
                   {run.finishedAt ? `-> ${formatDateTimeLabel(run.finishedAt)}` : ""}
                 </div>
-                {run.currentMetric ? (
-                  <div className="summary-metrics">
-                    <span>Total {formatThroughput(run.currentMetric.totalTokensPerSecond)}</span>
-                    <span>Output {formatThroughput(run.currentMetric.completionTokensPerSecond)}</span>
-                    <span>
-                      Avg ms{" "}
-                      {run.currentMetric.totalMs !== undefined ? `${run.currentMetric.totalMs.toFixed(0)} ms` : "--"}
-                    </span>
-                  </div>
-                ) : null}
+                <div className="benchmark-saved-run-metrics">
+                  <article className="benchmark-saved-run-metric">
+                    <span className="status-label">Total tok/s</span>
+                    <strong>
+                      {run.currentMetric ? formatThroughput(run.currentMetric.totalTokensPerSecond) : "--"}
+                    </strong>
+                  </article>
+                  <article className="benchmark-saved-run-metric">
+                    <span className="status-label">Output tok/s</span>
+                    <strong>
+                      {run.currentMetric
+                        ? formatThroughput(run.currentMetric.completionTokensPerSecond)
+                        : "--"}
+                    </strong>
+                  </article>
+                  <article className="benchmark-saved-run-metric">
+                    <span className="status-label">Avg ms</span>
+                    <strong>
+                      {run.currentMetric?.totalMs !== undefined
+                        ? `${run.currentMetric.totalMs.toFixed(0)} ms`
+                        : "--"}
+                    </strong>
+                  </article>
+                </div>
               </article>
             ))
           ) : (

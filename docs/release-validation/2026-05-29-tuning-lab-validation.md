@@ -1,7 +1,7 @@
-# Windows validation - Tuning Lab
+﻿# Windows validation - Tuning Lab
 
 Datum: 2026-05-29
-Repo: `C:\Users\<user>\Documents\local-ai-control-center-stable`
+Repo: `C:\repo\local-ai-control-center-stable`
 Verzija: `0.4.60`
 
 ## Šta je uvedeno
@@ -95,3 +95,5 @@ Sažetak ishoda:
 
 - `dist\SHA256SUMS-v0.4.60.txt` generisan
 - `LocalAIControlCenterSetup-v0.4.60.exe` i `LocalAIControlCenterSetup-latest.exe` imaju isti SHA256, što je očekivano jer latest pokazuje na isti build
+
+

@@ -1,4 +1,4 @@
-# 2026-05-29 OpenCode Bootstrap and Tuning Lab Unblock Validation
+﻿# 2026-05-29 OpenCode Bootstrap and Tuning Lab Unblock Validation
 
 ## Scope
 
@@ -67,3 +67,5 @@ Lokalna instalacija je podignuta na `0.4.67` i panel je restartovan na glavnom p
 - instaliran `OpenCode`
 - živi `Run` acceptance i aktivan tuning run
 - jasniji UI signal gde je editor i zašto je run ranije bio blokiran
+
+

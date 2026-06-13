@@ -1,4 +1,4 @@
-# Windows validation - UD-IQ activation truth
+﻿# Windows validation - UD-IQ activation truth
 
 Date: 2026-05-25
 Version: 0.4.29
@@ -31,3 +31,5 @@ The compatibility normalization path treated `UD-IQ*` and `UD-Q*` quantizations 
 ## Outcome
 
 The model can now be activated on this 12 GiB VRAM machine instead of being falsely blocked as unusable.
+
+

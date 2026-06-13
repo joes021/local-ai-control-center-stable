@@ -1,4 +1,4 @@
-# Windows MTP Merge Release Validation — 2026-05-24
+﻿# Windows MTP Merge Release Validation — 2026-05-24
 
 ## Scope
 
@@ -107,3 +107,5 @@ Product truth that still remains unchanged:
 
 - MTP models are supported through `llama.cpp + --spec-type draft-mtp`
 - TurboQuant still does **not** support the MTP runtime path
+
+

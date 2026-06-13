@@ -1,4 +1,4 @@
-# Benchmark Control Panel Design
+﻿# Benchmark Control Panel Design
 
 ## Goal
 
@@ -146,3 +146,5 @@ Kada ovaj slice bude gotov, možemo pošteno da tvrdimo da isporučeni Windows p
 - istoriju benchmark run-ova
 
 Ali i dalje nećemo tvrditi GPU-level deep profiling ili advanced perf analytics van onoga što runtime signal stvarno daje.
+
+

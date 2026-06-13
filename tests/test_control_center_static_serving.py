@@ -10,6 +10,9 @@ def test_control_center_serves_frontend_shell():
     response = client.get("/")
     assert response.status_code == 200
     assert "RuntimePilot" in response.text
+    assert response.headers["cache-control"] == "no-store, no-cache, must-revalidate, max-age=0"
+    assert response.headers["pragma"] == "no-cache"
+    assert response.headers["expires"] == "0"
 
 
 def test_control_center_health_exposes_panel_identity(monkeypatch):

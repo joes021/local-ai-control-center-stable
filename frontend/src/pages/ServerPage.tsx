@@ -40,6 +40,34 @@ function formatContext(value: number | null | undefined) {
   return String(Math.round(value));
 }
 
+function renderRuntimeStatusLink(
+  label: string,
+  url: string | null | undefined,
+  fallback: string,
+) {
+  if (!url) {
+    return (
+      <p className="helper-text runtimepilot-status-link runtimepilot-status-link-disabled">
+        <span className="runtimepilot-status-link-label">{label}:</span>
+        <span className="runtimepilot-status-link-value">{fallback}</span>
+      </p>
+    );
+  }
+
+  return (
+    <a
+      className="helper-text runtimepilot-status-link"
+      href={url}
+      target="_blank"
+      rel="noreferrer"
+      title={`Otvori ${label.toLowerCase()}`}
+    >
+      <span className="runtimepilot-status-link-label">{label}:</span>
+      <span className="runtimepilot-status-link-value">{url}</span>
+    </a>
+  );
+}
+
 function buildRuntimeDiagnosticsHighlights(diagnostics: RuntimeDiagnostics | undefined) {
   if (!diagnostics) {
     return [];
@@ -65,7 +93,11 @@ function looksStarted(status: ServerStatusPayload | null) {
   return Boolean(status.pid) || ["started", "running", "healthy"].includes(status.status);
 }
 
-export function ServerPage() {
+type ServerPageProps = {
+  onOpenContextSettings?: () => void;
+};
+
+export function ServerPage({ onOpenContextSettings }: ServerPageProps) {
   const [serverStatus, setServerStatus] = useState<ServerStatusPayload | null>(() =>
     peekServerStatusCache(),
   );
@@ -280,12 +312,49 @@ export function ServerPage() {
       <ActionResultPanel result={result} />
 
       <details className="status-card wide-card runtimepilot-section-shell runtimepilot-advanced-disclosure">
-        <summary>Napredna dijagnostika i ručne komande</summary>
-        <p className="helper-text runtimepilot-advanced-summary">
-          Ovde ostaju GPU offload detalji, planirana i potvrđena potrošnja, context mismatch
-          dijagnostika i ručni ekvivalenti komandi. Glavni klikovi su gore, a ovo otvaraš kada
-          proveravaš fit, porediš CLI ili tražiš root cause.
-        </p>
+        <summary>
+          <span className="runtimepilot-advanced-summary-copy">
+            <span className="status-label">Runtime rack</span>
+            <span className="runtimepilot-advanced-summary-title">Napredna dijagnostika i ručne komande</span>
+          </span>
+          <span className="runtimepilot-advanced-summary-indicator" aria-hidden="true">
+            ADV
+          </span>
+        </summary>
+        <div className="runtimepilot-advanced-intro-shell">
+          <div className="runtimepilot-advanced-intro-copy">
+            <span className="status-label">Šta je u rack-u</span>
+            <h3 className="runtimepilot-advanced-intro-title">Kada osnovni signal nije dovoljan</h3>
+            <p className="helper-text runtimepilot-advanced-summary">
+              Ovde ostaju GPU offload detalji, planirana i potvrđena potrošnja, context mismatch
+              dijagnostika i ručni ekvivalenti komandi. Glavni klikovi su gore, a ovaj rack
+              otvaraš kada proveravaš fit, porediš CLI ili tražiš root cause.
+            </p>
+          </div>
+          <div className="runtimepilot-advanced-overview-grid">
+            <article className="runtimepilot-advanced-overview-card runtimepilot-faceplate-module">
+              <span className="status-label">Offload signal</span>
+              <strong>{serverStatus?.runtimeDiagnostics?.summary || "Čeka runtime dokaz"}</strong>
+              <p className="helper-text">
+                Launch plan, potvrđeni GPU slojevi i memorijski fit skupljeni na jednom mestu.
+              </p>
+            </article>
+            <article className="runtimepilot-advanced-overview-card runtimepilot-faceplate-module">
+              <span className="status-label">Context signal</span>
+              <strong>{serverStatus?.runtimeDiagnostics?.contextAlignmentLabel || "Čeka proveru"}</strong>
+              <p className="helper-text">
+                Odmah vidiš da li se config i živi proces zaista poklapaju.
+              </p>
+            </article>
+            <article className="runtimepilot-advanced-overview-card runtimepilot-faceplate-module">
+              <span className="status-label">CLI preview</span>
+              <strong>{serverStatus?.commandPreview?.activeRuntimeLabel || "Runtime command preview"}</strong>
+              <p className="helper-text">
+                PowerShell i cmd.exe varijante ostaju spremne za ručno poređenje i launch.
+              </p>
+            </article>
+          </div>
+        </div>
 
         <section className="status-card wide-card runtimepilot-faceplate-module runtimepilot-advanced-module">
           <div className="runtimepilot-advanced-module-shell">
@@ -310,8 +379,13 @@ export function ServerPage() {
               </div>
             </div>
           </div>
+          <div className="runtimepilot-advanced-module-divider" aria-hidden="true" />
           <div className="server-diagnostics-grid runtimepilot-advanced-rack">
             <article className="command-preview-card runtimepilot-faceplate-module runtimepilot-advanced-card">
+              <div className="runtimepilot-advanced-card-topline">
+                <span className="runtimepilot-advanced-card-code">PLAN</span>
+                <span className="status-label">Launch</span>
+              </div>
               <span className="status-label">Planirano kroz launch komandu</span>
               <strong className="status-value">
                 {serverStatus?.runtimeDiagnostics?.requestedSummary || "--"}
@@ -322,48 +396,82 @@ export function ServerPage() {
               </p>
             </article>
             <article className="command-preview-card runtimepilot-faceplate-module runtimepilot-advanced-card">
+              <div className="runtimepilot-advanced-card-topline">
+                <span className="runtimepilot-advanced-card-code">CONF</span>
+                <span className="status-label">Log</span>
+              </div>
               <span className="status-label">Potvrđeno kroz runtime log</span>
               <strong className="status-value">
                 {serverStatus?.runtimeDiagnostics?.confirmedSummary || "--"}
               </strong>
-              <div className="summary-metrics">
+              <div className="runtimepilot-advanced-metric-grid">
                 <span>
-                  Device mem: {formatMiB(serverStatus?.runtimeDiagnostics?.projectedDeviceMemoryMiB)}
+                  <strong>Device</strong>
+                  <em>{formatMiB(serverStatus?.runtimeDiagnostics?.projectedDeviceMemoryMiB)}</em>
                 </span>
                 <span>
-                  Host mem: {formatMiB(serverStatus?.runtimeDiagnostics?.projectedHostMemoryMiB)}
+                  <strong>Host</strong>
+                  <em>{formatMiB(serverStatus?.runtimeDiagnostics?.projectedHostMemoryMiB)}</em>
                 </span>
                 <span>
-                  Model buffer: {formatMiB(serverStatus?.runtimeDiagnostics?.modelBufferMiB)}
+                  <strong>Model</strong>
+                  <em>{formatMiB(serverStatus?.runtimeDiagnostics?.modelBufferMiB)}</em>
                 </span>
-                <span>KV buffer: {formatMiB(serverStatus?.runtimeDiagnostics?.kvBufferMiB)}</span>
                 <span>
-                  Compute buffer: {formatMiB(serverStatus?.runtimeDiagnostics?.computeBufferMiB)}
+                  <strong>KV</strong>
+                  <em>{formatMiB(serverStatus?.runtimeDiagnostics?.kvBufferMiB)}</em>
+                </span>
+                <span>
+                  <strong>Compute</strong>
+                  <em>{formatMiB(serverStatus?.runtimeDiagnostics?.computeBufferMiB)}</em>
                 </span>
               </div>
             </article>
             <article className="command-preview-card runtimepilot-faceplate-module runtimepilot-advanced-card">
+              <div className="runtimepilot-advanced-card-topline">
+                <span className="runtimepilot-advanced-card-code">CTX</span>
+                <span className="status-label">Sync</span>
+              </div>
               <span className="status-label">Context poravnanje</span>
-              <strong className="status-value">
-                {serverStatus?.runtimeDiagnostics?.contextAlignmentLabel || "Čeka proveru"}
-              </strong>
-              <p className="helper-text">
-                Config context: {formatContext(serverStatus?.runtimeDiagnostics?.configuredContext)} | Živi
-                process context: {formatContext(serverStatus?.runtimeDiagnostics?.effectiveProcessContext)}
-              </p>
-              <p className="helper-text">
-                {serverStatus?.runtimeDiagnostics?.contextAlignmentSummary ||
-                  "Ovde vidiš da li je ctx-size koji je upisan u config zaista isti kao onaj sa kojim živi runtime proces trenutno radi."}
-              </p>
+              <button
+                type="button"
+                className="runtimepilot-advanced-inline-link"
+                onClick={() => onOpenContextSettings?.()}
+                disabled={!onOpenContextSettings}
+                aria-label="Otvori context podešavanje"
+              >
+                <strong className="status-value">
+                  {serverStatus?.runtimeDiagnostics?.contextAlignmentLabel || "Čeka proveru"}
+                </strong>
+                <span className="helper-text runtimepilot-advanced-inline-link-copy">
+                  Config context: {formatContext(serverStatus?.runtimeDiagnostics?.configuredContext)} | Živi
+                  process context: {formatContext(serverStatus?.runtimeDiagnostics?.effectiveProcessContext)}
+                </span>
+                <span className="helper-text runtimepilot-advanced-inline-link-copy">
+                  {serverStatus?.runtimeDiagnostics?.contextAlignmentSummary ||
+                    "Ovde vidiš da li je ctx-size koji je upisan u config zaista isti kao onaj sa kojim živi runtime proces trenutno radi."}
+                </span>
+                <span className="runtimepilot-advanced-inline-link-note">Otvori context podešavanje</span>
+              </button>
             </article>
             <article className="command-preview-card runtimepilot-faceplate-module runtimepilot-advanced-card">
+              <div className="runtimepilot-advanced-card-topline">
+                <span className="runtimepilot-advanced-card-code">LIVE</span>
+                <span className="status-label">Status</span>
+              </div>
               <span className="status-label">Poslednja poruka</span>
               <strong className="status-value">{serverStatus?.lastReason || "Nema lifecycle poruke."}</strong>
-              <p className="helper-text">Health URL: {serverStatus?.healthUrl || "--"}</p>
-              <p className="helper-text">Lokalni web: {serverStatus?.localWebUrl || "nije dostupan"}</p>
-              <p className="helper-text">
-                Tailscale veb: {serverStatus?.tailscaleWebUrl || "nije izložen kroz Tailscale"}
-              </p>
+              {renderRuntimeStatusLink("Health URL", serverStatus?.healthUrl, "--")}
+              {renderRuntimeStatusLink(
+                "Lokalni web",
+                serverStatus?.localWebUrl || serverStatus?.webUrl,
+                "nije dostupan",
+              )}
+              {renderRuntimeStatusLink(
+                "Tailscale veb",
+                serverStatus?.tailscaleWebUrl,
+                "nije izložen kroz Tailscale",
+              )}
             </article>
           </div>
           {serverStatus?.runtimeDiagnostics?.notes?.length ? (
@@ -403,23 +511,29 @@ export function ServerPage() {
               </p>
             </div>
           </div>
+          <div className="runtimepilot-advanced-module-divider" aria-hidden="true" />
           <div className="command-preview-stack runtimepilot-command-rack">
             {serverStatus?.commandPreview?.variants.map((variant) => (
               <article
                 className="command-preview-card runtimepilot-faceplate-module runtimepilot-command-card"
                 key={variant.runtime}
               >
-                <div className="section-header">
-                  <div>
-                    <span className="status-label">{variant.runtimeLabel}</span>
-                    <strong className="status-value">
-                      {variant.available ? "Spreman za launch" : "Preview sa upozorenjem"}
-                    </strong>
+                <div className="runtimepilot-command-card-topline">
+                  <div className="runtimepilot-command-card-head">
+                    <span className="runtimepilot-advanced-card-code">
+                      {variant.runtimeLabel.slice(0, 3).toUpperCase()}
+                    </span>
+                    <div>
+                      <span className="status-label">{variant.runtimeLabel}</span>
+                      <strong className="status-value">
+                        {variant.available ? "Spreman za launch" : "Preview sa upozorenjem"}
+                      </strong>
+                    </div>
                   </div>
-                  <div className="inline-actions">
+                  <div className="runtimepilot-command-card-actions">
                     <button
                       type="button"
-                      className="secondary-button"
+                      className="action-button-soft deck-control-button deck-control-button-secondary"
                       disabled={!variant.command}
                       onClick={() =>
                         void copyCommand(
@@ -428,11 +542,12 @@ export function ServerPage() {
                         )
                       }
                     >
-                      Kopiraj PowerShell
+                      <span className="deck-control-symbol" aria-hidden="true">PS</span>
+                      <span className="deck-control-copy">Kopiraj PowerShell</span>
                     </button>
                     <button
                       type="button"
-                      className="secondary-button"
+                      className="action-button-soft deck-control-button deck-control-button-secondary"
                       disabled={!variant.cmdCommand}
                       onClick={() =>
                         void copyCommand(
@@ -441,26 +556,31 @@ export function ServerPage() {
                         )
                       }
                     >
-                      Kopiraj cmd.exe
+                      <span className="deck-control-symbol" aria-hidden="true">CMD</span>
+                      <span className="deck-control-copy">Kopiraj cmd.exe</span>
                     </button>
                   </div>
                 </div>
                 <p className="helper-text">{variant.summary}</p>
-                <p className="helper-text">Runtime binar: {variant.binaryPath || "--"}</p>
-                <p className="helper-text">Model putanja: {variant.modelPath || "--"}</p>
-                <p className="helper-text">
-                  {formatRuntimeCommandMeta(variant.context, variant.specType)}
-                </p>
-                {variant.samplingSummary ? (
-                  <p className="helper-text">Sampling: {variant.samplingSummary}</p>
-                ) : null}
-                <div className="details-block">
-                  <span className="status-label">PowerShell</span>
-                  <pre>{variant.command || "Komanda nije dostupna dok binar ili model ne budu spremni."}</pre>
+                <div className="runtimepilot-command-chip-row">
+                  <span className="runtimepilot-command-chip">Binar: {variant.binaryPath || "--"}</span>
+                  <span className="runtimepilot-command-chip">Model: {variant.modelPath || "--"}</span>
+                  <span className="runtimepilot-command-chip">
+                    {formatRuntimeCommandMeta(variant.context, variant.specType)}
+                  </span>
+                  {variant.samplingSummary ? (
+                    <span className="runtimepilot-command-chip">Sampling: {variant.samplingSummary}</span>
+                  ) : null}
                 </div>
-                <div className="details-block">
-                  <span className="status-label">cmd.exe</span>
-                  <pre>{variant.cmdCommand || "cmd.exe varijanta nije dostupna dok binar ili model ne budu spremni."}</pre>
+                <div className="runtimepilot-command-surface-grid">
+                  <div className="details-block runtimepilot-command-surface">
+                    <span className="status-label">PowerShell</span>
+                    <pre>{variant.command || "Komanda nije dostupna dok binar ili model ne budu spremni."}</pre>
+                  </div>
+                  <div className="details-block runtimepilot-command-surface">
+                    <span className="status-label">cmd.exe</span>
+                    <pre>{variant.cmdCommand || "cmd.exe varijanta nije dostupna dok binar ili model ne budu spremni."}</pre>
+                  </div>
                 </div>
               </article>
             ))}

@@ -195,7 +195,7 @@ function HelpSectionCard({
   children: ReactNode;
 }) {
   return (
-    <section className="status-card wide-card runtimepilot-section-shell help-section-card" id={id}>
+    <section className="status-card wide-card runtimepilot-section-shell runtimepilot-faceplate-module help-section-card" id={id}>
       <div className="section-header page-flow-header">
         <div className="runtimepilot-section-heading">
           <span className="runtimepilot-section-glyph">
@@ -267,7 +267,7 @@ export function HelpPage({
             <button type="button" className="secondary-button" onClick={onOpenOpenCode}>
               Otvori OpenCode
             </button>
-            <button type="button" onClick={onOpenTuningLab}>
+            <button type="button" className="secondary-button" onClick={onOpenTuningLab}>
               Otvori Tuning Lab
             </button>
           </>
@@ -276,7 +276,7 @@ export function HelpPage({
       <div className="help-hifi-stack">
       <div className="help-mixer-deck">
 
-      <section className="status-card wide-card runtimepilot-section-shell help-overview-shell">
+      <section className="status-card wide-card runtimepilot-section-shell runtimepilot-faceplate-module help-overview-shell">
         <div className="section-header page-flow-header">
           <div className="runtimepilot-section-heading">
             <span className="runtimepilot-section-glyph">

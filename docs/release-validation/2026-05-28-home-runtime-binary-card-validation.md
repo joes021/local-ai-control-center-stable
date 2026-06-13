@@ -1,7 +1,7 @@
-# Windows validation - home runtime binary card polish
+﻿# Windows validation - home runtime binary card polish
 
 Datum: 2026-05-28
-Repo: `C:\Users\<user>\Documents\local-ai-control-center-stable`
+Repo: `C:\repo\local-ai-control-center-stable`
 Verzija: `0.4.56`
 
 ## Šta je menjano
@@ -30,3 +30,5 @@ Verzija: `0.4.56`
 - `http://127.0.0.1:3210/api/status` -> `version = 0.4.56`
 - uninstall registry -> `DisplayVersion = 0.4.56`
 - `C:\Users\<user>\LocalAIControlCenter\logs\install-report.json` -> `product_installation_status = complete`
+
+

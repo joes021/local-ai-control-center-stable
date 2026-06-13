@@ -1,4 +1,4 @@
-## Goal
+﻿## Goal
 
 Implement a real Windows `TurboQuant` install path that stays optional but can finish `ready` on supported NVIDIA Windows machines.
 
@@ -80,3 +80,5 @@ Run targeted tests, then full suite:
 python -m pytest tests/test_turboquant.py tests/test_download_plan.py tests/test_reporting.py tests/test_session.py tests/test_main.py -q
 python -m pytest -q
 ```
+
+

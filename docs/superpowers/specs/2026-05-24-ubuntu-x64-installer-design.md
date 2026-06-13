@@ -1,4 +1,4 @@
-# Ubuntu x86_64 Installer Design
+﻿# Ubuntu x86_64 Installer Design
 
 Date: 2026-05-24
 
@@ -153,3 +153,5 @@ Drugim rečima, isti validation checklist kao Windows RC, samo na Ubuntu x64.
 - novi UI redizajn
 - eksperimentalni MTP runtime support
 - feature widening van postojećeg Windows scope-a
+
+

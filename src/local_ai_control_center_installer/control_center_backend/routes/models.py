@@ -1,10 +1,12 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from pydantic import BaseModel
+from urllib.parse import unquote
 
 from local_ai_control_center_installer.control_center_backend.services.models_service import (
     activate_model,
     add_hf_model,
     add_local_model,
+    add_local_model_upload,
     add_unsloth_model,
     delete_model,
     download_model,
@@ -56,6 +58,16 @@ class AddLocalModelRequest(BaseModel):
 @router.post("/api/models/add-local")
 def models_add_local(payload: AddLocalModelRequest) -> dict[str, object]:
     return add_local_model(payload.path, payload.label, payload.family)
+
+
+@router.post("/api/models/add-local-upload")
+async def models_add_local_upload(request: Request) -> dict[str, object]:
+    return await add_local_model_upload(
+        request.stream(),
+        unquote(str(request.headers.get("x-file-name", "") or "")),
+        unquote(str(request.headers.get("x-model-label", "") or "")),
+        unquote(str(request.headers.get("x-model-family", "Custom") or "Custom")),
+    )
 
 
 class AddRemoteModelRequest(BaseModel):

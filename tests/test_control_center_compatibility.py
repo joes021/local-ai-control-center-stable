@@ -1,8 +1,14 @@
+import importlib
+
 from fastapi.testclient import TestClient
 from types import SimpleNamespace
 from unittest.mock import patch
 
+from local_ai_control_center_installer.control_center_backend.config import get_config
 from local_ai_control_center_installer.control_center_backend.main import app
+from local_ai_control_center_installer.control_center_backend.services import (
+    compatibility_service,
+)
 from local_ai_control_center_installer.control_center_backend.services.compatibility_service import (
     calculate_compatibility,
 )
@@ -279,3 +285,109 @@ def test_calculate_compatibility_uses_absolute_path_size_for_local_model_when_si
     assert payload["memoryBudget"]["vram"]["requiredGiB"] > 10.0
     assert payload["memoryBudget"]["ram"]["requiredGiB"] > 20.0
     assert payload["overallFitStatus"] in {"granicno", "ne radi"}
+
+
+def test_detect_local_system_info_reuses_recent_hardware_snapshot(monkeypatch, tmp_path):
+    module = importlib.import_module(
+        "local_ai_control_center_installer.control_center_backend.services.compatibility_service"
+    )
+    module = importlib.reload(module)
+
+    install_root = tmp_path / "install-root"
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    config = get_config()
+
+    calls = {
+        "settings": 0,
+        "turbo": 0,
+        "ram": 0,
+        "vram": 0,
+        "availability": 0,
+    }
+
+    def fake_settings(config=None, include_search_provider_status=False):
+        calls["settings"] += 1
+        return {"context": 262144, "outputTokens": 8192}
+
+    def fake_turbo_config(config=None):
+        calls["turbo"] += 1
+        return {"ctk": "turbo4", "ctv": "turbo3"}
+
+    def fake_ram():
+        calls["ram"] += 1
+        return 32.0
+
+    def fake_vram():
+        calls["vram"] += 1
+        return 12.0
+
+    def fake_packaged(config):
+        calls["availability"] += 1
+        return True
+
+    monkeypatch.setattr(module, "load_settings_payload", fake_settings)
+    monkeypatch.setattr(module, "load_turboquant_config", fake_turbo_config)
+    monkeypatch.setattr(module, "detect_ram_gib", fake_ram)
+    monkeypatch.setattr(module, "detect_vram_gib", fake_vram)
+    monkeypatch.setattr(module, "_detect_packaged_turboquant_available", fake_packaged)
+
+    first = module.detect_local_system_info(config=config)
+    second = module.detect_local_system_info(config=config)
+
+    assert first == second
+    assert calls == {
+        "settings": 1,
+        "turbo": 1,
+        "ram": 1,
+        "vram": 1,
+        "availability": 1,
+    }
+
+
+def test_detect_ram_gib_reuses_recent_windows_probe(monkeypatch):
+    module = importlib.reload(compatibility_service)
+    calls: list[dict[str, object]] = []
+
+    class FakeCompletedProcess:
+        returncode = 0
+        stdout = "31.77"
+        stderr = ""
+
+    def fake_run(*args, **kwargs):
+        calls.append(kwargs)
+        return FakeCompletedProcess()
+
+    monkeypatch.setattr(module.os, "name", "nt", raising=False)
+    monkeypatch.setattr(module.subprocess, "run", fake_run)
+
+    first = module.detect_ram_gib()
+    second = module.detect_ram_gib()
+
+    assert first == 31.77
+    assert second == first
+    assert len(calls) == 1
+    assert calls[0]["creationflags"] == getattr(module.subprocess, "CREATE_NO_WINDOW", 0)
+
+
+def test_detect_vram_gib_reuses_recent_probe(monkeypatch):
+    module = importlib.reload(compatibility_service)
+    calls: list[dict[str, object]] = []
+
+    class FakeCompletedProcess:
+        returncode = 0
+        stdout = "12288"
+        stderr = ""
+
+    def fake_run(*args, **kwargs):
+        calls.append(kwargs)
+        return FakeCompletedProcess()
+
+    monkeypatch.setattr(module.subprocess, "run", fake_run)
+
+    first = module.detect_vram_gib()
+    second = module.detect_vram_gib()
+
+    assert first == 12.0
+    assert second == first
+    assert len(calls) == 1
+    assert calls[0]["creationflags"] == getattr(module.subprocess, "CREATE_NO_WINDOW", 0)

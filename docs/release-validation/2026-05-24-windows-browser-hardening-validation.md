@@ -1,4 +1,4 @@
-# Windows Browser Hardening Validation
+﻿# Windows Browser Hardening Validation
 
 Datum: 2026-05-24
 
@@ -57,3 +57,5 @@ Potvrdjeno:
 
 - `MTP` modeli su i dalje `download-only`; Browser ih prikazuje i preuzima, ali ne nudi ih kao bezbedan aktivni runtime model.
 - Browser backend i dalje vraca ceo katalog kada nema filtera; to je namerno i sada je pozeljan default za pun pregled.
+
+

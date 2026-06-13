@@ -1,3 +1,4 @@
+import importlib
 import json
 from pathlib import Path
 
@@ -928,6 +929,34 @@ def test_runtime_diagnostics_classify_gpu_vram_mode_with_explicit_gpu_selection(
     assert diagnostics["confirmedSummary"]
 
 
+def test_read_runtime_process_command_line_reuses_recent_windows_probe(monkeypatch):
+    module = importlib.import_module(
+        "local_ai_control_center_installer.control_center_backend.services.server_service"
+    )
+    module = importlib.reload(module)
+
+    calls = {"run": 0}
+
+    class FakeCompletedProcess:
+        returncode = 0
+        stdout = '"C:\\runtime\\llama-server.exe" --ctx-size 16384 --port 39281'
+        stderr = ""
+
+    def fake_run(*args, **kwargs):
+        calls["run"] += 1
+        return FakeCompletedProcess()
+
+    monkeypatch.setattr(module.os, "name", "nt", raising=False)
+    monkeypatch.setattr(module.subprocess, "run", fake_run)
+
+    first = module._read_runtime_process_command_line(5150)
+    second = module._read_runtime_process_command_line(5150)
+
+    assert first == '"C:\\runtime\\llama-server.exe" --ctx-size 16384 --port 39281'
+    assert second == first
+    assert calls == {"run": 1}
+
+
 def test_server_status_route_uses_latest_kv_buffer_block_for_runtime_diagnostics(
     tmp_path: Path,
     monkeypatch,
@@ -1764,6 +1793,117 @@ def test_server_start_route_uses_saved_turboquant_context_for_turboquant_runtime
     assert command[command.index("--ctx-size") + 1] == "131072"
 
 
+def test_server_start_route_limits_parallel_slots_for_high_context_turboquant_on_12gb_gpu(
+    tmp_path: Path,
+    monkeypatch,
+):
+    from local_ai_control_center_installer.control_center_backend.services import server_service
+
+    install_root = tmp_path / "install-root"
+    runtime_root = install_root / "runtime" / "llama.cpp"
+    runtime_root.mkdir(parents=True)
+    (runtime_root / "llama-server.exe").write_text("llama", encoding="utf-8")
+    turbo_root = install_root / "tools" / "turboquant" / "windows-x64-cuda12.4"
+    turbo_root.mkdir(parents=True, exist_ok=True)
+    (turbo_root / "llama-server.exe").write_text("turbo", encoding="utf-8")
+    _write_active_model_config(
+        install_root,
+        filename="gemma-4-E4B-it-Q4_K_M.gguf",
+    )
+    _write_runtime_endpoint_config(
+        install_root / "config" / "runtime-endpoint.json",
+        port=39281,
+    )
+    _write_settings(
+        install_root,
+        {
+            "profile": "balanced",
+            "context": 262144,
+            "outputTokens": 8192,
+            "workingDirectory": str(install_root),
+            "thinkingMode": "mid",
+            "buildSteps": 140,
+            "planSteps": 100,
+            "generalSteps": 110,
+            "exploreSteps": 80,
+            "accessMode": "local-only",
+            "securityMode": "strict",
+            "capabilityMode": "confirm-commands",
+        },
+    )
+    _write_turboquant_config(
+        install_root,
+        {
+            "context": 131072,
+            "ctk": "turbo4",
+            "ctv": "turbo3",
+            "ncmoe": 20,
+            "flashAttention": True,
+            "mlock": True,
+            "mmapMode": "mmap",
+            "runtimePreference": "turboquant",
+        },
+    )
+    selection_path = install_root / "config" / "control-center" / "runtime-selection.json"
+    selection_path.parent.mkdir(parents=True, exist_ok=True)
+    selection_path.write_text(json.dumps({"runtime": "turboquant"}), encoding="utf-8")
+
+    captured: dict[str, object] = {}
+
+    class FakeProcess:
+        pid = 7006
+
+    def fake_popen(command, **kwargs):
+        captured["command"] = command
+        captured["kwargs"] = kwargs
+        return FakeProcess()
+
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.server_service.find_runtime_pid",
+        lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.status_service.find_runtime_pid",
+        lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.status_service.probe_runtime_binary_launchable",
+        lambda path: (True, "launch probe passed."),
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.server_service.subprocess.Popen",
+        fake_popen,
+    )
+    monkeypatch.setattr(server_service, "_runtime_binary_supports_flag", lambda *args, **kwargs: True)
+    monkeypatch.setattr(server_service, "_detect_nvidia_total_memory_mib", lambda: 12 * 1024)
+    monkeypatch.setattr(
+        server_service,
+        "_detect_nvidia_gpu_inventory",
+        lambda: [
+            {
+                "index": 0,
+                "name": "RTX 3060",
+                "totalMemoryMiB": 12 * 1024,
+                "usedMemoryMiB": 768,
+            }
+        ],
+    )
+
+    client = TestClient(app)
+    response = client.post("/api/server/start")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "ok"
+    command = captured["command"]
+    assert command[0].endswith("tools\\turboquant\\windows-x64-cuda12.4\\llama-server.exe")
+    assert "--ctx-size" in command
+    assert command[command.index("--ctx-size") + 1] == "131072"
+    assert "--parallel" in command
+    assert command[command.index("--parallel") + 1] == "1"
+
+
 def test_server_start_route_uses_safe_default_turboquant_context_when_config_is_missing(
     tmp_path: Path,
     monkeypatch,
@@ -1825,3 +1965,30 @@ def test_server_start_route_uses_safe_default_turboquant_context_when_config_is_
     assert command[0].endswith("tools\\turboquant\\windows-x64-cuda12.4\\llama-server.exe")
     assert "--ctx-size" in command
     assert command[command.index("--ctx-size") + 1] == "131072"
+
+
+def test_runtime_binary_supports_flag_reuses_one_help_probe_for_multiple_flags(
+    tmp_path: Path,
+    monkeypatch,
+):
+    from local_ai_control_center_installer.control_center_backend.services import server_service
+
+    executable = tmp_path / "llama-server.exe"
+    executable.write_text("binary", encoding="utf-8")
+    help_calls: list[list[str]] = []
+
+    class FakeCompletedProcess:
+        def __init__(self) -> None:
+            self.returncode = 0
+            self.stdout = "--n-gpu-layers\n--flash-attn\n--main-gpu\n"
+            self.stderr = ""
+
+    def fake_run(command, **kwargs):
+        help_calls.append(command)
+        return FakeCompletedProcess()
+
+    monkeypatch.setattr(server_service.subprocess, "run", fake_run)
+
+    assert server_service._runtime_binary_supports_flag(executable, "--n-gpu-layers") is True
+    assert server_service._runtime_binary_supports_flag(executable, "--flash-attn") is True
+    assert help_calls == [[str(executable), "--help"]]

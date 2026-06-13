@@ -459,7 +459,7 @@ export function CompatibilityPage({
     return (
       <PageDataStateCard
         error={inlineError}
-        loadingText="U\u010ditavam radni prostor kompatibilnosti..."
+        loadingText="Učitavam radni prostor kompatibilnosti..."
         onRetry={() => window.location.reload()}
       />
     );
@@ -473,20 +473,20 @@ export function CompatibilityPage({
     <div className="compatibility-page runtimepilot-rack-page">
       {inlineError ? <div className="error-panel wide-card">{inlineError}</div> : null}
       <PageFlowCard
-        title="Compatibility tok"
-        summary="Ovde prvo bira\u0161 \u0161ta proverava\u0161, zatim gleda\u0161 fit i runtime preporuku, pa se tek onda vra\u0107a\u0161 u Modele ili Browser."
+        title="Tok kompatibilnosti"
+        summary="Ovde prvo biraš šta proveravaš, zatim gledaš fit i runtime preporuku, pa se tek onda vraćaš u Modele ili katalog."
         steps={[
           {
             title: "Izaberi aktivni, lokalni ili udaljeni model",
-            detail: "Scope odre\u0111uje da li proverava\u0161 ono \u0161to ve\u0107 koristi\u0161, lokalni katalog ili Browser kandidat.",
+            detail: "Opseg određuje da li proveravaš ono što već koristiš, lokalni katalog ili kandidat iz kataloga.",
           },
           {
             title: "Pogledaj fit i runtime preporuku",
-            detail: "Kalkulator sam ponavlja proveru kad promeni\u0161 model, pa je fokus na tuma\u010denju rezultata umesto na ru\u010dnom startovanju.",
+            detail: "Kalkulator sam ponavlja proveru kad promeniš model, pa je fokus na tumačenju rezultata umesto na ručnom startovanju.",
           },
           {
-            title: "Vrati se u Modele ili Browser",
-            detail: "Kada vidi\u0161 \u0161ta radi na ma\u0161ini, odmah se vrati na pravo mesto i potvrdi model ili izvor.",
+            title: "Vrati se u Modele ili katalog",
+            detail: "Kada vidiš šta radi na mašini, odmah se vrati na pravo mesto i potvrdi model ili izvor.",
           },
         ]}
         actions={
@@ -495,7 +495,7 @@ export function CompatibilityPage({
               Otvori Modele
             </button>
             <button type="button" className="secondary-button" onClick={onOpenBrowser}>
-              Otvori Browser
+              Otvori katalog
             </button>
           </>
         }
@@ -538,7 +538,7 @@ export function CompatibilityPage({
               className="secondary-button"
               onClick={onOpenBrowser}
             >
-              Otvori Browser
+              Otvori katalog
             </button>
           </div>
         </div>
@@ -563,7 +563,7 @@ export function CompatibilityPage({
             <span className="status-label">Udaljeni katalog</span>
             <strong className="status-value">{remoteCandidates.length}</strong>
             <div className="helper-text">
-              Browser indeks koji kalkulator može odmah da proveri.
+              Katalog modela koji kalkulator može odmah da proveri.
             </div>
           </div>
           <div className="compatibility-snapshot-card">
@@ -572,8 +572,8 @@ export function CompatibilityPage({
               {lastPayload?.systemSnapshot?.vramGiB ?? "--"} GiB VRAM
             </strong>
             <div className="helper-text">
-              RAM {lastPayload?.systemSnapshot?.ramGiB ?? "--"} GiB | context{" "}
-              {lastPayload?.systemSnapshot?.context ?? "--"} | output{" "}
+              RAM {lastPayload?.systemSnapshot?.ramGiB ?? "--"} GiB | kontekst{" "}
+              {lastPayload?.systemSnapshot?.context ?? "--"} | izlaz{" "}
               {lastPayload?.systemSnapshot?.outputTokens ?? "--"}
             </div>
             <div className="helper-text">
@@ -691,7 +691,7 @@ export function CompatibilityPage({
               <span>Pretraga udaljenog kataloga</span>
               <input
                 type="text"
-                placeholder="Pretraži model, repo, quant..."
+                placeholder="Pretraži model, repo, kvantizaciju..."
                 value={remoteSearch}
                 onChange={(event) => setRemoteSearch(event.target.value)}
               />
@@ -727,7 +727,7 @@ export function CompatibilityPage({
               <div className="helper-text">
                 {selectedRemoteModel
                   ? `${sourceLabel(String(selectedRemoteModel.source))} | ${selectedRemoteModel.quantization} | ${selectedRemoteModel.fitLabel}`
-                  : "Nema pogodaka za trenutni remote filter."}
+                  : "Nema pogodaka za trenutni filter udaljenog kataloga."}
               </div>
               <div className="helper-text">
                 Filter trenutno vraća {filteredRemoteCandidates.length} modela.
@@ -738,7 +738,7 @@ export function CompatibilityPage({
                   className="secondary-button"
                   onClick={onOpenBrowser}
                 >
-                  Otvori Browser
+                  Otvori katalog
                 </button>
                 {selectedRemoteModel?.sourceUrl ? (
                   <button

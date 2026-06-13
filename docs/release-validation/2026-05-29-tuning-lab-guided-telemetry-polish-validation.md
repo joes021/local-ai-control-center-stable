@@ -1,4 +1,4 @@
-# v0.4.70 - Tuning Lab guided telemetry polish validation
+﻿# v0.4.70 - Tuning Lab guided telemetry polish validation
 
 ## Scope
 
@@ -67,3 +67,5 @@ Lokalni installer upgrade:
 ## Zaključak
 
 `v0.4.70` zatvara UX problem razbacanog osnovnog toka u `Tuning Lab` batch sekciji i čini `Benchmark` graf poštenijim i razumljivijim kada signal dolazi iz više `llama.cpp`-kompatibilnih tokova.
+
+

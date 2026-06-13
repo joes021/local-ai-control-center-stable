@@ -16,7 +16,7 @@ type GuidedFlowPanelProps = {
 
 export function GuidedFlowPanel({ title, summary, steps }: GuidedFlowPanelProps) {
   return (
-    <section className="status-card wide-card runtimepilot-guided-flow">
+    <section className="status-card wide-card runtimepilot-guided-flow runtimepilot-faceplate-module">
       <div className="section-header">
         <div>
           <span className="status-label">Glavni tokovi</span>

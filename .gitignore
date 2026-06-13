@@ -18,3 +18,8 @@ logs/
 *.egg-info/
 frontend/tsconfig.tsbuildinfo
 .superpowers/
+.tmp-*
+*.err.log
+*.out.log
+runtimepilot-launch-monitor*.log
+workspaces/

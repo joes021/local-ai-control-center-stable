@@ -92,6 +92,12 @@ async def _lifespan(_: FastAPI):
 
 app = FastAPI(title="RuntimePilot", lifespan=_lifespan)
 
+_FRONTEND_SHELL_HEADERS = {
+    "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+    "Pragma": "no-cache",
+    "Expires": "0",
+}
+
 
 def _package_root() -> Path:
     return Path(__file__).resolve().parent
@@ -127,7 +133,7 @@ def _resolve_frontend_public_asset(asset_name: str) -> Path:
 
 @app.get("/")
 def frontend_shell() -> FileResponse:
-    return FileResponse(_resolve_frontend_index())
+    return FileResponse(_resolve_frontend_index(), headers=_FRONTEND_SHELL_HEADERS)
 
 
 @app.get("/runtimepilot-favicon.png")

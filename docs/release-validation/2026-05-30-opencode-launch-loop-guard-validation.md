@@ -1,4 +1,4 @@
-# v0.4.77 - OpenCode launch loop guard validation
+﻿# v0.4.77 - OpenCode launch loop guard validation
 
 ## Scope
 
@@ -103,3 +103,5 @@ Direktna živa provera protiv instaliranog panela:
 - panel launcher više ne podiže novi zdravi panel preko postojećeg
 - UI sada ima posebno `launching` stanje umesto slepog ponavljanja akcije
 - lokalni upgrade, testovi i installer build su prošli
+
+

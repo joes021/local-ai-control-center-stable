@@ -1,4 +1,4 @@
-## Purpose
+﻿## Purpose
 
 This slice closes the current Windows `TurboQuant` placeholder and replaces it with a real installer-managed packaged install path.
 
@@ -111,3 +111,5 @@ Minimum verification for this slice:
 
 - targeted `pytest` coverage for the new strategy, readiness, install, and reporting behavior
 - full local `pytest` pass after integration
+
+

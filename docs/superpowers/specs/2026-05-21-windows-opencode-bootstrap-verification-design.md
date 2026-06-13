@@ -1,4 +1,4 @@
-# Windows OpenCode Bootstrap And Verification Design
+﻿# Windows OpenCode Bootstrap And Verification Design
 
 Date: 2026-05-21
 
@@ -765,3 +765,5 @@ Once this slice is complete, the next plan should extend the same session and re
 - promote `product_installation_status` from `incomplete` to complete only when that smoke succeeds
 - optionally add `TurboQuant` as a separately reported non-core component
 - close the final product-complete gate
+
+

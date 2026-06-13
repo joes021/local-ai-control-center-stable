@@ -1,4 +1,4 @@
-# Windows Final Polish Validation - 2026-05-24
+﻿# Windows Final Polish Validation - 2026-05-24
 
 ## Scope
 
@@ -151,3 +151,5 @@ To zatvara konkretan korisnicki primer da `IQ2_XXS` vise ne nestaje iz Browser t
 - `MTP` modeli i dalje nisu podrzani kao aktivni runtime model.
 - Browser backend `GET /api/browser/catalog` i dalje vraca ceo katalog; korisnicki filteri u tabeli trenutno rade client-side.
 - Ovaj validation pass i dalje nije radio drugi fizicki Windows host; signal je zasnovan na clean-machine-style proveri i installer-managed temp root-u na istoj workstation sesiji.
+
+

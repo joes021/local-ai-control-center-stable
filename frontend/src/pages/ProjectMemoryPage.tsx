@@ -61,7 +61,7 @@ function MemoryListEditor({
   onChange,
 }: MemoryListEditorProps) {
   return (
-    <section className="status-card project-memory-editor-card runtimepilot-section-shell">
+    <section className="status-card project-memory-editor-card runtimepilot-section-shell runtimepilot-faceplate-module">
       <div className="section-header page-flow-header">
         <div className="runtimepilot-section-heading">
           <span className="runtimepilot-section-glyph">
@@ -75,6 +75,7 @@ function MemoryListEditor({
         <div className="inline-actions compact-actions">
           <button
             type="button"
+            className="secondary-button"
             onClick={() => onChange([...items, createMemoryItem(title.toLowerCase().replace(/\s+/g, "-"))])}
           >
             Dodaj stavku
@@ -211,12 +212,12 @@ export function ProjectMemoryPage({
         actions={
           <>
             {onOpenTuningLab ? (
-              <button type="button" onClick={onOpenTuningLab}>
+              <button type="button" className="secondary-button" onClick={onOpenTuningLab}>
                 Otvori Tuning Lab
               </button>
             ) : null}
             {onRefresh ? (
-              <button type="button" onClick={() => void onRefresh()}>
+              <button type="button" className="secondary-button" onClick={() => void onRefresh()}>
                 Osveži sa diska
               </button>
             ) : null}
@@ -226,7 +227,7 @@ export function ProjectMemoryPage({
       <div className="project-memory-hifi-stack">
       <div className="project-memory-mixer-deck">
 
-      <section className="status-card wide-card runtimepilot-section-shell project-memory-seed-card">
+      <section className="status-card wide-card runtimepilot-section-shell runtimepilot-faceplate-module project-memory-seed-card">
         <div className="section-header page-flow-header">
           <div className="runtimepilot-section-heading">
             <span className="runtimepilot-section-glyph">
@@ -306,7 +307,7 @@ export function ProjectMemoryPage({
         </div>
       </section>
 
-      <section className="status-card wide-card runtimepilot-section-shell project-memory-editor-card">
+      <section className="status-card wide-card runtimepilot-section-shell runtimepilot-faceplate-module project-memory-editor-card">
         <div className="section-header page-flow-header">
           <div className="runtimepilot-section-heading">
             <span className="runtimepilot-section-glyph">
@@ -350,7 +351,7 @@ export function ProjectMemoryPage({
       </div>
 
       <div className="project-memory-monitor-deck">
-      <section className="status-card wide-card runtimepilot-section-shell project-memory-overview-card">
+      <section className="status-card wide-card runtimepilot-section-shell runtimepilot-faceplate-module project-memory-overview-card">
         <div className="section-header page-flow-header">
           <div className="runtimepilot-section-heading">
             <span className="runtimepilot-section-glyph">
@@ -426,7 +427,7 @@ export function ProjectMemoryPage({
       </div>
 
       <div className="project-memory-transport-deck">
-      <section className="status-card wide-card runtimepilot-section-shell project-memory-actions-card">
+      <section className="status-card wide-card runtimepilot-section-shell runtimepilot-faceplate-module project-memory-actions-card">
         <div className="inline-actions compact-actions">
           <button
             type="button"
@@ -460,6 +461,7 @@ export function ProjectMemoryPage({
           </button>
           <button
             type="button"
+            className="secondary-button"
             onClick={() => {
               if (!memory) {
                 return;

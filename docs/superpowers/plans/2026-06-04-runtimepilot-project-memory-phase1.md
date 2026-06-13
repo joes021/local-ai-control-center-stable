@@ -1,4 +1,4 @@
-# RuntimePilot Project Memory Phase 1 Implementation Plan
+﻿# RuntimePilot Project Memory Phase 1 Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -14,22 +14,22 @@
 
 ### Create
 
-- `C:\Users\<user>\Documents\local-ai-control-center-stable\src\local_ai_control_center_installer\control_center_backend\services\project_memory_service.py`
-- `C:\Users\<user>\Documents\local-ai-control-center-stable\src\local_ai_control_center_installer\control_center_backend\routes\project_memory.py`
-- `C:\Users\<user>\Documents\local-ai-control-center-stable\frontend\src\pages\ProjectMemoryPage.tsx`
-- `C:\Users\<user>\Documents\local-ai-control-center-stable\tests\test_control_center_project_memory.py`
-- `C:\Users\<user>\Documents\local-ai-control-center-stable\tests\test_control_center_project_memory_routes.py`
+- `C:\repo\local-ai-control-center-stable\src\local_ai_control_center_installer\control_center_backend\services\project_memory_service.py`
+- `C:\repo\local-ai-control-center-stable\src\local_ai_control_center_installer\control_center_backend\routes\project_memory.py`
+- `C:\repo\local-ai-control-center-stable\frontend\src\pages\ProjectMemoryPage.tsx`
+- `C:\repo\local-ai-control-center-stable\tests\test_control_center_project_memory.py`
+- `C:\repo\local-ai-control-center-stable\tests\test_control_center_project_memory_routes.py`
 
 ### Modify
 
-- `C:\Users\<user>\Documents\local-ai-control-center-stable\src\local_ai_control_center_installer\control_center_backend\main.py`
-- `C:\Users\<user>\Documents\local-ai-control-center-stable\src\local_ai_control_center_installer\control_center_backend\services\tuning_lab_service.py`
-- `C:\Users\<user>\Documents\local-ai-control-center-stable\frontend\src\App.tsx`
-- `C:\Users\<user>\Documents\local-ai-control-center-stable\frontend\src\components\Layout.tsx`
-- `C:\Users\<user>\Documents\local-ai-control-center-stable\frontend\src\lib\api.ts`
-- `C:\Users\<user>\Documents\local-ai-control-center-stable\frontend\src\lib\types.ts`
-- `C:\Users\<user>\Documents\local-ai-control-center-stable\frontend\src\styles.css`
-- `C:\Users\<user>\Documents\local-ai-control-center-stable\tests\test_control_center_frontend_dist.py`
+- `C:\repo\local-ai-control-center-stable\src\local_ai_control_center_installer\control_center_backend\main.py`
+- `C:\repo\local-ai-control-center-stable\src\local_ai_control_center_installer\control_center_backend\services\tuning_lab_service.py`
+- `C:\repo\local-ai-control-center-stable\frontend\src\App.tsx`
+- `C:\repo\local-ai-control-center-stable\frontend\src\components\Layout.tsx`
+- `C:\repo\local-ai-control-center-stable\frontend\src\lib\api.ts`
+- `C:\repo\local-ai-control-center-stable\frontend\src\lib\types.ts`
+- `C:\repo\local-ai-control-center-stable\frontend\src\styles.css`
+- `C:\repo\local-ai-control-center-stable\tests\test_control_center_frontend_dist.py`
 
 ### Responsibilities
 
@@ -76,8 +76,8 @@
 ### Task 1: Backend Project Memory domen i persistence
 
 **Files:**
-- Create: `C:\Users\<user>\Documents\local-ai-control-center-stable\src\local_ai_control_center_installer\control_center_backend\services\project_memory_service.py`
-- Test: `C:\Users\<user>\Documents\local-ai-control-center-stable\tests\test_control_center_project_memory.py`
+- Create: `C:\repo\local-ai-control-center-stable\src\local_ai_control_center_installer\control_center_backend\services\project_memory_service.py`
+- Test: `C:\repo\local-ai-control-center-stable\tests\test_control_center_project_memory.py`
 
 - [ ] **Step 1: Write the failing service tests**
 
@@ -202,9 +202,9 @@ git commit -m "feat: add project memory persistence service"
 ### Task 2: FastAPI routes i contract za Project Memory
 
 **Files:**
-- Create: `C:\Users\<user>\Documents\local-ai-control-center-stable\src\local_ai_control_center_installer\control_center_backend\routes\project_memory.py`
-- Modify: `C:\Users\<user>\Documents\local-ai-control-center-stable\src\local_ai_control_center_installer\control_center_backend\main.py`
-- Test: `C:\Users\<user>\Documents\local-ai-control-center-stable\tests\test_control_center_project_memory_routes.py`
+- Create: `C:\repo\local-ai-control-center-stable\src\local_ai_control_center_installer\control_center_backend\routes\project_memory.py`
+- Modify: `C:\repo\local-ai-control-center-stable\src\local_ai_control_center_installer\control_center_backend\main.py`
+- Test: `C:\repo\local-ai-control-center-stable\tests\test_control_center_project_memory_routes.py`
 
 - [ ] **Step 1: Write failing route tests**
 
@@ -314,13 +314,13 @@ git commit -m "feat: add project memory api routes"
 ### Task 3: Frontend contract, page i shell strip
 
 **Files:**
-- Create: `C:\Users\<user>\Documents\local-ai-control-center-stable\frontend\src\pages\ProjectMemoryPage.tsx`
-- Modify: `C:\Users\<user>\Documents\local-ai-control-center-stable\frontend\src\lib\types.ts`
-- Modify: `C:\Users\<user>\Documents\local-ai-control-center-stable\frontend\src\lib\api.ts`
-- Modify: `C:\Users\<user>\Documents\local-ai-control-center-stable\frontend\src\App.tsx`
-- Modify: `C:\Users\<user>\Documents\local-ai-control-center-stable\frontend\src\components\Layout.tsx`
-- Modify: `C:\Users\<user>\Documents\local-ai-control-center-stable\frontend\src\styles.css`
-- Test: `C:\Users\<user>\Documents\local-ai-control-center-stable\tests\test_control_center_frontend_dist.py`
+- Create: `C:\repo\local-ai-control-center-stable\frontend\src\pages\ProjectMemoryPage.tsx`
+- Modify: `C:\repo\local-ai-control-center-stable\frontend\src\lib\types.ts`
+- Modify: `C:\repo\local-ai-control-center-stable\frontend\src\lib\api.ts`
+- Modify: `C:\repo\local-ai-control-center-stable\frontend\src\App.tsx`
+- Modify: `C:\repo\local-ai-control-center-stable\frontend\src\components\Layout.tsx`
+- Modify: `C:\repo\local-ai-control-center-stable\frontend\src\styles.css`
+- Test: `C:\repo\local-ai-control-center-stable\tests\test_control_center_frontend_dist.py`
 
 - [ ] **Step 1: Write failing frontend dist assertions**
 
@@ -480,11 +480,11 @@ git commit -m "feat: add project memory page and shell strip"
 ### Task 4: Manual edit flow i lock ponašanje
 
 **Files:**
-- Modify: `C:\Users\<user>\Documents\local-ai-control-center-stable\src\local_ai_control_center_installer\control_center_backend\services\project_memory_service.py`
-- Modify: `C:\Users\<user>\Documents\local-ai-control-center-stable\src\local_ai_control_center_installer\control_center_backend\routes\project_memory.py`
-- Modify: `C:\Users\<user>\Documents\local-ai-control-center-stable\frontend\src\pages\ProjectMemoryPage.tsx`
-- Test: `C:\Users\<user>\Documents\local-ai-control-center-stable\tests\test_control_center_project_memory.py`
-- Test: `C:\Users\<user>\Documents\local-ai-control-center-stable\tests\test_control_center_project_memory_routes.py`
+- Modify: `C:\repo\local-ai-control-center-stable\src\local_ai_control_center_installer\control_center_backend\services\project_memory_service.py`
+- Modify: `C:\repo\local-ai-control-center-stable\src\local_ai_control_center_installer\control_center_backend\routes\project_memory.py`
+- Modify: `C:\repo\local-ai-control-center-stable\frontend\src\pages\ProjectMemoryPage.tsx`
+- Test: `C:\repo\local-ai-control-center-stable\tests\test_control_center_project_memory.py`
+- Test: `C:\repo\local-ai-control-center-stable\tests\test_control_center_project_memory_routes.py`
 
 - [ ] **Step 1: Add failing lock behavior tests**
 
@@ -560,9 +560,9 @@ git commit -m "feat: add project memory lock behavior"
 ### Task 5: Basic task seeding from Tuning Lab
 
 **Files:**
-- Modify: `C:\Users\<user>\Documents\local-ai-control-center-stable\src\local_ai_control_center_installer\control_center_backend\services\tuning_lab_service.py`
-- Modify: `C:\Users\<user>\Documents\local-ai-control-center-stable\src\local_ai_control_center_installer\control_center_backend\services\project_memory_service.py`
-- Test: `C:\Users\<user>\Documents\local-ai-control-center-stable\tests\test_control_center_tuning_lab.py`
+- Modify: `C:\repo\local-ai-control-center-stable\src\local_ai_control_center_installer\control_center_backend\services\tuning_lab_service.py`
+- Modify: `C:\repo\local-ai-control-center-stable\src\local_ai_control_center_installer\control_center_backend\services\project_memory_service.py`
+- Test: `C:\repo\local-ai-control-center-stable\tests\test_control_center_tuning_lab.py`
 
 - [ ] **Step 1: Write a failing Tuning Lab seed integration test**
 
@@ -633,8 +633,8 @@ git commit -m "feat: seed project memory from tuning lab tasks"
 ### Task 6: Final verification, packaged frontend, and help touchpoint
 
 **Files:**
-- Modify: `C:\Users\<user>\Documents\local-ai-control-center-stable\frontend\src\pages\HelpPage.tsx`
-- Modify: `C:\Users\<user>\Documents\local-ai-control-center-stable\tests\test_control_center_frontend_dist.py`
+- Modify: `C:\repo\local-ai-control-center-stable\frontend\src\pages\HelpPage.tsx`
+- Modify: `C:\repo\local-ai-control-center-stable\tests\test_control_center_frontend_dist.py`
 
 - [ ] **Step 1: Add one short Help mention for Project Memory**
 
@@ -743,3 +743,5 @@ Plan complete and saved to `docs/superpowers/plans/2026-06-04-runtimepilot-proje
 Recommended next move:
 
 - **Inline Execution** using `superpowers:executing-plans`, because Phase 1 has a clean linear dependency chain and should stay under one ownership context.
+
+

@@ -25,7 +25,7 @@ type KnowledgeMode = "documents-only" | "documents+web" | "web-only";
 
 function renderModeLabel(mode: KnowledgeMode) {
   if (mode === "documents+web") {
-    return "Documents + web";
+    return "Dokumenti + veb";
   }
   if (mode === "web-only") {
     return "Samo veb";
@@ -101,39 +101,35 @@ export function KnowledgePage({ onOpenSearch }: { onOpenSearch: () => void }) {
     return (
       <PageDataStateCard
         error={inlineError}
-        loadingText="U\u010ditavam radni prostor znanja..."
+        loadingText="Učitavam radni prostor znanja..."
         onRetry={() => {
           setError(null);
           void loadSummary().catch((reason: unknown) => {
-            setError(reason instanceof Error ? reason.message : "Radni prostor znanja nije mogao da se u\u010dita.");
+            setError(reason instanceof Error ? reason.message : "Radni prostor znanja nije mogao da se učita.");
           });
         }}
       />
     );
   }
 
-  if (!summary) {
-    return <section className="status-card wide-card">Učitavam radni prostor znanja...</section>;
-  }
-
   return (
     <>
       {inlineError ? <div className="error-panel wide-card">{inlineError}</div> : null}
       <PageFlowCard
-        title="Knowledge tok"
-        summary="Najprirodniji redosled je da prvo proveri\u0161 izvore, zatim izabere\u0161 dokument ili web re\u017eim i tek onda postavi\u0161 pitanje."
+        title="Tok znanja"
+        summary="Najprirodniji redosled je da prvo proveriš izvore, zatim izabereš režim dokumenata ili veba i tek onda postaviš pitanje."
         steps={[
           {
             title: "Dodaj ili proveri izvore",
-            detail: "Prvo potvrdi da su folderi i fajlovi stvarno u\u0161li u knowledge prostor i da indeks ima \u0161ta da koristi.",
+            detail: "Prvo potvrdi da su folderi i fajlovi stvarno ušli u prostor znanja i da indeks ima šta da koristi.",
           },
           {
-            title: "Izaberi documents ili web re\u017eim",
-            detail: "Documents-only je naj\u010distiji, documents+web je najprakti\u010dniji, a web-only slu\u017ei kada \u017eeli\u0161 samo veb sloj.",
+            title: "Izaberi režim dokumenata ili veba",
+            detail: "Samo dokumenti je najčistiji izbor, Dokumenti + veb su najpraktičniji, a Samo veb služi kada želiš samo veb sloj.",
           },
           {
-            title: "Pokreni query ili answer",
-            detail: "Query vra\u0107a reference i dokumente, a Answer koristi iste izvore da napravi kona\u010dan lokalni odgovor.",
+            title: "Pokreni upit ili odgovor",
+            detail: "Upit vraća reference i dokumente, a Odgovor koristi iste izvore da napravi konačan lokalni odgovor.",
           },
         ]}
         actions={
@@ -142,12 +138,12 @@ export function KnowledgePage({ onOpenSearch }: { onOpenSearch: () => void }) {
           </button>
         }
       />
-      <section className="status-card wide-card">
+      <section className="status-card wide-card runtimepilot-faceplate-module knowledge-panel">
         <span className="status-label">Radni prostor znanja</span>
         <strong className="status-value">Lokalni dokumenti + opcioni veb kontekst</strong>
         <p className="helper-text">
-          Ovaj tab indeksira lokalne fajlove installer-managed putem i omogućava `documents-only`,
-          `documents+web` i `web-only` tok odgovora. Kada ti treba samo veb sloj, možeš i direktno
+          Ovaj tab indeksira lokalne fajlove installer-managed putem i omogućava `Samo dokumenti`,
+          `Dokumenti + veb` i `Samo veb` tok odgovora. Kada ti treba samo veb sloj, možeš i direktno
           da otvoriš tab Pretraga.
         </p>
         {currentWorkflowPreset ? (
@@ -165,16 +161,16 @@ export function KnowledgePage({ onOpenSearch }: { onOpenSearch: () => void }) {
         <p className="helper-text">{summary.reindexStatus.summary}</p>
       </section>
 
-      <section className="status-card wide-card">
+      <section className="status-card wide-card runtimepilot-faceplate-module knowledge-panel">
         <span className="status-label">Izvori</span>
-        <div className="settings-page-grid">
+        <div className="settings-page-grid knowledge-form-grid">
           <label className="settings-compact-field">
             <span>Kolekcija</span>
             <input
               type="text"
               value={sourceCollection}
               onChange={(event) => setSourceCollection(event.target.value)}
-              placeholder="Manuals, Notes, Projects..."
+              placeholder="Priručnici, Beleške, Projekti..."
             />
           </label>
           <label className="settings-compact-field settings-medium-field">
@@ -183,11 +179,11 @@ export function KnowledgePage({ onOpenSearch }: { onOpenSearch: () => void }) {
               type="text"
               value={sourceTags}
               onChange={(event) => setSourceTags(event.target.value)}
-              placeholder="gpu, llama, coding"
+              placeholder="gpu, llama, kodiranje"
             />
           </label>
         </div>
-        <div className="settings-action-row">
+        <div className="settings-action-row knowledge-action-row">
           <input
             className="settings-path-input"
             placeholder="Unesi lokalnu putanju do fajla ili foldera"
@@ -196,6 +192,7 @@ export function KnowledgePage({ onOpenSearch }: { onOpenSearch: () => void }) {
           />
           <button
             type="button"
+            className="secondary-button"
             disabled={busyAction === "browse"}
             onClick={async () => {
               setBusyAction("browse");
@@ -206,7 +203,7 @@ export function KnowledgePage({ onOpenSearch }: { onOpenSearch: () => void }) {
                   setSourcePath(result.path);
                 }
               } catch (reason: unknown) {
-                setError(reason instanceof Error ? reason.message : "Knowledge folder picker nije uspeo.");
+                setError(reason instanceof Error ? reason.message : "Birač foldera za znanje nije uspeo.");
               } finally {
                 setBusyAction("");
               }
@@ -216,6 +213,7 @@ export function KnowledgePage({ onOpenSearch }: { onOpenSearch: () => void }) {
           </button>
           <button
             type="button"
+            className="action-button"
             disabled={busyAction === "add" || !sourcePath.trim()}
             onClick={async () => {
               setBusyAction("add");
@@ -229,14 +227,14 @@ export function KnowledgePage({ onOpenSearch }: { onOpenSearch: () => void }) {
                     .filter(Boolean),
                 });
                 if (result.status !== "ok") {
-                  throw new Error(result.summary || "Knowledge source nije dodat.");
+                  throw new Error(result.summary || "Izvor znanja nije dodat.");
                 }
                 setSourcePath("");
                 setSourceCollection("");
                 setSourceTags("");
                 await refreshAfterAction();
               } catch (reason: unknown) {
-                setError(reason instanceof Error ? reason.message : "Knowledge source nije dodat.");
+                setError(reason instanceof Error ? reason.message : "Izvor znanja nije dodat.");
               } finally {
                 setBusyAction("");
               }
@@ -246,6 +244,7 @@ export function KnowledgePage({ onOpenSearch }: { onOpenSearch: () => void }) {
           </button>
           <button
             type="button"
+            className="action-button"
             disabled={busyAction === "reindex" || summary.sourceCount === 0}
             onClick={async () => {
               setBusyAction("reindex");
@@ -253,11 +252,11 @@ export function KnowledgePage({ onOpenSearch }: { onOpenSearch: () => void }) {
               try {
                 const result = await reindexKnowledge();
                 if (result.status !== "ok") {
-                  throw new Error(result.summary || "Knowledge reindex nije uspeo.");
+                  throw new Error(result.summary || "Ponovno indeksiranje znanja nije uspelo.");
                 }
                 await refreshAfterAction();
               } catch (reason: unknown) {
-                setError(reason instanceof Error ? reason.message : "Knowledge reindex nije uspeo.");
+                setError(reason instanceof Error ? reason.message : "Ponovno indeksiranje znanja nije uspelo.");
               } finally {
                 setBusyAction("");
               }
@@ -265,7 +264,7 @@ export function KnowledgePage({ onOpenSearch }: { onOpenSearch: () => void }) {
           >
             {busyAction === "reindex" ? "Ponovo indeksiram..." : "Ponovo indeksiraj"}
           </button>
-          <button type="button" onClick={onOpenSearch}>
+          <button type="button" className="secondary-button" onClick={onOpenSearch}>
             Otvori pretragu
           </button>
         </div>
@@ -274,7 +273,7 @@ export function KnowledgePage({ onOpenSearch }: { onOpenSearch: () => void }) {
             {summary.sources.map((item) => (
               <article className="model-item" key={item.id}>
                 <div className="model-item-header">
-                  <div>
+                  <div className="model-item-copy">
                     <strong>{item.path}</strong>
                     <div className="muted-line">
                       {item.kind} | {item.exists ? "postoji" : "nedostaje"} | dokumenti: {item.documentCount} |
@@ -292,6 +291,7 @@ export function KnowledgePage({ onOpenSearch }: { onOpenSearch: () => void }) {
                   </div>
                   <button
                     type="button"
+                    className="danger-button"
                     disabled={busyAction === item.id}
                     onClick={async () => {
                       setBusyAction(item.id);
@@ -299,11 +299,11 @@ export function KnowledgePage({ onOpenSearch }: { onOpenSearch: () => void }) {
                       try {
                         const result = await removeKnowledgeSource(item.id);
                         if (result.status !== "ok") {
-                          throw new Error(result.summary || "Knowledge source nije uklonjen.");
+                          throw new Error(result.summary || "Izvor znanja nije uklonjen.");
                         }
                         await refreshAfterAction();
                       } catch (reason: unknown) {
-                        setError(reason instanceof Error ? reason.message : "Knowledge source nije uklonjen.");
+                        setError(reason instanceof Error ? reason.message : "Izvor znanja nije uklonjen.");
                       } finally {
                         setBusyAction("");
                       }
@@ -316,13 +316,13 @@ export function KnowledgePage({ onOpenSearch }: { onOpenSearch: () => void }) {
             ))}
           </div>
         ) : (
-          <p className="helper-text">Još nema prijavljenih knowledge source-ova.</p>
+          <p className="helper-text">Još nema prijavljenih izvora znanja.</p>
         )}
       </section>
 
-      <section className="status-card wide-card">
+      <section className="status-card wide-card runtimepilot-faceplate-module knowledge-panel">
         <span className="status-label">Upit i odgovor</span>
-        <div className="settings-page-grid">
+        <div className="settings-page-grid knowledge-form-grid">
           <label className="settings-compact-field">
             <span>Kolekcije</span>
             <select value={collectionFilter} onChange={(event) => setCollectionFilter(event.target.value)}>
@@ -346,10 +346,10 @@ export function KnowledgePage({ onOpenSearch }: { onOpenSearch: () => void }) {
             </select>
           </label>
         </div>
-        <div className="settings-action-row">
+        <div className="settings-action-row knowledge-action-row">
           <select value={mode} onChange={(event) => setMode(event.target.value as KnowledgeMode)}>
             <option value="documents-only">Samo dokumenti</option>
-            <option value="documents+web">Documents + web</option>
+            <option value="documents+web">Dokumenti + veb</option>
             <option value="web-only">Samo veb</option>
           </select>
           <input
@@ -363,6 +363,7 @@ export function KnowledgePage({ onOpenSearch }: { onOpenSearch: () => void }) {
           />
           <button
             type="button"
+            className="action-button"
             disabled={busyAction === "query" || !query.trim()}
             onClick={async () => {
               setBusyAction("query");
@@ -376,7 +377,7 @@ export function KnowledgePage({ onOpenSearch }: { onOpenSearch: () => void }) {
                 setAnswerPayload(null);
                 await refreshAfterAction();
               } catch (reason: unknown) {
-                setError(reason instanceof Error ? reason.message : "Knowledge query nije uspeo.");
+                setError(reason instanceof Error ? reason.message : "Upit nad znanjem nije uspeo.");
               } finally {
                 setBusyAction("");
               }
@@ -386,6 +387,7 @@ export function KnowledgePage({ onOpenSearch }: { onOpenSearch: () => void }) {
           </button>
           <button
             type="button"
+            className="action-button"
             disabled={busyAction === "answer" || !query.trim()}
             onClick={async () => {
               setBusyAction("answer");
@@ -408,7 +410,7 @@ export function KnowledgePage({ onOpenSearch }: { onOpenSearch: () => void }) {
                 });
                 await refreshAfterAction();
               } catch (reason: unknown) {
-                setError(reason instanceof Error ? reason.message : "Knowledge answer nije uspeo.");
+                setError(reason instanceof Error ? reason.message : "Odgovor iz znanja nije uspeo.");
               } finally {
                 setBusyAction("");
               }
@@ -424,7 +426,7 @@ export function KnowledgePage({ onOpenSearch }: { onOpenSearch: () => void }) {
         </p>
       </section>
 
-      <section className="status-card wide-card">
+      <section className="status-card wide-card runtimepilot-faceplate-module knowledge-panel">
         <span className="status-label">Rezultati dokumenata</span>
         <strong className="status-value">{queryPayload?.summary || "Još nema rezultata dokumenata."}</strong>
         {queryPayload?.results?.length ? (
@@ -432,7 +434,7 @@ export function KnowledgePage({ onOpenSearch }: { onOpenSearch: () => void }) {
             {queryPayload.results.map((item) => (
               <article className="model-item" key={`${item.docId}-${item.path}`}>
                 <div className="model-item-header">
-                  <div>
+                  <div className="model-item-copy">
                     <strong>{item.name}</strong>
                     <div className="muted-line">
                       {item.fileType} | skor: {item.score.toFixed(2)} | karaktera: {item.charCount}
@@ -453,9 +455,9 @@ export function KnowledgePage({ onOpenSearch }: { onOpenSearch: () => void }) {
         )}
       </section>
 
-      <section className="status-card wide-card">
+      <section className="status-card wide-card runtimepilot-faceplate-module knowledge-panel">
         <span className="status-label">Odgovor iz znanja</span>
-        <strong className="status-value">{answerPayload?.answer || "Još nema knowledge odgovora."}</strong>
+        <strong className="status-value">{answerPayload?.answer || "Još nema odgovora iz znanja."}</strong>
         <div className="summary-metrics">
           <span>Režim: {answerPayload ? renderModeLabel(answerPayload.mode as KnowledgeMode) : "--"}</span>
           <span>Runtime: {answerPayload?.answerRuntime || "--"}</span>
@@ -470,9 +472,10 @@ export function KnowledgePage({ onOpenSearch }: { onOpenSearch: () => void }) {
               Kolekcije: {answerPayload.usedCollections.length ? answerPayload.usedCollections.join(", ") : "--"} |
               Oznake: {answerPayload.usedTags.length ? answerPayload.usedTags.join(", ") : "--"}
             </p>
-            <div className="inline-actions">
+            <div className="inline-actions knowledge-export-actions">
               <button
                 type="button"
+                className="secondary-button"
                 onClick={() =>
                   triggerDownload(
                     "knowledge-answer.json",
@@ -485,13 +488,14 @@ export function KnowledgePage({ onOpenSearch }: { onOpenSearch: () => void }) {
               </button>
               <button
                 type="button"
+                className="secondary-button"
                 onClick={() =>
                   triggerDownload(
                     "knowledge-answer.md",
                     [
-                      `# Knowledge answer\n\n`,
-                      `Query: ${answerPayload.query}\n\n`,
-                      `Mode: ${answerPayload.mode}\n\n`,
+                      `# Odgovor iz znanja\n\n`,
+                      `Upit: ${answerPayload.query}\n\n`,
+                      `Režim: ${answerPayload.mode}\n\n`,
                       `${answerPayload.answer}\n\n`,
                       `## Citati\n`,
                       ...answerPayload.citations.map(
@@ -510,14 +514,14 @@ export function KnowledgePage({ onOpenSearch }: { onOpenSearch: () => void }) {
         ) : null}
       </section>
 
-      <section className="status-card wide-card">
+      <section className="status-card wide-card runtimepilot-faceplate-module knowledge-panel">
         <span className="status-label">Citati</span>
         {answerPayload?.citations?.length ? (
           <div className="model-list">
             {answerPayload.citations.map((citation) => (
               <article className="model-item" key={`${citation.index}-${citation.path}`}>
                 <div className="model-item-header">
-                  <div>
+                  <div className="model-item-copy">
                     <strong>
                       [{citation.index}] {citation.name}
                     </strong>
@@ -539,14 +543,14 @@ export function KnowledgePage({ onOpenSearch }: { onOpenSearch: () => void }) {
         )}
       </section>
 
-      <section className="status-card wide-card">
+      <section className="status-card wide-card runtimepilot-faceplate-module knowledge-panel">
         <span className="status-label">Skorašnja istorija znanja</span>
         {summary.history.length ? (
           <div className="model-list">
             {summary.history.map((item) => (
               <article className="model-item" key={`${item.askedAt}-${item.query}`}>
                 <div className="model-item-header">
-                  <div>
+                  <div className="model-item-copy">
                     <strong>{item.query}</strong>
                     <div className="muted-line">
                       {item.mode} | docs: {item.documentResultCount} | web: {item.webResultCount} |{" "}

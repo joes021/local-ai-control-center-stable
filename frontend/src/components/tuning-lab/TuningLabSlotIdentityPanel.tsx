@@ -18,9 +18,11 @@ export function TuningLabSlotIdentityPanel({
   onPatchSlot,
 }: TuningLabSlotIdentityPanelProps) {
   return (
-    <div className="tuning-lab-slot-identity-panel">
-      <span className="status-label">{slot.label}</span>
-      <strong className="status-value">{slot.summary || slot.label}</strong>
+    <section className="tuning-lab-slot-identity-panel tuning-lab-slot-module">
+      <div className="tuning-lab-slot-module-head">
+        <span className="status-label">Signal chain</span>
+        <strong className="status-value">Profil, thinking i source</strong>
+      </div>
       <p className="helper-text">{helperText}</p>
 
       <div className="tuning-lab-slot-square-control-grid">
@@ -50,7 +52,7 @@ export function TuningLabSlotIdentityPanel({
           </select>
         </label>
 
-        <div className="tuning-lab-slot-square-control">
+        <div className="tuning-lab-slot-square-control tuning-lab-slot-square-control-wide">
           <span>Source</span>
           <strong>{slot.source}</strong>
         </div>
@@ -62,7 +64,7 @@ export function TuningLabSlotIdentityPanel({
         ) : null}
         {isRecommended ? (
           <span className="tuning-lab-slot-state-chip tuning-lab-slot-state-recommended">
-            preporučeno
+            preporuceno
           </span>
         ) : null}
         {isActive ? (
@@ -71,6 +73,6 @@ export function TuningLabSlotIdentityPanel({
         <span>{slot.status || "draft"}</span>
         <span>{slot.source}</span>
       </div>
-    </div>
+    </section>
   );
 }

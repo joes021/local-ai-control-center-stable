@@ -1,4 +1,4 @@
-# SearxNG Search Integration Implementation Plan
+﻿# SearxNG Search Integration Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -86,3 +86,5 @@
 - [ ] Upgrade this machine to the new installer
 - [ ] Validate Search tab + OpenCode local-lacc web-search behavior
 - [ ] Commit, push, and publish a new installer release
+
+

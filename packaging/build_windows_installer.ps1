@@ -18,6 +18,11 @@ $specPath = $null
 
 Push-Location $repoRoot
 try {
+    & $PythonExe -m local_ai_control_center_installer.release_preflight --repo-root $repoRoot --scope installer --scope public
+    if ($LASTEXITCODE -ne 0) {
+        throw "Release preflight failed. Sanitize hardcoded personal or machine-specific data before building."
+    }
+
     $npmCommandSource = Get-Command "npm.cmd" -ErrorAction SilentlyContinue
     if (-not $npmCommandSource) {
         $npmCommandSource = Get-Command "npm" -ErrorAction SilentlyContinue

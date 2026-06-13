@@ -1,4 +1,4 @@
-## Windows force activation warning validation
+﻿## Windows force activation warning validation
 
 Version validated: `0.4.30`
 
@@ -52,3 +52,5 @@ Version validated: `0.4.30`
 - This release keeps the existing safe default:
   - no force override for unsupported or missing models
   - force override only for hardware-fit risk cases
+
+

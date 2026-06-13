@@ -1,4 +1,4 @@
-# Benchmark Control Panel Implementation Plan
+﻿# Benchmark Control Panel Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -13,8 +13,8 @@
 ### Task 1: Define benchmark state paths in control-center config
 
 **Files:**
-- Modify: `C:\Users\<user>\Documents\local-ai-control-center-stable\src\local_ai_control_center_installer\control_center_backend\config.py`
-- Test: `C:\Users\<user>\Documents\local-ai-control-center-stable\tests\test_control_center_benchmark.py`
+- Modify: `C:\repo\local-ai-control-center-stable\src\local_ai_control_center_installer\control_center_backend\config.py`
+- Test: `C:\repo\local-ai-control-center-stable\tests\test_control_center_benchmark.py`
 
 - [ ] **Step 1: Write the failing test**
 - [ ] **Step 2: Run the benchmark config test to verify it fails**
@@ -24,8 +24,8 @@
 ### Task 2: Implement benchmark service state and summary payload
 
 **Files:**
-- Create: `C:\Users\<user>\Documents\local-ai-control-center-stable\src\local_ai_control_center_installer\control_center_backend\services\benchmark_service.py`
-- Test: `C:\Users\<user>\Documents\local-ai-control-center-stable\tests\test_control_center_benchmark.py`
+- Create: `C:\repo\local-ai-control-center-stable\src\local_ai_control_center_installer\control_center_backend\services\benchmark_service.py`
+- Test: `C:\repo\local-ai-control-center-stable\tests\test_control_center_benchmark.py`
 
 - [ ] **Step 1: Write failing tests for default summary payload, averages, and persisted history loading**
 - [ ] **Step 2: Run the targeted benchmark service tests to verify they fail**
@@ -35,8 +35,8 @@
 ### Task 3: Add live `/slots` throughput sampling and live history
 
 **Files:**
-- Modify: `C:\Users\<user>\Documents\local-ai-control-center-stable\src\local_ai_control_center_installer\control_center_backend\services\benchmark_service.py`
-- Test: `C:\Users\<user>\Documents\local-ai-control-center-stable\tests\test_control_center_benchmark.py`
+- Modify: `C:\repo\local-ai-control-center-stable\src\local_ai_control_center_installer\control_center_backend\services\benchmark_service.py`
+- Test: `C:\repo\local-ai-control-center-stable\tests\test_control_center_benchmark.py`
 
 - [ ] **Step 1: Write failing tests for `/slots` polling, live history retention, and merged signal history**
 - [ ] **Step 2: Run the targeted live-signal tests to verify they fail**
@@ -46,8 +46,8 @@
 ### Task 4: Implement benchmark batteries and run-state lifecycle
 
 **Files:**
-- Modify: `C:\Users\<user>\Documents\local-ai-control-center-stable\src\local_ai_control_center_installer\control_center_backend\services\benchmark_service.py`
-- Test: `C:\Users\<user>\Documents\local-ai-control-center-stable\tests\test_control_center_benchmark.py`
+- Modify: `C:\repo\local-ai-control-center-stable\src\local_ai_control_center_installer\control_center_backend\services\benchmark_service.py`
+- Test: `C:\repo\local-ai-control-center-stable\tests\test_control_center_benchmark.py`
 
 - [ ] **Step 1: Write failing tests for saving/loading batteries and default restore**
 - [ ] **Step 2: Write failing tests for selected run/battery run state transitions**
@@ -58,9 +58,9 @@
 ### Task 5: Add benchmark HTTP routes and mount them
 
 **Files:**
-- Create: `C:\Users\<user>\Documents\local-ai-control-center-stable\src\local_ai_control_center_installer\control_center_backend\routes\benchmark.py`
-- Modify: `C:\Users\<user>\Documents\local-ai-control-center-stable\src\local_ai_control_center_installer\control_center_backend\main.py`
-- Test: `C:\Users\<user>\Documents\local-ai-control-center-stable\tests\test_control_center_benchmark_routes.py`
+- Create: `C:\repo\local-ai-control-center-stable\src\local_ai_control_center_installer\control_center_backend\routes\benchmark.py`
+- Modify: `C:\repo\local-ai-control-center-stable\src\local_ai_control_center_installer\control_center_backend\main.py`
+- Test: `C:\repo\local-ai-control-center-stable\tests\test_control_center_benchmark_routes.py`
 
 - [ ] **Step 1: Write failing route tests for `/api/benchmark` and its POST actions**
 - [ ] **Step 2: Run the targeted route tests to verify they fail**
@@ -70,9 +70,9 @@
 ### Task 6: Restore Benchmark tab in the shipped frontend
 
 **Files:**
-- Modify: `C:\Users\<user>\Documents\local-ai-control-center-stable\frontend\src\App.tsx`
-- Modify: `C:\Users\<user>\Documents\local-ai-control-center-stable\frontend\src\pages\BenchmarkPage.tsx`
-- Test: `C:\Users\<user>\Documents\local-ai-control-center-stable\tests\test_control_center_frontend_dist.py`
+- Modify: `C:\repo\local-ai-control-center-stable\frontend\src\App.tsx`
+- Modify: `C:\repo\local-ai-control-center-stable\frontend\src\pages\BenchmarkPage.tsx`
+- Test: `C:\repo\local-ai-control-center-stable\tests\test_control_center_frontend_dist.py`
 
 - [ ] **Step 1: Write failing frontend-dist test that expects Benchmark nav to be present in packaged output**
 - [ ] **Step 2: Run the targeted frontend-dist test to verify it fails**
@@ -83,9 +83,9 @@
 ### Task 7: End-to-end verification and release
 
 **Files:**
-- Modify: `C:\Users\<user>\Documents\local-ai-control-center-stable\pyproject.toml`
-- Modify: `C:\Users\<user>\Documents\local-ai-control-center-stable\README.md`
-- Create: `C:\Users\<user>\Documents\local-ai-control-center-stable\docs\release-validation\2026-05-24-windows-benchmark-validation.md`
+- Modify: `C:\repo\local-ai-control-center-stable\pyproject.toml`
+- Modify: `C:\repo\local-ai-control-center-stable\README.md`
+- Create: `C:\repo\local-ai-control-center-stable\docs\release-validation\2026-05-24-windows-benchmark-validation.md`
 
 - [ ] **Step 1: Run targeted benchmark tests**
 - [ ] **Step 2: Run full test suite**
@@ -95,3 +95,5 @@
 - [ ] **Step 6: Do a local control-center smoke against the live panel or local test panel**
 - [ ] **Step 7: Bump version and update README release references**
 - [ ] **Step 8: Write validation note with exact evidence**
+
+

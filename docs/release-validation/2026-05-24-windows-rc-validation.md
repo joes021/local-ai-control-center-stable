@@ -1,4 +1,4 @@
-# Windows RC Validation - 2026-05-24
+﻿# Windows RC Validation - 2026-05-24
 
 ## Scope
 
@@ -182,3 +182,5 @@ Ovim je zatvoren prethodni RC blocker:
 
 - `MTP` modeli i dalje nisu podrzani kao aktivni runtime model i moraju ostati jasno blokirani.
 - Ovaj validation pass nije jos radio poseban drugi fizicki Windows host; trenutni RC signal je zasnovan na clean-machine-style proveri iz ove workstation sesije.
+
+

@@ -60,7 +60,7 @@ export function RuntimeResourcePanel({ observability }: RuntimeResourcePanelProp
   );
 
   return (
-    <section className="status-card wide-card runtime-resource-panel">
+    <section className="status-card wide-card runtime-resource-panel runtimepilot-section-shell runtimepilot-faceplate-module benchmark-resource-shell">
       <span className="status-label">Resursi i offload</span>
       <strong className="status-value">CPU uživo, RAM uživo, VRAM uživo i stvarni režim izvršavanja</strong>
       <p className="helper-text">

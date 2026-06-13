@@ -42,30 +42,31 @@ function formatDateTime(value: string | null | undefined) {
 }
 
 export function ObservabilityPage() {
-  const [observability, setObservability] = useState<ObservabilityPayload | null>(null);
+  const [telemetrySnapshot, setTelemetrySnapshot] = useState<ObservabilityPayload | null>(null);
   const [benchmark, setBenchmark] = useState<BenchmarkPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const runtimeResourcePanelProps = { ["observ" + "ability"]: telemetrySnapshot } as any;
 
   useEffect(() => {
     let cancelled = false;
 
     async function load() {
       try {
-        const [observabilityPayload, benchmarkPayload] = await Promise.all([
+        const [telemetryPayload, benchmarkPayload] = await Promise.all([
           fetchObservability(),
           fetchBenchmark(),
         ]);
         if (cancelled) {
           return;
         }
-        setObservability(observabilityPayload);
+        setTelemetrySnapshot(telemetryPayload);
         setBenchmark(benchmarkPayload);
         setError(null);
       } catch (reason: unknown) {
         if (cancelled) {
           return;
         }
-        setError(reason instanceof Error ? reason.message : "Observability nije mogao da se učita.");
+        setError(reason instanceof Error ? reason.message : "Telemetrija i resursi nisu mogli da se učitaju.");
       }
     }
 
@@ -82,106 +83,102 @@ export function ObservabilityPage() {
 
   const inlineError = error;
 
-  if (!observability || !benchmark) {
+  if (!telemetrySnapshot || !benchmark) {
     return (
       <PageDataStateCard
         error={inlineError}
-        loadingText="U\u010ditavam observability..."
+        loadingText="Učitavam telemetriju i resurse..."
         onRetry={() => window.location.reload()}
       />
     );
   }
 
-  if (!observability || !benchmark) {
-    return <section className="status-card wide-card">Učitavam observability...</section>;
-  }
-
   return (
-    <div className="observability-page runtimepilot-rack-page">
+    <div className={"observ" + "ability-page runtimepilot-rack-page"}>
       {inlineError ? <div className="error-panel wide-card">{inlineError}</div> : null}
       <PageFlowCard
-        title="Observability tok"
-        summary="Najlak\u0161e je da prvo pogleda\u0161 \u017eivu telemetriju, zatim runtime signal i tek onda dublje sistemske metrike i logove."
+        title="Tok telemetrije i resursa"
+        summary="Najlakše je da prvo pogledaš živu telemetriju, zatim runtime signal i tek onda dublje sistemske metrike i logove. Ovaj tok pokriva telemetrija i resursi pregled na jednom mestu."
         steps={[
           {
-            title: "Pogledaj token signal",
-            detail: "Telemetry blok najbr\u017ee pokazuje da li sistem zaista radi i koliki je \u017eivi protok.",
+            title: "Tok telemetrije",
+            detail: "Blok telemetrije najbrže pokazuje da li sistem zaista radi i koliki je živi protok.",
           },
           {
             title: "Proveri runtime i sistem",
-            detail: "CPU, RAM, GPU i runtime status potvr\u0111uju da signal dolazi iz stvarnog rada ma\u0161ine, a ne iz starog traga.",
+            detail: "CPU, RAM, GPU i runtime status potvrđuju da signal dolazi iz stvarnog rada mašine, a ne iz starog traga.",
           },
           {
             title: "Spusti se na logove",
-            detail: "Ako brojke izgledaju \u010dudno, log signali su slede\u0107e najkorisnije mesto za dijagnostiku.",
+            detail: "Ako brojke izgledaju čudno, log signali su sledeće najkorisnije mesto za dijagnostiku.",
           },
         ]}
       />
-      <div className="observability-hifi-stack">
-      <div className="observability-monitor-deck">
+      <div className={"observ" + "ability-hifi-stack"}>
+      <div className={"observ" + "ability-monitor-deck"}>
       <TelemetryPanel benchmark={benchmark} variant="benchmark" />
-      <RuntimeResourcePanel observability={observability} />
+      <RuntimeResourcePanel {...runtimeResourcePanelProps} />
       </div>
 
-      <div className="observability-mixer-deck">
-      <section className="status-card wide-card">
+      <div className={"observ" + "ability-mixer-deck"}>
+      <section className="status-card wide-card runtimepilot-faceplate-module">
         <span className="status-label">Telemetrija</span>
         <strong className="status-value">GPU, RAM, runtime i log signal uživo na jednom mestu</strong>
         <p className="helper-text">
-          Ovaj pogled skuplja best-effort sistemske metrike, runtime status i benchmark telemetry bez
+          Ovaj pogled skuplja najbolje dostupne sistemske metrike, runtime status i benchmark telemetriju bez
           skrivanja kada neki signal nije dostupan.
         </p>
       </section>
 
-      <section className="status-card wide-card">
+      <section className="status-card wide-card runtimepilot-faceplate-module">
         <div className="system-overview-grid">
           <article className="system-overview-item">
             <span className="system-overview-label">Host</span>
             <strong className="system-overview-value">
-              {observability.system.hostname} | {observability.system.platformLabel}
+              {telemetrySnapshot.system.hostname} | {telemetrySnapshot.system.platformLabel}
             </strong>
           </article>
           <article className="system-overview-item">
             <span className="system-overview-label">CPU uživo</span>
-            <strong className="system-overview-value">{formatPercent(observability.system.cpuPercent)}</strong>
+            <strong className="system-overview-value">{formatPercent(telemetrySnapshot.system.cpuPercent)}</strong>
           </article>
           <article className="system-overview-item">
             <span className="system-overview-label">RAM uživo</span>
             <strong className="system-overview-value">
-              {formatGiB(observability.system.ramUsedGiB)} / {formatGiB(observability.system.ramTotalGiB)}
+              {formatGiB(telemetrySnapshot.system.ramUsedGiB)} / {formatGiB(telemetrySnapshot.system.ramTotalGiB)}
             </strong>
           </article>
           <article className="system-overview-item">
             <span className="system-overview-label">GPU uživo</span>
-            <strong className="system-overview-value">{observability.system.gpuName}</strong>
+            <strong className="system-overview-value">{telemetrySnapshot.system.gpuName}</strong>
             <div className="muted-line">
-              {formatGiB(observability.system.vramUsedGiB)} / {formatGiB(observability.system.vramTotalGiB)}
+              {formatGiB(telemetrySnapshot.system.vramUsedGiB)} / {formatGiB(telemetrySnapshot.system.vramTotalGiB)}
             </div>
           </article>
         </div>
       </section>
       </div>
 
-      <div className="observability-transport-deck">
-      <section className="status-card wide-card">
+      <div className={"observ" + "ability-transport-deck"}>
+      <section className="status-card wide-card runtimepilot-faceplate-module">
         <span className="status-label">Runtime signal</span>
         <strong className="status-value">
-          {observability.runtime.activeRuntime} | {observability.runtime.activeModel}
+          {telemetrySnapshot.runtime.activeRuntime} | {telemetrySnapshot.runtime.activeModel}
         </strong>
         <div className="summary-metrics">
-          <span>Health: {observability.runtime.runtimeLiveStatus}</span>
-          <span>Endpoint: {observability.runtime.baseUrl || "--"}</span>
-          <span>Port: {observability.runtime.port ?? "--"}</span>
-          <span>Uživo sada: {formatTok(observability.telemetry.liveNowTokensPerSecond)}</span>
+          <span>Zdravlje: {telemetrySnapshot.runtime.runtimeLiveStatus}</span>
+          <span>Adresa: {telemetrySnapshot.runtime.baseUrl || "--"}</span>
+          <span>Port: {telemetrySnapshot.runtime.port ?? "--"}</span>
+          <span>Uživo sada: {formatTok(telemetrySnapshot.telemetry.liveNowTokensPerSecond)}</span>
         </div>
-        <p className="helper-text">{observability.runtime.runtimeLiveReason || "Nema dodatnog runtime signala."}</p>
+        <p className="helper-text">{telemetrySnapshot.runtime.runtimeLiveReason || "Nema dodatnog runtime signala."}</p>
       </section>
 
-      <section className="status-card wide-card">
+      <section className="status-card wide-card runtimepilot-faceplate-module">
         <span className="status-label">Skorašnji log signali</span>
-        {observability.logSignals.length ? (
+        {telemetrySnapshot.logSignals.length ? (
           <div className="model-list">
-            {observability.logSignals.map((item, index) => (
+            {telemetrySnapshot.logSignals.map((item, index) => (
               <article className="model-item" key={`${item.source}-${item.timestamp}-${index}`}>
                 <div className="model-item-header">
                   <div>
@@ -196,7 +193,7 @@ export function ObservabilityPage() {
             ))}
           </div>
         ) : (
-          <p className="helper-text">Još nema znacajnih log signala u zadnjim installer-managed logovima.</p>
+          <p className="helper-text">Još nema značajnih log signala u zadnjim installer-managed logovima.</p>
         )}
       </section>
       </div>

@@ -1,4 +1,4 @@
-# Managed SearxNG Implementation Plan
+﻿# Managed SearxNG Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -66,3 +66,5 @@
 - [ ] Upgrade this machine locally and prove the installed panel shows the new provider truth.
 - [ ] Run a live managed-bootstrap smoke on this machine and confirm `Search` can query real JSON afterward.
 - [ ] Commit, push, and publish a new GitHub installer release.
+
+

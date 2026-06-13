@@ -6,6 +6,9 @@ import sys
 from local_ai_control_center_installer.control_center_panel import (
     run_control_center_panel_entry,
 )
+from local_ai_control_center_installer.control_center_startup import (
+    run_control_center_startup_entry,
+)
 from local_ai_control_center_installer.control_center_uninstall import (
     run_control_center_uninstall_entry,
 )
@@ -32,6 +35,7 @@ def run_windows_installer_entry(
     *,
     main_fn: Callable[[], int] = main,
     panel_main_fn: Callable[[list[str] | None], int] = run_control_center_panel_entry,
+    startup_main_fn: Callable[[list[str] | None], int] = run_control_center_startup_entry,
     uninstall_main_fn: Callable[[list[str] | None], int] = run_control_center_uninstall_entry,
     update_worker_main_fn: Callable[[list[str] | None], int] = run_update_install_worker_entry,
     model_download_worker_main_fn: Callable[[list[str] | None], int] = run_model_download_worker_entry,
@@ -43,6 +47,7 @@ def run_windows_installer_entry(
     return run_release_entry(
         main_fn=main_fn,
         panel_main_fn=panel_main_fn,
+        startup_main_fn=startup_main_fn,
         uninstall_main_fn=uninstall_main_fn,
         update_worker_main_fn=update_worker_main_fn,
         model_download_worker_main_fn=model_download_worker_main_fn,

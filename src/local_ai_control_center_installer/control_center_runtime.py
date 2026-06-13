@@ -1,5 +1,4 @@
 from __future__ import annotations
-
 from dataclasses import dataclass
 from importlib.resources import files
 from importlib.metadata import PackageNotFoundError, version as package_version
@@ -43,7 +42,8 @@ from local_ai_control_center_installer.session import InstallerSession
 
 
 WINDOWS_PANEL_EXECUTABLE_NAME = "RuntimePilotPanel.exe"
-WINDOWS_PANEL_HIDDEN_LAUNCHER_NAME = "Open-RuntimePilot.vbs"
+WINDOWS_PANEL_STARTUP_SPLASH_NAME = "RuntimePilot-Startup.hta"
+WINDOWS_PANEL_STARTUP_SCRIPT_NAME = "RuntimePilot-Startup.pyw"
 LINUX_PANEL_HOST_NAME = "local-ai-control-center-panel"
 WINDOWS_UNINSTALL_LAUNCHER_NAME = "Uninstall-RuntimePilot.cmd"
 LINUX_UNINSTALL_LAUNCHER_NAME = "Uninstall-RuntimePilot.sh"
@@ -368,6 +368,16 @@ def deploy_control_center_runtime(
         env_overrides=env_overrides,
         platform=platform,
     )
+    startup_script_path = panel_root / WINDOWS_PANEL_STARTUP_SCRIPT_NAME
+    _write_windows_python_startup_script(
+        startup_script_path=startup_script_path,
+        install_root=normalized_install_root,
+        src_root=src_root,
+    )
+    startup_shortcut_target, startup_shortcut_arguments = _build_windows_python_startup_shortcut_spec(
+        python_executable=Path(python_executable),
+        startup_script_path=startup_script_path,
+    )
     shell_assets = _ensure_windows_shell_assets(
         install_root=normalized_install_root,
         panel_root=panel_root,
@@ -375,6 +385,8 @@ def deploy_control_center_runtime(
         panel_executable_path=Path(python_executable),
         access_mode="local-only",
         display_version=_resolve_display_version(Path(python_executable)),
+        startup_shortcut_target=startup_shortcut_target,
+        startup_shortcut_arguments=startup_shortcut_arguments,
     )
     return ControlCenterRuntimeDeployment(
         install_root=normalized_install_root,
@@ -633,11 +645,94 @@ def _build_windows_panel_process_guard(
     )
 
 
+def _build_windows_browser_watcher_command(
+    *,
+    panel_url: str,
+    expected_install_root: Path,
+    marker_path: Path,
+) -> str:
+    health_url = f"{panel_url.rstrip('/')}/health"
+    normalized_install_root = str(expected_install_root.expanduser().resolve())
+    normalized_marker_path = str(marker_path.expanduser().resolve())
+    powershell_script = (
+        f"$targetUrl = {_quote_powershell_string(panel_url)}; "
+        f"$healthUrl = {_quote_powershell_string(health_url)}; "
+        f"$markerPath = {_quote_powershell_string(normalized_marker_path)}; "
+        f"$installRoot = {_quote_powershell_string(normalized_install_root)}; "
+        "for ($attempt = 0; $attempt -lt 45; $attempt++) { "
+        "  if (Test-Path $markerPath) { exit 0 } "
+        "  try { "
+        "    $response = Invoke-RestMethod -Uri $healthUrl -TimeoutSec 2; "
+        "    $actualInstallRoot = [System.IO.Path]::GetFullPath([string]$response.installRoot).ToLowerInvariant(); "
+        "    $expectedInstallRoot = [System.IO.Path]::GetFullPath($installRoot).ToLowerInvariant(); "
+        "    if ($response.status -eq 'ok' -and $response.app -eq 'local-ai-control-center-stable' -and $actualInstallRoot -eq $expectedInstallRoot) { "
+        "      Start-Process $targetUrl; "
+        "      Set-Content -Path $markerPath -Value 'opened' -Encoding UTF8; "
+        "      exit 0 "
+        "    } "
+        "  } catch {} "
+        "  Start-Sleep -Milliseconds 900 "
+        "} "
+        "exit 1"
+    )
+    return f'powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -Command "{powershell_script}"'
+
+
+def _build_windows_python_startup_shortcut_spec(
+    *,
+    python_executable: Path,
+    startup_script_path: Path,
+) -> tuple[Path, str]:
+    background_python = _resolve_windows_background_python_executable(
+        python_executable.expanduser().resolve()
+    )
+    arguments = f'"{startup_script_path.expanduser().resolve()}"'
+    return background_python, arguments
+
+
+def _write_windows_python_startup_script(
+    *,
+    startup_script_path: Path,
+    install_root: Path,
+    src_root: Path,
+) -> None:
+    startup_script_path.parent.mkdir(parents=True, exist_ok=True)
+    script = "\n".join(
+        [
+            "from pathlib import Path",
+            "import sys",
+            "",
+            f"SRC_ROOT = Path({str(src_root.resolve())!r})",
+            f"INSTALL_ROOT = Path({str(install_root.resolve())!r})",
+            "",
+            "if str(SRC_ROOT) not in sys.path:",
+            "    sys.path.insert(0, str(SRC_ROOT))",
+            "",
+            "from local_ai_control_center_installer.control_center_startup import (",
+            "    run_control_center_startup_entry,",
+            ")",
+            "",
+            "raise SystemExit(",
+            "    run_control_center_startup_entry([",
+            '        "--install-root",',
+            "        str(INSTALL_ROOT),",
+            "    ])",
+            ")",
+            "",
+        ]
+    )
+    startup_script_path.write_text(script, encoding="utf-8")
+
+
 def _is_python_panel_module_command(command: tuple[str, ...]) -> bool:
     return len(command) >= 3 and str(command[1]).strip() == "-m" and str(command[2]).strip() == "local_ai_control_center_installer.control_center_panel"
 
 
 def _resolve_windows_background_python_executable(python_executable: Path) -> Path:
+    if python_executable.name.casefold() == "python.exe":
+        candidate = python_executable.with_name("pythonw.exe")
+        if candidate.is_file():
+            return candidate
     return python_executable
 
 
@@ -736,6 +831,8 @@ def _ensure_windows_shell_assets(
     panel_executable_path: Path,
     access_mode: str,
     display_version: str,
+    startup_shortcut_target: Path | None = None,
+    startup_shortcut_arguments: str = "",
 ) -> dict[str, Path | str | None]:
     config = ControlCenterConfig(
         ui_host="127.0.0.1",
@@ -755,12 +852,31 @@ def _ensure_windows_shell_assets(
     desktop_dir.mkdir(parents=True, exist_ok=True)
     _remove_legacy_windows_shortcuts(start_menu_dir=start_menu_dir, desktop_dir=desktop_dir)
 
-    panel_hidden_launcher_path = panel_root / WINDOWS_PANEL_HIDDEN_LAUNCHER_NAME
-    _write_windows_hidden_panel_launcher(
-        hidden_launcher_path=panel_hidden_launcher_path,
+    legacy_hidden_launcher_path = panel_root / "Open-RuntimePilot.vbs"
+    if legacy_hidden_launcher_path.exists():
+        legacy_hidden_launcher_path.unlink(missing_ok=True)
+    _write_windows_legacy_panel_compat_launchers(
+        panel_root=panel_root,
         panel_launcher_path=panel_launcher_path,
     )
-    panel_shortcut_target = panel_hidden_launcher_path
+    panel_startup_splash_path = panel_root / WINDOWS_PANEL_STARTUP_SPLASH_NAME
+    panel_shortcut_target = startup_shortcut_target
+    panel_shortcut_arguments = startup_shortcut_arguments
+    if panel_shortcut_target is None:
+        _write_windows_panel_startup_splash(
+            startup_splash_path=panel_startup_splash_path,
+            panel_url=DEFAULT_PANEL_URL,
+            expected_install_root=install_root,
+            panel_launcher_path=panel_launcher_path,
+        )
+        panel_shortcut_target = panel_startup_splash_path
+        panel_shortcut_arguments = ""
+        mshta_path = _resolve_mshta_path()
+        if mshta_path is not None:
+            panel_shortcut_target = mshta_path
+            panel_shortcut_arguments = f'"{panel_startup_splash_path}"'
+    else:
+        panel_startup_splash_path.unlink(missing_ok=True)
     panel_shortcut_icon = _install_windows_shell_icon(
         panel_root=panel_root,
         resource_path=WINDOWS_PANEL_ICON_RESOURCE,
@@ -773,6 +889,7 @@ def _ensure_windows_shell_assets(
         panel_shortcut_target,
         working_directory=panel_root,
         description="Open the RuntimePilot panel.",
+        arguments=panel_shortcut_arguments,
         icon_path=panel_shortcut_icon,
     )
 
@@ -782,6 +899,7 @@ def _ensure_windows_shell_assets(
         panel_shortcut_target,
         working_directory=panel_root,
         description="Open the RuntimePilot panel.",
+        arguments=panel_shortcut_arguments,
         icon_path=panel_shortcut_icon,
     )
 
@@ -848,6 +966,31 @@ def _ensure_windows_shell_assets(
     }
 
 
+def _write_windows_legacy_panel_compat_launchers(
+    *,
+    panel_root: Path,
+    panel_launcher_path: Path,
+) -> None:
+    legacy_cmd_path = panel_root / "Open-Control-Center.cmd"
+    legacy_vbs_path = panel_root / "Open-Control-Center.vbs"
+
+    legacy_cmd_lines = [
+        "@echo off",
+        "setlocal",
+        'call "%~dp0Open-RuntimePilot.cmd" %*',
+        "endlocal",
+    ]
+    legacy_cmd_path.write_text("\r\n".join(legacy_cmd_lines) + "\r\n", encoding="utf-8")
+
+    legacy_vbs_lines = [
+        'Set shell = CreateObject("WScript.Shell")',
+        'Set fso = CreateObject("Scripting.FileSystemObject")',
+        'launcher = fso.BuildPath(fso.GetParentFolderName(WScript.ScriptFullName), "Open-RuntimePilot.cmd")',
+        'shell.Run "cmd.exe /d /c """" & launcher & """"", 0, False',
+    ]
+    legacy_vbs_path.write_text("\r\n".join(legacy_vbs_lines) + "\r\n", encoding="utf-8")
+
+
 def _write_uninstall_launcher(
     *,
     uninstall_launcher_path: Path,
@@ -871,18 +1014,548 @@ def _write_uninstall_launcher(
     uninstall_launcher_path.write_text("\r\n".join(lines) + "\r\n", encoding="utf-8")
 
 
-def _write_windows_hidden_panel_launcher(
+def _write_windows_panel_startup_splash(
     *,
-    hidden_launcher_path: Path,
+    startup_splash_path: Path,
+    panel_url: str,
+    expected_install_root: Path,
     panel_launcher_path: Path,
 ) -> None:
-    hidden_launcher_path.parent.mkdir(parents=True, exist_ok=True)
-    escaped_launcher = str(panel_launcher_path).replace('"', '""')
-    lines = [
-        'Set shell = CreateObject("WScript.Shell")',
-        f'shell.Run "cmd.exe /d /c ""{escaped_launcher}""", 0, False',
-    ]
-    hidden_launcher_path.write_text("\r\n".join(lines) + "\r\n", encoding="utf-8")
+    startup_splash_path.parent.mkdir(parents=True, exist_ok=True)
+    health_url = f"{panel_url.rstrip('/')}/health"
+    browser_open_marker_path = startup_splash_path.parent / ".runtimepilot-browser-opened.flag"
+    panel_url_js = json.dumps(panel_url)
+    health_url_js = json.dumps(health_url)
+    install_root_js = json.dumps(str(expected_install_root.resolve()))
+    launcher_command_js = json.dumps(f'cmd.exe /d /c "{str(panel_launcher_path)}"')
+    browser_watcher_command_js = json.dumps(
+        _build_windows_browser_watcher_command(
+            panel_url=panel_url,
+            expected_install_root=expected_install_root,
+            marker_path=browser_open_marker_path,
+        )
+    )
+    browser_open_marker_path_js = json.dumps(str(browser_open_marker_path.resolve()))
+    logo_source_js = json.dumps(WINDOWS_PANEL_ICON_NAME)
+    html = f"""<!DOCTYPE html>
+<html lang="sr">
+<head>
+  <meta charset="utf-8" />
+  <title>RuntimePilot startup</title>
+  <HTA:APPLICATION
+    APPLICATIONNAME="RuntimePilot Startup"
+    BORDER="thin"
+    CAPTION="yes"
+    SHOWINTASKBAR="yes"
+    SINGLEINSTANCE="yes"
+    SYSMENU="yes"
+    SCROLL="no"
+    RESIZE="no"
+    WINDOWSTATE="normal"
+  />
+  <style>
+    html {{
+      background: #14110d;
+    }}
+    body {{
+      margin: 0;
+      padding: 18px;
+      background: #14110d;
+      color: #f4efe6;
+      font-family: Segoe UI, Arial, sans-serif;
+    }}
+    .shell {{
+      margin: 0;
+      border: 1px solid #7f6a47;
+      background: #231e19;
+      padding: 28px 32px 24px;
+    }}
+    .hero {{
+      overflow: hidden;
+    }}
+    .logo-frame {{
+      float: left;
+      width: 110px;
+      height: 110px;
+      margin-right: 24px;
+      border: 1px solid #7f6a47;
+      background: #15110d;
+      text-align: center;
+    }}
+    .logo-img {{
+      width: 74px;
+      height: 74px;
+      margin-top: 18px;
+      border: 0;
+    }}
+    .hero-copy {{
+      overflow: hidden;
+    }}
+    .brand {{
+      font-size: 13px;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: #cbb089;
+      margin-bottom: 10px;
+    }}
+    h1 {{
+      margin: 0 0 10px;
+      font-size: 32px;
+      line-height: 1.08;
+      color: #fff9ee;
+    }}
+    p {{
+      margin: 0;
+      color: #ddd3c5;
+      line-height: 1.6;
+      font-size: 16px;
+    }}
+    .status-box {{
+      margin-top: 20px;
+      border: 1px solid #5d4d34;
+      background: #1a1713;
+      padding: 18px 20px 16px;
+    }}
+    .status-title {{
+      font-size: 19px;
+      font-weight: 700;
+      margin-bottom: 8px;
+      color: #fff8ec;
+    }}
+    .status-detail {{
+      min-height: 50px;
+      font-size: 16px;
+      line-height: 1.55;
+      color: #ded4c6;
+    }}
+    .meter {{
+      margin-top: 18px;
+      height: 9px;
+      border: 1px solid #69573a;
+      background: #2a241d;
+      overflow: hidden;
+    }}
+    .meter-fill {{
+      width: 32%;
+      height: 100%;
+      background: #d9c29a;
+      animation: scan 1.1s ease-in-out infinite alternate;
+    }}
+    .meta {{
+      margin-top: 18px;
+      font-size: 15px;
+      color: #ded4c6;
+    }}
+    .meta-row {{
+      margin-top: 8px;
+    }}
+    .meta strong {{
+      display: inline-block;
+      width: 80px;
+      color: #fff8ec;
+      font-weight: 700;
+    }}
+    .meta-link {{
+      color: #f7efe2;
+      text-decoration: underline;
+      background: #3a3128;
+      border: 1px solid #6b593d;
+      padding: 6px 8px;
+      display: inline-block;
+      word-break: break-all;
+    }}
+    .meta-link:hover {{
+      background: #4a3e31;
+      border-color: #85704e;
+      color: #fffaf2;
+    }}
+    .action-bar {{
+      margin-top: 18px;
+    }}
+    .action-button {{
+      margin: 0 10px 10px 0;
+      padding: 8px 12px;
+      border: 1px solid #7a6645;
+      background: #332a22;
+      color: #f5eee2;
+      font-family: Segoe UI, Arial, sans-serif;
+      font-size: 14px;
+      cursor: pointer;
+    }}
+    .action-button:hover {{
+      background: #43372c;
+      border-color: #99815c;
+    }}
+    .action-button-primary {{
+      background: #c3a36b;
+      border-color: #d8bf93;
+      color: #17120d;
+      font-weight: 700;
+    }}
+    .action-button-primary:hover {{
+      background: #d1b381;
+      border-color: #e4cfaa;
+    }}
+    .notice {{
+      margin-top: 20px;
+      border: 1px solid #5f5037;
+      background: #1d1915;
+      padding: 16px 18px;
+    }}
+    .notice-title {{
+      font-size: 12px;
+      letter-spacing: 0.11em;
+      text-transform: uppercase;
+      color: #d5b884;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }}
+    .notice p {{
+      margin: 8px 0 0;
+      font-size: 13px;
+      line-height: 1.58;
+      color: #ddd4c5;
+    }}
+    code {{
+      color: #f4ecde;
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 12px;
+      word-break: break-all;
+      background: #312920;
+      padding: 1px 4px;
+    }}
+    .hint {{
+      margin-top: 18px;
+      font-size: 12px;
+      color: #bad2a2;
+      letter-spacing: 0.09em;
+      text-transform: uppercase;
+    }}
+    @keyframes scan {{
+      from {{ transform: translateX(-22%); }}
+      to {{ transform: translateX(165%); }}
+    }}
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <div class="hero">
+      <div class="logo-frame" id="startup-logo-frame">
+        <img id="startup-logo" class="logo-img" alt="RuntimePilot logo" src="" />
+      </div>
+      <div class="hero-copy">
+        <div class="brand">RuntimePilot startup</div>
+        <h1>Panel se podiže</h1>
+        <p>Pokrećem lokalni RuntimePilot i proveravam kada je portal spreman za rad u browseru.</p>
+      </div>
+    </div>
+
+    <div class="status-box">
+      <div id="status-title" class="status-title">Čekam health signal...</div>
+      <div id="status-detail" class="status-detail">Backend se podiže i čim potvrdi da je spreman, portal će se otvoriti automatski.</div>
+      <div class="meter"><div class="meter-fill"></div></div>
+    </div>
+
+    <div class="meta">
+      <div class="meta-row"><strong>Portal</strong> <a id="portal-link" class="meta-link" href="#"></a></div>
+      <div class="meta-row"><strong>Provera</strong> <a id="health-link" class="meta-link" href="#"></a></div>
+      <div class="meta-row"><strong>Stanje</strong> <span id="attempt-label">pokretanje</span></div>
+    </div>
+
+    <div class="action-bar">
+      <input id="open-portal-button" class="action-button action-button-primary" type="button" value="Otvori portal odmah" onclick="openPortalNow();" />
+      <input id="open-folder-button" class="action-button" type="button" value="Otvori RuntimePilot folder" onclick="openInstallFolder();" />
+      <input id="copy-path-button" class="action-button" type="button" value="Kopiraj putanju za exception" onclick="copyInstallPath();" />
+    </div>
+
+    <div class="notice">
+      <div class="notice-title">Ako browser ne iskoci automatski</div>
+      <p>Klikni direktno na <strong>Portal</strong> link iznad i RuntimePilot će se otvoriti ručno u podrazumevanom browseru.</p>
+      <p>Neki antivirus paketi, posebno <strong>Avast</strong>, umeju pogrešno da prijave ovaj startup tok kao trojanski zato što lokalni <code>RuntimePilot-Startup.hta</code> proverava health i otvara browser preko Windows shell-a.</p>
+      <p>Ovaj prozor ne preuzima ništa sa interneta: samo pokreće tvoj lokalni panel u <code id="install-root-path"></code> i proverava da li je spreman.</p>
+      <p>Ako veruješ ovoj instalaciji, dodaj exception samo za RuntimePilot folder iznad. Nemoj da praviš globalni exception za ceo antivirus niti za ceo <code>mshta.exe</code>.</p>
+    </div>
+
+    <div class="hint">Kada health postane zelen, RuntimePilot otvara tvoj podrazumevani browser.</div>
+  </div>
+
+  <script language="javascript">
+    var targetUrl = {panel_url_js};
+    var healthUrl = {health_url_js};
+    var expectedInstallRoot = {install_root_js};
+    var launcherCommand = {launcher_command_js};
+    var browserWatcherCommand = {browser_watcher_command_js};
+    var browserOpenMarkerPath = {browser_open_marker_path_js};
+    var logoSource = {logo_source_js};
+    var shell = new ActiveXObject("WScript.Shell");
+    var appShell = new ActiveXObject("Shell.Application");
+    var fileSystem = new ActiveXObject("Scripting.FileSystemObject");
+    var attempts = 0;
+    var maxSlowAttempts = 8;
+    var launchRequested = false;
+    var browserOpenRequested = false;
+    var browserWatcherStarted = false;
+
+    function byId(id) {{
+      return document.getElementById(id);
+    }}
+
+    function normalizeInstallRoot(value) {{
+      return String(value || "").replace(/\\//g, "\\\\").toLowerCase();
+    }}
+
+    function setStatus(title, detail, label) {{
+      byId("status-title").innerText = title;
+      byId("status-detail").innerText = detail;
+      byId("attempt-label").innerText = label;
+    }}
+
+    function resetBrowserOpenMarker() {{
+      try {{
+        if (fileSystem.FileExists(browserOpenMarkerPath)) {{
+          fileSystem.DeleteFile(browserOpenMarkerPath, true);
+        }}
+      }} catch (error) {{
+      }}
+    }}
+
+    function browserWasOpened() {{
+      try {{
+        return fileSystem.FileExists(browserOpenMarkerPath);
+      }} catch (error) {{
+      }}
+      return false;
+    }}
+
+    function markBrowserOpened(label) {{
+      try {{
+        var markerFile = fileSystem.CreateTextFile(browserOpenMarkerPath, true);
+        markerFile.WriteLine(String(label || "opened"));
+        markerFile.Close();
+        return true;
+      }} catch (error) {{
+      }}
+      return false;
+    }}
+
+    function openExternal(url) {{
+      try {{
+        appShell.ShellExecute(url, "", "", "open", 1);
+        return true;
+      }} catch (error) {{
+      }}
+      try {{
+        shell.Run('rundll32.exe url.dll,FileProtocolHandler "' + url + '"', 1, false);
+        return true;
+      }} catch (error) {{
+      }}
+      try {{
+        shell.Run('cmd.exe /c start "" "' + url + '"', 0, false);
+        return true;
+      }} catch (error) {{
+      }}
+      try {{
+        shell.Run(url, 1, false);
+        return true;
+      }} catch (error) {{
+      }}
+      return false;
+    }}
+
+    function openMetaLink(event, url) {{
+      if (event) {{
+        if (event.preventDefault) {{
+          event.preventDefault();
+        }}
+        event.returnValue = false;
+      }}
+      openExternal(url);
+      return false;
+    }}
+
+    function openPortalWithFeedback(title, detail, label, closeDelayMs) {{
+      if (openExternal(targetUrl)) {{
+        markBrowserOpened(label || "manual");
+        setStatus(title, detail, label);
+        window.setTimeout(function () {{
+          window.close();
+        }}, closeDelayMs);
+        return true;
+      }}
+      return false;
+    }}
+
+    function openPortalNow() {{
+      if (openPortalWithFeedback(
+        "Portal se otvara ručno",
+        "Ako ga ne vidiš odmah, proveri taskbar ili Alt+Tab. Ovaj startup prozor će se zatvoriti.",
+        "ručno otvaranje",
+        900
+      )) {{
+        return true;
+      }}
+      setStatus(
+        "Portal nije mogao da se otvori",
+        "Klik na Portal link iznad i dalje ostaje rezervni put ako automatsko otvaranje zakaže.",
+        "ručno otvaranje nije uspelo"
+      );
+      return false;
+    }}
+
+    function openInstallFolder() {{
+      try {{
+        shell.Run('explorer.exe "' + expectedInstallRoot + '"', 1, false);
+        setStatus(
+          "Otvoren je RuntimePilot folder",
+          "Sada možeš direktno da dodaš Avast exception baš za ovu lokaciju.",
+          "folder otvoren"
+        );
+        return true;
+      }} catch (error) {{
+      }}
+      return false;
+    }}
+
+    function copyInstallPath() {{
+      try {{
+        window.clipboardData.setData("Text", expectedInstallRoot);
+        setStatus(
+          "Putanja je kopirana",
+          "Možeš odmah da je nalepiš u Avast exception polje.",
+          "putanja kopirana"
+        );
+        return true;
+      }} catch (error) {{
+      }}
+      setStatus(
+        "Kopiranje nije uspelo",
+        "Ako clipboard blokira kopiranje, koristi dugme za otvaranje RuntimePilot foldera pa exception dodaj ručno.",
+        "kopiranje nije uspelo"
+      );
+      return false;
+    }}
+
+    function hydrateLogo() {{
+      if (logoSource) {{
+        byId("startup-logo").setAttribute("src", logoSource);
+        return;
+      }}
+      byId("startup-logo-frame").style.display = "none";
+    }}
+
+    function ensureBrowserWatcher() {{
+      if (browserWatcherStarted) {{
+        return;
+      }}
+      browserWatcherStarted = true;
+      try {{
+        shell.Run(browserWatcherCommand, 0, false);
+      }} catch (error) {{
+      }}
+    }}
+
+    function markReadyAndOpen() {{
+      if (browserOpenRequested) {{
+        return;
+      }}
+      browserOpenRequested = true;
+      ensureBrowserWatcher();
+      setStatus(
+        "Portal se otvara automatski",
+        "RuntimePilot je spreman. Tihi launcher sada otvara browser, a ovaj startup prozor će se zatvoriti čim potvrdi otvaranje.",
+        "otvaram browser"
+      );
+    }}
+
+    function ensurePanelLaunch() {{
+      if (launchRequested) {{
+        return;
+      }}
+      launchRequested = true;
+      try {{
+        shell.Run(launcherCommand, 0, false);
+      }} catch (error) {{
+      }}
+      ensureBrowserWatcher();
+    }}
+
+    function probeHealth() {{
+      if (browserWasOpened()) {{
+        setStatus(
+          "Browser je otvoren",
+          "Portal je otvoren u podrazumevanom browseru. Ovaj startup prozor se sada zatvara.",
+          "browser potvrđen"
+        );
+        window.setTimeout(function () {{
+          window.close();
+        }}, 2200);
+        return;
+      }}
+      attempts += 1;
+      try {{
+        var request = new ActiveXObject("WinHttp.WinHttpRequest.5.1");
+        request.SetTimeouts(250, 250, 750, 750);
+        request.Open("GET", healthUrl + "?cb=" + new Date().getTime(), false);
+        request.Send();
+        if (request.Status === 200) {{
+          var payload = JSON.parse(request.ResponseText);
+          if (
+            String(payload.status || "").toLowerCase() === "ok" &&
+            String(payload.app || "") === "local-ai-control-center-stable" &&
+            normalizeInstallRoot(payload.installRoot) === normalizeInstallRoot(expectedInstallRoot)
+          ) {{
+            markReadyAndOpen();
+            return;
+          }}
+        }}
+      }} catch (error) {{
+      }}
+
+      if (browserOpenRequested) {{
+        setStatus(
+          "Portal je spreman",
+          "Health je potvrđen. Ako browser još nije iskočio, sačekaj još trenutak ili klikni Portal link iznad.",
+          "čekam browser"
+        );
+        return;
+      }}
+
+      if (attempts >= maxSlowAttempts) {{
+        setStatus(
+          "Pokretanje traje malo duže",
+          "RuntimePilot i dalje čeka da lokalni panel vrati zdrav odgovor. Ako je runtime težak, ovo je normalno kratko vreme.",
+          "čekam odgovor"
+        );
+      }} else {{
+        setStatus(
+          "RuntimePilot se podiže",
+          "Panel je startovan, sada čekam health potvrdu da bih otvorio puni portal bez prazne ili zbunjujuće stranice.",
+          "proveravam health"
+        );
+      }}
+    }}
+
+    hydrateLogo();
+    byId("portal-link").innerText = targetUrl;
+    byId("portal-link").setAttribute("href", targetUrl);
+    byId("portal-link").onclick = function () {{
+      return openMetaLink(window.event, targetUrl);
+    }};
+    byId("health-link").innerText = healthUrl;
+    byId("health-link").setAttribute("href", healthUrl);
+    byId("health-link").onclick = function () {{
+      return openMetaLink(window.event, healthUrl);
+    }};
+    byId("install-root-path").innerText = expectedInstallRoot;
+    resetBrowserOpenMarker();
+    ensurePanelLaunch();
+    window.setInterval(probeHealth, 900);
+    probeHealth();
+  </script>
+</body>
+</html>
+"""
+    startup_splash_path.write_text(html, encoding="utf-8")
 
 
 def _write_linux_uninstall_launcher(
@@ -927,6 +1600,14 @@ def _resolve_desktop_dir() -> Path:
     return Path.home() / "Desktop"
 
 
+def _resolve_mshta_path() -> Path | None:
+    system_root = Path(os.environ.get("SystemRoot", r"C:\Windows"))
+    mshta_path = system_root / "System32" / "mshta.exe"
+    if mshta_path.is_file():
+        return mshta_path
+    return None
+
+
 def _ensure_executable_bit(path: Path) -> None:
     current_mode = path.stat().st_mode
     path.chmod(current_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
@@ -938,13 +1619,16 @@ def _create_windows_shortcut(
     *,
     working_directory: Path | None = None,
     description: str = "",
+    arguments: str = "",
     icon_path: Path | None = None,
 ) -> None:
     shortcut_path.parent.mkdir(parents=True, exist_ok=True)
+    shortcut_path.unlink(missing_ok=True)
     powershell_lines = [
         "$shell = New-Object -ComObject WScript.Shell",
         f"$shortcut = $shell.CreateShortcut({_quote_powershell_string(str(shortcut_path))})",
         f"$shortcut.TargetPath = {_quote_powershell_string(str(target_path))}",
+        f"$shortcut.Arguments = {_quote_powershell_string(arguments)}",
     ]
     if working_directory is not None:
         powershell_lines.append(

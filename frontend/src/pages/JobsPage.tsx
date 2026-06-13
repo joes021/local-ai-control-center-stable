@@ -79,7 +79,7 @@ export function JobsPage() {
       });
       await load();
     } catch (reason: unknown) {
-      setError(reason instanceof Error ? reason.message : "Jobs akcija nije uspela.");
+      setError(reason instanceof Error ? reason.message : "Akcija poslova nije uspela.");
     }
   }
 
@@ -87,7 +87,7 @@ export function JobsPage() {
     return (
       <PageDataStateCard
         error={error}
-        loadingText="U\u010ditavam poslove..."
+        loadingText="Učitavam poslove..."
         onRetry={() => {
           setError(null);
           void load();
@@ -100,38 +100,38 @@ export function JobsPage() {
     <>
       {error ? <div className="error-panel wide-card">{error}</div> : null}
       <PageFlowCard
-        title="Jobs tok"
-        summary="Ovde prvo izabere\u0161 vrstu posla, zatim interval i preset, a tek onda prati\u0161 listu sa\u010duvanih i ru\u010dno ih pokre\u0107e\u0161 po potrebi."
+        title="Tok poslova"
+        summary="Ovde prvo izabereš vrstu posla, zatim interval i preset, a tek onda pratiš listu sačuvanih i ručno ih pokrećeš po potrebi."
         steps={[
           {
             title: "Izaberi vrstu posla",
-            detail: "Health, benchmark i update poslovi imaju razli\u010dit ritam, pa prvo zaklju\u010daj \u0161ta automatizuje\u0161.",
+            detail: "Provera zdravlja, benchmark i ažuriranje imaju različit ritam, pa prvo zaključaš šta automatizuješ.",
           },
           {
             title: "Podesi interval i preset",
-            detail: "Preset radnog toka je opcioni sloj koji posao \u010dini bli\u017eim stvarnom radu ma\u0161ine.",
+            detail: "Preset radnog toka je opcioni sloj koji posao čini bližim stvarnom radu mašine.",
           },
           {
-            title: "Sa\u010duvaj i proveri listu",
-            detail: "Lista poslova je glavno mesto za ru\u010dno pokretanje, proveru ritma i brisanje.",
+            title: "Sačuvaj i proveri listu",
+            detail: "Lista poslova je glavno mesto za ručno pokretanje, proveru ritma i brisanje.",
           },
         ]}
       />
 
-      <section className="status-card wide-card">
+      <section className="status-card wide-card runtimepilot-faceplate-module">
         <span className="status-label">Poslovi</span>
-        <strong className="status-value">Zakazani poslovi</strong>
+        <strong className="status-value">Pozadinski poslovi</strong>
         <p className="helper-text">
-          Installer-managed scheduler za benchmark, health, update i fleet ritam. Job-ovi rade u
+          Ovo su pozadinski poslovi koje vodi ugrađeni zakazivač za benchmark, proveru zdravlja, ažuriranje i ritam flote. Poslovi rade u
           pozadini dok je RuntimePilot backend aktivan.
         </p>
         <div className="summary-metrics">
-          <span>Aktivnih job-ova: {summary?.jobCount ?? 0}</span>
+          <span>Aktivnih poslova: {summary?.jobCount ?? 0}</span>
           <span>Osveženo: {summary ? formatDateTime(summary.generatedAt) : "--"}</span>
         </div>
       </section>
 
-      <section className="status-card wide-card">
+      <section className="status-card wide-card runtimepilot-faceplate-module">
         <span className="status-label">Sačuvaj posao</span>
         <div className="settings-page-grid">
           <label className="settings-compact-field">
@@ -140,7 +140,7 @@ export function JobsPage() {
               type="text"
               value={name}
               onChange={(event) => setName(event.target.value)}
-              placeholder="Health na sat, benchmark noću..."
+              placeholder="Provera zdravlja na sat, benchmark noću..."
             />
           </label>
           <label className="settings-compact-field">
@@ -177,11 +177,12 @@ export function JobsPage() {
           </label>
         </div>
         <p className="helper-text">
-          {selectedKind?.summary || "Izaberi job tip da vidiš čemu služi."}
+          {selectedKind?.summary || "Izaberi vrstu posla da vidiš čemu služi."}
         </p>
         <div className="inline-actions">
           <button
             type="button"
+            className="action-button"
             disabled={!name.trim()}
             onClick={() =>
               void runMutation(async () => {
@@ -204,7 +205,7 @@ export function JobsPage() {
         </div>
       </section>
 
-      <section className="status-card wide-card">
+      <section className="status-card wide-card runtimepilot-faceplate-module">
         <span className="status-label">Lista poslova</span>
         {summary?.jobs.length ? (
           <div className="model-list">
@@ -222,12 +223,12 @@ export function JobsPage() {
                 <p className="helper-text">
                   Poslednje pokretanje: {formatDateTime(job.lastRunAt)} | Sledeće: {formatDateTime(job.nextRunAt)}
                 </p>
-                <p className="helper-text">{job.lastSummary || "Job još nije pokretan."}</p>
+                <p className="helper-text">{job.lastSummary || "Posao još nije pokretan."}</p>
                 <div className="inline-actions">
-                  <button type="button" onClick={() => void runMutation(() => runJobNow(job.id))}>
+                  <button type="button" className="action-button" onClick={() => void runMutation(() => runJobNow(job.id))}>
                     Pokreni sada
                   </button>
-                  <button type="button" onClick={() => void runMutation(() => deleteJob(job.id))}>
+                  <button type="button" className="danger-button" onClick={() => void runMutation(() => deleteJob(job.id))}>
                     Ukloni
                   </button>
                 </div>
@@ -236,7 +237,7 @@ export function JobsPage() {
           </div>
         ) : (
           <p className="helper-text">
-            Još nema sačuvanih job-ova. Dodaj health check, update check ili benchmark battery da
+            Još nema sačuvanih poslova. Dodaj proveru zdravlja, proveru ažuriranja ili benchmark bateriju da
             RuntimePilot dobije pravi operativni ritam.
           </p>
         )}

@@ -502,6 +502,8 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
   const [hygieneBusy, setHygieneBusy] = useState<"" | "refresh" | "cleanup">("");
   const [vramFitBusy, setVramFitBusy] = useState(false);
   const [showTurboQuantGuidance, setShowTurboQuantGuidance] = useState(false);
+  const profileSectionRef = useRef<HTMLElement | null>(null);
+  const contextSectionRef = useRef<HTMLElement | null>(null);
   const vramFitSectionRef = useRef<HTMLElement | null>(null);
 
   async function reload() {
@@ -536,6 +538,16 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
   }, [turboConfig]);
 
   useEffect(() => {
+    if (focusSectionId === "profile" && settings) {
+      profileSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      onFocusHandled?.();
+      return;
+    }
+    if (focusSectionId === "context" && settings) {
+      contextSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      onFocusHandled?.();
+      return;
+    }
     if (focusSectionId !== "vram-fit" || !settings || !turboConfig) {
       return;
     }
@@ -1358,7 +1370,10 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
         ]}
       />
       <ActionResultPanel result={result} />
-      <section className="status-card wide-card settings-cluster-card runtimepilot-faceplate-module settings-rack-module">
+      <section
+        ref={profileSectionRef}
+        className="status-card wide-card settings-cluster-card runtimepilot-faceplate-module settings-rack-module"
+      >
         <div className="section-header settings-cluster-header">
           <div>
             <span className="status-label">Kako da koristiš ovu stranu</span>
@@ -1828,7 +1843,10 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
                   </div>
                 </article>
 
-                <article className="settings-field settings-general-panel">
+                <article
+                  className="settings-field settings-general-panel"
+                  ref={contextSectionRef}
+                >
                   <span className="settings-field-label">Context</span>
                   <div className="settings-number-row">
                     <CustomSelect
@@ -2078,6 +2096,30 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
               </button>
             </div>
 
+            <div className="settings-action-route-grid">
+              <article className="settings-action-route-card">
+                <span className="settings-field-label">Klik i ishod</span>
+                <strong className="status-value">Editor odmah pokazuje šta si promenio.</strong>
+                <p className="helper-text">
+                  Menjanje context-a, output-a, teme ili sampling-a vidiš čim napraviš izmenu u gornjem deck-u.
+                </p>
+              </article>
+              <article className="settings-action-route-card">
+                <span className="settings-field-label">Sačuvaj opšta podešavanja</span>
+                <strong className="status-value">Poslednja akcija potvrđuje da je config upisan.</strong>
+                <p className="helper-text">
+                  Kad klikneš snimanje, potvrdu prvo čitaš u panelu poslednje akcije, pa onda ispod proveravaš poređenje sačuvano vs editor.
+                </p>
+              </article>
+              <article className="settings-action-route-card">
+                <span className="settings-field-label">Monitoring</span>
+                <strong className="status-value">Monitoring ispod kaže da li živi sistem stvarno prati sačuvano stanje.</strong>
+                <p className="helper-text">
+                  Ako ima razlike između editora, config-a i aktivnog rada, ovde odmah vidiš gde je tok stao.
+                </p>
+              </article>
+            </div>
+
             <div className="settings-vram-transport-actions settings-vram-transport-actions-aux">
               <article className="settings-field settings-general-panel settings-general-profile-save">
                 <span className="settings-field-label">Sačuvaj trenutni custom profil</span>
@@ -2151,6 +2193,21 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
                 <strong className="apply-state-chip-value">
                   {activeInferenceStarter?.label || "custom kombinacija"}
                 </strong>
+              </article>
+            </div>
+
+            <div className="settings-action-route-grid settings-action-route-grid-compact">
+              <article className="settings-action-route-card settings-action-route-card-compact">
+                <span className="settings-field-label">Editor</span>
+                <p className="helper-text">Ovde prvo vidiš da li izmena još živi samo u editoru.</p>
+              </article>
+              <article className="settings-action-route-card settings-action-route-card-compact">
+                <span className="settings-field-label">Config</span>
+                <p className="helper-text">Ako je sačuvano, poređenje ispod mora da se poravna sa editorom.</p>
+              </article>
+              <article className="settings-action-route-card settings-action-route-card-compact">
+                <span className="settings-field-label">Živi sistem</span>
+                <p className="helper-text">Ako runtime ili drugi tok još ne prati config, ovde to ispliva bez nagađanja.</p>
               </article>
             </div>
 

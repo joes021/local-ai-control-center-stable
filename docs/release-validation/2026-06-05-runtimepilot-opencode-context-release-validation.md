@@ -1,4 +1,4 @@
-# RuntimePilot v0.4.90 Release Validation
+﻿# RuntimePilot v0.4.90 Release Validation
 
 Datum: 2026-06-05
 
@@ -42,3 +42,5 @@ Ovaj release zatvara dva povezana OpenCode problema:
 ## Zakljucak
 
 Release `v0.4.90` je spreman za GitHub objavu.
+
+

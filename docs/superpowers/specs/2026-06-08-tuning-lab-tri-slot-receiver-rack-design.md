@@ -1,4 +1,4 @@
-# Tuning Lab Tri Slot Receiver Rack Design
+﻿# Tuning Lab Tri Slot Receiver Rack Design
 
 **Datum:** 2026-06-08  
 **Status:** odobren dizajn, spreman za planiranje implementacije  
@@ -377,3 +377,5 @@ Ovo je trenutno najbolji balans izmedju:
 - citljivosti
 - potpune funkcionalnosti
 - kasnije responsivne adaptacije
+
+

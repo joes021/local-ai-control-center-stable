@@ -1,4 +1,4 @@
-# Windows workflow preset editor validation
+﻿# Windows workflow preset editor validation
 
 Date: 2026-05-28
 Version: v0.4.42
@@ -51,3 +51,5 @@ Version: v0.4.42
   - sačuva kao novi korisnički preset
   - sačuva izmene nad korisničkim presetom
   - obriše korisnički preset
+
+

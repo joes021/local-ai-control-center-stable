@@ -1,4 +1,4 @@
-# Telemetry Live Panel Stability Validation
+﻿# Telemetry Live Panel Stability Validation
 
 Date: 2026-05-28
 
@@ -21,3 +21,5 @@ Validated that the `Uživo sada` block no longer shifts layout when live through
 - `python -m build`
 - `powershell -ExecutionPolicy Bypass -File packaging\build_windows_installer.ps1 -PythonExe python`
 - Local panel verification through `http://127.0.0.1:3210/`
+
+

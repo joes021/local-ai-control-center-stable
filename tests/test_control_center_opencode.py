@@ -1,3 +1,4 @@
+import importlib
 import json
 from pathlib import Path
 import subprocess
@@ -102,6 +103,46 @@ def test_opencode_status_route_reports_packaged_installation(
     assert payload["launchPreview"]["managedConfig"]["selectedProvider"] == "local-lacc"
     assert payload["launchPreview"]["managedConfig"]["localProviderBaseUrl"] == "http://127.0.0.1:39281/v1"
     assert payload["launchPreview"]["managedConfig"]["enabledProviders"] == ["local-lacc", "opencode"]
+
+
+def test_opencode_status_route_desktop_preview_includes_agent_and_model_arguments(
+    tmp_path: Path,
+    monkeypatch,
+):
+    install_root = tmp_path / "install-root"
+    gui_path = tmp_path / "OpenCode.exe"
+    gui_path.write_text("gui", encoding="utf-8")
+    _write_opencode_fixture(install_root)
+    _write_runtime_and_model_prerequisites(install_root)
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.opencode_service._resolve_windows_opencode_desktop_executable_path",
+        lambda config: gui_path,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.opencode_service.detect_opencode_instances",
+        lambda executable_path: [],
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.opencode_service.detect_opencode_desktop_instances",
+        lambda executable_path: [],
+        raising=False,
+    )
+
+    client = TestClient(app)
+    response = client.get("/api/opencode/status")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["desktopAvailable"] is True
+    assert payload["launchPreview"]["shellLabel"] == "Desktop"
+    assert "--agent build" in payload["launchPreview"]["launcherCommand"]
+    assert "--model local-lacc/recommended-6gb" in payload["launchPreview"]["launcherCommand"]
+    assert str(install_root) in payload["launchPreview"]["launcherCommand"]
+    assert '-ArgumentList $arguments' in payload["launchPreview"]["powershellCommand"]
+    assert '"--agent"' in payload["launchPreview"]["powershellCommand"]
+    assert '"local-lacc/recommended-6gb"' in payload["launchPreview"]["powershellCommand"]
 
 
 def test_opencode_status_route_reports_app_only_when_runtime_is_not_connected(
@@ -452,6 +493,141 @@ def test_opencode_open_route_launches_visible_windows_launcher(
         assert captured["kwargs"]["creationflags"] == getattr(subprocess, "CREATE_NEW_CONSOLE", 0)
     else:
         assert "creationflags" not in captured["kwargs"]
+
+
+def test_opencode_open_route_launches_desktop_with_agent_and_model_arguments(
+    tmp_path: Path,
+    monkeypatch,
+):
+    install_root = tmp_path / "install-root"
+    gui_path = tmp_path / "OpenCode.exe"
+    gui_path.write_text("gui", encoding="utf-8")
+    _write_opencode_fixture(install_root)
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+
+    captured: dict[str, object] = {}
+
+    def fake_popen(command, **kwargs):
+        captured["command"] = command
+        captured["kwargs"] = kwargs
+
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.opencode_service.subprocess.Popen",
+        fake_popen,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.opencode_service._resolve_windows_opencode_desktop_executable_path",
+        lambda config: gui_path,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.opencode_service.detect_opencode_desktop_instances",
+        lambda executable_path: [],
+        raising=False,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.opencode_service.detect_opencode_instances",
+        lambda executable_path: [],
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.opencode_service.ensure_runtime_ready",
+        lambda config: {
+            "status": "ok",
+            "action": "ensure-runtime-ready",
+            "summary": "Runtime je spreman za OpenCode.",
+            "details": {
+                "returncode": 0,
+                "stdout": "Runtime je spreman za OpenCode.",
+                "stderr": "",
+            },
+        },
+        raising=False,
+    )
+
+    client = TestClient(app)
+    response = client.post("/api/opencode/open", json={"profile": "balanced"})
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "ok"
+    assert "gui" in payload["summary"].lower()
+    assert captured["command"][0] == str(gui_path)
+    assert captured["command"][1:5] == [
+        "--agent",
+        "build",
+        "--model",
+        "local-lacc/recommended-6gb",
+    ]
+    assert captured["command"][-1] == str(install_root)
+    assert captured["kwargs"]["cwd"] == str(install_root)
+
+
+def test_opencode_open_route_reapplies_selection_when_desktop_window_is_already_open(
+    tmp_path: Path,
+    monkeypatch,
+):
+    install_root = tmp_path / "install-root"
+    gui_path = tmp_path / "OpenCode.exe"
+    gui_path.write_text("gui", encoding="utf-8")
+    _write_opencode_fixture(install_root)
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+
+    captured: dict[str, object] = {}
+
+    def fake_popen(command, **kwargs):
+        captured["command"] = command
+        captured["kwargs"] = kwargs
+
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.opencode_service.subprocess.Popen",
+        fake_popen,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.opencode_service._resolve_windows_opencode_desktop_executable_path",
+        lambda config: gui_path,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.opencode_service.detect_opencode_desktop_instances",
+        lambda executable_path: [
+            {
+                "pid": 4242,
+                "name": "OpenCode.exe",
+                "commandLine": f'"{gui_path}" "{install_root}"',
+            }
+        ],
+        raising=False,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.opencode_service.ensure_runtime_ready",
+        lambda config: {
+            "status": "ok",
+            "action": "ensure-runtime-ready",
+            "summary": "Runtime je spreman za OpenCode.",
+            "details": {
+                "returncode": 0,
+                "stdout": "Runtime je spreman za OpenCode.",
+                "stderr": "",
+            },
+        },
+        raising=False,
+    )
+
+    client = TestClient(app)
+    response = client.post("/api/opencode/open", json={"profile": "balanced"})
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "ok"
+    assert "ponovo pozvan" in payload["summary"].lower()
+    assert captured["command"][0] == str(gui_path)
+    assert captured["command"][1:5] == [
+        "--agent",
+        "build",
+        "--model",
+        "local-lacc/recommended-6gb",
+    ]
+    assert captured["command"][-1] == str(install_root)
 
 
 def test_prepare_isolated_opencode_workspace_uses_scratch_when_working_directory_is_install_root(
@@ -1035,6 +1211,69 @@ def test_detect_opencode_launcher_instances_ignores_non_cmd_shell_noise(
             "commandLine": f'cmd.exe /d /c "{launcher_path}"',
         }
     ]
+
+
+def test_opencode_process_queries_share_single_windows_process_snapshot(monkeypatch):
+    module = importlib.import_module(
+        "local_ai_control_center_installer.control_center_backend.services.opencode_service"
+    )
+    module = importlib.reload(module)
+
+    calls = {"run": 0}
+    captured_kwargs: list[dict[str, object]] = []
+
+    class FakeCompletedProcess:
+        returncode = 0
+        stdout = json.dumps(
+            [
+                {"ProcessId": 101, "Name": "opencode.exe", "CommandLine": '"C:\\tools\\opencode.exe"'},
+                {"ProcessId": 202, "Name": "OpenCode.exe", "CommandLine": '"C:\\Program Files\\OpenCode\\OpenCode.exe"'},
+                {"ProcessId": 303, "Name": "cmd.exe", "CommandLine": 'cmd.exe /d /c "C:\\launcher.cmd"'},
+                {"ProcessId": 404, "Name": "wt.exe", "CommandLine": 'wt.exe new-tab cmd.exe /d /c "C:\\launcher.cmd"'},
+            ]
+        )
+        stderr = ""
+
+    def fake_run(*args, **kwargs):
+        calls["run"] += 1
+        captured_kwargs.append(kwargs)
+        return FakeCompletedProcess()
+
+    monkeypatch.setattr(module.subprocess, "run", fake_run)
+
+    opencode_processes = module._query_opencode_processes()
+    desktop_processes = module._query_opencode_desktop_processes()
+    launcher_processes = module._query_shell_launcher_processes()
+
+    assert [item["ProcessId"] for item in opencode_processes] == [101]
+    assert [item["ProcessId"] for item in desktop_processes] == [202]
+    assert [item["ProcessId"] for item in launcher_processes] == [303, 404]
+    assert calls == {"run": 1}
+    assert captured_kwargs[0]["creationflags"] == getattr(module.subprocess, "CREATE_NO_WINDOW", 0)
+
+
+def test_opencode_process_queries_cache_empty_windows_snapshot(monkeypatch):
+    module = importlib.import_module(
+        "local_ai_control_center_installer.control_center_backend.services.opencode_service"
+    )
+    module = importlib.reload(module)
+
+    calls = {"run": 0}
+
+    class FakeCompletedProcess:
+        returncode = 0
+        stdout = ""
+        stderr = ""
+
+    def fake_run(*args, **kwargs):
+        calls["run"] += 1
+        return FakeCompletedProcess()
+
+    monkeypatch.setattr(module.subprocess, "run", fake_run)
+
+    assert module._query_opencode_processes() == []
+    assert module._query_shell_launcher_processes() == []
+    assert calls == {"run": 1}
 
 
 def test_opencode_steps_and_settings_routes_persist_panel_managed_values(

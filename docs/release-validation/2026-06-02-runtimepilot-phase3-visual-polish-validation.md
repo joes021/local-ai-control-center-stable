@@ -1,4 +1,4 @@
-Release target: `v0.4.86`
+﻿Release target: `v0.4.86`
 
 Scope:
 - RuntimePilot `Phase 3` vizuelni shell uplift u portalu
@@ -22,3 +22,5 @@ Expected release artifacts:
 Notes:
 - Portal sada pokazuje vidljivu RuntimePilot shell promenu, ne samo novi header i ikone.
 - Browser tab može da traži `Ctrl+F5` zbog keša starih hashed asset fajlova.
+
+

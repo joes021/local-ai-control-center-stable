@@ -35,7 +35,7 @@ export const TUNING_LAB_SLOT_CONTROL_GROUPS: TuningLabPrecisionGroup[] = [
     fields: [
       { key: "presencePenalty", label: "Presence", min: 0, max: 2, step: 0.05 },
       { key: "frequencyPenalty", label: "Frequency", min: 0, max: 2, step: 0.05 },
-      { key: "seed", label: "Seed", min: 0, max: 100, step: 1 },
+      { key: "seed", label: "Seed", min: -1, max: 100, step: 1 },
     ],
   },
 ];

@@ -21,6 +21,24 @@ def test_tuning_lab_summary_route_returns_installer_managed_payload(
     assert [slot["id"] for slot in payload["slots"]] == ["baseline", "recommended", "custom"]
 
 
+def test_tuning_lab_overview_route_returns_fast_shell_payload(
+    tmp_path: Path,
+    monkeypatch,
+):
+    install_root = tmp_path / "install-root"
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+
+    client = TestClient(app)
+    response = client.get("/api/tuning-lab/overview")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "ok"
+    assert [slot["id"] for slot in payload["slots"]] == ["baseline", "recommended", "custom"]
+    assert "history" not in payload
+    assert "historyPage" not in payload
+
+
 def test_tuning_lab_run_status_route_returns_active_run_payload(
     tmp_path: Path,
     monkeypatch,
@@ -79,6 +97,8 @@ def test_tuning_lab_history_route_supports_pagination(
     assert payload["historyPage"] == 1
     assert payload["historyTotalItems"] == 2
     assert [item["runId"] for item in payload["history"]] == ["run-1", "run-2"]
+    assert "slots" not in payload
+    assert "context" not in payload
 
 
 def test_tuning_lab_queue_route_accepts_experiment_payload(

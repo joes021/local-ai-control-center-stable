@@ -1,4 +1,4 @@
-# Ubuntu x86_64 Validation
+﻿# Ubuntu x86_64 Validation
 
 Date: 2026-05-24
 
@@ -111,3 +111,5 @@ Posle toga slede direktno:
 - `OpenCode` launch path
 - Browser direct download path
 - update path
+
+

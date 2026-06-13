@@ -1,4 +1,4 @@
-# Tuning Lab - Game Batch 01
+﻿# Tuning Lab - Game Batch 01
 
 Datum: 2026-05-29
 Namena: prvi konkretan batch test za poređenje podešavanja `llama.cpp + lokalni model + OpenCode`
@@ -250,3 +250,5 @@ Ako budemo pravili `Game Batch 02`, tada bih išao na:
 - jednu puzzle/logic igru
 - jednu tower defense ili RTS-lite igru
 - jednu igru sa jačim UI i persistence slojem
+
+

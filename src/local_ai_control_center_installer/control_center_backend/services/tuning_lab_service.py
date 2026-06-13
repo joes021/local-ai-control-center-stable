@@ -424,15 +424,11 @@ _BATCH_PRESETS: list[dict[str, Any]] = [
 ]
 
 
-def load_tuning_lab_summary(
+def _build_tuning_lab_history_payload(
+    history_items: list[dict[str, Any]],
     *,
-    history_page: int = 1,
-    config: ControlCenterConfig | None = None,
+    page: int,
 ) -> dict[str, Any]:
-    resolved_config = config or get_config()
-    _reconcile_orphaned_active_run(resolved_config)
-    history_items = _load_history(resolved_config)
-    page = max(int(history_page or 1), 1)
     total_items = len(history_items)
     failed_items = sum(
         1
@@ -440,9 +436,27 @@ def load_tuning_lab_summary(
         if str(item.get("status", "") or "").strip().lower() == "failed"
     )
     total_pages = max((total_items + TUNING_LAB_HISTORY_PAGE_SIZE - 1) // TUNING_LAB_HISTORY_PAGE_SIZE, 1)
-    page = min(page, total_pages)
-    start_index = (page - 1) * TUNING_LAB_HISTORY_PAGE_SIZE
+    clamped_page = min(max(int(page or 1), 1), total_pages)
+    start_index = (clamped_page - 1) * TUNING_LAB_HISTORY_PAGE_SIZE
     end_index = start_index + TUNING_LAB_HISTORY_PAGE_SIZE
+    return {
+        "status": "ok",
+        "history": history_items[start_index:end_index],
+        "historyPage": clamped_page,
+        "historyPageSize": TUNING_LAB_HISTORY_PAGE_SIZE,
+        "historyTotalItems": total_items,
+        "historyFailedItems": failed_items,
+        "historyTotalPages": total_pages,
+    }
+
+
+def load_tuning_lab_overview(
+    *,
+    config: ControlCenterConfig | None = None,
+) -> dict[str, Any]:
+    resolved_config = config or get_config()
+    _reconcile_orphaned_active_run(resolved_config)
+    history_items = _load_history(resolved_config)
     run_state = _load_run_state(resolved_config)
     if not run_state["activeRun"]:
         _cleanup_stale_tuning_processes(
@@ -470,12 +484,6 @@ def load_tuning_lab_summary(
         "status": "ok",
         "activeRun": run_state["activeRun"],
         "queue": run_state["queue"],
-        "history": history_items[start_index:end_index],
-        "historyPage": page,
-        "historyPageSize": TUNING_LAB_HISTORY_PAGE_SIZE,
-        "historyTotalItems": total_items,
-        "historyFailedItems": failed_items,
-        "historyTotalPages": total_pages,
         "goalOptions": list(_GOAL_OPTIONS),
         "successCheckTemplates": list(_SUCCESS_CHECK_TEMPLATES),
         "batchPresets": deepcopy(_BATCH_PRESETS),
@@ -515,6 +523,19 @@ def load_tuning_lab_summary(
     }
 
 
+def load_tuning_lab_summary(
+    *,
+    history_page: int = 1,
+    config: ControlCenterConfig | None = None,
+) -> dict[str, Any]:
+    resolved_config = config or get_config()
+    history_items = _load_history(resolved_config)
+    return {
+        **load_tuning_lab_overview(config=resolved_config),
+        **_build_tuning_lab_history_payload(history_items, page=history_page),
+    }
+
+
 def load_tuning_lab_run_status(
     config: ControlCenterConfig | None = None,
 ) -> dict[str, Any]:
@@ -530,7 +551,8 @@ def load_tuning_lab_history_page(
     page: int = 1,
     config: ControlCenterConfig | None = None,
 ) -> dict[str, Any]:
-    return load_tuning_lab_summary(history_page=page, config=config)
+    resolved_config = config or get_config()
+    return _build_tuning_lab_history_payload(_load_history(resolved_config), page=page)
 
 
 def _reconcile_orphaned_active_run(config: ControlCenterConfig) -> None:

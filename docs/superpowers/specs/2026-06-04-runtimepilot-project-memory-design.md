@@ -1,4 +1,4 @@
-# RuntimePilot Project Memory Design
+﻿# RuntimePilot Project Memory Design
 
 **Datum:** 2026-06-04  
 **Status:** predlog za implementaciju  
@@ -412,3 +412,5 @@ To direktno rešava problem:
 - agent lutanja
 
 Na taj način RuntimePilot postaje ne samo launcher i kontrolni centar, nego i **sistem koji čuva fokus rada**.
+
+

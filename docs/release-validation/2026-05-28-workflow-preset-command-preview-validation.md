@@ -1,4 +1,4 @@
-# Windows Validation - Workflow Preset UX i CLI Preview
+﻿# Windows Validation - Workflow Preset UX i CLI Preview
 
 Datum: 2026-05-28  
 Verzija: v0.4.43
@@ -116,3 +116,5 @@ Potvrđeno:
 - jasniji workflow UX
 - stvarne ekvivalentne CLI komande za runtime i OpenCode
 - uspešan lokalni installer upgrade na ovoj mašini
+
+

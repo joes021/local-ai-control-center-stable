@@ -1,4 +1,4 @@
-# Windows OpenCode Bootstrap And Verification Implementation Plan
+﻿# Windows OpenCode Bootstrap And Verification Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -1016,3 +1016,5 @@ git commit -m "docs: update opencode slice status"
 - [ ] CLI exit `0` now requires `opencode_verification_status == "ready"`
 - [ ] `product_installation_status` remains `incomplete`
 - [ ] `README.md` truthfully separates milestone success from full product completion
+
+

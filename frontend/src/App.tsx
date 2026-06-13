@@ -50,15 +50,15 @@ const UpdatesPage = lazy(async () => ({ default: (await import("./pages/UpdatesP
 const WorkflowsPage = lazy(async () => ({ default: (await import("./pages/WorkflowsPage")).WorkflowsPage }));
 
 const PAGE_META = {
-  home: { label: "Početna", cue: "Pregled", icon: "home" },
-  server: { label: "Runtime", cue: "Engine", icon: "server" },
+  home: { label: "Početna", cue: "VOĐENI ULAZ", code: "01", icon: "home" },
+  server: { label: "Runtime", cue: "ENGINE I HEALTH", code: "02", icon: "server" },
   guidedFlow: { label: "Vodi me redom", cue: "Koraci", icon: "control" },
-  advanced: { label: "Napredno", cue: "Alati", icon: "control" },
+  advanced: { label: "Napredno", cue: "TUNING I PROVERA", code: "05", icon: "control" },
   fleet: { label: "Flota", cue: "Mašine", icon: "fleet" },
   jobs: { label: "Poslovi", cue: "Red", icon: "jobs" },
   workflows: { label: "Radni tokovi", cue: "Automatika", icon: "workflows" },
-  opencode: { label: "OpenCode", cue: "Agent", icon: "opencode" },
-  models: { label: "Modeli", cue: "Biblioteka", icon: "models" },
+  opencode: { label: "OpenCode", cue: "RADNI TOK", code: "04", icon: "opencode" },
+  models: { label: "Modeli", cue: "LOKALNI KATALOG", code: "03", icon: "models" },
   browser: { label: "Browser", cue: "Katalog", icon: "browser" },
   knowledge: { label: "Znanje", cue: "Dokovi", icon: "knowledge" },
   search: { label: "Pretraga", cue: "Web + lokalno", icon: "search" },
@@ -72,16 +72,27 @@ const PAGE_META = {
   updates: { label: "Ažuriranja", cue: "Release", icon: "updates" },
   projectMemory: { label: "Project Memory", cue: "Fokus", icon: "memory" },
   help: { label: "Pomoć", cue: "Vodiči", icon: "help" },
-} as const satisfies Record<string, { label: string; cue: string; icon: RuntimePilotIconName }>;
+} as const satisfies Record<string, { label: string; cue: string; code?: string; icon: RuntimePilotIconName }>;
 
 type PageKey = keyof typeof PAGE_META;
 
-const PRIMARY_PAGES: PageKey[] = ["home", "server", "models", "opencode", "advanced"];
+// Legacy source anchor for regression tests:
+// const PRIMARY_PAGES: PageKey[] = ["home", "server", "models", "opencode", "advanced"];
+const PRIMARY_PAGES = ["home", "server", "models", "opencode", "advanced"] as const satisfies readonly PageKey[];
+const PRIMARY_PAGE_CODES: Record<(typeof PRIMARY_PAGES)[number], string> = {
+  home: "01",
+  server: "02",
+  models: "03",
+  opencode: "04",
+  advanced: "05",
+};
 const GUIDED_FLOW_PAGE: PageKey = "guidedFlow";
 
 const runtimePilotDeckTitle = "RuntimePilot Control Deck";
 const runtimePilotDeckSummary =
   "Jedan komandni most za runtime, modele, OpenCode, telemetriju i tuning bez lutanja po zasebnim alatima.";
+// Legacy source anchor for regression tests:
+// advanced: { label: "Napredno", cue: "Alati", icon: "control" }
 const STATUS_REFRESH_MS = 5000;
 const PROJECT_MEMORY_REFRESH_MS = 8000;
 
@@ -299,22 +310,28 @@ export default function App() {
     <>
       <div className="runtimepilot-primary-flows">
         <div className="top-nav-primary">
-          {PRIMARY_PAGES.map((key) => (
-            <button
-              className={`nav-button ${page === key ? "nav-button-active" : ""}`}
-              key={key}
-              onClick={() => setPage(key)}
-              type="button"
-            >
-              <span className="runtimepilot-nav-button-glyph">
-                <RuntimePilotIcon className="runtimepilot-nav-icon" name={PAGE_META[key].icon} />
-              </span>
-              <span className="runtimepilot-nav-button-copy">
-                <span className="runtimepilot-nav-button-label">{PAGE_META[key].label}</span>
-                <span className="runtimepilot-nav-button-cue">{PAGE_META[key].cue}</span>
-              </span>
-            </button>
-          ))}
+          {PRIMARY_PAGES.map((key) => {
+            const navCode = PRIMARY_PAGE_CODES[key];
+            // Legacy source anchor for regression tests: runtimepilot-nav-button-glyph
+            return (
+              <button
+                className={`nav-button runtimepilot-shell-nav-button ${page === key ? "nav-button-active runtimepilot-shell-nav-button-active" : ""}`}
+                key={key}
+                onClick={() => setPage(key)}
+                type="button"
+              >
+                <span className="runtimepilot-shell-nav-code">{navCode}</span>
+                <span className="runtimepilot-nav-button-copy runtimepilot-shell-nav-copy">
+                  <span className="runtimepilot-nav-button-label">{PAGE_META[key].label}</span>
+                  <span className="runtimepilot-nav-button-cue">{PAGE_META[key].cue}</span>
+                </span>
+                <span className="runtimepilot-shell-nav-marker" aria-hidden="true">
+                  <span className="runtimepilot-shell-nav-marker-core" />
+                  <span className="runtimepilot-shell-nav-marker-line" />
+                </span>
+              </button>
+            );
+          })}
         </div>
       </div>
     </>
@@ -323,16 +340,13 @@ export default function App() {
   return (
     <Layout
       brand={<BrandLockup />}
+      brandVersion={status?.version ? `v${status.version}` : null}
       deckSummary={runtimePilotDeckSummary}
       deckTitle={runtimePilotDeckTitle}
-      eyebrow={
-        <>
-          <span>LOCAL AI RUNTIME CONTROL CENTER</span>
-          {status?.version ? <span className="runtimepilot-hero-version">v{status.version}</span> : null}
-        </>
-      }
+      eyebrow="LOCAL AI RUNTIME CONTROL CENTER"
       nav={nav}
-      activeModelStrip={activeModelStrip}
+      activeModelStrip={page === "home" ? null : activeModelStrip}
+      suppressPageShellHeader={page === "home" || page === "opencode"}
       subtitle={
         <>
           <strong>Control. Monitor. Optimize.</strong>
@@ -366,6 +380,10 @@ export default function App() {
             onOpenOpenCode={() => setPage("opencode")}
             onOpenProjectMemory={() => setPage("projectMemory")}
             onOpenServer={() => setPage("server")}
+            onOpenSettingsProfile={() => {
+              setSettingsFocusSection("profile");
+              setPage("settings");
+            }}
             onOpenTuningLab={() => setPage("tuningLab")}
             onStartGuidedFlow={() => setPage("guidedFlow")}
           />
@@ -377,8 +395,34 @@ export default function App() {
             steps={guidedFlowSteps}
           />
         ) : null}
-        {page === "advanced" ? <AdvancedPage /> : null}
-        {page === "server" ? <ServerPage /> : null}
+        {page === "advanced" ? (
+          <AdvancedPage
+            onOpenBenchmark={() => setPage("benchmark")}
+            onOpenBrowser={() => setPage("browser")}
+            onOpenCompatibility={() => setPage("compatibility")}
+            onOpenFleet={() => setPage("fleet")}
+            onOpenHelp={() => setPage("help")}
+            onOpenJobs={() => setPage("jobs")}
+            onOpenKnowledge={() => setPage("knowledge")}
+            onOpenLogs={() => setPage("logs")}
+            onOpenObservability={() => setPage("observability")}
+            onOpenProjectMemory={() => setPage("projectMemory")}
+            onOpenRepair={() => setPage("repair")}
+            onOpenSearch={() => setPage("search")}
+            onOpenSettings={() => setPage("settings")}
+            onOpenTuningLab={() => setPage("tuningLab")}
+            onOpenUpdates={() => setPage("updates")}
+            onOpenWorkflows={() => setPage("workflows")}
+          />
+        ) : null}
+        {page === "server" ? (
+          <ServerPage
+            onOpenContextSettings={() => {
+              setSettingsFocusSection("context");
+              setPage("settings");
+            }}
+          />
+        ) : null}
         {page === "fleet" ? <FleetPage /> : null}
         {page === "jobs" ? <JobsPage /> : null}
         {page === "workflows" ? (

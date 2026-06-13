@@ -1,4 +1,4 @@
-# RuntimePilot Phase 6 Visual Redesign Implementation Plan
+﻿# RuntimePilot Phase 6 Visual Redesign Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -60,3 +60,5 @@
 - [ ] Pokreni puni suite ako ciljani prođu.
 - [ ] Rebuild frontend i osveži `frontend_dist`.
 - [ ] Vizuelno proveri localhost i doradi sitne probleme pre zatvaranja.
+
+

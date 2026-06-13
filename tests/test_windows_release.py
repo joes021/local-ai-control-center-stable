@@ -78,6 +78,23 @@ def test_run_windows_installer_entry_dispatches_panel_mode_without_pause():
     assert prompts == []
 
 
+def test_run_windows_installer_entry_dispatches_startup_mode_without_pause():
+    calls: list[tuple[str, list[str] | None]] = []
+    prompts: list[str] = []
+
+    exit_code = run_windows_installer_entry(
+        main_fn=lambda: 1,
+        startup_main_fn=lambda argv=None: calls.append(("startup", argv)) or 0,
+        argv=["RuntimePilotPanel.exe", "--startup", "--install-root", "C:\\AI"],
+        pause_fn=lambda prompt: prompts.append(prompt) or "",
+        frozen=True,
+    )
+
+    assert exit_code == 0
+    assert calls == [("startup", ["--install-root", "C:\\AI"])]
+    assert prompts == []
+
+
 def test_run_windows_installer_entry_dispatches_uninstall_mode_without_pause():
     calls: list[tuple[str, list[str] | None]] = []
     prompts: list[str] = []

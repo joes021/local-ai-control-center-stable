@@ -1,4 +1,4 @@
-# Windows Themes + Fleet + Jobs Validation
+﻿# Windows Themes + Fleet + Jobs Validation
 
 Date: 2026-05-27
 Branch: `codex/panel-integration`
@@ -124,3 +124,5 @@ Python artifacts built locally:
 - Fleet currently focuses on registry + refresh + remote snapshot truth; it is not yet a full remote control shell.
 - Jobs run while the Control Center backend is active; they are not yet backed by Windows Task Scheduler.
 - Knowledge export is frontend-driven from the current answer payload, not yet a dedicated backend export route.
+
+

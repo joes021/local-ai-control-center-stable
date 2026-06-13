@@ -1,4 +1,4 @@
-# Benchmark Final Polish Implementation Plan
+﻿# Benchmark Final Polish Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -13,11 +13,11 @@
 ### Task 1: Benchmark Metadata Truth
 
 **Files:**
-- Modify: `C:\Users\<user>\Documents\local-ai-control-center-stable\src\local_ai_control_center_installer\control_center_backend\services\benchmark_service.py`
-- Modify: `C:\Users\<user>\Documents\local-ai-control-center-stable\src\local_ai_control_center_installer\control_center_backend\services\status_service.py`
-- Modify: `C:\Users\<user>\Documents\local-ai-control-center-stable\src\local_ai_control_center_installer\control_center_backend\services\settings_service.py`
-- Modify: `C:\Users\<user>\Documents\local-ai-control-center-stable\frontend\src\lib\types.ts`
-- Test: `C:\Users\<user>\Documents\local-ai-control-center-stable\tests\test_control_center_benchmark.py`
+- Modify: `C:\repo\local-ai-control-center-stable\src\local_ai_control_center_installer\control_center_backend\services\benchmark_service.py`
+- Modify: `C:\repo\local-ai-control-center-stable\src\local_ai_control_center_installer\control_center_backend\services\status_service.py`
+- Modify: `C:\repo\local-ai-control-center-stable\src\local_ai_control_center_installer\control_center_backend\services\settings_service.py`
+- Modify: `C:\repo\local-ai-control-center-stable\frontend\src\lib\types.ts`
+- Test: `C:\repo\local-ai-control-center-stable\tests\test_control_center_benchmark.py`
 
 - [ ] **Step 1: Write failing metadata tests**
 
@@ -57,12 +57,12 @@ git commit -m "feat: enrich benchmark metadata truth"
 ### Task 2: Compare and Export Backend
 
 **Files:**
-- Modify: `C:\Users\<user>\Documents\local-ai-control-center-stable\src\local_ai_control_center_installer\control_center_backend\routes\benchmark.py`
-- Modify: `C:\Users\<user>\Documents\local-ai-control-center-stable\src\local_ai_control_center_installer\control_center_backend\services\benchmark_service.py`
-- Modify: `C:\Users\<user>\Documents\local-ai-control-center-stable\frontend\src\lib\api.ts`
-- Modify: `C:\Users\<user>\Documents\local-ai-control-center-stable\frontend\src\lib\types.ts`
-- Test: `C:\Users\<user>\Documents\local-ai-control-center-stable\tests\test_control_center_benchmark_routes.py`
-- Test: `C:\Users\<user>\Documents\local-ai-control-center-stable\tests\test_control_center_benchmark.py`
+- Modify: `C:\repo\local-ai-control-center-stable\src\local_ai_control_center_installer\control_center_backend\routes\benchmark.py`
+- Modify: `C:\repo\local-ai-control-center-stable\src\local_ai_control_center_installer\control_center_backend\services\benchmark_service.py`
+- Modify: `C:\repo\local-ai-control-center-stable\frontend\src\lib\api.ts`
+- Modify: `C:\repo\local-ai-control-center-stable\frontend\src\lib\types.ts`
+- Test: `C:\repo\local-ai-control-center-stable\tests\test_control_center_benchmark_routes.py`
+- Test: `C:\repo\local-ai-control-center-stable\tests\test_control_center_benchmark.py`
 
 - [ ] **Step 1: Write failing compare/export tests**
 
@@ -99,9 +99,9 @@ git commit -m "feat: add benchmark compare and export backend"
 ### Task 3: Benchmark UI Compare, Export, and Dense Truth
 
 **Files:**
-- Modify: `C:\Users\<user>\Documents\local-ai-control-center-stable\frontend\src\pages\BenchmarkPage.tsx`
-- Modify: `C:\Users\<user>\Documents\local-ai-control-center-stable\frontend\src\styles.css`
-- Test: `C:\Users\<user>\Documents\local-ai-control-center-stable\tests\test_control_center_frontend_dist.py`
+- Modify: `C:\repo\local-ai-control-center-stable\frontend\src\pages\BenchmarkPage.tsx`
+- Modify: `C:\repo\local-ai-control-center-stable\frontend\src\styles.css`
+- Test: `C:\repo\local-ai-control-center-stable\tests\test_control_center_frontend_dist.py`
 
 - [ ] **Step 1: Write failing frontend assertions**
 
@@ -140,9 +140,9 @@ git commit -m "feat: polish benchmark compare and export ui"
 ### Task 4: Local Product Validation and Installer Refresh
 
 **Files:**
-- Modify: `C:\Users\<user>\Documents\local-ai-control-center-stable\pyproject.toml`
-- Modify: `C:\Users\<user>\Documents\local-ai-control-center-stable\packaging\build_windows_installer.ps1` if validation finds packaging gaps
-- Create: `C:\Users\<user>\Documents\local-ai-control-center-stable\docs\release-validation\2026-05-25-windows-benchmark-final-polish-validation.md`
+- Modify: `C:\repo\local-ai-control-center-stable\pyproject.toml`
+- Modify: `C:\repo\local-ai-control-center-stable\packaging\build_windows_installer.ps1` if validation finds packaging gaps
+- Create: `C:\repo\local-ai-control-center-stable\docs\release-validation\2026-05-25-windows-benchmark-final-polish-validation.md`
 
 - [ ] **Step 1: Run full verification**
 
@@ -184,7 +184,7 @@ git commit -m "chore: validate benchmark final polish release"
 ### Task 5: GitHub Release Sync
 
 **Files:**
-- Create/update artifacts in `C:\Users\<user>\Documents\local-ai-control-center-stable\dist`
+- Create/update artifacts in `C:\repo\local-ai-control-center-stable\dist`
 
 - [ ] **Step 1: Push branch**
 
@@ -208,4 +208,6 @@ Use `gh release create ...`
 Run:
 - `gh release view v<version>`
 - confirm `.exe` is attached
+
+
 

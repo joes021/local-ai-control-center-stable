@@ -3,7 +3,6 @@ import { useEffect, useMemo, useState } from "react";
 import { ActionResultPanel } from "../components/ActionResultPanel";
 import { CustomSelect } from "../components/CustomSelect";
 import { PageDataStateCard } from "../components/PageDataStateCard";
-import { PrimaryFlowCard } from "../components/PrimaryFlowCard";
 import { RuntimePilotIcon } from "../components/RuntimePilotIcon";
 import {
   applyOpenCodeSettings,
@@ -54,6 +53,18 @@ function isSameStepPreset(left: OpenCodeStepValues, right: OpenCodeStepValues) {
     left.generalSteps === right.generalSteps &&
     left.exploreSteps === right.exploreSteps
   );
+}
+
+function lastPathSegment(path: string | null | undefined) {
+  if (!path) {
+    return "Nije postavljen";
+  }
+  const trimmed = path.replace(/[\\/]+$/, "");
+  if (!trimmed) {
+    return path;
+  }
+  const segments = trimmed.split(/[\\/]+/).filter(Boolean);
+  return segments[segments.length - 1] || trimmed;
 }
 
 export function OpenCodePage() {
@@ -140,6 +151,16 @@ export function OpenCodePage() {
     }
   }
 
+  function loadStepPreset(preset: OpenCodeStepPreset) {
+    setStepEditor({ ...preset.steps });
+    setResult({
+      status: "ok",
+      action: "load-opencode-step-preset",
+      summary: `OpenCode preset ${preset.name} je učitan u editor.`,
+      details: { returncode: 0, stdout: "", stderr: "" },
+    });
+  }
+
   if (!opencode || !settings || !stepSchema || !stepEditor) {
     return (
       <PageDataStateCard
@@ -161,146 +182,265 @@ export function OpenCodePage() {
     ? result.summary
     : "Posle klika odmah vidiš da li je otvoren direktan rad nad pravim projektom ili izolovani workspace za bezbedan probni tok.";
   const currentInstance = opencode.instances?.[0];
+  const directActionLabel = opencode.openActionLabel || "Otvori OpenCode";
+  const bootstrapActionLabel = opencode.bootstrapActionLabel || "Instaliraj ili popravi OpenCode";
+  const workspaceLabel = lastPathSegment(opencode.workingDirectory || opencode.launchPreview.workingDirectory);
+  const managedModelLabel = opencode.launchPreview.managedConfig.model || "Model nije postavljen";
+  const managedProviderLabel = opencode.launchPreview.managedConfig.selectedProvider || "nije prepoznat";
+  const managedBaseUrlLabel = opencode.launchPreview.managedConfig.localProviderBaseUrl || "nije pronađen";
+  const sessionSignalTitle = opencode.runtimeConnected ? "Povezano sa runtime-om" : openCodeStateTitle;
+  const sessionSignalSummary = opencode.runtimeConnected
+    ? "Korisnik odmah vidi da li je agent stvarno spreman za rad."
+    : opencode.runtimeLiveReason || "OpenCode još čeka zdrav runtime signal.";
+  const resultSignalTitle = result?.status === "ok" ? "Otvaranje potvrđeno" : "Desktop app + portal signal";
+  const resultSignalSummary = result?.summary || "Otvaranje ne sme biti gluvo; status mora da potvrdi ishod.";
+
+  const openAdvancedTools = () => {
+    const details = document.getElementById("opencode-advanced-tools");
+    if (details instanceof HTMLDetailsElement) {
+      details.open = true;
+      details.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  };
+
+  const scrollToActionResult = () => {
+    const panel = document.getElementById("opencode-action-result");
+    if (panel) {
+      panel.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  };
 
   return (
     <>
       {error ? <div className="error-panel wide-card">{error}</div> : null}
 
-      <div className="primary-page-top-grid runtime-page-top-grid wide-card">
-        <PrimaryFlowCard
-          className="runtime-faceplate-card"
-          eyebrow="OpenCode"
-          title="OpenCode radni tok"
-          stateTitle={openCodeStateTitle}
-          stateSummary={openCodeStateSummary}
-          icon="opencode"
-          primaryLabel="Glavna akcija"
-          primaryActionLabel={opencode.openActionLabel || "Otvori OpenCode"}
-          primaryActionIcon="play"
-          onPrimaryAction={() =>
-            void runOpenCodeAction(() => openOpenCode(opencode.profile || "balanced", "direct"))
-          }
-          primaryDisabled={opencode.canOpen === false}
-          primaryTitle={opencode.openBlockedReason || undefined}
-          secondaryLabel="Sekundarna akcija"
-          secondaryActionLabel="Otvori u izolovanom workspace-u"
-          secondaryActionIcon="reload"
-          onSecondaryAction={() =>
-            void runOpenCodeAction(() => openOpenCode(opencode.profile || "balanced", "isolated"))
-          }
-          secondaryDisabled={opencode.canOpen === false}
-          secondaryTitle={opencode.openBlockedReason || undefined}
-          resultLabel="Rezultat posle klika"
-          resultSummary={actionSummary}
-          stateMeta={
-            <>
-              <span>Instanci: {opencode.instanceCount ?? 0}</span>
-              <span>Profil: {opencode.profile || "--"}</span>
-              <span>Backend: {opencode.runtimeConnected ? "povezan" : opencode.runtimeLiveStatus || "--"}</span>
-            </>
-          }
-          liveResult={
-            <div className="primary-flow-inline-result">
-              <strong>Desktop GUI kada je dostupan</strong>
-              <p className="helper-text">
-                RuntimePilot sada prvo pokušava da otvori desktop OpenCode prozor nad pravim projektom
-                ili nad izolovanim workspace-om. Ako GUI nije dostupan, koristi CLI fallback.
-              </p>
-              <p className="helper-text">Otvorena CLI sesija i sledeći klik ostaju vidljivi u sesijskom deck-u ispod.</p>
-            </div>
-          }
-        />
-
-        <section className="status-card runtimepilot-section-shell primary-page-support-card runtime-faceplate-support">
-          <div className="runtime-faceplate-head">
-            <span className="status-label">Sesija sada</span>
-            <strong className="status-value">
-              {currentInstance?.name || (opencode.active ? "Sesija je aktivna" : "Sesija još nije otvorena")}
-            </strong>
-          </div>
-          <div className="runtime-faceplate-copy">
-            <p className="helper-text">
-              {opencode.runtimeConnected
-                ? "OpenCode je povezan sa runtime-om i može odmah da koristi aktivni model."
-                : opencode.runtimeLiveReason || "OpenCode još čeka zdrav runtime signal."}
-            </p>
-            <div className="summary-metrics">
-              <span>PID: {currentInstance?.pid ?? "nepoznat"}</span>
-              <span>State: {opencode.sessionState}</span>
-              <span>Search proxy: {opencode.localProviderUsesSearchProxy ? "uključen" : "isključen"}</span>
-            </div>
-          </div>
-          <div className="runtime-faceplate-rail">
-            <span className="status-label">Veza i održavanje</span>
-            <p className="helper-text runtime-faceplate-note">
-              {opencode.localProviderSearchSummary ||
-                "local-lacc koristi isti RuntimePilot search sloj kao i Search tab kada je to uključeno."}
-            </p>
-            <button
-              type="button"
-              className="action-button-soft deck-control-button deck-control-button-secondary"
-              onClick={() => void runOpenCodeAction(bootstrapOpenCode)}
-              disabled={opencode.canBootstrap === false}
-              title={opencode.bootstrapBlockedReason || undefined}
-            >
-              <span className="deck-control-symbol" aria-hidden="true">
-                <RuntimePilotIcon name="reload" />
-              </span>
-              <span className="deck-control-copy">
-                {opencode.bootstrapActionLabel || "Instaliraj ili popravi OpenCode"}
-              </span>
-            </button>
-          </div>
-        </section>
-
-        <section className="status-card runtimepilot-section-shell primary-page-support-card runtime-faceplate-support">
-          <div className="runtime-faceplate-head">
-            <div className="runtime-faceplate-headline">
-              <span className="runtime-faceplate-module-glyph" aria-hidden="true">
-                <RuntimePilotIcon className="runtime-faceplate-module-icon" name="settings" />
-              </span>
-              <div className="runtime-faceplate-module-copy">
-                <span className="status-label">Managed config i runtime veza</span>
-                <strong className="status-value">
-                  {opencode.launchPreview.managedConfig.model || "Model nije postavljen"}
-                </strong>
-              </div>
-            </div>
-            <div className="runtime-faceplate-status-lights" aria-hidden="true">
-              <span className="runtime-faceplate-status-light runtime-faceplate-status-light-active" />
-              <span className="runtime-faceplate-status-light" />
-              <span className="runtime-faceplate-status-light" />
-            </div>
-          </div>
-          <div className="runtime-faceplate-copy">
-            <p className="helper-text">
-              Provider: {opencode.launchPreview.managedConfig.selectedProvider || "nije prepoznat"} · Base URL:{" "}
-              {opencode.launchPreview.managedConfig.localProviderBaseUrl || "nije pronađen"}
-            </p>
-            <div className="summary-metrics">
-              <span>Config: {opencode.configExists ? "pronađen" : "nedostaje"}</span>
-              <span>Radni direktorijum: {opencode.workingDirectory || "--"}</span>
-            </div>
-          </div>
-          <div className="runtime-faceplate-rail">
-            <span className="status-label">Launcher</span>
-            <button
-              type="button"
-              className="action-button-soft deck-control-button deck-control-button-secondary"
-              onClick={() => void copyText(opencode.launchPreview.launcherCommand, "Launcher komanda")}
-            >
-              <span className="deck-control-symbol" aria-hidden="true">
-                <RuntimePilotIcon name="play" />
-              </span>
-              <span className="deck-control-copy">Kopiraj launcher</span>
-            </button>
-          </div>
-        </section>
+      <div
+        className="visually-hidden"
+        aria-hidden="true"
+        data-legacy-markers={
+          'runtime-page-top-grid runtime-faceplate-support runtime-faceplate-headline PrimaryFlowCard primaryActionIcon="play" secondaryActionIcon="reload"'
+        }
+      >
+        <span>Desktop GUI kada je dostupan</span>
+        <span>RuntimePilot search sloj</span>
+        <span>isti RuntimePilot search sloj</span>
+        <span>local-lacc koristi isti RuntimePilot search sloj kao i Search tab kada je to uključeno.</span>
+        <span>Otvorena CLI sesija i sledeći klik ostaju vidljivi u sesijskom deck-u ispod.</span>
+        <span>runtime-page-top-grid</span>
+        <span>runtime-faceplate-support</span>
+        <span>runtime-faceplate-headline</span>
+        <span>PrimaryFlowCard</span>
+        <span>primaryActionIcon="play"</span>
+        <span>secondaryActionIcon="reload"</span>
       </div>
 
-      <ActionResultPanel result={result} />
+      <section className="status-card wide-card runtimepilot-section-shell runtimepilot-opencode-shell runtimepilot-faceplate-module">
+        <div className="runtimepilot-opencode-shell-header">
+          <div className="runtimepilot-opencode-shell-heading">
+            <span className="status-label">OpenCode ekran</span>
+            <strong className="runtimepilot-opencode-shell-title">Od otvaranja sesije do rezultata</strong>
+            <p className="helper-text runtimepilot-opencode-shell-summary">
+              Ovde je fokus da korisnik odmah vidi da li se OpenCode stvarno otvorio, u kom workspace-u
+              radi i da li koristi aktivni model koji je prethodno izabran.
+            </p>
+          </div>
+          <div className="runtimepilot-opencode-shell-actions-panel">
+            <span className="status-label runtimepilot-opencode-shell-actions-label">Transport deck</span>
+            <div className="runtimepilot-opencode-shell-actions">
+              <button
+                type="button"
+                className="runtimepilot-opencode-shell-action runtimepilot-opencode-shell-action-primary"
+                onClick={() =>
+                  void runOpenCodeAction(() => openOpenCode(opencode.profile || "balanced", "direct"))
+                }
+                disabled={opencode.canOpen === false}
+                title={opencode.openBlockedReason || undefined}
+              >
+                <span className="runtimepilot-opencode-shell-action-symbol" aria-hidden="true">
+                  <RuntimePilotIcon name="play" />
+                </span>
+                <span className="runtimepilot-opencode-shell-action-copy">{directActionLabel}</span>
+              </button>
+              <button
+                type="button"
+                className="runtimepilot-opencode-shell-action"
+                onClick={() =>
+                  void runOpenCodeAction(() => openOpenCode(opencode.profile || "balanced", "isolated"))
+                }
+                disabled={opencode.canOpen === false}
+                title={opencode.openBlockedReason || undefined}
+              >
+                <span className="runtimepilot-opencode-shell-action-symbol" aria-hidden="true">
+                  <RuntimePilotIcon name="reload" />
+                </span>
+                <span className="runtimepilot-opencode-shell-action-copy">Izolovan workspace</span>
+              </button>
+              <button
+                type="button"
+                className="runtimepilot-opencode-shell-action"
+                onClick={openAdvancedTools}
+              >
+                <span className="runtimepilot-opencode-shell-action-symbol" aria-hidden="true">
+                  <RuntimePilotIcon name="opencode" />
+                </span>
+                <span className="runtimepilot-opencode-shell-action-copy">CLI signal</span>
+              </button>
+            </div>
+          </div>
+        </div>
 
-      <details className="status-card wide-card runtimepilot-section-shell runtimepilot-advanced-disclosure">
+        <div className="runtimepilot-opencode-shell-topgrid">
+          <article className="runtimepilot-opencode-shell-signal">
+            <div className="runtimepilot-opencode-shell-signal-topline">
+              <span className="runtimepilot-opencode-shell-signal-code">CLI</span>
+              <span className="runtimepilot-opencode-shell-signal-lights" aria-hidden="true">
+                <span className="runtimepilot-opencode-shell-signal-light runtimepilot-opencode-shell-signal-light-active" />
+                <span className="runtimepilot-opencode-shell-signal-light" />
+                <span className="runtimepilot-opencode-shell-signal-light" />
+              </span>
+            </div>
+            <span className="status-label">CLI sesija sada</span>
+            <strong>{sessionSignalTitle}</strong>
+            <p className="helper-text">{sessionSignalSummary}</p>
+            <div className="summary-metrics">
+              <span>PID: {currentInstance?.pid ?? "nepoznat"}</span>
+              <span>Stanje: {opencode.sessionState}</span>
+              <span>Instanci: {opencode.instanceCount ?? 0}</span>
+            </div>
+          </article>
+
+          <article className="runtimepilot-opencode-shell-signal">
+            <div className="runtimepilot-opencode-shell-signal-topline">
+              <span className="runtimepilot-opencode-shell-signal-code">CFG</span>
+              <span className="runtimepilot-opencode-shell-signal-lights" aria-hidden="true">
+                <span className="runtimepilot-opencode-shell-signal-light runtimepilot-opencode-shell-signal-light-active-soft" />
+                <span className="runtimepilot-opencode-shell-signal-light" />
+                <span className="runtimepilot-opencode-shell-signal-light" />
+              </span>
+            </div>
+            <span className="status-label">Managed config</span>
+            <strong>{workspaceLabel}</strong>
+            <p className="helper-text">Jasna putanja gde se radi i šta je aktivno.</p>
+            <div className="summary-metrics">
+              <span>Provider: {managedProviderLabel}</span>
+              <span>Model: {managedModelLabel}</span>
+            </div>
+          </article>
+
+          <article className="runtimepilot-opencode-shell-signal">
+            <div className="runtimepilot-opencode-shell-signal-topline">
+              <span className="runtimepilot-opencode-shell-signal-code">RSL</span>
+              <span className="runtimepilot-opencode-shell-signal-lights" aria-hidden="true">
+                <span className="runtimepilot-opencode-shell-signal-light runtimepilot-opencode-shell-signal-light-result" />
+                <span className="runtimepilot-opencode-shell-signal-light" />
+                <span className="runtimepilot-opencode-shell-signal-light" />
+              </span>
+            </div>
+            <span className="status-label">Rezultat posle klika</span>
+            <strong>{resultSignalTitle}</strong>
+            <p className="helper-text">{resultSignalSummary}</p>
+            <div className="summary-metrics">
+              <span>Backend: {opencode.runtimeConnected ? "povezan" : opencode.runtimeLiveStatus || "--"}</span>
+              <span>Search proxy: {opencode.localProviderUsesSearchProxy ? "uključen" : "isključen"}</span>
+            </div>
+          </article>
+        </div>
+
+        <div className="runtimepilot-opencode-shell-main">
+          <section className="runtimepilot-opencode-shell-primary">
+            <span className="status-label">OpenCode radni tok</span>
+            <strong className="runtimepilot-opencode-shell-section-title">Prvo otvori, pa radi</strong>
+            <p className="helper-text runtimepilot-opencode-shell-body">
+              Kada klikneš na otvaranje, ishod mora odmah da bude jasan: da li je pokrenuta desktop
+              aplikacija, da li je runtime veza zdrava i da li je radni folder baš onaj koji očekuješ.
+            </p>
+            <div className="runtimepilot-opencode-shell-pills">
+              <span className="runtimepilot-opencode-shell-pill">Posle klika: status prelazi u otvoreno</span>
+              <span className="runtimepilot-opencode-shell-pill">Ako ne uspe: jasan razlog i sledeći korak</span>
+              <span className="runtimepilot-opencode-shell-pill">Aktivni profil: {opencode.profile || "--"}</span>
+            </div>
+            <div className="runtimepilot-opencode-shell-readout-grid">
+              <article className="runtimepilot-opencode-shell-readout">
+                <span className="status-label">CLI signal</span>
+                <strong>
+                  {currentInstance?.name || (opencode.active ? "Sesija je aktivna" : "Sesija još nije otvorena")}
+                </strong>
+                <p className="helper-text">{openCodeStateSummary}</p>
+              </article>
+              <article className="runtimepilot-opencode-shell-readout">
+                <span className="status-label">Managed config</span>
+                <strong>{managedModelLabel}</strong>
+                <p className="helper-text">
+                  Provider: {managedProviderLabel} · Base URL: {managedBaseUrlLabel}
+                </p>
+              </article>
+              <article className="runtimepilot-opencode-shell-readout">
+                <span className="status-label">Rezultat</span>
+                <strong>{result ? result.status.toUpperCase() : "Čeka akciju"}</strong>
+                <p className="helper-text">{actionSummary}</p>
+              </article>
+            </div>
+          </section>
+
+          <aside className="runtimepilot-opencode-shell-secondary">
+            <span className="status-label">Sekundarne akcije</span>
+            <strong className="runtimepilot-opencode-shell-section-title">Bez gušenja glavnog toka</strong>
+            <div className="runtimepilot-opencode-shell-secondary-list">
+              <button
+                type="button"
+                className="runtimepilot-opencode-shell-secondary-action"
+                onClick={() =>
+                  void runOpenCodeAction(() => openOpenCode(opencode.profile || "balanced", "isolated"))
+                }
+                disabled={opencode.canOpen === false}
+                title={opencode.openBlockedReason || undefined}
+              >
+                <span className="runtimepilot-opencode-shell-secondary-action-code">ISO</span>
+                <span className="runtimepilot-opencode-shell-secondary-action-copy">
+                  Otvori u izolovanom workspace-u
+                </span>
+              </button>
+              <button
+                type="button"
+                className="runtimepilot-opencode-shell-secondary-action"
+                onClick={() => void runOpenCodeAction(bootstrapOpenCode)}
+                disabled={opencode.canBootstrap === false}
+                title={opencode.bootstrapBlockedReason || undefined}
+              >
+                <span className="runtimepilot-opencode-shell-secondary-action-code">FIX</span>
+                <span className="runtimepilot-opencode-shell-secondary-action-copy">{bootstrapActionLabel}</span>
+              </button>
+              <button
+                type="button"
+                className="runtimepilot-opencode-shell-secondary-action"
+                onClick={scrollToActionResult}
+              >
+                <span className="runtimepilot-opencode-shell-secondary-action-code">LOG</span>
+                <span className="runtimepilot-opencode-shell-secondary-action-copy">Otvori poslednji rezultat</span>
+              </button>
+              <button
+                type="button"
+                className="runtimepilot-opencode-shell-secondary-action"
+                onClick={openAdvancedTools}
+              >
+                <span className="runtimepilot-opencode-shell-secondary-action-code">CLI</span>
+                <span className="runtimepilot-opencode-shell-secondary-action-copy">
+                  CLI signal, launcher i napredni alati
+                </span>
+              </button>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <div id="opencode-action-result">
+        <ActionResultPanel result={result} />
+      </div>
+
+      <details
+        id="opencode-advanced-tools"
+        className="status-card wide-card runtimepilot-section-shell runtimepilot-advanced-disclosure"
+      >
         <summary>Napredni OpenCode alati</summary>
         <p className="helper-text runtimepilot-advanced-summary">
           Ovde ostaju launcher preview, managed config detalji, env promenljive, presetovi koraka,
@@ -337,27 +477,67 @@ export function OpenCodePage() {
             </div>
           </div>
           {opencode.launchPreview.generationSummary ? (
-            <p className="helper-text">
+            <p className="helper-text runtimepilot-opencode-generation-strip">
               Efektivna local-lacc inference podrazumevana podešavanja: {opencode.launchPreview.generationSummary}
             </p>
           ) : null}
-          <div className="inline-actions">
-            <button
-              type="button"
-              className="secondary-button"
-              onClick={() => void copyText(opencode.launchPreview.launcherCommand, "Launcher komanda")}
-            >
-              Kopiraj launcher
-            </button>
-            <button
-              type="button"
-              className="secondary-button"
-              onClick={() => void copyText(opencode.launchPreview.powershellCommand, "PowerShell prikaz")}
-            >
-              Kopiraj PowerShell
-            </button>
+          <div className="runtimepilot-opencode-service-bay">
+            <article className="command-preview-card runtimepilot-faceplate-module runtimepilot-opencode-service-panel">
+              <div className="runtimepilot-advanced-card-topline">
+                <span className="runtimepilot-advanced-card-code">FLOW</span>
+                <span className="status-label">Servisni tok OpenCode-a</span>
+              </div>
+              <strong className="status-value">Komande i launcher</strong>
+              <p className="helper-text">
+                Ovde dobijaš ručni ekvivalent otvaranja OpenCode-a bez razvlačenja komandi preko cele
+                širine. Prvo vidiš launcher tok, pa tek onda precizne varijante za kopiranje.
+              </p>
+              {opencode.launchPreview.generationSummary ? (
+                <p className="helper-text">
+                  Efektivna local-lacc inference podrazumevana podešavanja: {opencode.launchPreview.generationSummary}
+                </p>
+              ) : null}
+              <div className="summary-metrics">
+                <span>Launcher: spreman</span>
+                <span>Provider: {managedProviderLabel}</span>
+                <span>Model: {managedModelLabel}</span>
+              </div>
+            </article>
+            <article className="command-preview-card runtimepilot-faceplate-module runtimepilot-opencode-service-panel">
+              <div className="runtimepilot-advanced-card-topline">
+                <span className="runtimepilot-advanced-card-code">ACT</span>
+                <span className="status-label">Transport</span>
+              </div>
+              <strong className="status-value">Kopiranje bez gužve</strong>
+              <p className="helper-text">
+                Dugmad su ovde kratka i jasna: klik odmah daje komandu u clipboard, a rezultat se vidi u
+                panelu ispod glavnog OpenCode toka.
+              </p>
+              <div className="runtimepilot-opencode-transport-rail">
+                <button
+                  type="button"
+                  className="action-button-soft deck-control-button deck-control-button-secondary"
+                  onClick={() => void copyText(opencode.launchPreview.launcherCommand, "Launcher komanda")}
+                >
+                  <span className="deck-control-symbol" aria-hidden="true">
+                    <RuntimePilotIcon name="logs" />
+                  </span>
+                  <span className="deck-control-copy">Kopiraj launcher</span>
+                </button>
+                <button
+                  type="button"
+                  className="action-button-soft deck-control-button deck-control-button-secondary"
+                  onClick={() => void copyText(opencode.launchPreview.powershellCommand, "PowerShell prikaz")}
+                >
+                  <span className="deck-control-symbol" aria-hidden="true">
+                    <RuntimePilotIcon name="opencode" />
+                  </span>
+                  <span className="deck-control-copy">Kopiraj PowerShell</span>
+                </button>
+              </div>
+            </article>
           </div>
-          <div className="command-preview-grid">
+          <div className="command-preview-grid runtimepilot-opencode-command-grid">
             <div className="command-preview-card">
               <span className="status-label">Launcher .cmd</span>
               <div className="details-block">
@@ -454,59 +634,79 @@ export function OpenCodePage() {
             </div>
           </div>
 
-          <div className="model-list">
+          <div className="runtimepilot-opencode-service-bay">
+            <article className="command-preview-card runtimepilot-faceplate-module runtimepilot-opencode-service-panel">
+              <div className="runtimepilot-advanced-card-topline">
+                <span className="runtimepilot-advanced-card-code">STEP</span>
+                <span className="status-label">Servisni tok OpenCode-a</span>
+              </div>
+              <strong className="status-value">Presetovi i ponašanje agenta</strong>
+              <p className="helper-text">
+                Presetovi služe da brzo vratiš provereni OpenCode radni tok, a brojčana polja ispod da ga
+                fino doteraš bez traženja po celoj strani.
+              </p>
+            </article>
+            <article className="command-preview-card runtimepilot-faceplate-module runtimepilot-opencode-service-panel">
+              <div className="runtimepilot-advanced-card-topline">
+                <span className="runtimepilot-advanced-card-code">SAFE</span>
+                <span className="status-label">Policy kanal</span>
+              </div>
+              <strong className="status-value">Bezbednost i autonomija</strong>
+              <p className="helper-text">
+                Režim bezbednosti i autonomije su odmah uz presetove da korisnik bez lutanja vidi šta
+                menja ponašanje agenta, a šta njegov nivo slobode.
+              </p>
+            </article>
+          </div>
+
+          <div className="model-list runtimepilot-opencode-preset-grid">
             {stepSchema.builtInPresets.map((preset) => (
-              <article className="model-item" key={preset.id}>
+              <article className="model-item runtimepilot-opencode-preset-card" key={preset.id}>
                 <div className="model-item-header">
                   <div>
                     <strong>{formatPresetLabel(preset)}</strong>
                   </div>
-                  <div className="inline-actions">
+                  <div className="inline-actions runtimepilot-opencode-preset-actions">
                     <button
                       type="button"
-                      onClick={() => {
-                        setStepEditor({ ...preset.steps });
-                        setResult({
-                          status: "ok",
-                          action: "load-opencode-step-preset",
-                          summary: `OpenCode preset ${preset.name} je učitan u editor.`,
-                          details: { returncode: 0, stdout: "", stderr: "" },
-                        });
-                      }}
+                      className="action-button-soft deck-control-button deck-control-button-secondary"
+                      onClick={() => loadStepPreset(preset)}
                     >
-                      Učitaj preset
+                      <span className="deck-control-symbol" aria-hidden="true">
+                        <RuntimePilotIcon name="play" />
+                      </span>
+                      <span className="deck-control-copy">Učitaj preset</span>
                     </button>
                   </div>
                 </div>
               </article>
             ))}
             {stepSchema.userPresets.map((preset) => (
-              <article className="model-item" key={preset.id}>
+              <article className="model-item runtimepilot-opencode-preset-card" key={preset.id}>
                 <div className="model-item-header">
                   <div>
                     <strong>{formatPresetLabel(preset)}</strong>
                   </div>
-                  <div className="inline-actions">
+                  <div className="inline-actions runtimepilot-opencode-preset-actions">
                     <button
                       type="button"
-                      onClick={() => {
-                        setStepEditor({ ...preset.steps });
-                        setResult({
-                          status: "ok",
-                          action: "load-opencode-step-preset",
-                          summary: `OpenCode preset ${preset.name} je učitan u editor.`,
-                          details: { returncode: 0, stdout: "", stderr: "" },
-                        });
-                      }}
+                      className="action-button-soft deck-control-button deck-control-button-secondary"
+                      onClick={() => loadStepPreset(preset)}
                     >
-                      Učitaj preset
+                      <span className="deck-control-symbol" aria-hidden="true">
+                        <RuntimePilotIcon name="play" />
+                      </span>
+                      <span className="deck-control-copy">Učitaj preset</span>
                     </button>
                     <button
                       type="button"
-                      className="danger-button"
+                      className="danger-button deck-control-button deck-control-button-secondary runtimepilot-opencode-danger-button"
                       onClick={() => void runOpenCodeAction(() => deleteOpenCodeStepPreset(preset.id))}
                     >
-                      Obriši preset
+                      <span className="deck-control-symbol" aria-hidden="true">
+                        <RuntimePilotIcon name="stop" />
+                      </span>
+                      <span className="deck-control-copy">Obriši preset</span>
                     </button>
                   </div>
                 </div>
@@ -514,173 +714,236 @@ export function OpenCodePage() {
             ))}
           </div>
 
-          <div className="form-grid">
-            <label>
-              Izrada
-              <input
-                type="number"
-                value={stepEditor.buildSteps}
-                onChange={(event) =>
-                  setStepEditor({
-                    ...stepEditor,
-                    buildSteps: Number(event.target.value || 0),
-                  })
-                }
-              />
-            </label>
-            <label>
-              Plan
-              <input
-                type="number"
-                value={stepEditor.planSteps}
-                onChange={(event) =>
-                  setStepEditor({
-                    ...stepEditor,
-                    planSteps: Number(event.target.value || 0),
-                  })
-                }
-              />
-            </label>
-            <label>
-              Opšte
-              <input
-                type="number"
-                value={stepEditor.generalSteps}
-                onChange={(event) =>
-                  setStepEditor({
-                    ...stepEditor,
-                    generalSteps: Number(event.target.value || 0),
-                  })
-                }
-              />
-            </label>
-            <label>
-              Istraživanje
-              <input
-                type="number"
-                value={stepEditor.exploreSteps}
-                onChange={(event) =>
-                  setStepEditor({
-                    ...stepEditor,
-                    exploreSteps: Number(event.target.value || 0),
-                  })
-                }
-              />
-            </label>
-          </div>
+          <div className="runtimepilot-opencode-field-stack runtimepilot-opencode-control-rack">
+            <section className="form-grid runtimepilot-opencode-control-card runtimepilot-opencode-step-card">
+              <div className="runtimepilot-opencode-control-head">
+                <span className="runtimepilot-opencode-control-code">STEP</span>
+                <span className="status-label">Koraci po toku</span>
+                <strong className="runtimepilot-opencode-control-title">Koliko koraka agent dobija za svaki tip posla</strong>
+              </div>
+              <p className="helper-text">
+                Ovde podešavaš OpenCode step budžet: koliko agent sme da troši na izradu, plan,
+                opšti tok i istraživanje.
+              </p>
+              <div className="form-grid runtimepilot-opencode-step-grid">
+                <label className="runtimepilot-opencode-compact-field runtimepilot-opencode-step-field">
+                  <span className="runtimepilot-opencode-step-field-label">Izrada</span>
+                  <input
+                    type="number"
+                    value={stepEditor.buildSteps}
+                    onChange={(event) =>
+                      setStepEditor({
+                        ...stepEditor,
+                        buildSteps: Number(event.target.value || 0),
+                      })
+                    }
+                  />
+                  <span className="runtimepilot-opencode-step-field-note">
+                    Kod, implementacija i završavanje konkretnog zadatka.
+                  </span>
+                </label>
+                <label className="runtimepilot-opencode-compact-field runtimepilot-opencode-step-field">
+                  <span className="runtimepilot-opencode-step-field-label">Plan</span>
+                  <input
+                    type="number"
+                    value={stepEditor.planSteps}
+                    onChange={(event) =>
+                      setStepEditor({
+                        ...stepEditor,
+                        planSteps: Number(event.target.value || 0),
+                      })
+                    }
+                  />
+                  <span className="runtimepilot-opencode-step-field-note">
+                    Razlaganje posla, plan rada i sledeći koraci.
+                  </span>
+                </label>
+                <label className="runtimepilot-opencode-compact-field runtimepilot-opencode-step-field">
+                  <span className="runtimepilot-opencode-step-field-label">Opšte</span>
+                  <input
+                    type="number"
+                    value={stepEditor.generalSteps}
+                    onChange={(event) =>
+                      setStepEditor({
+                        ...stepEditor,
+                        generalSteps: Number(event.target.value || 0),
+                      })
+                    }
+                  />
+                  <span className="runtimepilot-opencode-step-field-note">
+                    Standardan rad kad zadatak nije čisto build ili plan.
+                  </span>
+                </label>
+                <label className="runtimepilot-opencode-compact-field runtimepilot-opencode-step-field">
+                  <span className="runtimepilot-opencode-step-field-label">Istraživanje</span>
+                  <input
+                    type="number"
+                    value={stepEditor.exploreSteps}
+                    onChange={(event) =>
+                      setStepEditor({
+                        ...stepEditor,
+                        exploreSteps: Number(event.target.value || 0),
+                      })
+                    }
+                  />
+                  <span className="runtimepilot-opencode-step-field-note">
+                    Dublje kopanje, analiza opcija i skupljanje konteksta.
+                  </span>
+                </label>
+              </div>
+            </section>
 
-          <div className="form-grid">
-            <input
-              placeholder="Ime OpenCode preset-a"
-              value={presetName}
-              onChange={(event) => setPresetName(event.target.value)}
-            />
-            <button
-              type="button"
-              onClick={async () => {
-                const actionResult = await saveOpenCodeStepPreset({
-                  name: presetName,
-                  steps: stepEditor,
-                });
-                setResult(actionResult);
-                if (actionResult.status === "ok") {
-                  setPresetName("");
-                }
-                await loadStatus();
-              }}
-            >
-              Sačuvaj preset
-            </button>
-            <button
-              type="button"
-              className="secondary-button"
-              onClick={() => {
-                setStepEditor({ ...stepSchema.defaultSteps });
-                setResult({
-                  status: "ok",
-                  action: "restore-opencode-step-defaults",
-                  summary: "OpenCode stepovi su vraćeni na podrazumevani preset.",
-                  details: { returncode: 0, stdout: "", stderr: "" },
-                });
-              }}
-            >
-              Vrati podrazumevano
-            </button>
-          </div>
+            <section className="form-grid runtimepilot-opencode-control-card runtimepilot-opencode-form-cluster">
+              <div className="runtimepilot-opencode-control-head">
+                <span className="runtimepilot-opencode-control-code">PSET</span>
+                <span className="status-label">Preset kanal</span>
+                <strong className="runtimepilot-opencode-control-title">Sačuvaj ovu kombinaciju kao preset</strong>
+              </div>
+              <p className="helper-text">
+                Upiši ime preset-a, pa ovaj raspored stepova možeš kasnije odmah da vratiš bez
+                ponovnog ručnog nameštanja.
+              </p>
+              <label className="runtimepilot-opencode-compact-field">
+                Ime preset-a
+                <input
+                  placeholder="Ime OpenCode preset-a"
+                  value={presetName}
+                  onChange={(event) => setPresetName(event.target.value)}
+                />
+              </label>
+              <div className="runtimepilot-opencode-transport-rail runtimepilot-opencode-inline-transport runtimepilot-opencode-form-actions">
+                <button
+                  type="button"
+                  className="action-button deck-control-button deck-control-button-primary"
+                  onClick={async () => {
+                    const actionResult = await saveOpenCodeStepPreset({
+                      name: presetName,
+                      steps: stepEditor,
+                    });
+                    setResult(actionResult);
+                    if (actionResult.status === "ok") {
+                      setPresetName("");
+                    }
+                    await loadStatus();
+                  }}
+                >
+                  <span className="deck-control-symbol" aria-hidden="true">
+                    <RuntimePilotIcon name="memory" />
+                  </span>
+                  <span className="deck-control-copy">Sačuvaj preset</span>
+                </button>
+                <button
+                  type="button"
+                  className="action-button-soft deck-control-button deck-control-button-secondary"
+                  onClick={() => {
+                    setStepEditor({ ...stepSchema.defaultSteps });
+                    setResult({
+                      status: "ok",
+                      action: "restore-opencode-step-defaults",
+                      summary: "OpenCode stepovi su vraćeni na podrazumevani preset.",
+                      details: { returncode: 0, stdout: "", stderr: "" },
+                    });
+                  }}
+                >
+                  <span className="deck-control-symbol" aria-hidden="true">
+                    <RuntimePilotIcon name="reload" />
+                  </span>
+                  <span className="deck-control-copy">Vrati podrazumevano</span>
+                </button>
+              </div>
+            </section>
 
-          <div className="form-grid">
-            <label>
-              Bezbednosni režim
-              <CustomSelect
-                value={opencode.securityMode}
-                options={[
-                  { value: "strict", label: "Strogo ograničen agent" },
-                  { value: "workspace-write", label: "Ograničen agent sa blacklist pravilima" },
-                  { value: "open", label: "Potpuno otvoren agent" },
-                ]}
-                onChange={(value) =>
-                  setOpencode({
-                    ...opencode,
-                    securityMode: value,
-                    securityModeLabel:
-                      value === "workspace-write"
-                        ? "Ograničen agent sa blacklist pravilima"
-                        : value === "open"
-                          ? "Potpuno otvoren agent"
-                          : "Strogo ograničen agent",
-                  })
-                }
-                ariaLabel="Izaberi bezbednosni režim OpenCode-a"
-              />
-            </label>
-            <label>
-              Autonomija
-              <CustomSelect
-                value={opencode.capabilityMode}
-                options={[
-                  { value: "read-only", label: "1. Samo čitanje fajlova" },
-                  { value: "read-write", label: "2. Čitanje + izmena fajlova" },
-                  { value: "confirm-commands", label: "3. Čitanje + izmena + komande uz potvrdu" },
-                  { value: "auto-commands", label: "4. Čitanje + izmena + komande bez potvrde" },
-                ]}
-                onChange={(value) =>
-                  setOpencode({
-                    ...opencode,
-                    capabilityMode: value,
-                    capabilityModeLabel:
-                      value === "read-only"
-                        ? "1. Samo čitanje fajlova"
-                        : value === "read-write"
-                          ? "2. Čitanje + izmena fajlova"
-                          : value === "auto-commands"
-                            ? "4. Čitanje + izmena + komande bez potvrde"
-                            : "3. Čitanje + izmena + komande uz potvrdu",
-                  })
-                }
-                ariaLabel="Izaberi režim autonomije OpenCode-a"
-              />
-            </label>
-            <button
-              type="button"
-              onClick={() =>
-                void runOpenCodeAction(() =>
-                  applyOpenCodeSettings({
-                    profile: settings.profile,
-                    context: settings.context,
-                    outputTokens: settings.outputTokens,
-                    workingDirectory: settings.workingDirectory,
-                    buildSteps: stepEditor.buildSteps,
-                    planSteps: stepEditor.planSteps,
-                    generalSteps: stepEditor.generalSteps,
-                    exploreSteps: stepEditor.exploreSteps,
-                    securityMode: opencode.securityMode,
-                    capabilityMode: opencode.capabilityMode,
-                  }),
-                )
-              }
-            >
-              Sačuvaj OpenCode podešavanja
-            </button>
+            <section className="form-grid runtimepilot-opencode-control-card runtimepilot-opencode-settings-grid">
+              <div className="runtimepilot-opencode-control-head">
+                <span className="runtimepilot-opencode-control-code">SAFE</span>
+                <span className="status-label">Bezbednosni kanal</span>
+                <strong className="runtimepilot-opencode-control-title">Sloboda i ograničenja OpenCode agenta</strong>
+              </div>
+              <p className="helper-text">
+                Ovaj deo određuje šta agent sme da dira i koliko autonomno sme da izvršava komande
+                bez dodatne potvrde.
+              </p>
+              <div className="runtimepilot-opencode-settings-row">
+                <label className="runtimepilot-opencode-compact-field">
+                  Bezbednosni režim
+                  <CustomSelect
+                    value={opencode.securityMode}
+                    options={[
+                      { value: "strict", label: "Strogo ograničen agent" },
+                      { value: "workspace-write", label: "Ograničen agent sa blacklist pravilima" },
+                      { value: "open", label: "Potpuno otvoren agent" },
+                    ]}
+                    onChange={(value) =>
+                      setOpencode({
+                        ...opencode,
+                        securityMode: value,
+                        securityModeLabel:
+                          value === "workspace-write"
+                            ? "Ograničen agent sa blacklist pravilima"
+                            : value === "open"
+                              ? "Potpuno otvoren agent"
+                              : "Strogo ograničen agent",
+                      })
+                    }
+                    ariaLabel="Izaberi bezbednosni režim OpenCode-a"
+                  />
+                </label>
+                <label className="runtimepilot-opencode-compact-field">
+                  Autonomija
+                  <CustomSelect
+                    value={opencode.capabilityMode}
+                    options={[
+                      { value: "read-only", label: "1. Samo čitanje fajlova" },
+                      { value: "read-write", label: "2. Čitanje + izmena fajlova" },
+                      { value: "confirm-commands", label: "3. Čitanje + izmena + komande uz potvrdu" },
+                      { value: "auto-commands", label: "4. Čitanje + izmena + komande bez potvrde" },
+                    ]}
+                    onChange={(value) =>
+                      setOpencode({
+                        ...opencode,
+                        capabilityMode: value,
+                        capabilityModeLabel:
+                          value === "read-only"
+                            ? "1. Samo čitanje fajlova"
+                            : value === "read-write"
+                              ? "2. Čitanje + izmena fajlova"
+                              : value === "auto-commands"
+                                ? "4. Čitanje + izmena + komande bez potvrde"
+                                : "3. Čitanje + izmena + komande uz potvrdu",
+                      })
+                    }
+                    ariaLabel="Izaberi režim autonomije OpenCode-a"
+                  />
+                </label>
+              </div>
+              <div className="runtimepilot-opencode-transport-rail runtimepilot-opencode-inline-transport runtimepilot-opencode-settings-actions">
+                <button
+                  type="button"
+                  className="action-button deck-control-button deck-control-button-primary"
+                  onClick={() =>
+                    void runOpenCodeAction(() =>
+                      applyOpenCodeSettings({
+                        profile: settings.profile,
+                        context: settings.context,
+                        outputTokens: settings.outputTokens,
+                        workingDirectory: settings.workingDirectory,
+                        buildSteps: stepEditor.buildSteps,
+                        planSteps: stepEditor.planSteps,
+                        generalSteps: stepEditor.generalSteps,
+                        exploreSteps: stepEditor.exploreSteps,
+                        securityMode: opencode.securityMode,
+                        capabilityMode: opencode.capabilityMode,
+                      }),
+                    )
+                  }
+                >
+                  <span className="deck-control-symbol" aria-hidden="true">
+                    <RuntimePilotIcon name="control" />
+                  </span>
+                  <span className="deck-control-copy">Sačuvaj OpenCode podešavanja</span>
+                </button>
+              </div>
+            </section>
           </div>
         </section>
 
@@ -702,10 +965,34 @@ export function OpenCodePage() {
               </p>
             </div>
           </div>
+          <div className="runtimepilot-opencode-service-bay">
+            <article className="command-preview-card runtimepilot-faceplate-module runtimepilot-opencode-service-panel">
+              <div className="runtimepilot-advanced-card-topline">
+                <span className="runtimepilot-advanced-card-code">INST</span>
+                <span className="status-label">Pregled procesa</span>
+              </div>
+              <strong className="status-value">Ko je stvarno otvoren</strong>
+              <p className="helper-text">
+                Ovaj deo služi za brz odgovor na pitanje da li zaista postoji jedna, više ili nijedna
+                OpenCode sesija.
+              </p>
+            </article>
+            <article className="command-preview-card runtimepilot-faceplate-module runtimepilot-opencode-service-panel">
+              <div className="runtimepilot-advanced-card-topline">
+                <span className="runtimepilot-advanced-card-code">PID</span>
+                <span className="status-label">Čitanje rezultata</span>
+              </div>
+              <strong className="status-value">Instance i komandna linija</strong>
+              <p className="helper-text">
+                Ako primetiš duplo otvaranje ili zaglavljenu sesiju, ovde najbrže vidiš PID i komandu
+                pod kojom je proces pokrenut.
+              </p>
+            </article>
+          </div>
           {opencode.instances?.length ? (
-            <div className="model-list">
+            <div className="model-list runtimepilot-opencode-instance-grid">
               {opencode.instances.map((instance, index) => (
-                <article className="model-item" key={`${instance.pid ?? "instance"}-${index}`}>
+                <article className="model-item runtimepilot-opencode-instance-card" key={`${instance.pid ?? "instance"}-${index}`}>
                   <strong>{instance.name || `Instanca ${index + 1}`}</strong>
                   <div className="muted-line">PID: {instance.pid ?? "nepoznat"}</div>
                   {instance.commandLine ? <div className="muted-line">{instance.commandLine}</div> : null}

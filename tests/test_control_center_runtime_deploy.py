@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 import subprocess
 
@@ -6,7 +7,9 @@ import pytest
 from local_ai_control_center_installer.control_center_runtime import (
     ControlCenterRuntimeDeployment,
     PANEL_EXECUTABLE_NAME,
+    WINDOWS_PANEL_STARTUP_SCRIPT_NAME,
     _panel_health_ready,
+    _write_windows_panel_startup_splash,
     deploy_control_center_runtime,
     launch_control_center,
 )
@@ -499,6 +502,7 @@ def test_deploy_control_center_runtime_creates_shell_shortcuts_and_uninstall_ent
         *,
         working_directory: Path | None = None,
         description: str = "",
+        arguments: str = "",
         icon_path: Path | None = None,
     ) -> None:
         shortcut_path.parent.mkdir(parents=True, exist_ok=True)
@@ -509,6 +513,7 @@ def test_deploy_control_center_runtime_creates_shell_shortcuts_and_uninstall_ent
                 "target_path": target_path,
                 "working_directory": working_directory,
                 "description": description,
+                "arguments": arguments,
                 "icon_path": icon_path,
             }
         )
@@ -558,16 +563,25 @@ def test_deploy_control_center_runtime_creates_shell_shortcuts_and_uninstall_ent
     }
     installed_icon_path = install_root / "control-center" / "RuntimePilot.ico"
     opencode_icon_path = install_root / "control-center" / "RuntimePilot-OpenCode.ico"
-    hidden_panel_launcher_path = install_root / "control-center" / "Open-RuntimePilot.vbs"
+    startup_splash_path = install_root / "control-center" / "RuntimePilot-Startup.hta"
     assert installed_icon_path.is_file()
     assert opencode_icon_path.is_file()
-    assert hidden_panel_launcher_path.is_file()
+    assert startup_splash_path.is_file()
     icon_by_shortcut = {call["shortcut_path"].name: call["icon_path"] for call in shortcut_calls}
     target_by_shortcut = {call["shortcut_path"].name: call["target_path"] for call in shortcut_calls}
+    arguments_by_shortcut = {call["shortcut_path"].name: call["arguments"] for call in shortcut_calls}
     assert icon_by_shortcut["RuntimePilot.lnk"] == installed_icon_path
     assert icon_by_shortcut["OpenCode.lnk"] == opencode_icon_path
     assert icon_by_shortcut["Uninstall RuntimePilot.lnk"] == installed_icon_path
-    assert target_by_shortcut["RuntimePilot.lnk"] == hidden_panel_launcher_path
+    assert target_by_shortcut["RuntimePilot.lnk"] == (
+        Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32" / "mshta.exe"
+    )
+    assert arguments_by_shortcut["RuntimePilot.lnk"] == f'"{startup_splash_path}"'
+    startup_splash_text = startup_splash_path.read_text(encoding="utf-8")
+    assert "var launcherCommand =" in startup_splash_text
+    assert "Open-RuntimePilot.cmd" in startup_splash_text
+    assert "shell.Run(launcherCommand, 0, false)" in startup_splash_text
+    assert "WinHttp.WinHttpRequest.5.1" in startup_splash_text
     assert registry_call["install_root"] == install_root.resolve()
     assert registry_call["display_icon_path"] == installed_icon_path
     assert registry_call["uninstall_command_path"] == deployment.uninstall_launcher_path
@@ -647,6 +661,59 @@ def test_deploy_control_center_runtime_does_not_emit_open_browser_in_launcher(
     assert "--open-browser" not in launcher_text
 
 
+def test_deploy_control_center_runtime_writes_startup_splash_with_health_poll_and_redirect(
+    tmp_path: Path,
+):
+    startup_splash_path = tmp_path / "RuntimePilot-Startup.hta"
+    panel_launcher_path = tmp_path / "Open-RuntimePilot.cmd"
+    panel_launcher_path.write_text("@echo off\r\n", encoding="utf-8")
+
+    _write_windows_panel_startup_splash(
+        startup_splash_path=startup_splash_path,
+        panel_url="http://127.0.0.1:3210/",
+        expected_install_root=tmp_path / "install-root",
+        panel_launcher_path=panel_launcher_path,
+    )
+
+    startup_splash_text = startup_splash_path.read_text(encoding="utf-8")
+
+    assert startup_splash_path.is_file()
+    assert "RuntimePilot se podiže" in startup_splash_text
+    assert "var(--" not in startup_splash_text
+    assert "WinHttp.WinHttpRequest.5.1" in startup_splash_text
+    assert "http://127.0.0.1:3210/health" in startup_splash_text
+    assert "local-ai-control-center-stable" in startup_splash_text
+    assert "var launcherCommand =" in startup_splash_text
+    assert panel_launcher_path.name in startup_splash_text
+    assert "shell.Run(launcherCommand, 0, false)" in startup_splash_text
+    assert 'id="startup-logo"' in startup_splash_text
+    assert "var logoSource =" in startup_splash_text
+    assert "RuntimePilot.ico" in startup_splash_text
+    assert 'id="portal-link"' in startup_splash_text
+    assert 'id="health-link"' in startup_splash_text
+    assert 'id="open-portal-button"' in startup_splash_text
+    assert 'id="open-folder-button"' in startup_splash_text
+    assert 'id="copy-path-button"' in startup_splash_text
+    assert "function openExternal(url)" in startup_splash_text
+    assert "function openPortalWithFeedback(" in startup_splash_text
+    assert "function ensureBrowserWatcher()" in startup_splash_text
+    assert "function markBrowserOpened(" in startup_splash_text
+    assert "function openPortalNow()" in startup_splash_text
+    assert "var browserWatcherCommand =" in startup_splash_text
+    assert "var browserOpenMarkerPath =" in startup_splash_text
+    assert 'window.setTimeout(function () {' in startup_splash_text
+    assert "2200" in startup_splash_text
+    assert "function openInstallFolder()" in startup_splash_text
+    assert 'window.clipboardData.setData("Text", expectedInstallRoot);' in startup_splash_text
+    assert 'appShell.ShellExecute(url, "", "", "open", 1);' in startup_splash_text
+    assert 'shell.Run(browserWatcherCommand, 0, false);' in startup_splash_text
+    assert "Start-Process $targetUrl;" in startup_splash_text
+    assert "Set-Content -Path $markerPath -Value 'opened'" in startup_splash_text
+    assert "Scripting.FileSystemObject" in startup_splash_text
+    assert "Ako browser ne iskoci automatski" in startup_splash_text
+    assert "Avast" in startup_splash_text
+
+
 def test_deploy_control_center_runtime_emits_existing_panel_guard_in_windows_launcher(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -721,6 +788,135 @@ def test_deploy_control_center_runtime_uses_python_for_windows_python_fallback_l
     launcher_text = deployment.launcher_path.read_text(encoding="utf-8")
     assert 'start "" /b' in launcher_text
     assert str(current_executable) in launcher_text
+
+
+def test_deploy_control_center_runtime_uses_pythonw_startup_shortcut_for_windows_python_fallback(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    install_root = tmp_path / "install-root"
+    current_executable = tmp_path / "python.exe"
+    current_executable.write_bytes(b"panel-runtime")
+    background_executable = tmp_path / "pythonw.exe"
+    background_executable.write_bytes(b"panel-runtime-hidden")
+
+    start_menu_dir = tmp_path / "Start Menu" / "Programs" / "RuntimePilot"
+    desktop_dir = tmp_path / "Desktop"
+    shortcut_calls: list[dict[str, object]] = []
+
+    def fake_create_windows_shortcut(
+        shortcut_path: Path,
+        target_path: Path,
+        *,
+        working_directory: Path | None = None,
+        description: str = "",
+        arguments: str = "",
+        icon_path: Path | None = None,
+    ) -> None:
+        shortcut_calls.append(
+            {
+                "shortcut_path": shortcut_path,
+                "target_path": target_path,
+                "working_directory": working_directory,
+                "description": description,
+                "arguments": arguments,
+                "icon_path": icon_path,
+            }
+        )
+
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_runtime.prepare_opencode_launcher",
+        lambda config: None,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_runtime._resolve_start_menu_programs_dir",
+        lambda: start_menu_dir,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_runtime._resolve_desktop_dir",
+        lambda: desktop_dir,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_runtime._create_windows_shortcut",
+        fake_create_windows_shortcut,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_runtime._register_uninstall_entry",
+        lambda **kwargs: None,
+    )
+
+    deployment = deploy_control_center_runtime(
+        install_root,
+        panel_executable_resource=None,
+        current_python=str(current_executable),
+        frozen=False,
+    )
+
+    target_by_shortcut = {call["shortcut_path"].name: call["target_path"] for call in shortcut_calls}
+    arguments_by_shortcut = {call["shortcut_path"].name: call["arguments"] for call in shortcut_calls}
+    startup_script_path = install_root / "control-center" / WINDOWS_PANEL_STARTUP_SCRIPT_NAME
+
+    assert deployment.strategy == "python-fallback"
+    assert target_by_shortcut["RuntimePilot.lnk"] == background_executable
+    assert arguments_by_shortcut["RuntimePilot.lnk"] == f'"{startup_script_path}"'
+    assert startup_script_path.is_file()
+    startup_script_text = startup_script_path.read_text(encoding="utf-8")
+    assert "run_control_center_startup_entry" in startup_script_text
+    assert f"INSTALL_ROOT = Path({str(install_root.resolve())!r})" in startup_script_text
+    assert "local_ai_control_center_installer.control_center_startup" in startup_script_text
+
+
+def test_deploy_control_center_runtime_writes_legacy_launcher_compatibility_wrappers(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    install_root = tmp_path / "install-root"
+    current_executable = tmp_path / "python.exe"
+    current_executable.write_bytes(b"panel-runtime")
+    background_executable = tmp_path / "pythonw.exe"
+    background_executable.write_bytes(b"panel-runtime-hidden")
+
+    start_menu_dir = tmp_path / "Start Menu" / "Programs" / "RuntimePilot"
+    desktop_dir = tmp_path / "Desktop"
+
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_runtime.prepare_opencode_launcher",
+        lambda config: None,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_runtime._resolve_start_menu_programs_dir",
+        lambda: start_menu_dir,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_runtime._resolve_desktop_dir",
+        lambda: desktop_dir,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_runtime._create_windows_shortcut",
+        lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_runtime._register_uninstall_entry",
+        lambda **kwargs: None,
+    )
+
+    deploy_control_center_runtime(
+        install_root,
+        panel_executable_resource=None,
+        current_python=str(current_executable),
+        frozen=False,
+    )
+
+    panel_root = install_root / "control-center"
+    legacy_cmd = panel_root / "Open-Control-Center.cmd"
+    legacy_vbs = panel_root / "Open-Control-Center.vbs"
+
+    assert legacy_cmd.is_file()
+    assert legacy_vbs.is_file()
+    assert 'call "%~dp0Open-RuntimePilot.cmd" %*' in legacy_cmd.read_text(encoding="utf-8")
+    legacy_vbs_text = legacy_vbs.read_text(encoding="utf-8")
+    assert "Open-RuntimePilot.cmd" in legacy_vbs_text
+    assert "WScript.Shell" in legacy_vbs_text
 
 
 def test_deploy_control_center_runtime_copies_linux_frozen_host_binary(

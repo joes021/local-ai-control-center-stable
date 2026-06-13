@@ -1,4 +1,4 @@
-# Windows Compatibility Tab Validation
+﻿# Windows Compatibility Tab Validation
 
 ## Scope
 
@@ -148,3 +148,5 @@ Ishod:
 ## Rezultat
 
 Compatibility calculator vise nije sakriven samo iza modala. U `0.4.21` postoji dedicated `Compatibility` tab, ostaju i brzi modal ulazi iz `Models` i `Browser`, a ova masina je uspesno podignuta na novu verziju i zivi panel servira novi build.
+
+

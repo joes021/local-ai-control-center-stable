@@ -1,7 +1,7 @@
-# RuntimePilot Project Memory Phase 1 Release Validation
+﻿# RuntimePilot Project Memory Phase 1 Release Validation
 
 Datum: 2026-06-05  
-Repo: `C:\Users\<user>\Documents\local-ai-control-center-stable`
+Repo: `C:\repo\local-ai-control-center-stable`
 
 ## Scope
 
@@ -45,3 +45,5 @@ Repo: `C:\Users\<user>\Documents\local-ai-control-center-stable`
 
 - release `0.4.89` je spreman za GitHub objavu
 - testovi, wheel/sdist build i Windows installer build su prošli u istom krugu verifikacije
+
+

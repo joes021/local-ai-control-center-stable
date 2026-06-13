@@ -156,6 +156,7 @@ def run_release_entry(
     *,
     main_fn: Callable[[], int],
     panel_main_fn: Callable[[list[str] | None], int],
+    startup_main_fn: Callable[[list[str] | None], int],
     uninstall_main_fn: Callable[[list[str] | None], int],
     update_worker_main_fn: Callable[[list[str] | None], int],
     model_download_worker_main_fn: Callable[[list[str] | None], int],
@@ -171,6 +172,9 @@ def run_release_entry(
     if "--panel" in argv:
         panel_index = argv.index("--panel")
         return panel_main_fn(argv[panel_index + 1 :])
+    if "--startup" in argv:
+        startup_index = argv.index("--startup")
+        return startup_main_fn(argv[startup_index + 1 :])
     if "--uninstall" in argv:
         uninstall_index = argv.index("--uninstall")
         return uninstall_main_fn(argv[uninstall_index + 1 :])

@@ -1,4 +1,4 @@
-# Windows Installer/Runtime Completion Design
+﻿# Windows Installer/Runtime Completion Design
 
 Date: 2026-05-22
 
@@ -579,3 +579,5 @@ This design assumes:
 
 - the current repository finish line is the Windows installer/runtime product that this codebase already owns
 - user review gates are pre-approved for this session because the user explicitly requested autonomous progress without waiting for answers
+
+

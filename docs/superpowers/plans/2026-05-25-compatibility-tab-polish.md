@@ -1,4 +1,4 @@
-# Compatibility Tab Polish Plan
+﻿# Compatibility Tab Polish Plan
 
 ## Scope
 
@@ -51,3 +51,5 @@ Napraviti vidljiv i isporucen Compatibility tab, ispolirati ga u dva prolaza i z
 - commit
 - push
 - GitHub release sa novim `.exe`
+
+

@@ -1,4 +1,4 @@
-# Compatibility Calculator Design
+﻿# Compatibility Calculator Design
 
 ## Goal
 
@@ -117,3 +117,5 @@ Dodati fokusirane testove za:
 - benchmark integracija u compatibility calculator
 - hardverski vendor-specifični perf model
 - lažno precizan `tokens/s` predictor
+
+

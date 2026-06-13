@@ -1,4 +1,4 @@
-# Browser Model Table Reliability Design
+﻿# Browser Model Table Reliability Design
 
 Date: 2026-05-23
 Scope: Windows control panel model browser/table plus reliable internet-backed download flow
@@ -194,3 +194,5 @@ Success requires all of the following:
 - completed browser downloads appear installed in the local catalog
 - failures report actionable errors and do not silently disappear
 - the integrated Windows installer still builds and packages the updated panel
+
+

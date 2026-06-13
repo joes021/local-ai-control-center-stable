@@ -5,6 +5,8 @@ import os
 from pathlib import Path
 import re
 import subprocess
+import threading
+import time
 from typing import Any
 
 from local_ai_control_center_installer.control_center_backend.config import (
@@ -58,6 +60,12 @@ TURBO_FACTORS = {
     "bf16": 1.0,
     "f32": 1.1,
 }
+
+LOCAL_SYSTEM_INFO_CACHE_TTL_SECONDS = 2.0
+SYSTEM_CAPACITY_CACHE_TTL_SECONDS = 30.0
+_LOCAL_SYSTEM_INFO_CACHE: dict[str, tuple[float, tuple[tuple[str, int | None, int | None], ...], dict[str, object]]] = {}
+_SYSTEM_CAPACITY_CACHE_LOCK = threading.Lock()
+_SYSTEM_CAPACITY_CACHE: dict[str, tuple[float, float | None]] = {}
 
 
 def run_compatibility_check(
@@ -237,9 +245,18 @@ def check_model_compatibility(
 
 def detect_local_system_info(*, config: ControlCenterConfig | None = None) -> dict[str, object]:
     config = config or get_config()
+    cache_scope = str(config.install_root)
+    cache_signature = _build_local_system_info_cache_signature(config)
+    cached_payload = _LOCAL_SYSTEM_INFO_CACHE.get(cache_scope)
+    now = time.monotonic()
+    if cached_payload is not None:
+        cached_at, cached_signature, payload = cached_payload
+        if cached_signature == cache_signature and (now - cached_at) <= LOCAL_SYSTEM_INFO_CACHE_TTL_SECONDS:
+            return payload
+
     settings = load_settings_payload(config, include_search_provider_status=False)
     turbo_config = load_turboquant_config(config)
-    return {
+    payload = {
         "ramGiB": detect_ram_gib(),
         "vramGiB": detect_vram_gib(),
         "turboQuantAvailable": _detect_packaged_turboquant_available(config),
@@ -247,9 +264,36 @@ def detect_local_system_info(*, config: ControlCenterConfig | None = None) -> di
         "outputTokens": int(settings.get("outputTokens", 8192) or 8192),
         "turboQuantConfig": turbo_config,
     }
+    _LOCAL_SYSTEM_INFO_CACHE[cache_scope] = (time.monotonic(), cache_signature, payload)
+    return payload
+
+
+def _build_local_system_info_cache_signature(
+    config: ControlCenterConfig,
+) -> tuple[tuple[str, int | None, int | None], ...]:
+    return (
+        _path_signature(config.settings_path),
+        _path_signature(config.turboquant_config_path),
+    )
+
+
+def _path_signature(path: Path) -> tuple[str, int | None, int | None]:
+    resolved = Path(str(path))
+    try:
+        stat = resolved.stat()
+    except OSError:
+        return (str(resolved), None, None)
+    return (str(resolved), stat.st_mtime_ns, stat.st_size)
 
 
 def detect_ram_gib() -> float | None:
+    now = time.monotonic()
+    with _SYSTEM_CAPACITY_CACHE_LOCK:
+        cached_payload = _SYSTEM_CAPACITY_CACHE.get("ramGiB")
+        if cached_payload is not None:
+            cached_at, cached_value = cached_payload
+            if (now - cached_at) <= SYSTEM_CAPACITY_CACHE_TTL_SECONDS:
+                return cached_value
     try:
         if os.name == "nt":
             completed = subprocess.run(
@@ -264,17 +308,34 @@ def detect_ram_gib() -> float | None:
                 encoding="utf-8",
                 errors="replace",
                 check=False,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             )
             if completed.returncode == 0:
-                return _as_float(completed.stdout.strip())
+                value = _as_float(completed.stdout.strip())
+                with _SYSTEM_CAPACITY_CACHE_LOCK:
+                    _SYSTEM_CAPACITY_CACHE["ramGiB"] = (time.monotonic(), value)
+                return value
+            with _SYSTEM_CAPACITY_CACHE_LOCK:
+                _SYSTEM_CAPACITY_CACHE["ramGiB"] = (time.monotonic(), None)
+            return None
         pages = os.sysconf("SC_PHYS_PAGES")
         page_size = os.sysconf("SC_PAGE_SIZE")
-        return round((pages * page_size) / (1024**3), 2)
+        value = round((pages * page_size) / (1024**3), 2)
+        with _SYSTEM_CAPACITY_CACHE_LOCK:
+            _SYSTEM_CAPACITY_CACHE["ramGiB"] = (time.monotonic(), value)
+        return value
     except Exception:  # noqa: BLE001
         return None
 
 
 def detect_vram_gib() -> float | None:
+    now = time.monotonic()
+    with _SYSTEM_CAPACITY_CACHE_LOCK:
+        cached_payload = _SYSTEM_CAPACITY_CACHE.get("vramGiB")
+        if cached_payload is not None:
+            cached_at, cached_value = cached_payload
+            if (now - cached_at) <= SYSTEM_CAPACITY_CACHE_TTL_SECONDS:
+                return cached_value
     try:
         completed = subprocess.run(
             ["nvidia-smi", "--query-gpu=memory.total", "--format=csv,noheader,nounits"],
@@ -283,12 +344,18 @@ def detect_vram_gib() -> float | None:
             encoding="utf-8",
             errors="replace",
             check=False,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
         if completed.returncode != 0:
+            with _SYSTEM_CAPACITY_CACHE_LOCK:
+                _SYSTEM_CAPACITY_CACHE["vramGiB"] = (time.monotonic(), None)
             return None
         first_line = next((line.strip() for line in completed.stdout.splitlines() if line.strip()), "")
         mib = _as_float(first_line)
-        return round((mib or 0) / 1024, 2) if mib is not None else None
+        value = round((mib or 0) / 1024, 2) if mib is not None else None
+        with _SYSTEM_CAPACITY_CACHE_LOCK:
+            _SYSTEM_CAPACITY_CACHE["vramGiB"] = (time.monotonic(), value)
+        return value
     except Exception:  # noqa: BLE001
         return None
 

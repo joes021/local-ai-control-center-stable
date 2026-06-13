@@ -6,6 +6,7 @@ import { CustomSelect } from "../components/CustomSelect";
 import { ModelDownloadProgressCard } from "../components/ModelDownloadProgressCard";
 import { PageDataStateCard } from "../components/PageDataStateCard";
 import { PageFlowCard } from "../components/PageFlowCard";
+import { RuntimePilotIcon } from "../components/RuntimePilotIcon";
 import type { CompatibilityLaunchTarget } from "../lib/compatibility";
 import {
   addBrowserModelToLocal,
@@ -367,6 +368,20 @@ function normalizeCatalogPayload(payload: BrowserCatalogEnvelope): BrowserCatalo
   };
 }
 
+function isDefaultBrowserQuery(query: BrowserCatalogQuery): boolean {
+  return (
+    (query.source ?? "all") === "all" &&
+    !(query.search ?? "").trim() &&
+    (query.family ?? "all") === "all" &&
+    (query.quant ?? "all") === "all" &&
+    (query.size ?? "all") === "all" &&
+    (query.mtp ?? "all") === "all" &&
+    (query.date ?? "all") === "all" &&
+    (query.sort ?? "updated-desc") === "updated-desc" &&
+    !query.limit
+  );
+}
+
 function compareItems(left: BrowserCatalogItem, right: BrowserCatalogItem, sortKey: SortKey): number {
   const fitRank: Record<BrowserFitStatus, number> = {
     radi: 3,
@@ -428,6 +443,7 @@ export function BrowserPage({
   const [warningsExpanded, setWarningsExpanded] = useState(false);
   const [errorsExpanded, setErrorsExpanded] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [initialRefreshTriggered, setInitialRefreshTriggered] = useState(false);
   const deferredSearch = useDeferredValue(search);
   const progressStatusRef = useRef<string | null>(null);
   const catalogRequestRef = useRef(0);
@@ -447,6 +463,17 @@ export function BrowserPage({
     [dateFilter, deferredSearch, familyFilter, mtpFilter, quantFilter, sizeFilter, sortKey, sourceFilter],
   );
 
+  function applyCatalogToView(payload: BrowserCatalogPayload) {
+    setCatalog(payload);
+    const models = payload.models.map((item) => buildItem(asRecord(item)));
+    setSelectedId((current) => {
+      if (current && models.some((item) => item.id === current)) {
+        return current;
+      }
+      return models[0]?.id ?? null;
+    });
+  }
+
   async function loadCatalog(query: BrowserCatalogQuery = browserQuery) {
     const requestId = ++catalogRequestRef.current;
     try {
@@ -455,10 +482,8 @@ export function BrowserPage({
       if (requestId != catalogRequestRef.current) {
         return null;
       }
-      setCatalog(normalized);
+      applyCatalogToView(normalized);
       setError(null);
-      const models = normalized.models.map((item) => buildItem(asRecord(item)));
-      setSelectedId((current) => current ?? models[0]?.id ?? null);
       return normalized;
     } catch (reason: unknown) {
       const message = reason instanceof Error ? reason.message : "Browser catalog request failed.";
@@ -467,7 +492,7 @@ export function BrowserPage({
     }
   }
 
-  async function loadCatalogIndex() {
+  async function loadCatalogIndex(options: { syncTable?: boolean } = {}) {
     const requestId = ++catalogIndexRequestRef.current;
     try {
       const payload = await fetchBrowserCatalog();
@@ -476,6 +501,9 @@ export function BrowserPage({
         return null;
       }
       setCatalogIndex(normalized);
+      if (options.syncTable || !catalog) {
+        applyCatalogToView(normalized);
+      }
       setError(null);
       return normalized;
     } catch (reason: unknown) {
@@ -485,8 +513,17 @@ export function BrowserPage({
     }
   }
 
+  async function refreshCatalogViewFromCache(options: { syncTable?: boolean } = {}) {
+    const defaultView = isDefaultBrowserQuery(browserQuery);
+    const indexPayload = await loadCatalogIndex({ syncTable: options.syncTable ?? defaultView });
+    if (!indexPayload || defaultView) {
+      return;
+    }
+    await loadCatalog(browserQuery);
+  }
+
   useEffect(() => {
-    void Promise.all([loadCatalogIndex(), loadCatalog()]);
+    void refreshCatalogViewFromCache({ syncTable: true });
     void fetchDownloadProgress()
       .then((payload) => {
         setDownloadProgress(payload);
@@ -499,8 +536,23 @@ export function BrowserPage({
     if (!catalogIndex) {
       return;
     }
+    if (isDefaultBrowserQuery(browserQuery)) {
+      applyCatalogToView(catalogIndex);
+      return;
+    }
     void loadCatalog();
   }, [browserQuery, catalogIndex]);
+
+  useEffect(() => {
+    if (!catalog || initialRefreshTriggered || pendingAction?.startsWith("refresh-")) {
+      return;
+    }
+    if (catalog.models.length > 0 || catalog.refresh.lastRefresh) {
+      return;
+    }
+    setInitialRefreshTriggered(true);
+    void handleRefresh();
+  }, [catalog, initialRefreshTriggered, pendingAction]);
 
   useEffect(() => {
     let cancelled = false;
@@ -518,7 +570,7 @@ export function BrowserPage({
           previousStatus !== payload.status &&
           (payload.status === "completed" || payload.status === "already-installed" || payload.status === "error")
         ) {
-          await Promise.all([loadCatalogIndex(), loadCatalog()]);
+          await refreshCatalogViewFromCache();
         }
       } catch {
         if (!cancelled) {
@@ -605,8 +657,11 @@ export function BrowserPage({
     });
 
     try {
-      const refreshPayload = normalizeCatalogPayload((await refreshBrowserCatalog(source)) as BrowserCatalogEnvelope);
-      await Promise.all([loadCatalogIndex(), loadCatalog()]);
+      const refreshPayload = normalizeCatalogPayload(await refreshBrowserCatalog(source));
+      setCatalogIndex(refreshPayload);
+      if (isDefaultBrowserQuery(browserQuery)) {
+        applyCatalogToView(refreshPayload);
+      }
       setResult(buildRefreshActionResult(source, refreshPayload));
       setError(null);
     } catch (reason: unknown) {
@@ -746,7 +801,7 @@ export function BrowserPage({
         loadingText="Učitavam Browser katalog..."
         onRetry={() => {
           setError(null);
-          void Promise.all([loadCatalogIndex(), loadCatalog()]);
+          void refreshCatalogViewFromCache({ syncTable: true });
         }}
       />
     );
@@ -799,6 +854,7 @@ export function BrowserPage({
   const refreshCounts = catalog.refresh.counts || {};
   const warningCount = catalog.refresh.warnings.length;
   const errorCount = catalog.refresh.errors.length;
+  const refreshInProgress = Boolean(pendingAction?.startsWith("refresh-"));
 
   return (
     <>
@@ -834,7 +890,7 @@ export function BrowserPage({
           </>
         }
       />
-      <section className="status-card wide-card">
+      <section className="status-card wide-card runtimepilot-faceplate-module">
         <div className="section-header">
           <div>
             <span className="status-label">Browser</span>
@@ -925,6 +981,19 @@ export function BrowserPage({
             {errorCount ? <span>Greške: {errorCount}</span> : null}
           </div>
         </section>
+        {refreshInProgress ? (
+          <section className="browser-notice browser-notice-info">
+            <div className="browser-notice-header">
+              <div>
+                <strong>Osvežavanje kataloga je u toku</strong>
+                <p className="helper-text">
+                  Prvo punjenje može da traje oko minut jer RuntimePilot proverava Hugging Face i Unsloth izvore.
+                  Čim odgovor stigne, tabela i brojači se osvežavaju automatski.
+                </p>
+              </div>
+            </div>
+          </section>
+        ) : null}
         {warningCount ? (
           <section className="browser-notice browser-notice-warning">
             <div className="browser-notice-header">
@@ -976,108 +1045,177 @@ export function BrowserPage({
         ) : null}
       </section>
 
-      <section className="status-card wide-card browser-results-stack">
+      <section className="status-card wide-card runtimepilot-faceplate-module browser-results-stack">
         {selectedItem ? (
-          <section className="browser-detail-top">
-            <div className="browser-detail-header">
-              <div>
-                <span className="status-label">Panel detalja</span>
-                <h2>{selectedItem.model}</h2>
-                <p className="muted-line">
-                  {selectedItem.family} | {selectedItem.quantization}
-                </p>
-              </div>
-              <span className={`browser-badge browser-source-${selectedItem.source}`} title={sourceLabel(selectedItem.source)}>
-                {sourceLabel(selectedItem.source)}
-              </span>
-            </div>
+          <section className="browser-detail-top runtimepilot-faceplate-module">
+            <div className="browser-detail-rack">
+              <section className="browser-detail-hero runtime-faceplate-support">
+                <div className="runtime-faceplate-head">
+                  <div className="runtime-faceplate-headline">
+                    <span className="runtime-faceplate-module-glyph" aria-hidden="true">
+                      <RuntimePilotIcon className="runtime-faceplate-module-icon" name="browser" />
+                    </span>
+                    <div className="runtime-faceplate-module-copy">
+                      <span className="status-label">Panel detalja</span>
+                      <strong className="status-value">{selectedItem.model}</strong>
+                      <p className="muted-line">
+                        {selectedItem.family} | {selectedItem.quantization}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="runtime-faceplate-status-lights" aria-hidden="true">
+                    <span className="runtime-faceplate-status-light runtime-faceplate-status-light-active" />
+                    <span
+                      className={`runtime-faceplate-status-light ${
+                        selectedItem.fitStatus !== "nije provereno" ? "runtime-faceplate-status-light-active-soft" : ""
+                      }`}
+                    />
+                    <span
+                      className={`runtime-faceplate-status-light ${
+                        selectedItem.mtpStatus === "has-mtp" ? "runtime-faceplate-status-light-active-soft" : ""
+                      }`}
+                    />
+                  </div>
+                </div>
 
-            <div className="browser-metadata-grid">
-              <div>
-                <span className="status-label">Fit</span>
-                <strong className="status-value">Fit: {selectedItem.fitLabel}</strong>
-              </div>
-              <div>
-                <span className="status-label">MTP</span>
-                <strong className="status-value">{selectedItem.mtpLabel}</strong>
-              </div>
-              <div>
-                <span className="status-label">Veličina</span>
-                <strong className="status-value">{formatSize(selectedItem)}</strong>
-              </div>
-              <div>
-                <span className="status-label">Poslednje ažuriranje</span>
-                <strong className="status-value">{formatDate(selectedItem.updatedAt)}</strong>
-              </div>
-              <div>
-                <span className="status-label">Repo</span>
-                <strong className="status-value">{selectedItem.repo || "Nepoznato"}</strong>
-              </div>
-              <div>
-                <span className="status-label">Preuzimanja</span>
-                <strong className="status-value">{formatCount(selectedItem.downloads)}</strong>
-              </div>
-            </div>
+                <div className="runtime-faceplate-copy browser-detail-copy">
+                  <div className="browser-detail-pill-row">
+                    <span
+                      className={`browser-badge browser-source-${selectedItem.source}`}
+                      title={sourceLabel(selectedItem.source)}
+                    >
+                      {sourceLabel(selectedItem.source)}
+                    </span>
+                    <span
+                      className={`browser-badge browser-fit-${selectedItem.fitStatus.replace(/\s+/g, "-")}`}
+                      title={selectedItem.fitLabel}
+                    >
+                      Fit · {selectedItem.fitLabel}
+                    </span>
+                    <span className={`browser-badge browser-mtp-${selectedItem.mtpStatus}`} title={selectedItem.mtpLabel}>
+                      MTP · {selectedItem.mtpLabel}
+                    </span>
+                  </div>
+                  <p className="helper-text">
+                    {selectedItem.summary || "Izabrani katalog modela je spreman za proveru, dodavanje u lokalni katalog ili direktno preuzimanje."}
+                  </p>
+                  {mtpDownloadOnlyGuidance(selectedItem) ? (
+                    <p className="helper-text">{mtpDownloadOnlyGuidance(selectedItem)}</p>
+                  ) : null}
+                </div>
 
-            {selectedItem.summary ? <p className="helper-text">{selectedItem.summary}</p> : null}
-            {mtpDownloadOnlyGuidance(selectedItem) ? (
-              <p className="helper-text">{mtpDownloadOnlyGuidance(selectedItem)}</p>
-            ) : null}
-
-            {selectedItem.tags.length ? (
-              <div className="browser-chip-row">
-                {selectedItem.tags.map((tag) => (
-                  <span key={tag} className="browser-chip">
-                    {tag}
-                  </span>
-                ))}
-              </div>
-            ) : null}
-
-            <div className="inline-actions">
-              <button
-                type="button"
-                disabled={Boolean(pendingAction)}
-                onClick={() => void handleDirectBrowserDownload(selectedItem)}
-              >
-                Preuzmi
-              </button>
-              <button type="button" disabled={Boolean(pendingAction)} onClick={() => void handleAddToLocal(selectedItem)}>
-                Dodaj u lokalni katalog
-              </button>
-              <button
-                type="button"
-                disabled={!selectedItem.sourceUrl}
-                onClick={() => window.open(selectedItem.sourceUrl, "_blank", "noopener,noreferrer")}
-              >
-                Otvori izvornu stranicu
-              </button>
-                      <button type="button" disabled={Boolean(pendingAction)} onClick={() => void handleCompatibility(selectedItem)}>
-                        Proveri kompatibilnost
-                      </button>
-            </div>
-
-            {downloadOffer && downloadOffer.label === selectedItem.model ? (
-              <div className="browser-callout">
-                <strong>Dodato u lokalni katalog.</strong> Preuzimanje je i dalje ručno. Ako želiš fajl odmah, pokreni ga sada.
-                <div className="inline-actions compact-actions">
-                  <button type="button" onClick={() => void handleDownload(downloadOffer.modelId, downloadOffer.label)}>
-                    Preuzmi sada
+                <div className="runtime-faceplate-rail runtime-faceplate-rail-stack browser-detail-action-rail">
+                  <span className="status-label">Komande</span>
+                  <button
+                    type="button"
+                    className="action-button-soft deck-control-button deck-control-button-primary"
+                    disabled={Boolean(pendingAction)}
+                    onClick={() => void handleDirectBrowserDownload(selectedItem)}
+                  >
+                    <span className="deck-control-symbol" aria-hidden="true">
+                      <RuntimePilotIcon name="play" />
+                    </span>
+                    <span className="deck-control-copy">Preuzmi</span>
                   </button>
-                  <button type="button" className="secondary-button" onClick={() => setDownloadOffer(null)}>
-                    Kasnije
+                  <button
+                    type="button"
+                    className="action-button-soft deck-control-button deck-control-button-secondary"
+                    disabled={Boolean(pendingAction)}
+                    onClick={() => void handleAddToLocal(selectedItem)}
+                  >
+                    <span className="deck-control-symbol" aria-hidden="true">
+                      <RuntimePilotIcon name="models" />
+                    </span>
+                    <span className="deck-control-copy">Dodaj u lokalni katalog</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="action-button-soft deck-control-button deck-control-button-secondary"
+                    disabled={Boolean(pendingAction)}
+                    onClick={() => void handleCompatibility(selectedItem)}
+                  >
+                    <span className="deck-control-symbol" aria-hidden="true">
+                      <RuntimePilotIcon name="compatibility" />
+                    </span>
+                    <span className="deck-control-copy">Proveri kompatibilnost</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="action-button-soft deck-control-button deck-control-button-secondary"
+                    disabled={!selectedItem.sourceUrl}
+                    onClick={() => window.open(selectedItem.sourceUrl, "_blank", "noopener,noreferrer")}
+                  >
+                    <span className="deck-control-symbol" aria-hidden="true">
+                      <RuntimePilotIcon name="browser" />
+                    </span>
+                    <span className="deck-control-copy">Otvori izvornu stranicu</span>
                   </button>
                 </div>
+              </section>
+
+              <div className="browser-detail-module-grid">
+                <section className="browser-detail-module browser-detail-specs">
+                  <div className="browser-detail-module-header">
+                    <span className="status-label">Signal i specifikacije</span>
+                    <strong className="status-value">Šta vidiš pre nego što krene download</strong>
+                  </div>
+                  <div className="browser-metadata-grid browser-metadata-grid-hifi">
+                    <article className="browser-readout-card">
+                      <span className="status-label">Veličina</span>
+                      <strong className="status-value">{formatSize(selectedItem)}</strong>
+                    </article>
+                    <article className="browser-readout-card">
+                      <span className="status-label">Poslednje ažuriranje</span>
+                      <strong className="status-value">{formatDate(selectedItem.updatedAt)}</strong>
+                    </article>
+                    <article className="browser-readout-card">
+                      <span className="status-label">Repo</span>
+                      <strong className="status-value">{selectedItem.repo || "Nepoznato"}</strong>
+                    </article>
+                    <article className="browser-readout-card">
+                      <span className="status-label">Preuzimanja</span>
+                      <strong className="status-value">{formatCount(selectedItem.downloads)}</strong>
+                    </article>
+                  </div>
+                  {selectedItem.tags.length ? (
+                    <div className="browser-chip-row browser-detail-chip-row">
+                      {selectedItem.tags.map((tag) => (
+                        <span key={tag} className="browser-chip">
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
+                </section>
+
+                <section className="browser-detail-module browser-detail-guidance">
+                  <div className="browser-detail-module-header">
+                    <span className="status-label">Sledeći korak</span>
+                    <strong className="status-value">Kompatibilnost pa lokalni katalog</strong>
+                  </div>
+                  <p className="helper-text">
+                    Koristi <strong>Proveri kompatibilnost</strong> da otvoriš kalkulator kompatibilnosti pre nego što dodaš model u lokalni katalog.
+                  </p>
+                  {downloadOffer && downloadOffer.label === selectedItem.model ? (
+                    <div className="browser-callout">
+                      <strong>Dodato u lokalni katalog.</strong> Preuzimanje je i dalje ručno. Ako želiš fajl odmah, pokreni ga sada.
+                      <div className="inline-actions compact-actions">
+                        <button type="button" onClick={() => void handleDownload(downloadOffer.modelId, downloadOffer.label)}>
+                          Preuzmi sada
+                        </button>
+                        <button type="button" className="secondary-button" onClick={() => setDownloadOffer(null)}>
+                          Kasnije
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+                </section>
               </div>
-            ) : null}
 
-            <p className="helper-text">
-              Koristi <strong>Proveri kompatibilnost</strong> da otvoriš kalkulator kompatibilnosti pre nego što dodaš model u lokalni katalog.
-            </p>
+              <ModelDownloadProgressCard progress={downloadProgress} />
 
-            <ModelDownloadProgressCard progress={downloadProgress} />
-
-            {result && result.action === "browser-download" ? <ActionResultPanel result={result} /> : null}
+              {result ? <ActionResultPanel result={result} /> : null}
+            </div>
           </section>
         ) : (
           <div className="helper-text">Izaberi red u Browser tabeli da vidiš detalje i akcije.</div>

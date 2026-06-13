@@ -43,8 +43,15 @@ BENCHMARK_LIVE_SIGNAL_FRESHNESS_SECONDS = 2.5
 BENCHMARK_TELEMETRY_WINDOW_HOURS = 24
 BENCHMARK_PROXY_COST_PER_MILLION_TOKENS_USD = 0.10
 BENCHMARK_MAX_REPEAT_COUNT = 10
+BENCHMARK_SUMMARY_CACHE_TTL_SECONDS = 2.0
 _RUN_LOCK = threading.Lock()
 _LIVE_SIGNAL_LOCK = threading.Lock()
+_BENCHMARK_SUMMARY_CACHE_LOCK = threading.Lock()
+_BENCHMARK_SUMMARY_CACHE: dict[str, tuple[float, tuple[tuple[str, int | None, int | None], ...], dict[str, Any]]] = {}
+_BENCHMARK_SUMMARY_INFLIGHT: dict[
+    str,
+    tuple[threading.Event, tuple[tuple[str, int | None, int | None], ...]],
+] = {}
 
 
 DEFAULT_SCENARIOS = [
@@ -79,74 +86,135 @@ def load_benchmark_summary(
     config: ControlCenterConfig | None = None,
 ) -> dict[str, Any]:
     config = config or get_config()
-    runtime_state = load_runtime_state(config)
-    settings_state = load_effective_settings_state(config)
-    environment = _build_benchmark_environment(runtime_state, settings_state)
-    history = _load_history(config)
-    active_runtime_live_sample = _load_live_slot_metric(config)
-    live_history = _record_live_history_sample(config, active_runtime_live_sample)
-    signal_history = history + live_history
-    current = signal_history[-1] if signal_history else None
-    live_current = active_runtime_live_sample or _select_recent_live_current(live_history)
-    latest_history_metric = history[-1] if history else None
-    recent_benchmark_fallback = _recent_benchmark_fallback(latest_history_metric)
-    recent_activities, source_counts = _build_recent_activities(signal_history)
-    batteries_payload = _load_batteries(config)
-    selected_battery = _selected_battery(batteries_payload)
-    active_run = _load_run_state(config)
-    saved_runs = _normalize_saved_runs(_load_saved_runs(config), environment)
-    live_state = _build_live_state(
-        active_run=active_run,
-        live_current=live_current,
-        recent_benchmark_fallback=recent_benchmark_fallback,
-    )
+    cache_scope = str(config.install_root)
+    while True:
+        cache_signature = _build_benchmark_summary_cache_signature(config)
+        now = time.monotonic()
+        with _BENCHMARK_SUMMARY_CACHE_LOCK:
+            cached_payload = _BENCHMARK_SUMMARY_CACHE.get(cache_scope)
+            if cached_payload is not None:
+                cached_at, cached_signature, payload = cached_payload
+                if cached_signature == cache_signature and (now - cached_at) <= BENCHMARK_SUMMARY_CACHE_TTL_SECONDS:
+                    return payload
 
-    chart_history = [_attach_chart_label(_attach_environment(item, environment)) for item in signal_history[-120:]]
-    live_chart_history = [_attach_chart_label(_attach_environment(item, environment)) for item in live_history[-120:]]
+            inflight_payload = _BENCHMARK_SUMMARY_INFLIGHT.get(cache_scope)
+            if inflight_payload is None or inflight_payload[1] != cache_signature:
+                wait_event = threading.Event()
+                _BENCHMARK_SUMMARY_INFLIGHT[cache_scope] = (wait_event, cache_signature)
+                owns_compute = True
+            else:
+                wait_event = inflight_payload[0]
+                owns_compute = False
 
-    return {
-        "current": _attach_chart_label(_attach_environment(current, environment)) if current else None,
-        "liveCurrent": _attach_chart_label(_attach_environment(live_current, environment)) if live_current else None,
-        "history": chart_history,
-        "liveHistory": live_chart_history,
-        "historyCount": len(history),
-        "requestCount": len(history),
-        "lastMeasuredAt": current.get("measuredAt") if current else None,
-        "lastLabel": current.get("label") if current else None,
-        "environment": environment,
-        "liveState": live_state,
-        "telemetry": _build_telemetry_summary(
-            history=history,
-            live_history=live_history,
-            live_current=live_current,
-            latest_history_metric=latest_history_metric,
-            recent_benchmark_fallback=recent_benchmark_fallback,
-            environment=environment,
-            live_state=live_state,
+        if owns_compute:
+            break
+
+        wait_event.wait(timeout=max(BENCHMARK_SUMMARY_CACHE_TTL_SECONDS, 0.5) + 15.0)
+
+    payload: dict[str, Any] | None = None
+    try:
+        runtime_state = load_runtime_state(config)
+        settings_state = load_effective_settings_state(config)
+        environment = _build_benchmark_environment(runtime_state, settings_state)
+        history = _load_history(config)
+        active_runtime_live_sample = _load_live_slot_metric(config)
+        live_history = _record_live_history_sample(config, active_runtime_live_sample)
+        signal_history = history + live_history
+        current = signal_history[-1] if signal_history else None
+        live_current = active_runtime_live_sample or _select_recent_live_current(live_history)
+        latest_history_metric = history[-1] if history else None
+        recent_benchmark_fallback = _recent_benchmark_fallback(latest_history_metric)
+        recent_activities, source_counts = _build_recent_activities(signal_history)
+        batteries_payload = _load_batteries(config)
+        selected_battery = _selected_battery(batteries_payload)
+        active_run = _load_run_state(config)
+        saved_runs = _normalize_saved_runs(_load_saved_runs(config), environment)
+        live_state = _build_live_state(
             active_run=active_run,
-        ),
-        "activity": {
-            "averageTotalMs": _average(history, "totalMs") or 0,
-            "sources": source_counts,
-            "recentActivities": recent_activities,
-            "stability": _build_stability(signal_history),
-            "throughputTrend": _trend(signal_history[-4:], "totalTokensPerSecond", 1.5, -1.5),
-            "latencyTrend": _trend(signal_history[-4:], "totalMs", 400.0, -400.0, inverse=True),
-        },
-        "averages": {
-            "promptTokensPerSecond": _average(history, "promptTokensPerSecond"),
-            "completionTokensPerSecond": _average(history, "completionTokensPerSecond"),
-            "totalTokensPerSecond": _average(history, "totalTokensPerSecond"),
-        },
-        "liveLog": {
-            "path": str(_latest_log_path(config)) if _latest_log_path(config) else "",
-            "lines": _tail_lines(_latest_log_path(config), 30),
-        },
-        "batteries": batteries_payload.get("batteries", []),
-        "selectedBattery": selected_battery,
-        "activeRun": active_run,
-        "savedRuns": saved_runs[:20],
-    }
+            live_current=live_current,
+            recent_benchmark_fallback=recent_benchmark_fallback,
+        )
+
+        chart_history = [_attach_chart_label(_attach_environment(item, environment)) for item in signal_history[-120:]]
+        live_chart_history = [_attach_chart_label(_attach_environment(item, environment)) for item in live_history[-120:]]
+
+        payload = {
+            "current": _attach_chart_label(_attach_environment(current, environment)) if current else None,
+            "liveCurrent": _attach_chart_label(_attach_environment(live_current, environment)) if live_current else None,
+            "history": chart_history,
+            "liveHistory": live_chart_history,
+            "historyCount": len(history),
+            "requestCount": len(history),
+            "lastMeasuredAt": current.get("measuredAt") if current else None,
+            "lastLabel": current.get("label") if current else None,
+            "environment": environment,
+            "liveState": live_state,
+            "telemetry": _build_telemetry_summary(
+                history=history,
+                live_history=live_history,
+                live_current=live_current,
+                latest_history_metric=latest_history_metric,
+                recent_benchmark_fallback=recent_benchmark_fallback,
+                environment=environment,
+                live_state=live_state,
+                active_run=active_run,
+            ),
+            "activity": {
+                "averageTotalMs": _average(history, "totalMs") or 0,
+                "sources": source_counts,
+                "recentActivities": recent_activities,
+                "stability": _build_stability(signal_history),
+                "throughputTrend": _trend(signal_history[-4:], "totalTokensPerSecond", 1.5, -1.5),
+                "latencyTrend": _trend(signal_history[-4:], "totalMs", 400.0, -400.0, inverse=True),
+            },
+            "averages": {
+                "promptTokensPerSecond": _average(history, "promptTokensPerSecond"),
+                "completionTokensPerSecond": _average(history, "completionTokensPerSecond"),
+                "totalTokensPerSecond": _average(history, "totalTokensPerSecond"),
+            },
+            "liveLog": {
+                "path": str(_latest_log_path(config)) if _latest_log_path(config) else "",
+                "lines": _tail_lines(_latest_log_path(config), 30),
+            },
+            "batteries": batteries_payload.get("batteries", []),
+            "selectedBattery": selected_battery,
+            "activeRun": active_run,
+            "savedRuns": saved_runs[:20],
+        }
+        return payload
+    finally:
+        with _BENCHMARK_SUMMARY_CACHE_LOCK:
+            if payload is not None:
+                stored_signature = _build_benchmark_summary_cache_signature(config)
+                _BENCHMARK_SUMMARY_CACHE[cache_scope] = (time.monotonic(), stored_signature, payload)
+            inflight_payload = _BENCHMARK_SUMMARY_INFLIGHT.get(cache_scope)
+            if inflight_payload is not None and inflight_payload[0] is wait_event:
+                del _BENCHMARK_SUMMARY_INFLIGHT[cache_scope]
+                wait_event.set()
+
+
+def _build_benchmark_summary_cache_signature(
+    config: ControlCenterConfig,
+) -> tuple[tuple[str, int | None, int | None], ...]:
+    runtime_selection_path = config.control_center_config_root / "runtime-selection.json"
+    watched_paths = (
+        config.runtime_endpoint_config_path,
+        config.settings_path,
+        config.turboquant_config_path,
+        config.benchmark_batteries_path,
+        config.benchmark_saved_runs_path,
+        runtime_selection_path,
+    )
+    return tuple(_path_signature(path) for path in watched_paths)
+
+
+def _path_signature(path: Path) -> tuple[str, int | None, int | None]:
+    resolved = Path(str(path))
+    try:
+        stat = resolved.stat()
+    except OSError:
+        return (str(resolved), None, None)
+    return (str(resolved), stat.st_mtime_ns, stat.st_size)
 
 
 def load_benchmark_run_status(

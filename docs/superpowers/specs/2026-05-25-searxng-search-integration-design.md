@@ -1,4 +1,4 @@
-# SearxNG Search Integration Design
+﻿# SearxNG Search Integration Design
 
 Date: 2026-05-25
 
@@ -178,3 +178,5 @@ Feature nije gotov dok ne prodje:
 - multi-provider search marketplace
 - page scraping beyond search snippets
 - Ubuntu port u ovom slice-u
+
+

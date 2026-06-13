@@ -1,4 +1,4 @@
-# Compatibility Calculator Hardening Implementation Plan
+﻿# Compatibility Calculator Hardening Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -74,3 +74,5 @@
 - [ ] Commit.
 - [ ] Push na `codex/panel-integration`.
 - [ ] Napravi GitHub release sa `.exe`, `wheel`, `tar.gz` i `SHA256SUMS`.
+
+

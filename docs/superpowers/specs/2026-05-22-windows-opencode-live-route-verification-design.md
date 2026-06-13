@@ -1,4 +1,4 @@
-# Windows OpenCode Live-Route Verification Design
+﻿# Windows OpenCode Live-Route Verification Design
 
 Date: 2026-05-22
 
@@ -306,3 +306,5 @@ This follow-up is successful only if all of the following are true:
 - early failure reports no longer point at nonexistent `OpenCode` logs
 - the bounded verifier still cleans up its temporary runtime and relay processes truthfully
 - the README continues to separate this stronger verifier milestone from full product completion
+
+

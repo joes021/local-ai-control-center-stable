@@ -1,4 +1,4 @@
-# Local AI Control Center Product Requirements
+﻿# Local AI Control Center Product Requirements
 
 Date: 2026-05-20
 
@@ -256,3 +256,5 @@ Drugim recima:
 1. Windows
 2. Ubuntu x86_64
 3. Ubuntu arm64
+
+

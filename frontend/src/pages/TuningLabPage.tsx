@@ -9,8 +9,9 @@ import {
   bootstrapOpenCode,
   deleteTuningLabHistory,
   exportTuningLabRun,
+  fetchTuningLabHistoryPage,
+  fetchTuningLabOverview,
   fetchTuningLabRunStatus,
-  fetchTuningLabSummary,
   importTuningSnippet,
   queueTuningLabBatch,
   queueTuningLabExperiment,
@@ -21,6 +22,8 @@ import type {
   TuningLabBatchPreset,
   TuningLabBatchTask,
   TuningLabDiffFile,
+  TuningLabHistoryPagePayload,
+  TuningLabOverviewPayload,
   TuningLabRun,
   TuningLabSettingsPatch,
   TuningLabSlot,
@@ -57,6 +60,16 @@ type CockpitResource = {
   value: string;
   compactValue: string;
   helper?: string;
+};
+
+const EMPTY_TUNING_LAB_HISTORY_PAGE: TuningLabHistoryPagePayload = {
+  status: "ok",
+  history: [],
+  historyPage: 1,
+  historyPageSize: 10,
+  historyTotalItems: 0,
+  historyFailedItems: 0,
+  historyTotalPages: 1,
 };
 
 function formatDateTime(value: string | undefined) {
@@ -149,7 +162,7 @@ function buildCockpitResource(label: string, value: string | undefined, helper =
   };
 }
 
-function buildDraftFromSummary(payload: TuningLabSummaryPayload): TuningDraft {
+function buildDraftFromOverview(payload: TuningLabOverviewPayload): TuningDraft {
   return {
     name: `Tuning Lab ${payload.context.activeModel || "run"}`,
     goal: "code",
@@ -627,7 +640,8 @@ function downloadJson(filename: string, value: unknown) {
 }
 
 export function TuningLabPage() {
-  const [summary, setSummary] = useState<TuningLabSummaryPayload | null>(null);
+  const [overview, setOverview] = useState<TuningLabOverviewPayload | null>(null);
+  const [historyPayload, setHistoryPayload] = useState<TuningLabHistoryPagePayload | null>(null);
   const [runStatus, setRunStatus] = useState<TuningLabRun | null>(null);
   const [historyPage, setHistoryPage] = useState(1);
   const [draft, setDraft] = useState<TuningDraft | null>(null);
@@ -635,6 +649,7 @@ export function TuningLabPage() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ActionResult | null>(null);
   const [isQueueing, setIsQueueing] = useState(false);
+  const [isHistoryLoading, setIsHistoryLoading] = useState(false);
   const [historyFilters, setHistoryFilters] = useState<HistoryFilters>({
     query: "",
     goal: "all",
@@ -655,19 +670,46 @@ export function TuningLabPage() {
     historyPageRef.current = historyPage;
   }, [historyPage]);
 
-  async function loadSummary(targetPage = historyPageRef.current) {
+  const summary = useMemo<TuningLabSummaryPayload | null>(() => {
+    if (!overview) {
+      return null;
+    }
+    return {
+      ...overview,
+      ...(historyPayload ?? EMPTY_TUNING_LAB_HISTORY_PAGE),
+    };
+  }, [historyPayload, overview]);
+
+  async function loadOverview() {
     try {
-      const summaryPayload = await fetchTuningLabSummary(targetPage);
-      setSummary(summaryPayload);
+      const overviewPayload = await fetchTuningLabOverview();
+      setOverview(overviewPayload);
       setError(null);
-      setHistoryPage(targetPage);
-      setDraft((current) => current ?? buildDraftFromSummary(summaryPayload));
-      return summaryPayload;
+      setDraft((current) => current ?? buildDraftFromOverview(overviewPayload));
+      return overviewPayload;
     } catch (reason: unknown) {
       const message =
         reason instanceof Error ? reason.message : "Tuning Lab nije mogao da se učita.";
       setError(message);
       throw reason;
+    }
+  }
+
+  async function loadHistoryPage(targetPage = historyPageRef.current) {
+    setIsHistoryLoading(true);
+    try {
+      const nextHistoryPayload = await fetchTuningLabHistoryPage(targetPage);
+      setHistoryPayload(nextHistoryPayload);
+      setError(null);
+      setHistoryPage(nextHistoryPayload.historyPage);
+      return nextHistoryPayload;
+    } catch (reason: unknown) {
+      const message =
+        reason instanceof Error ? reason.message : "Tuning Lab istorija nije mogla da se učita.";
+      setError(message);
+      throw reason;
+    } finally {
+      setIsHistoryLoading(false);
     }
   }
 
@@ -681,7 +723,8 @@ export function TuningLabPage() {
       setRunStatus(nextRunStatus);
       setError(null);
       if (previousRunId && !nextRunId) {
-        void loadSummary(historyPageRef.current);
+        void loadOverview();
+        void loadHistoryPage(historyPageRef.current);
       }
       return nextRunStatus;
     } catch (reason: unknown) {
@@ -693,15 +736,17 @@ export function TuningLabPage() {
   }
 
   async function loadAll(targetPage = historyPageRef.current) {
-    await Promise.all([loadSummary(targetPage), loadRunStatus()]);
+    await loadOverview();
+    void loadHistoryPage(targetPage);
+    void loadRunStatus().catch(() => undefined);
   }
 
   useEffect(() => {
     let cancelled = false;
     void loadAll(1);
-    const summaryTimer = window.setInterval(() => {
+    const overviewTimer = window.setInterval(() => {
       if (!cancelled) {
-        void loadSummary(historyPageRef.current).catch(() => undefined);
+        void loadOverview().catch(() => undefined);
       }
     }, SUMMARY_REFRESH_MS);
     const runTimer = window.setInterval(() => {
@@ -711,7 +756,7 @@ export function TuningLabPage() {
     }, RUN_STATUS_REFRESH_MS);
     return () => {
       cancelled = true;
-      window.clearInterval(summaryTimer);
+      window.clearInterval(overviewTimer);
       window.clearInterval(runTimer);
     };
   }, []);
@@ -2091,6 +2136,11 @@ export function TuningLabPage() {
       <div className="tuning-lab-mixer-deck">
       <section className="status-card wide-card runtimepilot-faceplate-module tuning-rack-module">
         <span className="status-label">Tri slota</span>
+        <strong className="status-value">Široki deck za Baseline, Recommended i Custom poređenje</strong>
+        <p className="helper-text">
+          Svaki slot je složen kao jedan receiver: identitet levo, Context i Output u sredini,
+          pa svih 9 finih kontrola desno.
+        </p>
         <TuningLabTriSlotReceiverRack
           slots={draft.slots}
           referenceSlots={summary?.slots ?? []}
@@ -2244,7 +2294,9 @@ export function TuningLabPage() {
             </select>
           </label>
         </div>
-        {filteredHistory.length ? (
+        {isHistoryLoading ? (
+          <PageDataStateCard loadingText="Učitavam Tuning Lab istoriju..." />
+        ) : filteredHistory.length ? (
           <>
             <div className="tuning-lab-history-toolbar">
               <div className="tuning-lab-history-toolbar-copy">
@@ -2595,7 +2647,7 @@ export function TuningLabPage() {
                 type="button"
                 className="secondary-button"
                 disabled={summary.historyPage <= 1}
-                onClick={() => void loadSummary(Math.max(1, summary.historyPage - 1))}
+                onClick={() => void loadHistoryPage(Math.max(1, summary.historyPage - 1))}
               >
                 Prethodna strana
               </button>
@@ -2603,7 +2655,7 @@ export function TuningLabPage() {
                 type="button"
                 className="secondary-button"
                 disabled={summary.historyPage >= summary.historyTotalPages}
-                onClick={() => void loadSummary(summary.historyPage + 1)}
+                onClick={() => void loadHistoryPage(summary.historyPage + 1)}
               >
                 Sledeća strana
               </button>

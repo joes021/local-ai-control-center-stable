@@ -1,4 +1,4 @@
-# Windows MTP Fail-Fast Validation
+﻿# Windows MTP Fail-Fast Validation
 
 ## Scope
 
@@ -105,13 +105,13 @@ Ishod:
 Komande:
 
 ```powershell
-scp dist\LocalAIControlCenterSetup-v0.4.22.exe <remote-user>@192.0.2.10:C:/Users/<remote-user>/Downloads/LocalAIControlCenterSetup-v0.4.22.exe
+scp dist\LocalAIControlCenterSetup-v0.4.22.exe operator@192.0.2.10:C:/Users/<remote-user>/Downloads/LocalAIControlCenterSetup-v0.4.22.exe
 ```
 
 ```powershell
 @'
 import subprocess, sys
-cmd = [r"C:\Windows\System32\OpenSSH\ssh.exe", "<remote-user>@192.0.2.10", r"C:\Users\<remote-user>\Downloads\LocalAIControlCenterSetup-v0.4.22.exe"]
+cmd = [r"C:\Windows\System32\OpenSSH\ssh.exe", "operator@192.0.2.10", r"C:\Users\<remote-user>\Downloads\LocalAIControlCenterSetup-v0.4.22.exe"]
 payload = "\n" * 20
 proc = subprocess.run(cmd, input=payload, text=True, timeout=1800)
 sys.exit(proc.returncode)
@@ -131,7 +131,7 @@ Ishod:
 
 Okruzenje:
 
-- host: `<remote-user>@192.0.2.10`
+- host: `operator@192.0.2.10`
 - GPU: `GTX 1060 6 GB`
 - problem model:
   - `unsloth-unsloth-qwen3-6-35b-a3b-mtp-gguf-qwen3-6-35b-a3b-ud-iq2-xxs`
@@ -157,3 +157,5 @@ Ishod:
 ## Rezultat
 
 U `0.4.22` model activation i server start vise ne dozvoljavaju da hardverski neizvodljiv model udje u lazni "spreman sam" tok. Na slabijoj remote masini problem MTP model sada biva odbijen odmah, sa poštenom porukom i bez ostavljanja runtime-a u `warming`.
+
+

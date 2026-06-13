@@ -1,4 +1,4 @@
-# Tuning Lab Design
+﻿# Tuning Lab Design
 
 **Datum:** 2026-05-29  
 **Status:** odobreno za implementaciju  
@@ -324,3 +324,5 @@ Za v1 zaključujemo glavne parametre iz ovih primarnih izvora:
 - ume da primeni pobednički set na sistem
 - ume da izveze rezultat
 - čuva i uspešne i neuspešne run-ove
+
+

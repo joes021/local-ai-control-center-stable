@@ -1,4 +1,4 @@
-# Windows Control Panel Integration Implementation Plan
+﻿# Windows Control Panel Integration Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -413,3 +413,5 @@ Document:
 git add frontend README.md packaging build/dist artifacts src tests
 git commit -m "feat: complete integrated Windows control panel product"
 ```
+
+

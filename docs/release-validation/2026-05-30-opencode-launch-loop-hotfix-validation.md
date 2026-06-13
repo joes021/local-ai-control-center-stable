@@ -1,4 +1,4 @@
-# v0.4.78 - OpenCode launch loop hotfix validation
+﻿# v0.4.78 - OpenCode launch loop hotfix validation
 
 ## Scope
 
@@ -82,3 +82,5 @@ Posle hotfix-a:
 - uspesan `OpenCode` start vise ne ostavlja bespotrebni `cmd` zbog `cmd /k`
 - portal vraca istinito stanje `runtime-ready` cim stvarni launcher nestane
 - ponovljeni open vise ne moze da preraste u terminal storm
+
+

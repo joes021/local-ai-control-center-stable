@@ -1,4 +1,4 @@
-# Knowledge / Documents Implementation Plan
+﻿# Knowledge / Documents Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -73,3 +73,5 @@
 - [ ] Lokalno podici ovu masinu na novu verziju
 - [ ] Proveriti zivi `Knowledge` tab i answer tok
 - [ ] Commit, push i release
+
+

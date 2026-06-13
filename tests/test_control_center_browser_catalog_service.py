@@ -1,4 +1,5 @@
 import json
+import threading
 from pathlib import Path
 
 
@@ -121,6 +122,61 @@ def test_refresh_catalog_filters_to_gguf_and_updates_cache(tmp_path: Path):
     assert "partial page limit" in payload["refresh"]["warnings"]
     assert "hf-gguf" in cache_text
     assert "hf-non-gguf" not in cache_text
+
+
+def test_refresh_catalog_all_fetches_sources_in_parallel_and_merges_results(tmp_path: Path):
+    from local_ai_control_center_installer.control_center_backend.services import browser_catalog_service
+
+    cache_path = tmp_path / "install-root" / "config" / "control-center" / "browser-catalog-cache.json"
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+
+    started_sources: set[str] = set()
+    started_lock = threading.Lock()
+    both_started = threading.Event()
+
+    def fake_fetch(source: str) -> dict[str, object]:
+        with started_lock:
+            started_sources.add(source)
+            if len(started_sources) == 2:
+                both_started.set()
+        assert both_started.wait(1.0), "source refreshes should overlap so neither provider blocks the other"
+        if source == "huggingface":
+            return {
+                "models": [
+                    {
+                        "id": "hf-gguf",
+                        "source": "huggingface",
+                        "repoId": "demo/hf",
+                        "filename": "demo-hf.gguf",
+                    }
+                ],
+                "errors": [],
+                "warnings": [],
+            }
+        return {
+            "models": [
+                {
+                    "id": "unsloth-gguf",
+                    "source": "unsloth",
+                    "repoId": "demo/unsloth",
+                    "filename": "demo-unsloth.gguf",
+                }
+            ],
+            "errors": [],
+            "warnings": [],
+        }
+
+    payload = browser_catalog_service.refresh_catalog(
+        source="all",
+        cache_path=cache_path,
+        fetch_source_catalog=fake_fetch,
+        now_iso="2026-06-12T09:45:00Z",
+    )
+
+    assert {item["id"] for item in payload["models"]} == {"hf-gguf", "unsloth-gguf"}
+    assert payload["refresh"]["counts"]["all"] == 2
+    assert payload["refresh"]["counts"]["huggingface"] == 1
+    assert payload["refresh"]["counts"]["unsloth"] == 1
 
 
 def test_update_model_fit_status_persists_last_known_fit(tmp_path: Path):

@@ -1,4 +1,4 @@
-# v0.4.46 - benchmark battery repeat validation
+﻿# v0.4.46 - benchmark battery repeat validation
 
 ## Šta je dodato
 
@@ -49,3 +49,5 @@ Na instaliranoj aplikaciji na ovoj mašini potvrđena su dva stvarna slučaja:
 
 - ovaj slice produžava stvarni battery benchmark tako što ponavlja scenarije i tako daje više pravih benchmark uzoraka kroz vreme
 - `Uživo sada` i dalje zavisi od stvarnog live runtime signala; kada ga runtime ne emituje, telemetry ostaje pošteno prazan umesto da izmišlja tok
+
+

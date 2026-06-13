@@ -1,7 +1,7 @@
-# RuntimePilot UI Polish Release Validation
+﻿# RuntimePilot UI Polish Release Validation
 
 Datum: 2026-06-02  
-Repo: `C:\Users\<user>\Documents\local-ai-control-center-stable`
+Repo: `C:\repo\local-ai-control-center-stable`
 
 ## Scope
 
@@ -50,3 +50,5 @@ Repo: `C:\Users\<user>\Documents\local-ai-control-center-stable`
 
 - RuntimePilot UI polish krug je spreman za release
 - testovi, frontend build i release build tok su spremni za finalnu objavu
+
+

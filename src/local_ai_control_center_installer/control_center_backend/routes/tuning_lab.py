@@ -12,6 +12,7 @@ from local_ai_control_center_installer.control_center_backend.services.tuning_la
     export_tuning_lab_run,
     import_tuning_snippet,
     load_tuning_lab_history_page,
+    load_tuning_lab_overview,
     load_tuning_lab_run_status,
     load_tuning_lab_summary,
     resolve_tuning_playable_file,
@@ -24,6 +25,11 @@ router = APIRouter()
 @router.get("/api/tuning-lab")
 def tuning_lab_summary(page: int = Query(default=1, ge=1)) -> dict[str, object]:
     return load_tuning_lab_summary(history_page=page)
+
+
+@router.get("/api/tuning-lab/overview")
+def tuning_lab_overview() -> dict[str, object]:
+    return load_tuning_lab_overview()
 
 
 @router.get("/api/tuning-lab/run-status")

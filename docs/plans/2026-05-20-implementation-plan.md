@@ -1,4 +1,4 @@
-# Implementation Plan
+﻿# Implementation Plan
 
 Date: 2026-05-20
 
@@ -122,3 +122,5 @@ No release without:
 - model ready
 - OpenCode run
 - accurate portal state
+
+

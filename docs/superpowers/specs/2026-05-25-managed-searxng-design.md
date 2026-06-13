@@ -1,4 +1,4 @@
-# Managed SearxNG Design
+﻿# Managed SearxNG Design
 
 Date: 2026-05-25
 
@@ -112,3 +112,5 @@ TDD pokrice treba da obuhvati:
 - Ovo nije pun Linux/systemd deployment za `SearxNG`
 - Managed bootstrap je best-effort user-space tok
 - Za cloud `opencode` provider i dalje ne dodajemo direktan lokalni search sloj
+
+

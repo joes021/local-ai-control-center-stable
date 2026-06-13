@@ -1,7 +1,7 @@
-# Windows validation - inference layout and parameter help
+﻿# Windows validation - inference layout and parameter help
 
 Datum: 2026-05-28
-Repo: `C:\Users\<user>\Documents\local-ai-control-center-stable`
+Repo: `C:\repo\local-ai-control-center-stable`
 Verzija: `0.4.54`
 
 ## Šta je menjano
@@ -39,3 +39,5 @@ Verzija: `0.4.54`
 
 - proveru sam zaključao kroz source, spakovani frontend bundle, puni test gate i lokalni installer upgrade
 - dve stare nepovezane untracked docs datoteke iz `2026-05-20` nisu dirane
+
+

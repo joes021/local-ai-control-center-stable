@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import re
 import subprocess
+import threading
 import time
 
 from local_ai_control_center_installer.control_center_backend.config import (
@@ -77,6 +78,9 @@ _COMPUTE_BUFFER_RE = re.compile(
     re.IGNORECASE,
 )
 _CTX_SIZE_FLAG_RE = re.compile(r"(?:^|\s)--ctx-size\s+(?P<value>\d+)(?:\s|$)", re.IGNORECASE)
+RUNTIME_PROCESS_COMMAND_LINE_CACHE_TTL_SECONDS = 5.0
+_RUNTIME_PROCESS_COMMAND_LINE_CACHE_LOCK = threading.Lock()
+_RUNTIME_PROCESS_COMMAND_LINE_CACHE: dict[int, tuple[float, str]] = {}
 
 
 def load_server_status(
@@ -1121,6 +1125,13 @@ def _read_runtime_process_command_line(runtime_pid: int | None) -> str:
         return ""
     if os.name != "nt":
         return ""
+    now = time.monotonic()
+    with _RUNTIME_PROCESS_COMMAND_LINE_CACHE_LOCK:
+        cached_payload = _RUNTIME_PROCESS_COMMAND_LINE_CACHE.get(runtime_pid)
+        if cached_payload is not None:
+            cached_at, cached_command_line = cached_payload
+            if (now - cached_at) <= RUNTIME_PROCESS_COMMAND_LINE_CACHE_TTL_SECONDS:
+                return cached_command_line
     powershell_command = (
         f"$proc = Get-CimInstance Win32_Process -Filter \"ProcessId = {runtime_pid}\"; "
         "if ($proc) { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8; $proc.CommandLine }"
@@ -1140,7 +1151,10 @@ def _read_runtime_process_command_line(runtime_pid: int | None) -> str:
         return ""
     if completed.returncode != 0:
         return ""
-    return str(completed.stdout or "").strip()
+    command_line = str(completed.stdout or "").strip()
+    with _RUNTIME_PROCESS_COMMAND_LINE_CACHE_LOCK:
+        _RUNTIME_PROCESS_COMMAND_LINE_CACHE[runtime_pid] = (time.monotonic(), command_line)
+    return command_line
 
 
 def _format_powershell_command(command: list[str]) -> str:
@@ -1206,6 +1220,13 @@ def _load_runtime_launch_argument_values(
             binary_path=binary_path,
         )
     )
+    arguments.update(
+        _load_runtime_capacity_argument_values(
+            config,
+            runtime_name=runtime_name,
+            binary_path=binary_path,
+        )
+    )
     return arguments
 
 
@@ -1250,8 +1271,38 @@ def _load_runtime_acceleration_argument_values(
     return acceleration
 
 
+def _load_runtime_capacity_argument_values(
+    config: ControlCenterConfig,
+    *,
+    runtime_name: str,
+    binary_path: Path,
+) -> dict[str, object]:
+    if not _runtime_binary_supports_flag(binary_path, "--parallel"):
+        return {}
+    normalized_runtime = str(runtime_name or "").strip().lower()
+    gpu_inventory = _detect_nvidia_gpu_inventory()
+    preferred_gpu = _select_preferred_gpu(gpu_inventory)
+    gpu_total_mib = (
+        int(preferred_gpu.get("totalMemoryMiB", 0) or 0)
+        if preferred_gpu is not None
+        else _detect_nvidia_total_memory_mib()
+    )
+    effective_settings = load_effective_settings_state(config)
+    configured_context = _positive_int_or_zero(
+        load_turboquant_config(config).get("context")
+        if normalized_runtime == "turboquant"
+        else effective_settings.get("context"),
+    )
+    if gpu_total_mib > 0 and gpu_total_mib <= 16 * 1024 and configured_context >= 65536:
+        return {"parallel": 1}
+    return {}
+
+
 def _build_launch_summary(arguments: dict[str, object]) -> str:
     details: list[str] = []
+    parallel = arguments.get("parallel")
+    if isinstance(parallel, int) and parallel > 0:
+        details.append(f"parallel {parallel}")
     gpu_layers = arguments.get("gpu_layers")
     if isinstance(gpu_layers, int) and gpu_layers > 0:
         details.append(f"GPU offload {gpu_layers} slojeva")
@@ -1352,14 +1403,28 @@ def _sum_last_matching_line_block(pattern: re.Pattern[str], text: str, group: st
     return sum(last_block) if last_block else None
 
 
-@lru_cache(maxsize=16)
 def _runtime_binary_supports_flag(binary_path: Path, flag: str) -> bool:
     resolved = Path(str(binary_path or ""))
     if not resolved.is_file() or not flag.strip():
         return False
     try:
+        stat = resolved.stat()
+    except OSError:
+        return False
+    output = _load_runtime_binary_help_output(str(resolved), stat.st_mtime_ns, stat.st_size)
+    return flag in output
+
+
+@lru_cache(maxsize=16)
+def _load_runtime_binary_help_output(
+    binary_path: str,
+    modified_at_ns: int,
+    size_bytes: int,
+) -> str:
+    del modified_at_ns, size_bytes
+    try:
         completed = subprocess.run(
-            [str(resolved), "--help"],
+            [binary_path, "--help"],
             capture_output=True,
             text=True,
             encoding="utf-8",
@@ -1368,11 +1433,10 @@ def _runtime_binary_supports_flag(binary_path: Path, flag: str) -> bool:
             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
     except (OSError, TypeError, ValueError):
-        return False
+        return ""
     if completed.returncode != 0:
-        return False
-    output = f"{completed.stdout}\n{completed.stderr}"
-    return flag in output
+        return ""
+    return f"{completed.stdout}\n{completed.stderr}"
 
 
 def _detect_nvidia_gpu_inventory() -> list[dict[str, object]]:

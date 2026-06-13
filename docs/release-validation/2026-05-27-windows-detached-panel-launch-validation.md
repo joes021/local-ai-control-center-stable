@@ -1,4 +1,4 @@
-# Windows Detached Panel Launch Validation
+﻿# Windows Detached Panel Launch Validation
 
 Date: 2026-05-27
 Branch: `codex/panel-integration`
@@ -92,3 +92,5 @@ This is the key regression proof: the panel remained reachable after installer c
 
 - the remote non-interactive SSH session still can linger on the installer's final `Press Enter to close the installer window...` pause line
 - that is a remote-shell ergonomics issue, but it no longer prevents the panel from being alive and reachable after install
+
+

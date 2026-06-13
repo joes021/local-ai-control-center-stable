@@ -1,4 +1,4 @@
-# Knowledge / Documents Design
+﻿# Knowledge / Documents Design
 
 Datum: 2026-05-25
 
@@ -186,3 +186,5 @@ Kada je runtime nedostupan:
 
 - knowledge answer ne sme da glumi da radi
 - query kroz dokumente i dalje sme da radi, jer ne zavisi od runtime-a
+
+

@@ -1,4 +1,4 @@
-# RuntimePilot Home Hi-Fi Mixed Shell Design
+﻿# RuntimePilot Home Hi-Fi Mixed Shell Design
 
 **Datum:** 2026-06-10  
 **Status:** odobren dizajn, spreman za planiranje implementacije  
@@ -318,3 +318,5 @@ Ovaj dizajn je uspesan kada:
 - rezultat posle klika je jasno vezan za mesto na kome se cita
 - napredni ekran moze da nasledi isti jezik bez raspada
 - pocetna strana izgleda smirenije, skuplje i namenski projektovano, a ne kao genericki dashboard
+
+

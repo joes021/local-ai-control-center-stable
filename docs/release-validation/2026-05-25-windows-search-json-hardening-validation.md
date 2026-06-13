@@ -1,4 +1,4 @@
-# Windows SearxNG JSON Hardening Validation
+﻿# Windows SearxNG JSON Hardening Validation
 
 ## Scope
 
@@ -57,3 +57,5 @@ Planirani release artefakti:
 ## Rezultat
 
 Search sloj sada prihvata i root SearxNG URL i URL koji vec pokazuje na `/search`, a u slucaju HTML/praznog odgovora vise ne prijavljuje neupotrebljiv JSON parser traceback, nego jasnu poruku o tome da SearxNG nije vratio JSON i da treba proveriti endpoint.
+
+

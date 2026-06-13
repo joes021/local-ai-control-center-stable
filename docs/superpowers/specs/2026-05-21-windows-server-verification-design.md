@@ -1,4 +1,4 @@
-# Windows Server Verification Design
+﻿# Windows Server Verification Design
 
 Date: 2026-05-21
 
@@ -454,3 +454,5 @@ Once this slice is complete, the next plan should extend the same session and re
 - optional `TurboQuant`
 - first-run inference smoke validation
 - full product-complete gate
+
+

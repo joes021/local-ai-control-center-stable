@@ -1,4 +1,4 @@
-# Theme Surface Consistency Validation
+﻿# Theme Surface Consistency Validation
 
 ## Verzija
 
@@ -29,3 +29,5 @@
 - `http://127.0.0.1:3210/api/status` -> `version = 0.4.47`
 - uninstall registry -> `DisplayVersion = 0.4.47`
 - installer report -> `product_installation_status = complete`
+
+

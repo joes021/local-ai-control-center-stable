@@ -1,4 +1,4 @@
-# Windows Final Polish Design
+﻿# Windows Final Polish Design
 
 Date: 2026-05-24
 
@@ -122,3 +122,5 @@ Sprint je zavrsen tek kada:
 - `OpenCode` i runtime statusi nisu kontradiktorni
 - Windows fresh install i update path prodju na ovoj masini kao finalni kandidat
 - novi Windows installer i release note-ovi odgovaraju stvarnom stanju proizvoda
+
+

@@ -1,4 +1,4 @@
-# Windows Benchmark Validation
+﻿# Windows Benchmark Validation
 
 Date: 2026-05-24
 Branch: `codex/panel-integration`
@@ -91,3 +91,5 @@ The Windows control panel now truthfully ships Benchmark as part of the public p
 Known honest limit:
 
 - live throughput remains naturally idle when the runtime is not actively processing requests; the panel does not fake non-zero token rates.
+
+

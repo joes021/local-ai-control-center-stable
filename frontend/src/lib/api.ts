@@ -4,7 +4,6 @@
   BrowserCatalogPayload,
   BrowserCatalogItem,
   BrowserCompatibilityPayload,
-  BrowserRefreshResult,
   BenchmarkBattery,
   BenchmarkComparePayload,
   BenchmarkPayload,
@@ -21,6 +20,7 @@
   JobsSummaryPayload,
   CompatibilityApplyResponse,
   CompatibilityCheckRequest,
+  LocalUploadProgress,
   ModelActionStatusPayload,
   ModelsPayload,
   OpenCodeStatusPayload,
@@ -40,6 +40,8 @@
   SearchSummaryPayload,
   StatusPayload,
   TuningLabRun,
+  TuningLabOverviewPayload,
+  TuningLabHistoryPagePayload,
   TuningLabSummaryPayload,
   TurboQuantConfig,
   TurboQuantSchemaPayload,
@@ -66,7 +68,7 @@ let settingsCache: SettingsPayload | null = null;
 let settingsPromise: Promise<SettingsPayload> | null = null;
 
 export async function fetchStatus(): Promise<StatusPayload> {
-  const response = await fetch("/api/status");
+  const response = await fetch("/api/status", { cache: "no-store" });
   if (!response.ok) {
     throw new Error(`Status request failed: ${response.status}`);
   }
@@ -301,9 +303,9 @@ export async function fetchBrowserCatalog(query?: BrowserCatalogQuery): Promise<
   return response.json() as Promise<BrowserCatalogPayload>;
 }
 
-export async function refreshBrowserCatalog(source?: string): Promise<BrowserRefreshResult> {
+export async function refreshBrowserCatalog(source?: string): Promise<BrowserCatalogPayload> {
   const payload = source ? { source } : {};
-  return postJson<typeof payload, BrowserRefreshResult>("/api/browser/catalog/refresh", payload);
+  return postJson<typeof payload, BrowserCatalogPayload>("/api/browser/catalog/refresh", payload);
 }
 
 export async function addBrowserModelToLocal(payload: {
@@ -589,12 +591,28 @@ export async function fetchTuningLabSummary(page = 1): Promise<TuningLabSummaryP
   return response.json() as Promise<TuningLabSummaryPayload>;
 }
 
+export async function fetchTuningLabOverview(): Promise<TuningLabOverviewPayload> {
+  const response = await fetch("/api/tuning-lab/overview", { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(`Tuning Lab overview request failed: ${response.status}`);
+  }
+  return response.json() as Promise<TuningLabOverviewPayload>;
+}
+
 export async function fetchTuningLabRunStatus(): Promise<TuningLabRun | Record<string, never>> {
   const response = await fetch("/api/tuning-lab/run-status", { cache: "no-store" });
   if (!response.ok) {
     throw new Error(`Tuning Lab run status request failed: ${response.status}`);
   }
   return response.json() as Promise<TuningLabRun | Record<string, never>>;
+}
+
+export async function fetchTuningLabHistoryPage(page = 1): Promise<TuningLabHistoryPagePayload> {
+  const response = await fetch(`/api/tuning-lab/history?page=${page}`, { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(`Tuning Lab history request failed: ${response.status}`);
+  }
+  return response.json() as Promise<TuningLabHistoryPagePayload>;
 }
 
 export async function fetchProjectMemory(): Promise<ProjectMemoryPayload> {
@@ -952,6 +970,88 @@ export async function addLocalModel(
   family: string,
 ): Promise<ActionResult> {
   return postJson("/api/models/add-local", { path, label, family });
+}
+
+export async function uploadLocalModel(
+  file: File,
+  label: string,
+  family: string,
+  options: {
+    onProgress?: (progress: LocalUploadProgress) => void;
+  } = {},
+): Promise<ActionResult> {
+  return new Promise<ActionResult>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    const startedAt = performance.now();
+
+    xhr.open("POST", "/api/models/add-local-upload");
+    xhr.setRequestHeader("Content-Type", "application/octet-stream");
+    xhr.setRequestHeader("X-File-Name", encodeURIComponent(file.name));
+    xhr.setRequestHeader("X-Model-Label", encodeURIComponent(label));
+    xhr.setRequestHeader("X-Model-Family", encodeURIComponent(family));
+
+    xhr.upload.onprogress = (event) => {
+      const totalBytes = event.lengthComputable ? event.total : file.size || 0;
+      const loadedBytes = event.loaded;
+      const percent = totalBytes > 0 ? Math.min((loadedBytes / totalBytes) * 100, 100) : null;
+      const elapsedSeconds = Math.max((performance.now() - startedAt) / 1000, 0.001);
+      const speedBytesPerSecond = loadedBytes > 0 ? loadedBytes / elapsedSeconds : 0;
+      const etaSeconds =
+        totalBytes > 0 && speedBytesPerSecond > 0
+          ? Math.max(Math.round((totalBytes - loadedBytes) / speedBytesPerSecond), 0)
+          : null;
+
+      options.onProgress?.({
+        fileName: file.name,
+        loadedBytes,
+        totalBytes: totalBytes > 0 ? totalBytes : null,
+        percent: percent === null ? null : Number(percent.toFixed(1)),
+        speedMBps:
+          speedBytesPerSecond > 0
+            ? Number((speedBytesPerSecond / (1024 * 1024)).toFixed(1))
+            : null,
+        etaSeconds,
+        phase: "uploading",
+      });
+    };
+
+    xhr.onerror = () => {
+      reject(new Error("Upload lokalnog GGUF fajla nije uspeo."));
+    };
+
+    xhr.onload = () => {
+      const responseText = xhr.responseText || "";
+      let payload: ActionResult | null = null;
+      try {
+        payload = JSON.parse(responseText) as ActionResult;
+      } catch {
+        payload = null;
+      }
+
+      options.onProgress?.({
+        fileName: file.name,
+        loadedBytes: file.size,
+        totalBytes: file.size || null,
+        percent: 100,
+        speedMBps: null,
+        etaSeconds: 0,
+        phase: "finalizing",
+      });
+
+      if (xhr.status >= 200 && xhr.status < 300 && payload) {
+        resolve(payload);
+        return;
+      }
+
+      reject(
+        new Error(
+          payload?.summary || `Upload lokalnog GGUF fajla nije uspeo: HTTP ${xhr.status}`,
+        ),
+      );
+    };
+
+    xhr.send(file);
+  });
 }
 
 export async function addHfModel(

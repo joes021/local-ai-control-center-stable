@@ -1,4 +1,4 @@
-# Windows Stable Runtime Payload Design
+﻿# Windows Stable Runtime Payload Design
 
 Date: 2026-05-21
 
@@ -454,3 +454,5 @@ Once this runtime payload slice is complete, the next runtime plan should extend
 - optional `TurboQuant`
 - first-run runtime validation
 - server launch and health-check gate
+
+

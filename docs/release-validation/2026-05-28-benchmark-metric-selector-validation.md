@@ -1,4 +1,4 @@
-# Benchmark Metric Selector Validation
+﻿# Benchmark Metric Selector Validation
 
 Date: 2026-05-28
 
@@ -24,3 +24,5 @@ Validated benchmark chart metric switching so the user can choose `Input tokeni`
 - `python -m build`
 - `powershell -ExecutionPolicy Bypass -File packaging\build_windows_installer.ps1 -PythonExe python`
 - Local panel verification through `http://127.0.0.1:3210/`
+
+

@@ -1,4 +1,4 @@
-# OpenCode Isolated Workspace and VRAM Hi-Fi Control Design
+﻿# OpenCode Isolated Workspace and VRAM Hi-Fi Control Design
 
 **Datum:** 2026-06-08  
 **Status:** odobren dizajn, spreman za implementaciju  
@@ -175,3 +175,5 @@ Ova iteracija je uspešna kada:
   - menjanje
   - primena
   - monitoring
+
+

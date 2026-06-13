@@ -1,4 +1,4 @@
-# RuntimePilot Phase 6 Visual Redesign
+﻿# RuntimePilot Phase 6 Visual Redesign
 
 ## Cilj
 
@@ -38,3 +38,5 @@ Uspeh ovog kruga znači:
 - da se grafičke izmene vide odmah na početnoj i kroz glavnu navigaciju
 - da testovi potvrde prisustvo novih RuntimePilot vizuelnih klasa i teksta u `frontend_dist`
 - da localhost pregled jasno pokaže više od samog header rebrand-a
+
+

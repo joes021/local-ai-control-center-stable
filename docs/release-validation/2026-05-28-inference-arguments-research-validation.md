@@ -1,4 +1,4 @@
-# Windows inference arguments research + implementation validation
+﻿# Windows inference arguments research + implementation validation
 
 Datum: 2026-05-28
 
@@ -178,3 +178,5 @@ Zatvoreno je:
   - workflow presetima
   - OpenCode local-lacc prikazom
 - dokaz kroz testove, build i stvarni lokalni installer upgrade
+
+

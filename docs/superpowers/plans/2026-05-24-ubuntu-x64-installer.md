@@ -1,4 +1,4 @@
-# Ubuntu x86_64 Installer Implementation Plan
+﻿# Ubuntu x86_64 Installer Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -96,3 +96,5 @@
   - update path
 - [ ] Record supported/unsupported Ubuntu x64 truth clearly
 - [ ] Publish Ubuntu x64 artifact/release only after the whole checklist passes
+
+

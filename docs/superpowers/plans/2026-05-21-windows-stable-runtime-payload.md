@@ -1,4 +1,4 @@
-# Windows Stable Runtime Payload Implementation Plan
+﻿# Windows Stable Runtime Payload Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -1216,3 +1216,5 @@ The slice is complete only when all of the following are true:
 - Spec: `docs/superpowers/specs/2026-05-21-windows-stable-runtime-payload-design.md`
 - Previous implementation plan: `docs/superpowers/plans/2026-05-20-windows-stable-core-bootstrap.md`
 - Product requirements: `docs/requirements/PRODUCT_REQUIREMENTS.md`
+
+

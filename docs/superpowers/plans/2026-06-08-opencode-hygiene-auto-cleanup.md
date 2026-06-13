@@ -1,4 +1,4 @@
-# OpenCode Hygiene Auto-Cleanup Implementation Plan
+﻿# OpenCode Hygiene Auto-Cleanup Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -57,3 +57,5 @@
 - [ ] **Step 2: Osvežiti packaged frontend_dist**
 - [ ] **Step 3: Pokrenuti relevantne pytest suite**
 - [ ] **Step 4: Proveriti lokalni live panel na odvojenom portu**
+
+
