@@ -9429,7 +9429,7 @@ select:-webkit-autofill {
   gap: 5px;
 }
 
-.live-resource-strip-compact .live-resource-inline-item {
+.live-resource-strip-compact :is(.live-resource-inline-item) {
   gap: 2px;
   padding: 5px 7px;
   border-radius: 10px;
