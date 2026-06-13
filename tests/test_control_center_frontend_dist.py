@@ -350,6 +350,16 @@ def test_shell_source_shares_live_resource_state_between_full_and_compact_modes(
     assert "compact?: boolean" in strip_source
 
 
+def test_shell_source_recomputes_sticky_visibility_when_status_layer_resizes():
+    layer_source = Path(
+        "frontend/src/components/shell/SystemStatusLayer.tsx"
+    ).read_text(encoding="utf-8")
+
+    assert "ResizeObserver" in layer_source
+    assert "resizeObserver.observe(fullLayer)" in layer_source
+    assert "resizeObserver.disconnect()" in layer_source
+
+
 def test_packaged_frontend_includes_unified_system_status_layer():
     dist_root = Path(
         "src/local_ai_control_center_installer/control_center_backend/frontend_dist"

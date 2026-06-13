@@ -18,8 +18,8 @@ export function SystemStatusLayer({
   const [stickyVisible, setStickyVisible] = useState(false);
 
   useEffect(() => {
+    const fullLayer = fullLayerRef.current;
     const syncStickyVisibility = () => {
-      const fullLayer = fullLayerRef.current;
       if (!fullLayer) {
         setStickyVisible(false);
         return;
@@ -29,12 +29,24 @@ export function SystemStatusLayer({
     };
 
     syncStickyVisibility();
+    const resizeObserver =
+      fullLayer && typeof ResizeObserver !== "undefined"
+        ? new ResizeObserver(() => {
+            syncStickyVisibility();
+          })
+        : null;
+    if (resizeObserver && fullLayer) {
+      resizeObserver.observe(fullLayer);
+    }
     window.addEventListener("scroll", syncStickyVisibility, { passive: true });
     window.addEventListener("resize", syncStickyVisibility);
 
     return () => {
       window.removeEventListener("scroll", syncStickyVisibility);
       window.removeEventListener("resize", syncStickyVisibility);
+      if (resizeObserver) {
+        resizeObserver.disconnect();
+      }
     };
   }, []);
 
