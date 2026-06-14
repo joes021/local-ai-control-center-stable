@@ -3402,6 +3402,47 @@ def test_primary_pages_share_primary_tab_rack():
     assert "onClick={openAdvancedTools}" in opencode_source
 
 
+def test_primary_tab_rack_supports_page_specific_labels_for_opencode_result_flow():
+    rack_source = Path("frontend/src/components/shell/PrimaryTabRack.tsx").read_text(
+        encoding="utf-8"
+    )
+    opencode_source = Path("frontend/src/pages/OpenCodePage.tsx").read_text(
+        encoding="utf-8"
+    )
+
+    assert "signalLabel?: string" in rack_source
+    assert "commandsLabel?: string" in rack_source
+    assert "deepLabel?: string" in rack_source
+    assert 'commandsLabel="Akcije"' in opencode_source
+    assert 'deepLabel="Rezultat"' in opencode_source
+    assert 'id="opencode-action-result"' in opencode_source
+
+
+def test_opencode_source_keeps_one_primary_work_block_and_advanced_below():
+    source = Path("frontend/src/pages/OpenCodePage.tsx").read_text(encoding="utf-8")
+
+    assert "PrimaryTabRack" in source
+    assert 'id="opencode-action-result"' in source
+    assert 'id="opencode-advanced-tools"' in source
+    assert "Workspace:" in source
+    assert "Model:" in source
+    assert "PID / instance" in source
+    assert "Managed config sažetak" in source
+    assert "Aktivni workspace" not in source
+
+
+def test_runtime_and_models_pages_share_primary_tab_rack_result_language():
+    server_source = Path("frontend/src/pages/ServerPage.tsx").read_text(encoding="utf-8")
+    models_source = Path("frontend/src/pages/ModelsPage.tsx").read_text(encoding="utf-8")
+
+    assert 'commandsLabel="Akcije"' in server_source
+    assert 'deepLabel="Rezultat"' in server_source
+    assert 'id="runtime-action-result"' in server_source
+    assert 'commandsLabel="Akcije"' in models_source
+    assert 'deepLabel="Rezultat"' in models_source
+    assert 'id="models-action-result"' in models_source
+
+
 def test_opencode_primary_rack_rollout_drops_legacy_top_shell_css():
     styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
 

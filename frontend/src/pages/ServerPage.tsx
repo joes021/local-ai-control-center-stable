@@ -208,6 +208,8 @@ export function ServerPage({ onOpenContextSettings }: ServerPageProps) {
       <PrimaryTabRack
         eyebrow="Runtime"
         title="Runtime cockpit"
+        commandsLabel="Akcije"
+        deepLabel="Rezultat"
         signal={
           <div className="runtimepilot-primary-tab-rack-body">
             <strong className="runtimepilot-primary-tab-rack-state">{runtimeStateTitle}</strong>
@@ -321,7 +323,9 @@ export function ServerPage({ onOpenContextSettings }: ServerPageProps) {
         }
       />
 
-      <ActionResultPanel result={result} />
+      <div id="runtime-action-result">
+        <ActionResultPanel result={result} />
+      </div>
 
       <details
         id="runtime-advanced-rack"

@@ -1275,6 +1275,8 @@ export function ModelsPage({
       <PrimaryTabRack
         eyebrow="Modeli"
         title="Aktivni model i brza promena"
+        commandsLabel="Akcije"
+        deepLabel="Rezultat"
         signal={
           <div className="runtimepilot-primary-tab-rack-body">
             <strong className="runtimepilot-primary-tab-rack-state">
@@ -1441,7 +1443,9 @@ export function ModelsPage({
         </section>
       ) : null}
 
-      <ActionResultPanel result={result} />
+      <div id="models-action-result">
+        <ActionResultPanel result={result} />
+      </div>
       <ModelDownloadProgressCard progress={downloadProgress} />
 
       <CompatibilityCalculatorModal

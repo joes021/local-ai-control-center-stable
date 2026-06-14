@@ -189,6 +189,8 @@ export function OpenCodePage() {
   const managedModelLabel = opencode.launchPreview.managedConfig.model || "Model nije postavljen";
   const managedProviderLabel = opencode.launchPreview.managedConfig.selectedProvider || "nije prepoznat";
   const managedBaseUrlLabel = opencode.launchPreview.managedConfig.localProviderBaseUrl || "nije pronađen";
+  const instanceLabel = currentInstance?.name || "Sesija joÅ¡ nije otvorena";
+  const instancePidLabel = currentInstance?.pid ?? "nepoznat";
   const sessionSignalTitle = opencode.runtimeConnected ? "Povezano sa runtime-om" : openCodeStateTitle;
   const sessionSignalSummary = opencode.runtimeConnected
     ? "Korisnik odmah vidi da li je agent stvarno spreman za rad."
@@ -219,6 +221,9 @@ export function OpenCodePage() {
         <PrimaryTabRack
           eyebrow="OpenCode ekran"
           title="Od otvaranja sesije do rezultata"
+          signalLabel="Signal"
+          commandsLabel="Akcije"
+          deepLabel="Rezultat"
           signal={
             <div className="runtimepilot-primary-tab-rack-body">
               <strong className="runtimepilot-primary-tab-rack-state">{sessionSignalTitle}</strong>
@@ -226,9 +231,12 @@ export function OpenCodePage() {
               <div className="summary-metrics">
                 <span>Sesija: {opencode.sessionState}</span>
                 <span>Runtime: {opencode.runtimeConnected ? "povezan" : opencode.runtimeLiveStatus || "--"}</span>
-                <span>Instanci: {opencode.instanceCount ?? 0}</span>
-                <span>PID: {currentInstance?.pid ?? "nepoznat"}</span>
+                <span>Workspace: {workspaceLabel}</span>
+                <span>Model: {managedModelLabel}</span>
               </div>
+              <p className="helper-text runtimepilot-primary-tab-rack-copy">
+                PID / instance: {instancePidLabel} Â· {instanceLabel}
+              </p>
               <p className="helper-text runtimepilot-primary-tab-rack-copy">{openCodeStateSummary}</p>
             </div>
           }
@@ -279,15 +287,16 @@ export function OpenCodePage() {
           deep={
             <div className="runtimepilot-primary-tab-rack-detail-grid">
               <article className="runtimepilot-primary-tab-rack-detail-card">
-                <span className="status-label">Managed config</span>
+                <span className="status-label">Managed config sažetak</span>
                 <strong>{managedModelLabel}</strong>
                 <p className="helper-text">
                   Provider: {managedProviderLabel} · Base URL: {managedBaseUrlLabel}
                 </p>
               </article>
               <article className="runtimepilot-primary-tab-rack-detail-card">
-                <span className="status-label">Aktivni workspace</span>
-                <strong>{workspaceLabel}</strong>
+                <span className="status-label">PID / instance</span>
+                <strong>{instanceLabel}</strong>
+                <p className="helper-text">PID {instancePidLabel} Â· Instanci {opencode.instanceCount ?? 0}</p>
                 <p className="helper-text">
                   {currentInstance?.name || "Sesija još nije otvorena"} · Profil {opencode.profile || "--"}
                 </p>
@@ -295,6 +304,9 @@ export function OpenCodePage() {
               <article className="runtimepilot-primary-tab-rack-detail-card">
                 <span className="status-label">Poslednji rezultat</span>
                 <strong>{resultSignalTitle}</strong>
+                <p className="helper-text">
+                  Posle klika prvo ovde čitaš da li je otvaranje uspelo i šta je sledeći korak.
+                </p>
                 <p className="helper-text">{resultSignalSummary}</p>
                 <div className="runtimepilot-primary-tab-rack-detail-actions">
                   <button
