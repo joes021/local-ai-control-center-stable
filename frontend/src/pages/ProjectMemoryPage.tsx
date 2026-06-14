@@ -2,8 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 
 import { ActionResultPanel } from "../components/ActionResultPanel";
 import { PageDataStateCard } from "../components/PageDataStateCard";
-import { PageFlowCard } from "../components/PageFlowCard";
 import { RuntimePilotIcon } from "../components/RuntimePilotIcon";
+import { SupportPageDeck } from "../components/shell/SupportPageDeck";
 import { saveProjectMemory, seedProjectMemory } from "../lib/api";
 import type {
   ActionResult,
@@ -192,7 +192,8 @@ export function ProjectMemoryPage({
 
   return (
     <div className="project-memory-page runtimepilot-rack-page">
-      <PageFlowCard
+      <SupportPageDeck
+        eyebrow="Project Memory"
         title="Jedna radna memorija za cilj, pravila i sledeći korak"
         summary="Project Memory čuva fokus projekta van samog prompta. Time agent i korisnik imaju jednu istu, vidljivu istinu o tome šta se radi, šta je već odlučeno i šta sledi."
         steps={[
@@ -221,6 +222,16 @@ export function ProjectMemoryPage({
                 Osveži sa diska
               </button>
             ) : null}
+          </>
+        }
+        resultHint={
+          <>
+            <span className="status-label">Gde vidiš rezultat</span>
+            <strong className="status-value">Seed, save i liste su odmah ispod</strong>
+            <p className="helper-text">
+              Posle setovanja cilja ili čuvanja memorije, ista strana odmah pokazuje osvežen sadržaj,
+              brojke i poslednji rezultat akcije.
+            </p>
           </>
         }
       />

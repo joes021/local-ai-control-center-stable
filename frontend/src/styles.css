@@ -4590,6 +4590,103 @@ code {
   justify-content: flex-end;
 }
 
+.runtimepilot-support-page-deck {
+  display: grid;
+  gap: 16px;
+  border-color: var(--app-panel-elevated-border);
+  background: var(--app-panel-elevated-bg);
+}
+
+.runtimepilot-support-page-deck-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.runtimepilot-support-page-deck-actions {
+  justify-content: flex-end;
+}
+
+.runtimepilot-support-page-deck-summary {
+  margin: 0;
+  max-width: 78ch;
+}
+
+.runtimepilot-support-page-deck-layout {
+  display: grid;
+  gap: 16px;
+}
+
+.runtimepilot-support-page-deck-layout-with-side {
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 320px);
+  align-items: start;
+}
+
+.runtimepilot-support-page-deck-main {
+  min-width: 0;
+}
+
+.runtimepilot-support-page-deck-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.runtimepilot-support-page-deck-step {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+  padding: 14px 16px;
+  border: 1px solid var(--app-card-border);
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, rgba(255, 248, 235, 0.06), rgba(255, 248, 235, 0.02)),
+    var(--app-card-soft-bg);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.runtimepilot-support-page-deck-step-index {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  border: 1px solid rgba(223, 193, 137, 0.32);
+  background: rgba(223, 193, 137, 0.12);
+  color: var(--app-accent-strong);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.runtimepilot-support-page-deck-step-copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.runtimepilot-support-page-deck-step-copy strong {
+  font-size: 1rem;
+  color: var(--app-text);
+}
+
+.runtimepilot-support-page-deck-step-copy p {
+  margin: 0;
+}
+
+.runtimepilot-support-page-deck-side {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  padding: 14px 16px;
+  border: 1px solid var(--app-card-border);
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, rgba(255, 248, 235, 0.065), rgba(255, 248, 235, 0.02)),
+    var(--app-card-soft-bg);
+}
+
 .runtimepilot-secondary-hub {
   display: grid;
   grid-template-columns: minmax(0, 1.2fr) minmax(300px, 0.56fr);
@@ -5387,6 +5484,19 @@ button.runtimepilot-secondary-action-rail-item:disabled {
   .page-flow-header {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .runtimepilot-support-page-deck-head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .runtimepilot-support-page-deck-layout-with-side {
+    grid-template-columns: 1fr;
+  }
+
+  .runtimepilot-support-page-deck-grid {
+    grid-template-columns: 1fr;
   }
 
   .page-flow-grid {

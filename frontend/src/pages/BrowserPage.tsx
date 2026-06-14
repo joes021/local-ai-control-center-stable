@@ -5,8 +5,8 @@ import { CompatibilityCalculatorModal } from "../components/CompatibilityCalcula
 import { CustomSelect } from "../components/CustomSelect";
 import { ModelDownloadProgressCard } from "../components/ModelDownloadProgressCard";
 import { PageDataStateCard } from "../components/PageDataStateCard";
-import { PageFlowCard } from "../components/PageFlowCard";
 import { RuntimePilotIcon } from "../components/RuntimePilotIcon";
+import { SupportPageDeck } from "../components/shell/SupportPageDeck";
 import type { CompatibilityLaunchTarget } from "../lib/compatibility";
 import {
   addBrowserModelToLocal,
@@ -859,8 +859,9 @@ export function BrowserPage({
   return (
     <>
       {error ? <div className="error-panel wide-card">{error}</div> : null}
-      <PageFlowCard
-        title="Browser tok"
+      <SupportPageDeck
+        eyebrow="Browser katalog"
+        title="Osveži, filtriraj, pa odluči"
         summary="Najzdraviji redosled je da prvo osvežiš katalog, zatim filtriraš modele, pa tek onda dodaješ lokalno ili proveravaš fit za svoju mašinu."
         steps={[
           {
@@ -887,6 +888,16 @@ export function BrowserPage({
             <button type="button" className="secondary-button" onClick={() => void handleRefresh("unsloth")}>
               Osveži Unsloth
             </button>
+          </>
+        }
+        resultHint={
+          <>
+            <span className="status-label">Gde vidiš rezultat</span>
+            <strong className="status-value">Tabela, detalj panela i status preuzimanja</strong>
+            <p className="helper-text">
+              Posle osvežavanja ili dodavanja modela, rezultat se vidi odmah niže kroz brojke kataloga,
+              listu modela i download status.
+            </p>
           </>
         }
       />

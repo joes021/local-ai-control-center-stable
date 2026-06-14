@@ -1,7 +1,7 @@
 ﻿import { useEffect, useMemo, useState } from "react";
 
 import { PageDataStateCard } from "../components/PageDataStateCard";
-import { PageFlowCard } from "../components/PageFlowCard";
+import { SupportPageDeck } from "../components/shell/SupportPageDeck";
 import {
   addKnowledgeSource,
   answerWithKnowledge,
@@ -115,8 +115,9 @@ export function KnowledgePage({ onOpenSearch }: { onOpenSearch: () => void }) {
   return (
     <>
       {inlineError ? <div className="error-panel wide-card">{inlineError}</div> : null}
-      <PageFlowCard
-        title="Tok znanja"
+      <SupportPageDeck
+        eyebrow="Znanje"
+        title="Izvori, režim i odgovor"
         summary="Najprirodniji redosled je da prvo proveriš izvore, zatim izabereš režim dokumenata ili veba i tek onda postaviš pitanje."
         steps={[
           {
@@ -136,6 +137,16 @@ export function KnowledgePage({ onOpenSearch }: { onOpenSearch: () => void }) {
           <button type="button" className="secondary-button" onClick={onOpenSearch}>
             Otvori Pretragu
           </button>
+        }
+        resultHint={
+          <>
+            <span className="status-label">Gde vidiš rezultat</span>
+            <strong className="status-value">Izvori, indeks i odgovor su odmah ispod</strong>
+            <p className="helper-text">
+              Posle dodavanja izvora ili pokretanja upita, ista strana odmah pokazuje status
+              indeksiranja, reference i konačan odgovor.
+            </p>
+          </>
         }
       />
       <section className="status-card wide-card runtimepilot-faceplate-module knowledge-panel">

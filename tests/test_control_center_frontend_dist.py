@@ -2038,16 +2038,16 @@ def test_shared_ux_components_and_guided_flow_copy_are_present_in_core_pages():
     assert "PrimaryFlowCard" not in models_source
     assert "PageDataStateCard" in models_source
 
-    assert "Browser tok" in browser_source
+    assert 'title="Osveži, filtriraj, pa odluči"' in browser_source
     assert "Osveži katalog" in browser_source
     assert "Dodaj lokalno ili proveri fit" in browser_source
-    assert "PageFlowCard" in browser_source
+    assert "SupportPageDeck" in browser_source
     assert "PageDataStateCard" in browser_source
 
-    assert "Tok pretrage" in search_source
+    assert 'title="Provider, upit i rezultat"' in search_source
     assert "Izaberi provider" in search_source
     assert "Pokreni pretragu, odgovor ili poređenje" in search_source
-    assert "PageFlowCard" in search_source
+    assert "SupportPageDeck" in search_source
     assert "PageDataStateCard" in search_source
 
     assert "OpenCode radni tok" in opencode_source
@@ -3096,7 +3096,7 @@ def test_runtimepilot_source_copy_uses_serbian_labels_on_knowledge_and_related_p
     jobs_source = Path("frontend/src/pages/JobsPage.tsx").read_text(encoding="utf-8")
     observability_source = Path("frontend/src/pages/ObservabilityPage.tsx").read_text(encoding="utf-8")
 
-    assert 'title="Tok znanja"' in knowledge_source
+    assert 'title="Izvori, režim i odgovor"' in knowledge_source
     assert "Dokumenti + veb" in knowledge_source
     assert "Samo dokumenti" in knowledge_source
     assert "Samo veb" in knowledge_source
@@ -3666,6 +3666,37 @@ def test_secondary_support_pages_use_faceplate_modules_for_hifi_layout():
     bundled_js = "\n".join(path.read_text(encoding="utf-8") for path in js_assets)
 
     assert "runtimepilot-faceplate-module" in bundled_js
+
+
+def test_support_pages_share_runtimepilot_support_deck_shell():
+    support_source = Path("frontend/src/components/shell/SupportPageDeck.tsx").read_text(
+        encoding="utf-8"
+    )
+    browser_source = Path("frontend/src/pages/BrowserPage.tsx").read_text(encoding="utf-8")
+    knowledge_source = Path("frontend/src/pages/KnowledgePage.tsx").read_text(
+        encoding="utf-8"
+    )
+    search_source = Path("frontend/src/pages/SearchPage.tsx").read_text(encoding="utf-8")
+    help_source = Path("frontend/src/pages/HelpPage.tsx").read_text(encoding="utf-8")
+    project_memory_source = Path("frontend/src/pages/ProjectMemoryPage.tsx").read_text(
+        encoding="utf-8"
+    )
+
+    assert "SupportPageDeck" in support_source
+    assert "SupportPageDeck" in browser_source
+    assert "SupportPageDeck" in knowledge_source
+    assert "SupportPageDeck" in search_source
+    assert "SupportPageDeck" in help_source
+    assert "SupportPageDeck" in project_memory_source
+
+
+def test_styles_source_includes_support_deck_shell_classes():
+    styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
+
+    assert ".runtimepilot-support-page-deck" in styles_source
+    assert ".runtimepilot-support-page-deck-head" in styles_source
+    assert ".runtimepilot-support-page-deck-main" in styles_source
+    assert ".runtimepilot-support-page-deck-side" in styles_source
 
 
 def test_catalog_memory_and_guided_flow_use_faceplate_modules_for_hifi_layout():

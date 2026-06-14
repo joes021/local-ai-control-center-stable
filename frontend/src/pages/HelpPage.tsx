@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 
-import { PageFlowCard } from "../components/PageFlowCard";
 import { RuntimePilotIcon } from "../components/RuntimePilotIcon";
+import { SupportPageDeck } from "../components/shell/SupportPageDeck";
 import type { RuntimePilotIconName } from "../components/RuntimePilotIcon";
 
 type HelpPageProps = {
@@ -239,7 +239,8 @@ export function HelpPage({
 }: HelpPageProps) {
   return (
     <div className="help-page runtimepilot-rack-page">
-      <PageFlowCard
+      <SupportPageDeck
+        eyebrow="Pomoć"
         title="Najkraći put do rezultata"
         summary="Ovaj help centar je praktičan vodič kroz RuntimePilot. Ne objašnjava teoriju radi teorije, nego ti kaže gde da klikneš i šta da očekuješ."
         steps={[
@@ -270,6 +271,16 @@ export function HelpPage({
             <button type="button" className="secondary-button" onClick={onOpenTuningLab}>
               Otvori Tuning Lab
             </button>
+          </>
+        }
+        resultHint={
+          <>
+            <span className="status-label">Gde vidiš rezultat</span>
+            <strong className="status-value">Jump linkovi i praktične sekcije odmah ispod</strong>
+            <p className="helper-text">
+              Ovaj ekran nije mrtav help tekst. Ispod odmah dobijaš brzu navigaciju, vizuelni redosled
+              rada i prečice ka pravim tabovima.
+            </p>
           </>
         }
       />

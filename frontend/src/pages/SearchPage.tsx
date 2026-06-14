@@ -2,7 +2,7 @@
 
 import { CustomSelect } from "../components/CustomSelect";
 import { PageDataStateCard } from "../components/PageDataStateCard";
-import { PageFlowCard } from "../components/PageFlowCard";
+import { SupportPageDeck } from "../components/shell/SupportPageDeck";
 import {
   answerWithLocalModel,
   bootstrapManagedSearchProvider,
@@ -230,8 +230,9 @@ export function SearchPage({ onOpenSettings }: SearchPageProps) {
   return (
     <>
       {error ? <div className="error-panel wide-card">{error}</div> : null}
-      <PageFlowCard
-        title="Tok pretrage"
+      <SupportPageDeck
+        eyebrow="Pretraga"
+        title="Provider, upit i rezultat"
         summary="Ova strana vodi kroz jednostavan redosled: proveri provider, unesi upit, pa odluči da li želiš izvore, lokalni odgovor ili poređenje."
         steps={[
           {
@@ -253,6 +254,16 @@ export function SearchPage({ onOpenSettings }: SearchPageProps) {
               Otvori Podešavanja
             </button>
           ) : null
+        }
+        resultHint={
+          <>
+            <span className="status-label">Gde vidiš rezultat</span>
+            <strong className="status-value">Provider signal i rezultat pretrage ostaju ispod</strong>
+            <p className="helper-text">
+              Ista strana odmah prikazuje zdravlje provajdera, listu izvora i lokalni odgovor, bez
+              skrivanja ishoda iza dodatnog taba.
+            </p>
+          </>
         }
       />
       <section className="status-card wide-card runtimepilot-faceplate-module">
