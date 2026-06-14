@@ -1,8 +1,8 @@
 # RuntimePilot Public Release Checklist
 
 Date: 2026-06-13
-Version target: `v0.4.91`
-Installer target: `dist/RuntimePilotSetup-v0.4.91.exe`
+Version target: `v0.4.93`
+Installer target: `dist/RuntimePilotSetup-v0.4.93.exe`
 
 ## 1. Repo hardening
 
@@ -22,7 +22,7 @@ Installer target: `dist/RuntimePilotSetup-v0.4.91.exe`
 - [ ] Push branch and tag to GitHub.
 - [ ] Confirm GitHub secret scanning and push protection are enabled on the repository.
 - [ ] Review `git diff --stat` and installer asset names before publishing release notes.
-- [ ] Upload `dist/RuntimePilotSetup-v0.4.91.exe` and `dist/RuntimePilotSetup-latest.exe` only after final smoke test.
+- [ ] Upload `dist/RuntimePilotSetup-v0.4.93.exe` and `dist/RuntimePilotSetup-latest.exe` only after final smoke test.
 
 ## 4. Windows trust and antivirus reality
 
