@@ -3384,6 +3384,26 @@ def test_primary_pages_share_primary_tab_rack():
     assert "PrimaryTabRack" in server_source
     assert "PrimaryTabRack" in models_source
     assert "PrimaryTabRack" in opencode_source
+    assert 'onClick={() => void runAction(startServer)}' in server_source
+    assert 'onClick={() => onOpenContextSettings?.()}' in server_source
+    assert "onClick={openRuntimeDiagnostics}" in server_source
+    assert "onOpenCompatibilityTab?.({" in models_source
+    assert "onClick={revealAddModel}" in models_source
+    assert "revealLocalModels();" in models_source
+    assert 'openOpenCode(opencode.profile || "balanced", "direct")' in opencode_source
+    assert 'openOpenCode(opencode.profile || "balanced", "isolated")' in opencode_source
+    assert "onClick={scrollToActionResult}" in opencode_source
+    assert "onClick={openAdvancedTools}" in opencode_source
+
+
+def test_opencode_primary_rack_rollout_drops_legacy_top_shell_css():
+    styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
+
+    assert ".runtimepilot-opencode-shell-header" not in styles_source
+    assert ".runtimepilot-opencode-shell-actions-panel" not in styles_source
+    assert ".runtimepilot-opencode-shell-topgrid" not in styles_source
+    assert ".runtimepilot-opencode-shell-secondary-action" not in styles_source
+    assert ".runtimepilot-opencode-shell-main" not in styles_source
 
 
 def test_settings_page_source_maps_general_save_actions_to_editor_config_and_live_result():
