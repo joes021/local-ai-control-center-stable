@@ -3602,9 +3602,13 @@ def test_secondary_pages_use_real_action_rail_instead_of_placeholder_modules():
     assert "Otvori kompatibilnost" in advanced_source
     assert "SecondaryActionRail" in benchmark_source
     assert "SecondaryActionRail" in compatibility_source
+    assert "actions={" not in advanced_source
+    assert "actions={" not in benchmark_source
+    assert "actions={" not in compatibility_source
     assert "Fix" not in advanced_source
     assert "Release" not in advanced_source
     assert ".runtimepilot-secondary-action-rail" in styles_source
+    assert "order: -1" in styles_source
 
 
 def test_support_pages_and_flow_card_use_faceplate_modules_for_hifi_layout():
@@ -3623,7 +3627,7 @@ def test_support_pages_and_flow_card_use_faceplate_modules_for_hifi_layout():
     assert "runtimepilot-faceplate-module" in page_flow_source
     assert "page-flow-card-intro" in page_flow_source
     assert "page-flow-summary" in page_flow_source
-    assert "page-flow-actions" not in page_flow_source
+    assert "page-flow-actions" in page_flow_source
     assert "runtimepilot-faceplate-module" in page_data_state_source
     assert "runtimepilot-faceplate-module" in knowledge_source
     assert "runtimepilot-faceplate-module" in search_source
@@ -3631,7 +3635,7 @@ def test_support_pages_and_flow_card_use_faceplate_modules_for_hifi_layout():
     assert "runtimepilot-faceplate-module" in repair_source
     assert ".page-flow-card-intro" in styles_source
     assert ".page-flow-summary" in styles_source
-    assert ".page-flow-actions" not in styles_source
+    assert ".page-flow-actions" in styles_source
     assert js_assets
 
     bundled_js = "\n".join(path.read_text(encoding="utf-8") for path in js_assets)

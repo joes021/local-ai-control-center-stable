@@ -4586,6 +4586,10 @@ code {
   max-width: 78ch;
 }
 
+.page-flow-actions {
+  justify-content: flex-end;
+}
+
 .runtimepilot-secondary-hub {
   display: grid;
   grid-template-columns: minmax(0, 1.2fr) minmax(300px, 0.56fr);
@@ -11609,6 +11613,7 @@ select:-webkit-autofill {
 
   .runtimepilot-secondary-action-rail-shell {
     position: static;
+    order: -1;
   }
 
   .runtimepilot-advanced-summary-grid,
@@ -11709,6 +11714,10 @@ select:-webkit-autofill {
 
   .runtimepilot-secondary-action-rail-item-indicator {
     display: none;
+  }
+
+  .page-flow-actions {
+    justify-content: flex-start;
   }
 
   .runtimepilot-nav-shell-copy {
