@@ -533,6 +533,76 @@ def test_apply_runtime_payload_preserves_existing_managed_runtime_port_on_upgrad
     }
 
 
+def test_apply_runtime_payload_preserves_existing_active_model_on_upgrade(
+    tmp_path: Path,
+):
+    install_root = tmp_path / "install-root"
+    runtime_root = install_root / "runtime" / "llama.cpp"
+    model_root = install_root / "models" / "recommended-6gb"
+    runtime_root.mkdir(parents=True)
+    model_root.mkdir(parents=True)
+    (runtime_root / "llama-server.exe").write_text("ok", encoding="utf-8")
+    (runtime_root / "runtime-artifact.json").write_text(
+        json.dumps(
+            {
+                "artifact_id": "windows-llama-cpp-runtime",
+                "source_sha256": "abc123",
+            }
+        ),
+        encoding="utf-8",
+    )
+    (model_root / "recommended-6gb.gguf").write_text("ok", encoding="utf-8")
+    existing_active_model_path = _write_active_model_config(
+        install_root / "config" / "active-model.json",
+        model_id="local-custom-model",
+        model_path=Path("D:\\Models\\custom-qwen.gguf"),
+    )
+    session = InstallerSession(
+        bootstrap_status="ready",
+        install_root=str(install_root),
+        install_mode="upgrade",
+        starter_model="recommended-6gb",
+    )
+    manifest = {
+        "runtime_artifact": {
+            "id": "windows-llama-cpp-runtime",
+            "url": "https://example.invalid/runtime.zip",
+            "sha256": "abc123",
+            "archive_type": "zip",
+            "required_files": ["llama-server.exe"],
+            "required_file_sha256": {"llama-server.exe": PINNED_OK_RUNTIME_SHA256},
+            "install_subdir": "runtime/llama.cpp",
+        },
+        "starter_models": {
+            "recommended-6gb": {
+                "id": "recommended-6gb",
+                "url": "https://example.invalid/model.gguf",
+                "sha256": "def456",
+                "target_filename": "recommended-6gb.gguf",
+                "install_subdir": "models/recommended-6gb",
+                "size_bytes": 123,
+            }
+        },
+    }
+
+    updated = apply_runtime_payload(
+        session,
+        temp_root=tmp_path / "temp-runs",
+        load_manifest=lambda: manifest,
+        verify_model_file=lambda path, expected_sha256: True,
+        port_is_free=lambda host, port: True,
+    )
+
+    assert updated.runtime_payload_status == "ready"
+    active_model_payload = json.loads(
+        existing_active_model_path.read_text(encoding="utf-8")
+    )
+    assert active_model_payload == {
+        "model_id": "local-custom-model",
+        "model_path": "D:\\Models\\custom-qwen.gguf",
+    }
+
+
 def test_apply_runtime_payload_reassigns_stale_managed_runtime_port_on_fresh_reinstall(
     tmp_path: Path,
 ):

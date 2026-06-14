@@ -224,10 +224,16 @@ def apply_runtime_payload(
     if write_runtime_endpoint_config is None:
         write_runtime_endpoint_config = _write_runtime_endpoint_config
     try:
+        active_model_payload = _resolve_active_model_payload(
+            active_model_config_path,
+            install_mode=session.install_mode,
+            starter_model_id=starter_model["id"],
+            starter_model_path=starter_model_path,
+        )
         write_active_model_config(
             active_model_config_path,
-            model_id=starter_model["id"],
-            model_path=starter_model_path,
+            model_id=active_model_payload["model_id"],
+            model_path=Path(active_model_payload["model_path"]),
         )
     except Exception as exc:
         session.runtime_payload_status = "failed"
@@ -392,6 +398,48 @@ def _write_active_model_config(
             "model_path": str(model_path),
         },
     )
+
+
+def _resolve_active_model_payload(
+    active_model_config_path: Path,
+    *,
+    install_mode: str,
+    starter_model_id: str,
+    starter_model_path: Path,
+) -> dict[str, str]:
+    if install_mode == "upgrade":
+        existing_payload = _load_existing_active_model_payload(active_model_config_path)
+        if existing_payload is not None:
+            return existing_payload
+
+    return {
+        "model_id": starter_model_id,
+        "model_path": str(starter_model_path),
+    }
+
+
+def _load_existing_active_model_payload(
+    active_model_config_path: Path,
+) -> dict[str, str] | None:
+    try:
+        payload = json.loads(active_model_config_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError, json.JSONDecodeError, UnicodeDecodeError):
+        return None
+
+    if not isinstance(payload, dict):
+        return None
+
+    model_id = payload.get("model_id")
+    model_path = payload.get("model_path")
+    if not isinstance(model_id, str) or not model_id.strip():
+        return None
+    if not isinstance(model_path, str) or not model_path.strip():
+        return None
+
+    return {
+        "model_id": model_id.strip(),
+        "model_path": model_path.strip(),
+    }
 
 
 def _write_model_locations_config(
