@@ -2059,7 +2059,7 @@ def test_shared_ux_components_and_guided_flow_copy_are_present_in_core_pages():
     assert "PageDataStateCard" in opencode_source
 
     assert "Benchmark tok" in benchmark_source
-    assert "Izaberi test ili bateriju" in benchmark_source
+    assert "Izbor scenarija i baterije" in benchmark_source
     assert "Gledaj telemetriju i istoriju" in benchmark_source
     assert "PageFlowCard" in benchmark_source
     assert "PageDataStateCard" in benchmark_source
@@ -2800,14 +2800,17 @@ def test_benchmark_observability_help_and_project_memory_use_hifi_decks():
     styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
 
     assert "benchmark-page runtimepilot-rack-page" in benchmark_source
+    assert "runtimepilot-secondary-hub" in benchmark_source
+    assert "SecondaryActionRail" in benchmark_source
     assert "benchmark-hifi-stack" in benchmark_source
     assert "benchmark-mixer-deck" in benchmark_source
     assert "benchmark-transport-deck" in benchmark_source
     assert "benchmark-monitor-deck" in benchmark_source
-    assert "HomeHiFiModule" in benchmark_source
-    assert "benchmark-primary-module" in benchmark_source
-    assert "Veliki modul 8" in benchmark_source
-    assert "Komandni dek" in benchmark_source
+    assert "benchmark-setup-grid" in benchmark_source
+    assert "Izbor scenarija i baterije" in benchmark_source
+    assert "HomeHiFiModule" not in benchmark_source
+    assert "Veliki modul 8" not in benchmark_source
+    assert "Komandni dek" not in benchmark_source
 
     assert (
         "observability-page runtimepilot-rack-page" in observability_source
@@ -2843,9 +2846,10 @@ def test_benchmark_observability_help_and_project_memory_use_hifi_decks():
     assert "project-memory-monitor-deck" in project_memory_source
 
     assert ".benchmark-hifi-stack" in styles_source
-    assert ".runtimepilot-home-hifi-module.benchmark-primary-module" in styles_source
+    assert ".runtimepilot-secondary-hub" in styles_source
+    assert ".runtimepilot-secondary-action-rail" in styles_source
     assert ".benchmark-faceplate-panel" in styles_source
-    assert ".benchmark-command-grid" in styles_source
+    assert ".benchmark-setup-grid" in styles_source
     assert ".benchmark-log-preview" in styles_source
     assert ".observability-hifi-stack" in styles_source
     assert ".help-hifi-stack" in styles_source
@@ -2930,6 +2934,9 @@ def test_layout_and_app_source_drop_guided_flow_from_header_nav():
 def test_advanced_page_source_and_app_wire_real_secondary_tool_launchers():
     app_source = Path("frontend/src/App.tsx").read_text(encoding="utf-8")
     page_source = Path("frontend/src/pages/AdvancedPage.tsx").read_text(encoding="utf-8")
+    rail_source = Path("frontend/src/components/shell/SecondaryActionRail.tsx").read_text(
+        encoding="utf-8"
+    )
     styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
     dist_root = Path(
         "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
@@ -2969,13 +2976,16 @@ def test_advanced_page_source_and_app_wire_real_secondary_tool_launchers():
     assert '"Otvori Ažuriranja"' in page_source
     assert '"Otvori Flotu"' in page_source
     assert '"Otvori Poslove"' in page_source
-    assert "HomeHiFiModule" in page_source
-    assert "HomeHiFiCommandButton" in page_source
-    assert 'variant="runtime-primary"' in page_source
-    assert 'tone: "service"' in page_source
-    assert "advanced-rack-module" in page_source
-    assert "advanced-rack-stack" in page_source
-    assert 'className="advanced-rack-stack wide-card"' in page_source
+    assert "SecondaryActionRail" in rail_source
+    assert "SecondaryActionRail" in page_source
+    assert "runtimepilot-secondary-hub" in page_source
+    assert "runtimepilot-advanced-summary-grid" in page_source
+    assert "HomeHiFiModule" not in page_source
+    assert "HomeHiFiCommandButton" not in page_source
+    assert "advanced-rack-module" not in page_source
+    assert "advanced-rack-stack" not in page_source
+    assert '"Fix"' not in page_source
+    assert '"Release"' not in page_source
     assert '{page === "advanced" ? <AdvancedPage /> : null}' not in app_source
     assert '{page === "advanced" ? (' in app_source
     assert 'onOpenBenchmark={() => setPage("benchmark")}' in app_source
@@ -2994,12 +3004,10 @@ def test_advanced_page_source_and_app_wire_real_secondary_tool_launchers():
     assert 'onOpenUpdates={() => setPage("updates")}' in app_source
     assert 'onOpenFleet={() => setPage("fleet")}' in app_source
     assert 'onOpenJobs={() => setPage("jobs")}' in app_source
-    assert ".advanced-rack-stack" in styles_source
-    assert ".advanced-rack-module" in styles_source
-    assert ".advanced-rack-module-analysis" in styles_source
-    assert ".advanced-rack-module-knowledge" in styles_source
-    assert ".advanced-rack-module-control" in styles_source
-    assert ".advanced-rack-module-service" in styles_source
+    assert ".runtimepilot-secondary-hub" in styles_source
+    assert ".runtimepilot-secondary-action-rail" in styles_source
+    assert ".runtimepilot-advanced-summary-grid" in styles_source
+    assert ".runtimepilot-advanced-summary-card-service" in styles_source
     assert js_assets
     assert css_assets
 
@@ -3022,12 +3030,10 @@ def test_advanced_page_source_and_app_wire_real_secondary_tool_launchers():
     assert "Otvori Ažuriranja" in bundled_js
     assert "Otvori Flotu" in bundled_js
     assert "Otvori Poslove" in bundled_js
-    assert ".advanced-rack-stack" in bundled_css
-    assert ".advanced-rack-module" in bundled_css
-    assert ".advanced-rack-module-analysis" in bundled_css
-    assert ".advanced-rack-module-knowledge" in bundled_css
-    assert ".advanced-rack-module-control" in bundled_css
-    assert ".advanced-rack-module-service" in bundled_css
+    assert ".runtimepilot-secondary-hub" in bundled_css
+    assert ".runtimepilot-secondary-action-rail" in bundled_css
+    assert ".runtimepilot-advanced-summary-grid" in bundled_css
+    assert ".runtimepilot-advanced-summary-card-service" in bundled_css
 
 
 def test_home_hifi_component_split_exists():
@@ -3571,6 +3577,34 @@ def test_hifi_shared_button_rail_styles_extend_faceplate_modules():
     assert ".runtimepilot-faceplate-module .secondary-button" in bundled_css
     assert "grid-template-columns:repeat(auto-fit,minmax(180px,1fr))" in bundled_css
     assert "min-height:46px" in bundled_css
+
+
+def test_secondary_pages_use_real_action_rail_instead_of_placeholder_modules():
+    rail_source = Path(
+        "frontend/src/components/shell/SecondaryActionRail.tsx"
+    ).read_text(encoding="utf-8")
+    advanced_source = Path("frontend/src/pages/AdvancedPage.tsx").read_text(
+        encoding="utf-8"
+    )
+    benchmark_source = Path("frontend/src/pages/BenchmarkPage.tsx").read_text(
+        encoding="utf-8"
+    )
+    compatibility_source = Path(
+        "frontend/src/pages/CompatibilityPage.tsx"
+    ).read_text(encoding="utf-8")
+    styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
+
+    assert "SecondaryActionRail" in rail_source
+    assert "runtimepilot-secondary-action-rail" in rail_source
+    assert "SecondaryActionRail" in advanced_source
+    assert "Otvori Benchmark" in advanced_source
+    assert "Otvori Tuning Lab" in advanced_source
+    assert "Otvori kompatibilnost" in advanced_source
+    assert "SecondaryActionRail" in benchmark_source
+    assert "SecondaryActionRail" in compatibility_source
+    assert "Fix" not in advanced_source
+    assert "Release" not in advanced_source
+    assert ".runtimepilot-secondary-action-rail" in styles_source
 
 
 def test_support_pages_and_flow_card_use_faceplate_modules_for_hifi_layout():

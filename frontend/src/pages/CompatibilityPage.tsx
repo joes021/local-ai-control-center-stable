@@ -4,6 +4,10 @@ import { CompatibilityCalculatorPanel } from "../components/CompatibilityCalcula
 import { CustomSelect } from "../components/CustomSelect";
 import { PageDataStateCard } from "../components/PageDataStateCard";
 import { PageFlowCard } from "../components/PageFlowCard";
+import {
+  SecondaryActionRail,
+  type SecondaryActionRailItem,
+} from "../components/shell/SecondaryActionRail";
 import { fetchBrowserCatalog, fetchModels } from "../lib/api";
 import {
   buildCompatibilityRequestFromModelEntry,
@@ -469,38 +473,71 @@ export function CompatibilityPage({
     return <div className="status-card wide-card">Učitavam radni prostor kompatibilnosti...</div>;
   }
 
+  function openSelectedRemoteSource() {
+    if (!selectedRemoteModel?.sourceUrl) {
+      return;
+    }
+    window.open(selectedRemoteModel.sourceUrl, "_blank", "noopener,noreferrer");
+  }
+
+  const compatibilityRailItems: SecondaryActionRailItem[] = [
+    {
+      code: "LIVE",
+      title: "Koristi aktivni model",
+      subtitle: activeModel?.label ?? "AKTIVNI MODEL",
+      icon: "models",
+      tone: "primary",
+      onClick: () => setScope("active"),
+    },
+    {
+      code: "MODEL",
+      title: "Otvori Modele",
+      subtitle: "LOKALNI KATALOG",
+      icon: "models",
+      onClick: onOpenModels,
+    },
+    {
+      code: "CAT",
+      title: "Otvori katalog",
+      subtitle: "BROWSER + IZVORI",
+      icon: "browser",
+      onClick: onOpenBrowser,
+    },
+    {
+      code: "SRC",
+      title: "Otvori izvornu stranicu",
+      subtitle: selectedRemoteModel?.model ?? "IZABERI UDALJENI MODEL",
+      icon: "search",
+      detail: selectedRemoteModel?.sourceUrl || "Link se pali kada udaljeni model ima izvorni URL.",
+      disabled: !selectedRemoteModel?.sourceUrl,
+      onClick: openSelectedRemoteSource,
+    },
+  ];
+
   return (
     <div className="compatibility-page runtimepilot-rack-page">
       {inlineError ? <div className="error-panel wide-card">{inlineError}</div> : null}
-      <PageFlowCard
-        title="Tok kompatibilnosti"
-        summary="Ovde prvo biraš šta proveravaš, zatim gledaš fit i runtime preporuku, pa se tek onda vraćaš u Modele ili katalog."
-        steps={[
-          {
-            title: "Izaberi aktivni, lokalni ili udaljeni model",
-            detail: "Opseg određuje da li proveravaš ono što već koristiš, lokalni katalog ili kandidat iz kataloga.",
-          },
-          {
-            title: "Pogledaj fit i runtime preporuku",
-            detail: "Kalkulator sam ponavlja proveru kad promeniš model, pa je fokus na tumačenju rezultata umesto na ručnom startovanju.",
-          },
-          {
-            title: "Vrati se u Modele ili katalog",
-            detail: "Kada vidiš šta radi na mašini, odmah se vrati na pravo mesto i potvrdi model ili izvor.",
-          },
-        ]}
-        actions={
-          <>
-            <button type="button" className="secondary-button" onClick={onOpenModels}>
-              Otvori Modele
-            </button>
-            <button type="button" className="secondary-button" onClick={onOpenBrowser}>
-              Otvori katalog
-            </button>
-          </>
-        }
-      />
-      <div className="compatibility-hifi-stack">
+      <div className="runtimepilot-secondary-hub">
+        <div className="runtimepilot-secondary-hub-main">
+          <PageFlowCard
+            title="Tok kompatibilnosti"
+            summary="Levo ostaju izbor opsega i kalkulator, a desni rail drži samo stvarne ulaze za aktivni model, lokalni katalog, Browser katalog i izvorni link."
+            steps={[
+              {
+                title: "Izaberi aktivni, lokalni ili udaljeni model",
+                detail: "Opseg određuje da li proveravaš ono što već koristiš, lokalni katalog ili kandidat iz kataloga.",
+              },
+              {
+                title: "Pogledaj fit i runtime preporuku",
+                detail: "Kalkulator sam ponavlja proveru kad promeniš model, pa je fokus na tumačenju rezultata umesto na ručnom startovanju.",
+              },
+              {
+                title: "Vrati se u Modele ili katalog",
+                detail: "Kada vidiš šta radi na mašini, odmah se vrati na pravo mesto i potvrdi model ili izvor.",
+              },
+            ]}
+          />
+          <div className="compatibility-hifi-stack">
       <div className="compatibility-mixer-deck">
       <section className="status-card wide-card compatibility-workspace runtimepilot-faceplate-module compat-rack-module">
         <div className="section-header">
@@ -517,29 +554,6 @@ export function CompatibilityPage({
               Provera kompatibilnosti se na ovoj stranici pokreće automatski čim
               promeniš izabrani model.
             </p>
-          </div>
-          <div className="inline-actions compact-actions">
-            <button
-              type="button"
-              className="secondary-button"
-              onClick={() => setScope("active")}
-            >
-              Koristi aktivni model
-            </button>
-            <button
-              type="button"
-              className="secondary-button"
-              onClick={onOpenModels}
-            >
-              Otvori modele
-            </button>
-            <button
-              type="button"
-              className="secondary-button"
-              onClick={onOpenBrowser}
-            >
-              Otvori katalog
-            </button>
           </div>
         </div>
         <div className="compatibility-snapshot-grid">
@@ -638,15 +652,6 @@ export function CompatibilityPage({
                   ? `Izvor: ${formatModelSource(activeModel)} | MTP: ${activeModel.mtpStatusLabel ?? "nepoznato"}`
                   : "Prvo aktiviraj ili izaberi model iz lokalnog kataloga."}
               </div>
-              <div className="inline-actions compact-actions">
-                <button
-                  type="button"
-                  className="secondary-button"
-                  onClick={onOpenModels}
-                >
-                  Otvori modele
-                </button>
-              </div>
             </div>
           </div>
         ) : null}
@@ -671,15 +676,6 @@ export function CompatibilityPage({
                 {selectedLocalModel
                   ? `${formatModelSource(selectedLocalModel)} | ${selectedLocalModel.family ?? "Nepoznato"} | ${selectedLocalModel.lifecycleLabel ?? "Status nepoznat"}`
                   : "Izaberi model iz lokalnog kataloga."}
-              </div>
-              <div className="inline-actions compact-actions">
-                <button
-                  type="button"
-                  className="secondary-button"
-                  onClick={onOpenModels}
-                >
-                  Otvori modele
-                </button>
               </div>
             </div>
           </div>
@@ -732,30 +728,6 @@ export function CompatibilityPage({
               <div className="helper-text">
                 Filter trenutno vraća {filteredRemoteCandidates.length} modela.
               </div>
-              <div className="inline-actions compact-actions">
-                <button
-                  type="button"
-                  className="secondary-button"
-                  onClick={onOpenBrowser}
-                >
-                  Otvori katalog
-                </button>
-                {selectedRemoteModel?.sourceUrl ? (
-                  <button
-                    type="button"
-                    className="secondary-button"
-                    onClick={() =>
-                      window.open(
-                        selectedRemoteModel.sourceUrl,
-                        "_blank",
-                        "noopener,noreferrer",
-                      )
-                    }
-                  >
-                    Otvori izvornu stranicu
-                  </button>
-                ) : null}
-              </div>
             </div>
           </div>
         ) : null}
@@ -777,6 +749,16 @@ export function CompatibilityPage({
           </div>
         }
       />
+
+          </div>
+        </div>
+
+        <SecondaryActionRail
+          eyebrow="Action rail"
+          title="Ulazi i prečice"
+          summary="Desno ostaju samo ulazi koji vode na aktivni model, lokalni katalog, Browser katalog ili izvorni link kada postoji."
+          items={compatibilityRailItems}
+        />
       </div>
     </div>
   );

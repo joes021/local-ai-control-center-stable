@@ -1,12 +1,14 @@
 ﻿import { useEffect, useMemo, useRef, useState } from "react";
 
 import { CustomSelect } from "../components/CustomSelect";
-import { HomeHiFiCommandButton } from "../components/home/HomeHiFiCommandButton";
-import { HomeHiFiModule } from "../components/home/HomeHiFiModule";
 import { PageDataStateCard } from "../components/PageDataStateCard";
 import { PageFlowCard } from "../components/PageFlowCard";
 import { RuntimeResourcePanel } from "../components/RuntimeResourcePanel";
 import { TelemetryPanel } from "../components/TelemetryPanel";
+import {
+  SecondaryActionRail,
+  type SecondaryActionRailItem,
+} from "../components/shell/SecondaryActionRail";
 import {
   clearBenchmarkHistory,
   exportBenchmarkRuns,
@@ -782,149 +784,110 @@ export function BenchmarkPage({
     );
   }
 
+  const benchmarkRailItems: SecondaryActionRailItem[] = [
+    {
+      code: "RUN",
+      title: "Pokreni scenario",
+      subtitle: selectedScenario?.name || "SCENARIO + SIGNAL",
+      icon: "play",
+      detail: benchmarkStateDetail,
+      tone: "primary",
+      disabled: !selectedScenarioId,
+      onClick: () => void handleRunSelected(),
+    },
+    {
+      code: "BAT",
+      title: "Pokreni bateriju",
+      subtitle: `${selectedBattery.scenarios.length} scenarija`,
+      icon: "benchmark",
+      detail: selectedBattery.name,
+      disabled: !selectedBattery.scenarios.length,
+      onClick: () => void handleRunBattery(1),
+    },
+    {
+      code: "LAB",
+      title: "Otvori Tuning Lab",
+      subtitle: "SLOTOVI + WINNER",
+      icon: "tuning",
+      disabled: !onOpenTuningLab,
+      onClick: () => onOpenTuningLab?.(),
+    },
+    {
+      code: "LOG",
+      title: "Otvori Logove",
+      subtitle: "LIVE TRAG + PORUKE",
+      icon: "logs",
+      onClick: onOpenLogs,
+    },
+    {
+      code: "EXP",
+      title: "Izvoz istorije",
+      subtitle: "JSON + CSV",
+      icon: "benchmark",
+      detail:
+        selectedCompareRunIds.length >= 1
+          ? `Izabrano za compare: ${selectedCompareRunIds.length}`
+          : `Sačuvani run-ovi: ${savedRuns.length}`,
+      actions: (
+        <>
+          <button
+            type="button"
+            className="benchmark-export-button benchmark-export-button-primary"
+            onClick={() => void handleExport("json")}
+          >
+            <span className="benchmark-export-code">JSN</span>
+            <span className="benchmark-export-copy">
+              <span className="benchmark-export-title">Izvezi JSON</span>
+              <span className="benchmark-export-subtitle">RAW RUN ISTORIJA</span>
+            </span>
+          </button>
+          <button
+            type="button"
+            className="benchmark-export-button"
+            onClick={() => void handleExport("csv")}
+          >
+            <span className="benchmark-export-code">CSV</span>
+            <span className="benchmark-export-copy">
+              <span className="benchmark-export-title">Izvezi CSV</span>
+              <span className="benchmark-export-subtitle">TABELARNI PRESEK</span>
+            </span>
+          </button>
+        </>
+      ),
+    },
+  ];
+
   return (
     <div className="benchmark-page runtimepilot-rack-page">
       {error ? <div className="error-panel wide-card">{error}</div> : null}
-      <PageFlowCard
-        title="Benchmark tok"
-        summary="Najprirodniji redosled je da izabereš scenario ili bateriju, pokreneš run, pa pratiš telemetriju i istoriju pre nego što pređeš na dublje tuning poređenje."
-        steps={[
-          {
-            title: "Izaberi test ili bateriju",
-            detail: "Kreni od jednog scenarija za brzu proveru ili od cele baterije kada želiš širu sliku.",
-          },
-          {
-            title: "Pokreni run",
-            detail: "Pokreni pojedinačni test ili bateriju, pa ostavi graf i telemetry da uhvate stabilan signal.",
-          },
-          {
-            title: "Gledaj telemetriju i istoriju",
-            detail: "Kad vidiš rezultat, uporedi ga sa istorijom ili pređi u Tuning Lab ako želiš poređenje setova.",
-          },
-        ]}
-        actions={
-          onOpenTuningLab ? (
-            <button type="button" className="secondary-button" onClick={onOpenTuningLab}>
-              Otvori Tuning Lab
-            </button>
-          ) : null
-        }
-      />
+      <div className="runtimepilot-secondary-hub">
+        <div className="runtimepilot-secondary-hub-main">
+          <PageFlowCard
+            title="Benchmark tok"
+            summary="Levo ostaju setup, graf, aktivnost i istorija. Desni rail drži stvarne akcije za pokretanje, otvaranje dubljeg tuning toka i izvoz rezultata."
+            steps={[
+              {
+                title: "Izaberi scenario ili bateriju",
+                detail: "Prvo namesti ulaz koji želiš da meriš, bez lutanja po dodatnim komandnim blokovima.",
+              },
+              {
+                title: "Pokreni run sa desnog rail-a",
+                detail: "Scenario i baterija se pokreću direktno sa action rail-a, pa ekran levo ostaje fokusiran na rezultat.",
+              },
+              {
+                title: "Gledaj telemetriju i istoriju",
+                detail: "Kad vidiš signal, uporedi ga sa saved run-ovima ili pređi u Tuning Lab za dublji winner workflow.",
+              },
+            ]}
+          />
 
-      <HomeHiFiModule
-        className="benchmark-primary-module"
-        variant="runtime-primary"
-        eyebrow="Veliki modul 8"
-        title="Benchmark"
-        headerBadge={<span className="runtimepilot-home-guidance-pill">Prvo pokreni, pa uporedi</span>}
-        railItems={[
-          {
-            label: "Signal",
-            value: benchmarkStateTitle,
-            detail: benchmark?.liveState?.reason || "Status run-a i živi signal ostaju usklađeni.",
-            tone: benchmark?.liveState?.hasLiveSignal ? "success" : "signal",
-          },
-          {
-            label: "Ishod",
-            value: benchmark.activity.stability.label,
-            detail: benchmark.activity.stability.reason,
-            tone: "accent",
-          },
-          {
-            label: "Tip toka",
-            value: selectedBattery.name,
-            detail: `${selectedBattery.scenarios.length} scenarija · ${benchmarkEnvironment?.runtimeLabel || "--"}`,
-            tone: "signal",
-          },
-        ]}
-        summaryTitle="Pokreni scenario ili celu bateriju bez lutanja po stranici."
-        summaryText="Glavne komande su ovde, a editor, živi graf i istorija ostaju u deck-ovima ispod da signal ostane čist."
-        readouts={[
-          {
-            label: "Šta vidiš ovde",
-            value: "Scenario, baterija i run",
-            detail: "Jedan klik za brzi test, drugi za širu proveru kroz celu bateriju.",
-          },
-          {
-            label: "Glavni rezultat",
-            value: benchmarkRunHeadline,
-            detail: benchmarkStateDetail,
-          },
-          {
-            label: "Zašto je ovde",
-            value: "Pre Tuning Lab-a",
-            detail: "Prvo potvrdi throughput i stabilnost, pa tek onda idi u dublje poređenje setova.",
-          },
-        ]}
-        actions={[
-          <HomeHiFiCommandButton
-            key="benchmark-run-selected"
-            code="RUN"
-            title="Pokreni izabrani test"
-            subtitle="SCENARIO + SIGNAL"
-            tone="primary"
-            icon="play"
-            disabled={!selectedScenarioId}
-            onClick={() => void handleRunSelected()}
-          />,
-          <HomeHiFiCommandButton
-            key="benchmark-run-battery"
-            code="BAT"
-            title="Pokreni celu bateriju"
-            subtitle="VIŠE RUN-OVA"
-            icon="benchmark"
-            disabled={!selectedBattery.scenarios.length}
-            onClick={() => void handleRunBattery(1)}
-          />,
-          <HomeHiFiCommandButton
-            key="benchmark-open-tuning"
-            code="LAB"
-            title="Otvori Tuning Lab"
-            subtitle="SLOTOVI + WINNER"
-            icon="tuning"
-            disabled={!onOpenTuningLab}
-            onClick={() => onOpenTuningLab?.()}
-          />,
-          <HomeHiFiCommandButton
-            key="benchmark-open-logs"
-            code="LOG"
-            title="Otvori puni live log"
-            subtitle="TRAG + PORUKE"
-            icon="logs"
-            onClick={onOpenLogs}
-          />,
-        ]}
-        footer={[
-          {
-            label: "Scenario",
-            value: selectedScenario?.name || "Nije izabran",
-            detail: "Brza provera jednog testa.",
-          },
-          {
-            label: "Baterija",
-            value: selectedBattery.name,
-            detail: `${selectedBattery.scenarios.length} scenarija u nizu.`,
-          },
-          {
-            label: "Kontekst",
-            value: formatCompactTokens(benchmarkEnvironment?.context),
-            detail: benchmarkPresetSummary,
-          },
-          {
-            label: "Signal",
-            value: benchmarkThroughputLabel,
-            detail: benchmark?.telemetry?.lastSignalStateLabel || "Čeka sledeći throughput signal.",
-          },
-        ]}
-      />
-
-      <div className="benchmark-hifi-stack">
-      <div className="benchmark-mixer-deck">
-      <section className="status-card wide-card runtimepilot-section-shell runtimepilot-faceplate-module benchmark-faceplate-panel">
+          <div className="benchmark-hifi-stack">
+            <div className="benchmark-mixer-deck">
+              <section className="status-card wide-card runtimepilot-section-shell runtimepilot-faceplate-module benchmark-faceplate-panel">
         <div className="benchmark-faceplate-headline">
           <div>
-            <span className="status-label">Kontrole benchmarka</span>
-            <strong className="status-value">Komandni dek</strong>
+            <span className="status-label">Izbor scenarija i baterije</span>
+            <strong className="status-value">Ulaz pre pokretanja</strong>
           </div>
           {currentWorkflowPreset ? (
             <span className="runtimepilot-home-guidance-pill">
@@ -932,8 +895,8 @@ export function BenchmarkPage({
             </span>
           ) : null}
         </div>
-        <div className="benchmark-command-grid">
-          <div className="benchmark-command-row">
+        <div className="benchmark-setup-grid">
+          <div className="benchmark-setup-row">
             <div className="benchmark-select-shell">
               <span className="status-label">Scenario</span>
               <CustomSelect
@@ -943,12 +906,37 @@ export function BenchmarkPage({
                 ariaLabel="Izaberi benchmark scenario"
               />
             </div>
-            <button type="button" className="action-button" onClick={handleRunSelected}>
-              Pokreni izabrani test
-            </button>
-            <button type="button" className="action-button" onClick={() => void handleRunBattery(1)}>
-              Pokreni celu bateriju
-            </button>
+            <div className="benchmark-select-shell">
+              <span className="status-label">Učitaj bateriju</span>
+              <CustomSelect
+                value={selectedBattery.id}
+                options={batteryOptions}
+                onChange={(batteryId) => void handleLoadBattery(batteryId)}
+                ariaLabel="Učitaj benchmark bateriju"
+              />
+            </div>
+            <article className="benchmark-setup-readout">
+              <span className="status-label">Glavni rezultat</span>
+              <strong>{benchmarkRunHeadline}</strong>
+              <p className="helper-text">{benchmarkStateDetail}</p>
+            </article>
+            <article className="benchmark-setup-readout">
+              <span className="status-label">Signal sada</span>
+              <strong>{benchmarkThroughputLabel}</strong>
+              <p className="helper-text">
+                {benchmarkStateTitle} ·{" "}
+                {benchmark?.telemetry?.lastSignalStateLabel || "Čeka sledeći throughput signal."}
+              </p>
+            </article>
+          </div>
+          <div className="benchmark-setup-row benchmark-setup-row-compact">
+            <article className="benchmark-setup-readout">
+              <span className="status-label">Baterija</span>
+              <strong>{selectedBattery.name}</strong>
+              <p className="helper-text">
+                {selectedBattery.scenarios.length} scenarija · {benchmarkPresetSummary}
+              </p>
+            </article>
             <button
               type="button"
               className="secondary-button"
@@ -974,16 +962,7 @@ export function BenchmarkPage({
               BX10
             </button>
           </div>
-          <div className="benchmark-command-row benchmark-command-row-secondary">
-            <div className="benchmark-select-shell">
-              <span className="status-label">Učitaj bateriju</span>
-              <CustomSelect
-                value={selectedBattery.id}
-                options={batteryOptions}
-                onChange={(batteryId) => void handleLoadBattery(batteryId)}
-                ariaLabel="Učitaj benchmark bateriju"
-              />
-            </div>
+          <div className="inline-actions benchmark-setup-utility-actions">
             <button type="button" className="action-button-soft" onClick={handleSaveBattery}>
               Sačuvaj bateriju
             </button>
@@ -996,7 +975,7 @@ export function BenchmarkPage({
           </div>
         </div>
         <p className="helper-text benchmark-command-note">
-          {actionMessage || "Benchmark testovi mogu da se pokrenu pojedinačno ili kao cela baterija."}
+          {actionMessage || "Rail desno pokreće scenario ili celu bateriju, a ovde ostaju izbor, repeat i uređivanje."}
         </p>
       </section>
 
@@ -1160,11 +1139,7 @@ export function BenchmarkPage({
           </div>
           <div className="runtime-faceplate-rail">
             <span className="status-label">Trag uživo</span>
-            <div className="inline-actions">
-              <button type="button" className="action-button-soft" onClick={onOpenLogs}>
-                Otvori puni live log
-              </button>
-            </div>
+            <p className="helper-text">Otvaranje punih logova je premešteno na desni action rail.</p>
           </div>
         </div>
         <p className="helper-text">Zadnjih 30 linija</p>
@@ -1438,27 +1413,13 @@ export function BenchmarkPage({
             <span className="browser-badge">Compare izbor {selectedCompareRunIds.length}</span>
           </div>
         </div>
-        <div className="inline-actions benchmark-export-row">
-          <button type="button" className="benchmark-export-button benchmark-export-button-primary" onClick={() => void handleExport("json")}>
-            <span className="benchmark-export-code">JSN</span>
-            <span className="benchmark-export-copy">
-              <span className="benchmark-export-title">Izvezi JSON</span>
-              <span className="benchmark-export-subtitle">RAW RUN ISTORIJA</span>
-            </span>
-          </button>
-          <button type="button" className="benchmark-export-button" onClick={() => void handleExport("csv")}>
-            <span className="benchmark-export-code">CSV</span>
-            <span className="benchmark-export-copy">
-              <span className="benchmark-export-title">Izvezi CSV</span>
-              <span className="benchmark-export-subtitle">TABELARNI PRESEK</span>
-            </span>
-          </button>
-          <article className="benchmark-history-compare-readout">
-            <span className="status-label">Compare signal</span>
-            <strong>Uporedi izabrana pokretanja: {selectedCompareRunIds.length}</strong>
-            <p className="helper-text">Kad čekiraš dva ili više run-a, dole se pali compare blok.</p>
-          </article>
-        </div>
+        <article className="benchmark-history-compare-readout">
+          <span className="status-label">Compare signal</span>
+          <strong>Uporedi izabrana pokretanja: {selectedCompareRunIds.length}</strong>
+          <p className="helper-text">
+            Kad čekiraš dva ili više run-a, dole se pali compare blok. Izvoz JSON/CSV je premešten na desni rail.
+          </p>
+        </article>
         {savedRuns.length ? (
           <div className="browser-pagination">
             <span>
@@ -1618,7 +1579,16 @@ export function BenchmarkPage({
           )}
         </div>
       </section>
-      </div>
+            </div>
+          </div>
+        </div>
+
+        <SecondaryActionRail
+          eyebrow="Action rail"
+          title="Pokretanje i izvoz"
+          summary="Desno su samo stvarni klikovi za start, prelaz u Tuning Lab, otvaranje logova i izvoz istorije."
+          items={benchmarkRailItems}
+        />
       </div>
     </div>
   );

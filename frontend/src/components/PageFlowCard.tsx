@@ -16,7 +16,7 @@ type PageFlowCardProps = {
 
 export function PageFlowCard({ title, summary, steps, actions }: PageFlowCardProps) {
   return (
-    <section className="status-card wide-card page-flow-card runtimepilot-section-shell runtimepilot-faceplate-module">
+    <section className="status-card wide-card page-flow-card page-flow-card-intro runtimepilot-section-shell runtimepilot-faceplate-module">
       <div className="section-header page-flow-header">
         <div className="runtimepilot-section-heading">
           <span className="runtimepilot-section-glyph">
@@ -29,7 +29,7 @@ export function PageFlowCard({ title, summary, steps, actions }: PageFlowCardPro
         </div>
         {actions ? <div className="inline-actions compact-actions page-flow-actions">{actions}</div> : null}
       </div>
-      <p className="helper-text">{summary}</p>
+      <p className="helper-text page-flow-summary">{summary}</p>
       <div className="page-flow-grid">
         {steps.map((step, index) => (
           <article className="page-flow-step" key={`${index + 1}-${step.title}`}>
