@@ -3614,17 +3614,24 @@ def test_support_pages_and_flow_card_use_faceplate_modules_for_hifi_layout():
     search_source = Path("frontend/src/pages/SearchPage.tsx").read_text(encoding="utf-8")
     help_source = Path("frontend/src/pages/HelpPage.tsx").read_text(encoding="utf-8")
     repair_source = Path("frontend/src/pages/RepairPage.tsx").read_text(encoding="utf-8")
+    styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
     dist_root = Path(
         "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
     )
     js_assets = list((dist_root / "assets").glob("*.js"))
 
     assert "runtimepilot-faceplate-module" in page_flow_source
+    assert "page-flow-card-intro" in page_flow_source
+    assert "page-flow-summary" in page_flow_source
+    assert "page-flow-actions" not in page_flow_source
     assert "runtimepilot-faceplate-module" in page_data_state_source
     assert "runtimepilot-faceplate-module" in knowledge_source
     assert "runtimepilot-faceplate-module" in search_source
     assert "runtimepilot-faceplate-module" in help_source
     assert "runtimepilot-faceplate-module" in repair_source
+    assert ".page-flow-card-intro" in styles_source
+    assert ".page-flow-summary" in styles_source
+    assert ".page-flow-actions" not in styles_source
     assert js_assets
 
     bundled_js = "\n".join(path.read_text(encoding="utf-8") for path in js_assets)

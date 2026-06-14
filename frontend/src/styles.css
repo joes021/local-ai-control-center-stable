@@ -4943,10 +4943,6 @@ button.runtimepilot-secondary-action-rail-item:disabled {
   gap: 16px;
 }
 
-.page-flow-actions {
-  justify-content: flex-end;
-}
-
 .page-flow-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -5387,10 +5383,6 @@ button.runtimepilot-secondary-action-rail-item:disabled {
   .page-flow-header {
     flex-direction: column;
     align-items: stretch;
-  }
-
-  .page-flow-actions {
-    justify-content: flex-start;
   }
 
   .page-flow-grid {
