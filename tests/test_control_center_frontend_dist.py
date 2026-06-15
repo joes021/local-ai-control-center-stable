@@ -1165,7 +1165,7 @@ def test_settings_source_clearly_separates_general_search_and_turboquant_section
     )
     js_assets = list((dist_root / "assets").glob("*.js"))
 
-    assert "Kako da koristiš ovu stranu" in settings_source
+    assert "Brzi signal podešavanja" in settings_source
     assert "Opšta podešavanja" in settings_source
     assert "Pretraga i izvori" in settings_source
     assert "TurboQuant podešavanja" in settings_source
@@ -1175,7 +1175,6 @@ def test_settings_source_clearly_separates_general_search_and_turboquant_section
 
     bundled_text = "\n".join(path.read_text(encoding="utf-8") for path in js_assets)
 
-    assert "Kako da koristiš ovu stranu" in bundled_text
     assert "Opšta podešavanja" in bundled_text
     assert "Pretraga i izvori" in bundled_text
     assert "TurboQuant podešavanja" in bundled_text
@@ -2106,12 +2105,17 @@ def test_shared_ux_components_and_guided_flow_copy_are_present_in_core_pages():
     assert "Gledaj telemetriju i istoriju" in benchmark_source
     assert "PageFlowCard" in benchmark_source
     assert "PageDataStateCard" in benchmark_source
+    assert "RuntimePilotStatusDeck" in benchmark_source
+    assert "RuntimePilotActionDeck" in benchmark_source
+    assert "SecondaryActionRail" not in benchmark_source
 
     assert "Settings tok" in settings_source
     assert "Izaberi scope i preset" in settings_source
     assert "Sačuvaj opšta podešavanja" in settings_source
     assert "PageFlowCard" in settings_source
     assert "PageDataStateCard" in settings_source
+    assert "RuntimePilotStatusDeck" in settings_source
+    assert "RuntimePilotActionDeck" in settings_source
 
     assert "TuningLabStatusDeck" in tuning_lab_source
     assert "Signal i spremnost" in tuning_lab_source
@@ -2868,11 +2872,11 @@ def test_benchmark_observability_help_and_project_memory_use_hifi_decks():
 
     assert "benchmark-page runtimepilot-rack-page" in benchmark_source
     assert "runtimepilot-secondary-hub" in benchmark_source
-    assert "SecondaryActionRail" in benchmark_source
+    assert "RuntimePilotActionDeck" in benchmark_source
+    assert "RuntimePilotStatusDeck" in benchmark_source
+    assert "SecondaryActionRail" not in benchmark_source
     assert "benchmark-hifi-stack" in benchmark_source
     assert "benchmark-mixer-deck" in benchmark_source
-    assert "benchmark-transport-deck" in benchmark_source
-    assert "benchmark-monitor-deck" in benchmark_source
     assert "benchmark-setup-grid" in benchmark_source
     assert "Izbor scenarija i baterije" in benchmark_source
     assert "HomeHiFiModule" not in benchmark_source
@@ -2915,6 +2919,8 @@ def test_benchmark_observability_help_and_project_memory_use_hifi_decks():
     assert ".benchmark-hifi-stack" in styles_source
     assert ".runtimepilot-secondary-hub" in styles_source
     assert ".runtimepilot-secondary-action-rail" in styles_source
+    assert ".runtimepilot-status-deck" in styles_source
+    assert ".runtimepilot-action-deck" in styles_source
     assert ".benchmark-faceplate-panel" in styles_source
     assert ".benchmark-setup-grid" in styles_source
     assert ".benchmark-log-preview" in styles_source
@@ -3190,6 +3196,9 @@ def test_runtimepilot_source_copy_uses_serbian_labels_on_knowledge_and_related_p
     assert "Otvori katalog" in compatibility_source
     assert "Opseg određuje" in compatibility_source
     assert "kandidat iz kataloga" in compatibility_source
+    assert "RuntimePilotStatusDeck" in compatibility_source
+    assert "RuntimePilotActionDeck" in compatibility_source
+    assert "SecondaryActionRail" not in compatibility_source
     assert "Compatibility tok" not in compatibility_source
     assert "Scope određuje" not in compatibility_source
     assert "Browser kandidat" not in compatibility_source
@@ -3712,10 +3721,12 @@ def test_secondary_pages_use_real_action_rail_instead_of_placeholder_modules():
     assert "Otvori Benchmark" in advanced_source
     assert "Otvori Tuning Lab" in advanced_source
     assert "Otvori kompatibilnost" in advanced_source
-    assert "SecondaryActionRail" in benchmark_source
-    assert "SecondaryActionRail" in compatibility_source
+    assert "SecondaryActionRail" not in benchmark_source
+    assert "SecondaryActionRail" not in compatibility_source
+    assert "RuntimePilotActionDeck" in benchmark_source
+    assert "RuntimePilotActionDeck" in compatibility_source
     assert "actions={" not in advanced_source
-    assert "actions={" not in benchmark_source
+    assert "actions: (" in benchmark_source
     assert "actions={" not in compatibility_source
     assert "Fix" not in advanced_source
     assert "Release" not in advanced_source

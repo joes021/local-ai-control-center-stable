@@ -5,9 +5,13 @@ import { CustomSelect } from "../components/CustomSelect";
 import { PageDataStateCard } from "../components/PageDataStateCard";
 import { PageFlowCard } from "../components/PageFlowCard";
 import {
-  SecondaryActionRail,
-  type SecondaryActionRailItem,
-} from "../components/shell/SecondaryActionRail";
+  RuntimePilotActionDeck,
+  type RuntimePilotActionDeckItem,
+} from "../components/shell/RuntimePilotActionDeck";
+import {
+  RuntimePilotStatusDeck,
+  type RuntimePilotStatusDeckItem,
+} from "../components/shell/RuntimePilotStatusDeck";
 import { fetchBrowserCatalog, fetchModels } from "../lib/api";
 import {
   buildCompatibilityRequestFromModelEntry,
@@ -480,8 +484,66 @@ export function CompatibilityPage({
     window.open(selectedRemoteModel.sourceUrl, "_blank", "noopener,noreferrer");
   }
 
-  const compatibilityRailItems: SecondaryActionRailItem[] = [
+  const compatibilityStatusItems: RuntimePilotStatusDeckItem[] = [
     {
+      id: "active-model",
+      label: "Aktivni model",
+      value: activeModel?.label ?? "Nema aktivnog modela",
+      detail: activeModel
+        ? `${formatModelSource(activeModel)} | ${activeModel.family ?? "Nepoznato"}`
+        : "Izaberi lokalni ili udaljeni model da bi kalkulator radio.",
+      action: "Koristi aktivni model",
+      icon: "models",
+      accent: "rgba(242, 184, 75, 0.38)",
+      onClick: () => setScope("active"),
+    },
+    {
+      id: "local-catalog",
+      label: "Lokalni katalog",
+      value: `${localCandidates.length}`,
+      detail: "Ukupno modela poznatih instaliranoj aplikaciji.",
+      action: "Prebaci na lokalni izbor",
+      icon: "server",
+      accent: "rgba(109, 172, 255, 0.34)",
+      onClick: () => setScope("local"),
+    },
+    {
+      id: "remote-catalog",
+      label: "Udaljeni katalog",
+      value: `${remoteCandidates.length}`,
+      detail: "Browser katalog kandidata koje kompatibilnost može odmah da proveri.",
+      action: "Prebaci na udaljeni izbor",
+      icon: "browser",
+      accent: "rgba(88, 222, 193, 0.36)",
+      onClick: () => setScope("remote"),
+    },
+    {
+      id: "system-snapshot",
+      label: "Snimak sistema",
+      value: `${lastPayload?.systemSnapshot?.vramGiB ?? "--"} GiB VRAM`,
+      detail: `RAM ${lastPayload?.systemSnapshot?.ramGiB ?? "--"} GiB | context ${
+        lastPayload?.systemSnapshot?.context ?? "--"
+      } | output ${lastPayload?.systemSnapshot?.outputTokens ?? "--"}`,
+      action: "Živi hardverski signal",
+      icon: "cpu",
+      accent: "rgba(156, 126, 255, 0.34)",
+    },
+    {
+      id: "fit",
+      label: "Trenutni fit",
+      value: lastPayload?.overallFitLabel ?? "--",
+      detail: `Najbolji runtime ${lastPayload?.bestRuntimeLabel ?? "--"} | brzina ${
+        lastPayload?.speedLabel ?? "--"
+      }`,
+      action: "Rezultat kalkulatora",
+      icon: "compatibility",
+      accent: "rgba(255, 129, 177, 0.34)",
+    },
+  ];
+
+  const compatibilityActionItems: RuntimePilotActionDeckItem[] = [
+    {
+      id: "use-active",
       code: "LIVE",
       title: "Koristi aktivni model",
       subtitle: activeModel?.label ?? "AKTIVNI MODEL",
@@ -490,6 +552,7 @@ export function CompatibilityPage({
       onClick: () => setScope("active"),
     },
     {
+      id: "open-models",
       code: "MODEL",
       title: "Otvori Modele",
       subtitle: "LOKALNI KATALOG",
@@ -497,6 +560,7 @@ export function CompatibilityPage({
       onClick: onOpenModels,
     },
     {
+      id: "open-browser",
       code: "CAT",
       title: "Otvori katalog",
       subtitle: "BROWSER + IZVORI",
@@ -504,6 +568,7 @@ export function CompatibilityPage({
       onClick: onOpenBrowser,
     },
     {
+      id: "open-source",
       code: "SRC",
       title: "Otvori izvornu stranicu",
       subtitle: selectedRemoteModel?.model ?? "IZABERI UDALJENI MODEL",
@@ -517,11 +582,11 @@ export function CompatibilityPage({
   return (
     <div className="compatibility-page runtimepilot-rack-page">
       {inlineError ? <div className="error-panel wide-card">{inlineError}</div> : null}
-      <div className="runtimepilot-secondary-hub">
+      <div className="runtimepilot-secondary-hub runtimepilot-secondary-hub-fullwidth">
         <div className="runtimepilot-secondary-hub-main">
           <PageFlowCard
             title="Tok kompatibilnosti"
-            summary="Levo ostaju izbor opsega i kalkulator, a desni rail drži samo stvarne ulaze za aktivni model, lokalni katalog, Browser katalog i izvorni link."
+            summary="Prvo izaberi šta proveravaš, zatim očitaj fit i preporučeni runtime, pa se odmah vrati u Modele ili Browser katalog bez bočnog rail-a i bez dupliranih klikova."
             steps={[
               {
                 title: "Izaberi aktivni, lokalni ili udaljeni model",
@@ -537,228 +602,198 @@ export function CompatibilityPage({
               },
             ]}
           />
+          <RuntimePilotStatusDeck
+            eyebrow="Status dashboard"
+            title="Brzi signal kompatibilnosti"
+            helper="Pet kartica odmah otkriva šta proveravaš, koliko imaš izbora i kakav je poslednji fit signal."
+            items={compatibilityStatusItems}
+          />
+          <RuntimePilotActionDeck
+            eyebrow="Akcije"
+            title="Prečice bez dupliranog rail-a"
+            helper="Ovde ostaju samo stvarni klikovi: aktivni model, lokalni katalog, Browser katalog i izvorni link kada postoji."
+            items={compatibilityActionItems}
+          />
           <div className="compatibility-hifi-stack">
-      <div className="compatibility-mixer-deck">
-      <section className="status-card wide-card compatibility-workspace runtimepilot-faceplate-module compat-rack-module">
-        <div className="section-header">
-          <div>
-            <span className="status-label">Radni prostor kompatibilnosti</span>
-            <strong className="status-value">
-              Vidljiv kalkulator za fit modela i izbor runtime-a
-            </strong>
-            <p className="helper-text">
-              Ovde možeš da proveriš kako model stoji na lokalnom hardveru, da
-              uporediš llama.cpp i TurboQuant put i da odmah primeniš preporuke.
-            </p>
-            <p className="helper-text">
-              Provera kompatibilnosti se na ovoj stranici pokreće automatski čim
-              promeniš izabrani model.
-            </p>
-          </div>
-        </div>
-        <div className="compatibility-snapshot-grid">
-          <div className="compatibility-snapshot-card">
-            <span className="status-label">Aktivni model</span>
-            <strong className="status-value">
-              {activeModel?.label ?? "Nema aktivnog modela"}
-            </strong>
-            <div className="helper-text">
-              {activeModel
-                ? `${formatModelSource(activeModel)} | ${activeModel.family ?? "Nepoznato"}`
-                : "Izaberi lokalni ili udaljeni model da bi kalkulator radio."}
-            </div>
-          </div>
-          <div className="compatibility-snapshot-card">
-            <span className="status-label">Lokalni katalog</span>
-            <strong className="status-value">{localCandidates.length}</strong>
-            <div className="helper-text">Ukupno modela poznatih instaliranoj aplikaciji.</div>
-          </div>
-          <div className="compatibility-snapshot-card">
-            <span className="status-label">Udaljeni katalog</span>
-            <strong className="status-value">{remoteCandidates.length}</strong>
-            <div className="helper-text">
-              Katalog modela koji kalkulator može odmah da proveri.
-            </div>
-          </div>
-          <div className="compatibility-snapshot-card">
-            <span className="status-label">Snimak sistema</span>
-            <strong className="status-value">
-              {lastPayload?.systemSnapshot?.vramGiB ?? "--"} GiB VRAM
-            </strong>
-            <div className="helper-text">
-              RAM {lastPayload?.systemSnapshot?.ramGiB ?? "--"} GiB | kontekst{" "}
-              {lastPayload?.systemSnapshot?.context ?? "--"} | izlaz{" "}
-              {lastPayload?.systemSnapshot?.outputTokens ?? "--"}
-            </div>
-            <div className="helper-text">
-              TurboQuant{" "}
-              {lastPayload?.systemSnapshot?.turboQuantAvailable ? "dostupan" : "nije potvrđen"}
-            </div>
-          </div>
-          <div className="compatibility-snapshot-card">
-            <span className="status-label">Trenutni fit</span>
-            <strong className="status-value">
-              {lastPayload?.overallFitLabel ?? "--"}
-            </strong>
-            <div className="helper-text">
-              Najbolji runtime {lastPayload?.bestRuntimeLabel ?? "--"} | brzina{" "}
-              {lastPayload?.speedLabel ?? "--"}
-            </div>
-          </div>
-        </div>
-      </section>
+            <div className="compatibility-mixer-deck compatibility-home-shell">
+              <section className="status-card wide-card compatibility-workspace runtimepilot-faceplate-module compat-rack-module">
+                <div className="section-header">
+                  <div>
+                    <span className="status-label">Radni prostor kompatibilnosti</span>
+                    <strong className="status-value">
+                      Vidljiv kalkulator za fit modela i izbor runtime-a
+                    </strong>
+                    <p className="helper-text">
+                      Ovde možeš da proveriš kako model stoji na lokalnom hardveru, da uporediš llama.cpp i TurboQuant put i da odmah primeniš preporuke.
+                    </p>
+                    <p className="helper-text">
+                      Provera kompatibilnosti se na ovoj stranici pokreće automatski čim promeniš izabrani model.
+                    </p>
+                  </div>
+                </div>
+                <div className="compatibility-snapshot-grid compatibility-snapshot-grid-wide">
+                  <div className="compatibility-snapshot-card">
+                    <span className="status-label">Fit signal</span>
+                    <strong className="status-value">{lastPayload?.overallFitLabel ?? "--"}</strong>
+                    <div className="helper-text">
+                      Najbolji runtime {lastPayload?.bestRuntimeLabel ?? "--"} | brzina {lastPayload?.speedLabel ?? "--"}
+                    </div>
+                  </div>
+                  <div className="compatibility-snapshot-card">
+                    <span className="status-label">Sistem</span>
+                    <strong className="status-value">
+                      {lastPayload?.systemSnapshot?.vramGiB ?? "--"} GiB VRAM
+                    </strong>
+                    <div className="helper-text">
+                      RAM {lastPayload?.systemSnapshot?.ramGiB ?? "--"} GiB | TurboQuant {lastPayload?.systemSnapshot?.turboQuantAvailable ? "dostupan" : "nije potvrđen"}
+                    </div>
+                  </div>
+                </div>
+              </section>
 
-      <section className="status-card wide-card compatibility-picker-card runtimepilot-faceplate-module compat-rack-module">
-        <div className="section-header">
-          <div>
-            <span className="status-label">Izvor modela</span>
-            <strong className="status-value">Izaberi šta proveravaš</strong>
-          </div>
-        </div>
+              <section className="status-card wide-card compatibility-picker-card runtimepilot-faceplate-module compat-rack-module">
+                <div className="section-header">
+                  <div>
+                    <span className="status-label">Izbor izvora</span>
+                    <strong className="status-value">Izaberi šta proveravaš</strong>
+                  </div>
+                </div>
 
-        <div className="compatibility-scope-row">
-          <button
-            type="button"
-            className={`secondary-button ${scope === "active" ? "nav-button-active" : ""}`}
-            onClick={() => setScope("active")}
-          >
-            Aktivni model
-          </button>
-          <button
-            type="button"
-            className={`secondary-button ${scope === "local" ? "nav-button-active" : ""}`}
-            onClick={() => setScope("local")}
-          >
-            Lokalni katalog
-          </button>
-          <button
-            type="button"
-            className={`secondary-button ${scope === "remote" ? "nav-button-active" : ""}`}
-            onClick={() => setScope("remote")}
-          >
-            Udaljeni katalog
-          </button>
-        </div>
+                <div className="compatibility-scope-row">
+                  <button
+                    type="button"
+                    className={`secondary-button ${scope === "active" ? "nav-button-active" : ""}`}
+                    onClick={() => setScope("active")}
+                  >
+                    Aktivni model
+                  </button>
+                  <button
+                    type="button"
+                    className={`secondary-button ${scope === "local" ? "nav-button-active" : ""}`}
+                    onClick={() => setScope("local")}
+                  >
+                    Lokalni katalog
+                  </button>
+                  <button
+                    type="button"
+                    className={`secondary-button ${scope === "remote" ? "nav-button-active" : ""}`}
+                    onClick={() => setScope("remote")}
+                  >
+                    Udaljeni katalog
+                  </button>
+                </div>
 
-        {scope === "active" ? (
-          <div className="compatibility-choice-grid">
-            <div className="compatibility-choice-card">
-              <span className="status-label">Aktivni model</span>
-              <strong className="status-value">
-                {activeModel?.label ?? "Nema aktivnog modela"}
-              </strong>
-              <div className="helper-text">
-                {activeModel
-                  ? `Izvor: ${formatModelSource(activeModel)} | MTP: ${activeModel.mtpStatusLabel ?? "nepoznato"}`
-                  : "Prvo aktiviraj ili izaberi model iz lokalnog kataloga."}
-              </div>
-            </div>
-          </div>
-        ) : null}
+                {scope === "active" ? (
+                  <div className="compatibility-choice-grid">
+                    <div className="compatibility-choice-card">
+                      <span className="status-label">Aktivni model</span>
+                      <strong className="status-value">
+                        {activeModel?.label ?? "Nema aktivnog modela"}
+                      </strong>
+                      <div className="helper-text">
+                        {activeModel
+                          ? `Izvor: ${formatModelSource(activeModel)} | MTP: ${activeModel.mtpStatusLabel ?? "nepoznato"}`
+                          : "Prvo aktiviraj ili izaberi model iz lokalnog kataloga."}
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
 
-        {scope === "local" ? (
-          <div className="compatibility-choice-grid">
-            <label className="browser-field">
-              <span>Lokalni katalog</span>
-              <CustomSelect
-                value={selectedLocalModel?.id ?? ""}
-                options={localModelOptions}
-                onChange={setLocalModelId}
-                ariaLabel="Birač modela lokalnog kataloga"
+                {scope === "local" ? (
+                  <div className="compatibility-choice-grid">
+                    <label className="browser-field">
+                      <span>Lokalni katalog</span>
+                      <CustomSelect
+                        value={selectedLocalModel?.id ?? ""}
+                        options={localModelOptions}
+                        onChange={setLocalModelId}
+                        ariaLabel="Birač modela lokalnog kataloga"
+                      />
+                    </label>
+                    <div className="compatibility-choice-card">
+                      <span className="status-label">Trenutni lokalni izbor</span>
+                      <strong className="status-value">
+                        {selectedLocalModel?.label ?? "Nije izabran model"}
+                      </strong>
+                      <div className="helper-text">
+                        {selectedLocalModel
+                          ? `${formatModelSource(selectedLocalModel)} | ${selectedLocalModel.family ?? "Nepoznato"} | ${selectedLocalModel.lifecycleLabel ?? "Status nepoznat"}`
+                          : "Izaberi model iz lokalnog kataloga."}
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+
+                {scope === "remote" ? (
+                  <div className="compatibility-choice-grid compatibility-choice-grid-remote">
+                    <label className="browser-field">
+                      <span>Pretraga udaljenog kataloga</span>
+                      <input
+                        type="text"
+                        placeholder="Pretraži model, repo, kvantizaciju..."
+                        value={remoteSearch}
+                        onChange={(event) => setRemoteSearch(event.target.value)}
+                      />
+                    </label>
+                    <label className="browser-field">
+                      <span>Udaljeni izvor</span>
+                      <CustomSelect
+                        value={remoteSource}
+                        options={[
+                          { value: "all", label: "Svi izvori" },
+                          { value: "huggingface", label: "Hugging Face" },
+                          { value: "unsloth", label: "Unsloth" },
+                          { value: "other", label: "Drugo" },
+                        ]}
+                        onChange={setRemoteSource}
+                        ariaLabel="Filter udaljenog izvora"
+                      />
+                    </label>
+                    <label className="browser-field compatibility-remote-picker">
+                      <span>Udaljeni katalog</span>
+                      <CustomSelect
+                        value={selectedRemoteModel?.id ?? ""}
+                        options={remoteModelOptions}
+                        onChange={setRemoteModelId}
+                        ariaLabel="Birač modela udaljenog kataloga"
+                      />
+                    </label>
+                    <div className="compatibility-choice-card">
+                      <span className="status-label">Trenutni udaljeni izbor</span>
+                      <strong className="status-value">
+                        {selectedRemoteModel?.model ?? "Nije izabran model"}
+                      </strong>
+                      <div className="helper-text">
+                        {selectedRemoteModel
+                          ? `${sourceLabel(String(selectedRemoteModel.source))} | ${selectedRemoteModel.quantization} | ${selectedRemoteModel.fitLabel}`
+                          : "Nema pogodaka za trenutni filter udaljenog kataloga."}
+                      </div>
+                      <div className="helper-text">
+                        Filter trenutno vraća {filteredRemoteCandidates.length} modela.
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+              </section>
+
+              <CompatibilityCalculatorPanel
+                className="compat-surface compat-page-surface"
+                title={compatibilityTitle}
+                request={compatibilityRequest}
+                onPayloadChange={setLastPayload}
+                emptyState={
+                  <div className="compat-empty-state">
+                    <strong>Nema izabranog modela za proveru.</strong>
+                    <div className="helper-text">
+                      Izaberi aktivni model, lokalni katalog ili udaljeni katalog da bi kalkulator mogao da izračuna fit.
+                    </div>
+                  </div>
+                }
               />
-            </label>
-            <div className="compatibility-choice-card">
-              <span className="status-label">Trenutni lokalni izbor</span>
-              <strong className="status-value">
-                {selectedLocalModel?.label ?? "Nije izabran model"}
-              </strong>
-              <div className="helper-text">
-                {selectedLocalModel
-                  ? `${formatModelSource(selectedLocalModel)} | ${selectedLocalModel.family ?? "Nepoznato"} | ${selectedLocalModel.lifecycleLabel ?? "Status nepoznat"}`
-                  : "Izaberi model iz lokalnog kataloga."}
-              </div>
             </div>
-          </div>
-        ) : null}
-
-        {scope === "remote" ? (
-          <div className="compatibility-choice-grid compatibility-choice-grid-remote">
-            <label className="browser-field">
-              <span>Pretraga udaljenog kataloga</span>
-              <input
-                type="text"
-                placeholder="Pretraži model, repo, kvantizaciju..."
-                value={remoteSearch}
-                onChange={(event) => setRemoteSearch(event.target.value)}
-              />
-            </label>
-            <label className="browser-field">
-              <span>Udaljeni izvor</span>
-              <CustomSelect
-                value={remoteSource}
-                options={[
-                  { value: "all", label: "Svi izvori" },
-                  { value: "huggingface", label: "Hugging Face" },
-                  { value: "unsloth", label: "Unsloth" },
-                  { value: "other", label: "Drugo" },
-                ]}
-                onChange={setRemoteSource}
-                ariaLabel="Filter udaljenog izvora"
-              />
-            </label>
-            <label className="browser-field compatibility-remote-picker">
-              <span>Udaljeni katalog</span>
-              <CustomSelect
-                value={selectedRemoteModel?.id ?? ""}
-                options={remoteModelOptions}
-                onChange={setRemoteModelId}
-                ariaLabel="Birač modela udaljenog kataloga"
-              />
-            </label>
-            <div className="compatibility-choice-card">
-              <span className="status-label">Trenutni udaljeni izbor</span>
-              <strong className="status-value">
-                {selectedRemoteModel?.model ?? "Nije izabran model"}
-              </strong>
-              <div className="helper-text">
-                {selectedRemoteModel
-                  ? `${sourceLabel(String(selectedRemoteModel.source))} | ${selectedRemoteModel.quantization} | ${selectedRemoteModel.fitLabel}`
-                  : "Nema pogodaka za trenutni filter udaljenog kataloga."}
-              </div>
-              <div className="helper-text">
-                Filter trenutno vraća {filteredRemoteCandidates.length} modela.
-              </div>
-            </div>
-          </div>
-        ) : null}
-      </section>
-      </div>
-
-      <CompatibilityCalculatorPanel
-        className="compat-surface compat-page-surface"
-        title={compatibilityTitle}
-        request={compatibilityRequest}
-        onPayloadChange={setLastPayload}
-        emptyState={
-          <div className="compat-empty-state">
-            <strong>Nema izabranog modela za proveru.</strong>
-            <div className="helper-text">
-              Izaberi aktivni model, lokalni katalog ili udaljeni katalog da bi kalkulator
-              mogao da izračuna fit.
-            </div>
-          </div>
-        }
-      />
 
           </div>
         </div>
-
-        <SecondaryActionRail
-          eyebrow="Action rail"
-          title="Ulazi i prečice"
-          summary="Desno ostaju samo ulazi koji vode na aktivni model, lokalni katalog, Browser katalog ili izvorni link kada postoji."
-          items={compatibilityRailItems}
-        />
       </div>
     </div>
   );

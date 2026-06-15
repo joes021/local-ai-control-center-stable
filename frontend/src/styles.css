@@ -5746,6 +5746,254 @@ button.runtimepilot-secondary-action-rail-item:disabled {
   font-size: 0.92rem;
 }
 
+.runtimepilot-status-deck,
+.runtimepilot-action-deck {
+  display: grid;
+  gap: 16px;
+}
+
+.runtimepilot-status-deck-header,
+.runtimepilot-action-deck-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.runtimepilot-status-deck-header .helper-text,
+.runtimepilot-action-deck-header .helper-text {
+  max-width: 48rem;
+}
+
+.runtimepilot-status-deck-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 12px;
+}
+
+.runtimepilot-status-deck-card {
+  --runtimepilot-status-accent: rgba(242, 184, 75, 0.34);
+  position: relative;
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  height: 100%;
+  padding: 16px;
+  border: 1px solid var(--app-card-soft-border);
+  border-radius: 14px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.034), rgba(255, 255, 255, 0.012)),
+    color-mix(in srgb, var(--app-card-soft-bg) 84%, var(--app-overlay-solid-fill));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 16px 30px rgba(0, 0, 0, 0.18);
+  color: inherit;
+  text-align: left;
+  isolation: isolate;
+}
+
+button.runtimepilot-status-deck-card {
+  cursor: pointer;
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.runtimepilot-status-deck-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  border-radius: 14px 0 0 14px;
+  background: var(--runtimepilot-status-accent);
+}
+
+button.runtimepilot-status-deck-card:hover,
+button.runtimepilot-status-deck-card:focus-visible {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--runtimepilot-status-accent) 60%, var(--app-card-soft-border));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 20px 34px rgba(0, 0, 0, 0.24);
+}
+
+.runtimepilot-status-deck-card-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background:
+    radial-gradient(circle at top left, rgba(255, 255, 255, 0.12), transparent 60%),
+    rgba(255, 255, 255, 0.03);
+}
+
+.runtimepilot-status-deck-card-value {
+  display: block;
+  min-width: 0;
+  font-size: clamp(1.02rem, 1.6vw, 1.34rem);
+  line-height: 1.15;
+  word-break: break-word;
+}
+
+.runtimepilot-status-deck-card .helper-text {
+  min-height: 3.5em;
+  margin: 0;
+}
+
+.runtimepilot-status-deck-card-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.76rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--app-accent);
+}
+
+.runtimepilot-status-deck-card-action::after {
+  content: "→";
+  font-size: 0.92rem;
+}
+
+.runtimepilot-action-deck-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+  align-items: stretch;
+}
+
+.runtimepilot-action-deck-item,
+.runtimepilot-action-deck-item-panel {
+  position: relative;
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  height: 100%;
+  padding: 16px;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, rgba(230, 198, 132, 0.32) 70%, var(--app-button-border));
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.01)),
+    linear-gradient(180deg, rgba(78, 68, 47, 0.46), rgba(45, 38, 26, 0.82)),
+    rgba(12, 10, 8, 0.92);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.2),
+    0 14px 24px rgba(0, 0, 0, 0.16);
+  color: inherit;
+  text-align: left;
+}
+
+button.runtimepilot-action-deck-item {
+  cursor: pointer;
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+button.runtimepilot-action-deck-item:hover,
+button.runtimepilot-action-deck-item:focus-visible {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--app-accent) 56%, var(--app-button-hover-border));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 20px 34px rgba(0, 0, 0, 0.24);
+}
+
+.runtimepilot-action-deck-item-primary,
+.runtimepilot-action-deck-item-panel-primary {
+  border-color: color-mix(in srgb, var(--app-accent-strong) 78%, white 10%);
+  background:
+    linear-gradient(180deg, rgba(255, 247, 221, 0.18), rgba(255, 255, 255, 0.04)),
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--app-accent-strong) 94%, white 6%),
+      color-mix(in srgb, var(--app-accent) 82%, #8a5816 18%)
+    );
+  color: var(--app-accent-contrast);
+}
+
+.runtimepilot-action-deck-item-core {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
+}
+
+.runtimepilot-action-deck-item-code {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background:
+    radial-gradient(circle at top left, rgba(255, 255, 255, 0.12), transparent 60%),
+    rgba(255, 255, 255, 0.03);
+  font-size: 0.82rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.runtimepilot-action-deck-item-copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.runtimepilot-action-deck-item-title {
+  font-weight: 700;
+  font-size: 1.02rem;
+  line-height: 1.15;
+}
+
+.runtimepilot-action-deck-item-subtitle {
+  font-size: 0.74rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, currentColor 70%, transparent);
+}
+
+.runtimepilot-action-deck-item-detail {
+  font-size: 0.84rem;
+  line-height: 1.45;
+  color: color-mix(in srgb, currentColor 78%, transparent);
+}
+
+.runtimepilot-action-deck-item-indicator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.runtimepilot-action-deck-item-actions {
+  display: grid;
+  gap: 8px;
+}
+
+.runtimepilot-action-deck-item-actions .inline-actions,
+.runtimepilot-action-deck-item-actions .settings-action-row {
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+}
+
+.runtimepilot-action-deck-footer {
+  display: grid;
+  gap: 10px;
+}
+
 .tuning-lab-status-deck {
   display: grid;
   gap: 16px;
@@ -8569,6 +8817,10 @@ select:-webkit-autofill {
   margin-top: 10px;
 }
 
+.runtimepilot-action-deck .benchmark-export-button {
+  width: 100%;
+}
+
 .benchmark-legend {
   display: grid;
   gap: 10px;
@@ -9055,11 +9307,20 @@ select:-webkit-autofill {
   gap: 16px;
 }
 
+.compatibility-home-shell {
+  display: grid;
+  gap: 16px;
+}
+
 .compatibility-snapshot-grid,
 .compatibility-choice-grid {
   display: grid;
   gap: 14px;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.compatibility-snapshot-grid-wide {
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
 }
 
 .compatibility-choice-grid-remote {

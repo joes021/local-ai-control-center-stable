@@ -5,6 +5,14 @@ import { CustomSelect } from "../components/CustomSelect";
 import { PageDataStateCard } from "../components/PageDataStateCard";
 import { PageFlowCard } from "../components/PageFlowCard";
 import {
+  RuntimePilotActionDeck,
+  type RuntimePilotActionDeckItem,
+} from "../components/shell/RuntimePilotActionDeck";
+import {
+  RuntimePilotStatusDeck,
+  type RuntimePilotStatusDeckItem,
+} from "../components/shell/RuntimePilotStatusDeck";
+import {
   applySettings,
   bootstrapManagedSearchProvider,
   cleanupOpenCodeWorkspaceHygiene,
@@ -505,6 +513,8 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
   const profileSectionRef = useRef<HTMLElement | null>(null);
   const contextSectionRef = useRef<HTMLElement | null>(null);
   const vramFitSectionRef = useRef<HTMLElement | null>(null);
+  const searchSectionRef = useRef<HTMLElement | null>(null);
+  const turboSectionRef = useRef<HTMLElement | null>(null);
 
   async function reload() {
     const [settingsPayload, schemaPayload, observabilityPayload, workspaceHygienePayload] = await Promise.all([
@@ -1348,6 +1358,103 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
     }
   }
 
+  const settingsStatusItems: RuntimePilotStatusDeckItem[] = [
+    {
+      id: "profile",
+      label: "Profil",
+      value: selectedSettingsProfile?.name ?? activeSettings.profile,
+      detail: `Opseg ${activeSettings.settingsScope === "global" ? "globalni" : "override modela"} | aktivni model ${
+        settings.activeModelLabel || "nema"
+      }`,
+      action: "Idi na profile",
+      icon: "settings",
+      accent: "rgba(109, 172, 255, 0.34)",
+      onClick: () => profileSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
+    },
+    {
+      id: "context",
+      label: "Context",
+      value: formatTokenCount(activeSettings.context),
+      detail: `Output ${formatTokenCount(activeSettings.outputTokens)} | workflow ${
+        currentWorkflowPreset?.label || "ručno"
+      }`,
+      action: "Idi na context i VRAM fit",
+      icon: "memory",
+      accent: "rgba(156, 126, 255, 0.34)",
+      onClick: () => vramFitSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
+    },
+    {
+      id: "search",
+      label: "Search",
+      value: settings.searchProviderStatus.providerLabel,
+      detail: `${settings.searchProviderStatus.label} | režim ${activeSettings.webSearchMode}`,
+      action: "Idi na search provider",
+      icon: "search",
+      accent: "rgba(88, 222, 193, 0.36)",
+      onClick: () => searchSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
+    },
+    {
+      id: "theme",
+      label: "Tema",
+      value: currentThemeOption?.label ?? activeSettings.themeId,
+      detail: hasUnsavedGeneralChanges
+        ? "Opšti editor ima promene koje još nisu snimljene."
+        : "Opšti editor je usklađen sa poslednjim sačuvanim stanjem.",
+      action: "Idi na opšti editor",
+      icon: "control",
+      accent: "rgba(242, 184, 75, 0.38)",
+      onClick: () => contextSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
+    },
+    {
+      id: "turboquant",
+      label: "TurboQuant",
+      value: activeTurboPreset?.name ?? "Custom kombinacija",
+      detail: `${hasUnsavedTurboChanges ? "Editor ima nesnimljene promene" : "Config je usklađen"} | ${
+        observability?.runtime.activeRuntime === "turboquant" ? "runtime aktivan" : "čeka TurboQuant runtime"
+      }`,
+      action: "Idi na TurboQuant",
+      icon: "runtime",
+      accent: "rgba(255, 129, 177, 0.34)",
+      onClick: () => turboSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
+    },
+  ];
+
+  const settingsActionItems: RuntimePilotActionDeckItem[] = [
+    {
+      id: "general",
+      code: "GEN",
+      title: "Opšta podešavanja",
+      subtitle: "PROFIL + TEMA + INFERENCE",
+      icon: "settings",
+      tone: "primary",
+      onClick: () => profileSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
+    },
+    {
+      id: "vram",
+      code: "CTX",
+      title: "Context i VRAM fit",
+      subtitle: "TOKENI + GPU FIT",
+      icon: "memory",
+      onClick: () => vramFitSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
+    },
+    {
+      id: "search",
+      code: "WEB",
+      title: "Search provider",
+      subtitle: "PROVIDER + HEALTH",
+      icon: "search",
+      onClick: () => searchSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
+    },
+    {
+      id: "turboquant",
+      code: "TQ",
+      title: "TurboQuant",
+      subtitle: "PRESET + CONFIG",
+      icon: "runtime",
+      onClick: () => turboSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
+    },
+  ];
+
   return (
     <div className="settings-page runtimepilot-rack-page">
       {error ? <div className="error-panel wide-card">{error}</div> : null}
@@ -1369,43 +1476,24 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
           },
         ]}
       />
+      <RuntimePilotStatusDeck
+        eyebrow="Status dashboard"
+        title="Brzi signal podešavanja"
+        helper="Pet kartica ti odmah pokazuje koji profil, context, search provider, temu i TurboQuant kombinaciju trenutno drži editor."
+        items={settingsStatusItems}
+      />
+      <RuntimePilotActionDeck
+        eyebrow="Akcije"
+        title="Skokovi kroz glavne zone"
+        helper="Na vrhu ostaju samo četiri jasna skoka: opšta podešavanja, context i VRAM fit, search provider i TurboQuant."
+        items={settingsActionItems}
+      />
       <ActionResultPanel result={result} />
+
       <section
         ref={profileSectionRef}
         className="status-card wide-card settings-cluster-card runtimepilot-faceplate-module settings-rack-module"
       >
-        <div className="section-header settings-cluster-header">
-          <div>
-            <span className="status-label">Kako da koristiš ovu stranu</span>
-            <strong className="status-value">Jedan ekran, dva odvojena sistema podešavanja</strong>
-          </div>
-        </div>
-        <div className="settings-explainer-grid">
-          <article className="settings-explainer-card">
-            <span className="settings-field-label">1. Profili i opseg</span>
-            <p className="helper-text">
-              Ovde biraš da li menjaš globalna podrazumevana ili override za aktivni model, a profil i
-              workflow preset samo pune editor preporučenim vrednostima.
-            </p>
-          </article>
-          <article className="settings-explainer-card">
-            <span className="settings-field-label">2. Opšta podešavanja i pretraga</span>
-            <p className="helper-text">
-              Tema, context, output tokens, OpenCode profil i search provider postaju aktivni tek kada
-              klikneš na <code>Sačuvaj opšta podešavanja</code>.
-            </p>
-          </article>
-          <article className="settings-explainer-card">
-            <span className="settings-field-label">3. TurboQuant</span>
-            <p className="helper-text">
-              TurboQuant preset i parametri imaju odvojen editor i čuvaju se posebnim dugmetom
-              <code>Sačuvaj TurboQuant podešavanja</code>.
-            </p>
-          </article>
-        </div>
-      </section>
-
-      <section className="status-card wide-card settings-cluster-card runtimepilot-faceplate-module settings-rack-module">
         <div className="section-header settings-cluster-header">
           <div>
             <span className="status-label">Disk higijena OpenCode workspace-a</span>
@@ -1539,7 +1627,10 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
         ) : null}
       </section>
 
-      <section className="status-card wide-card settings-cluster-card runtimepilot-faceplate-module settings-rack-module">
+      <section
+        ref={searchSectionRef}
+        className="status-card wide-card settings-cluster-card runtimepilot-faceplate-module settings-rack-module"
+      >
         <div className="section-header settings-cluster-header">
           <div>
             <span className="status-label">Profili i opseg</span>
@@ -1709,7 +1800,10 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
         </div>
       </section>
 
-      <section className="status-card wide-card settings-cluster-card runtimepilot-faceplate-module settings-rack-module">
+      <section
+        ref={turboSectionRef}
+        className="status-card wide-card settings-cluster-card runtimepilot-faceplate-module settings-rack-module"
+      >
         <div className="section-header settings-cluster-header">
           <div>
             <span className="status-label">Opšta podešavanja</span>

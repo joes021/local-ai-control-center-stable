@@ -6,9 +6,13 @@ import { PageFlowCard } from "../components/PageFlowCard";
 import { RuntimeResourcePanel } from "../components/RuntimeResourcePanel";
 import { TelemetryPanel } from "../components/TelemetryPanel";
 import {
-  SecondaryActionRail,
-  type SecondaryActionRailItem,
-} from "../components/shell/SecondaryActionRail";
+  RuntimePilotActionDeck,
+  type RuntimePilotActionDeckItem,
+} from "../components/shell/RuntimePilotActionDeck";
+import {
+  RuntimePilotStatusDeck,
+  type RuntimePilotStatusDeckItem,
+} from "../components/shell/RuntimePilotStatusDeck";
 import {
   clearBenchmarkHistory,
   exportBenchmarkRuns,
@@ -441,6 +445,10 @@ export function BenchmarkPage({
   const isMountedRef = useRef(false);
   const inFlightRef = useRef(false);
   const requestIdRef = useRef(0);
+  const setupSectionRef = useRef<HTMLElement | null>(null);
+  const runSectionRef = useRef<HTMLElement | null>(null);
+  const chartSectionRef = useRef<HTMLElement | null>(null);
+  const historySectionRef = useRef<HTMLElement | null>(null);
 
   async function load() {
     const requestId = requestIdRef.current + 1;
@@ -784,8 +792,62 @@ export function BenchmarkPage({
     );
   }
 
-  const benchmarkRailItems: SecondaryActionRailItem[] = [
+  const benchmarkStatusItems: RuntimePilotStatusDeckItem[] = [
     {
+      id: "run-state",
+      label: "Run stanje",
+      value: benchmarkStateTitle,
+      detail: benchmarkStateDetail,
+      action: "Idi na run signal",
+      icon: "benchmark",
+      accent: "rgba(88, 222, 193, 0.38)",
+      onClick: () => runSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
+    },
+    {
+      id: "scenario",
+      label: "Scenario",
+      value: benchmarkRunHeadline,
+      detail: selectedScenario?.description || "Izabrani scenario ili trenutni battery tok koji benchmark sada prati.",
+      action: "Vrati se na izbor testa",
+      icon: "control",
+      accent: "rgba(109, 172, 255, 0.34)",
+      onClick: () => setupSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
+    },
+    {
+      id: "throughput",
+      label: "Throughput",
+      value: benchmarkThroughputLabel,
+      detail: "Živi benchmark signal koji kasnije potvrđuje grafikon i telemetrija.",
+      action: "Idi na grafikon",
+      icon: "telemetry",
+      accent: "rgba(242, 184, 75, 0.38)",
+      onClick: () => chartSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
+    },
+    {
+      id: "battery",
+      label: "Baterija",
+      value: selectedBattery.name,
+      detail: `${selectedBattery.scenarios.length} scenarija | izvor ${selectedBattery.source}`,
+      action: "Pogledaj setup",
+      icon: "benchmark",
+      accent: "rgba(156, 126, 255, 0.34)",
+      onClick: () => setupSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
+    },
+    {
+      id: "profile",
+      label: "Profil",
+      value: currentWorkflowPreset?.label ?? settingsPayload?.profile ?? "--",
+      detail: benchmarkPresetSummary,
+      action: "Otvori istoriju",
+      icon: "settings",
+      accent: "rgba(255, 129, 177, 0.34)",
+      onClick: () => historySectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
+    },
+  ];
+
+  const benchmarkActionItems: RuntimePilotActionDeckItem[] = [
+    {
+      id: "run-selected",
       code: "RUN",
       title: "Pokreni scenario",
       subtitle: selectedScenario?.name || "SCENARIO + SIGNAL",
@@ -796,6 +858,7 @@ export function BenchmarkPage({
       onClick: () => void handleRunSelected(),
     },
     {
+      id: "run-battery",
       code: "BAT",
       title: "Pokreni bateriju",
       subtitle: `${selectedBattery.scenarios.length} scenarija`,
@@ -805,6 +868,7 @@ export function BenchmarkPage({
       onClick: () => void handleRunBattery(1),
     },
     {
+      id: "open-lab",
       code: "LAB",
       title: "Otvori Tuning Lab",
       subtitle: "SLOTOVI + WINNER",
@@ -813,6 +877,7 @@ export function BenchmarkPage({
       onClick: () => onOpenTuningLab?.(),
     },
     {
+      id: "open-logs",
       code: "LOG",
       title: "Otvori Logove",
       subtitle: "LIVE TRAG + PORUKE",
@@ -820,6 +885,7 @@ export function BenchmarkPage({
       onClick: onOpenLogs,
     },
     {
+      id: "export",
       code: "EXP",
       title: "Izvoz istorije",
       subtitle: "JSON + CSV",
@@ -860,11 +926,11 @@ export function BenchmarkPage({
   return (
     <div className="benchmark-page runtimepilot-rack-page">
       {error ? <div className="error-panel wide-card">{error}</div> : null}
-      <div className="runtimepilot-secondary-hub">
+      <div className="runtimepilot-secondary-hub runtimepilot-secondary-hub-fullwidth">
         <div className="runtimepilot-secondary-hub-main">
           <PageFlowCard
             title="Benchmark tok"
-            summary="Levo ostaju setup, graf, aktivnost i istorija. Desni rail drži stvarne akcije za pokretanje, otvaranje dubljeg tuning toka i izvoz rezultata."
+            summary="Prvo namesti scenario ili bateriju, zatim pokreni benchmark iz vršnog action deck-a, pa dole prati throughput, grafikon i istoriju bez bočnog rail-a."
             steps={[
               {
                 title: "Izaberi scenario ili bateriju",
@@ -880,10 +946,25 @@ export function BenchmarkPage({
               },
             ]}
           />
+          <RuntimePilotStatusDeck
+            eyebrow="Status dashboard"
+            title="Brzi signal benchmarka"
+            helper="Pet kartica odmah pokazuje run stanje, scenario, throughput, bateriju i aktivni profil ili preset."
+            items={benchmarkStatusItems}
+          />
+          <RuntimePilotActionDeck
+            eyebrow="Akcije"
+            title="Pokretanje i izvoz"
+            helper="Na vrhu ostaju samo stvarni klikovi: start scenarija, start baterije, prelaz u Tuning Lab, logovi i izvoz istorije."
+            items={benchmarkActionItems}
+          />
 
           <div className="benchmark-hifi-stack">
             <div className="benchmark-mixer-deck">
-              <section className="status-card wide-card runtimepilot-section-shell runtimepilot-faceplate-module benchmark-faceplate-panel">
+              <section
+                ref={setupSectionRef}
+                className="status-card wide-card runtimepilot-section-shell runtimepilot-faceplate-module benchmark-faceplate-panel"
+              >
         <div className="benchmark-faceplate-headline">
           <div>
             <span className="status-label">Izbor scenarija i baterije</span>
@@ -1076,7 +1157,10 @@ export function BenchmarkPage({
         </div>
       </section>
 
-      <section className="status-card wide-card runtimepilot-section-shell runtimepilot-faceplate-module benchmark-faceplate-panel benchmark-run-shell">
+      <section
+        ref={runSectionRef}
+        className="status-card wide-card runtimepilot-section-shell runtimepilot-faceplate-module benchmark-faceplate-panel benchmark-run-shell"
+      >
         <div className="benchmark-support-shell">
           <div className="runtime-faceplate-head">
             <span className="status-label">Pokretanje benchmarka</span>
@@ -1160,7 +1244,10 @@ export function BenchmarkPage({
       <TelemetryPanel benchmark={benchmark} variant="benchmark" />
       <RuntimeResourcePanel observability={observability} />
 
-      <section className="status-card wide-card runtimepilot-section-shell runtimepilot-faceplate-module benchmark-faceplate-panel benchmark-chart-shell">
+      <section
+        ref={chartSectionRef}
+        className="status-card wide-card runtimepilot-section-shell runtimepilot-faceplate-module benchmark-faceplate-panel benchmark-chart-shell"
+      >
         <div className="benchmark-card-header">
           <div className="benchmark-chart-head">
             <span className="status-label">Grafikon benchmarka</span>
@@ -1402,7 +1489,10 @@ export function BenchmarkPage({
         </div>
       </section>
 
-      <section className="status-card wide-card runtimepilot-section-shell runtimepilot-faceplate-module benchmark-faceplate-panel benchmark-history-shell">
+      <section
+        ref={historySectionRef}
+        className="status-card wide-card runtimepilot-section-shell runtimepilot-faceplate-module benchmark-faceplate-panel benchmark-history-shell"
+      >
         <div className="benchmark-history-head">
           <div className="benchmark-history-headline">
             <span className="status-label">Benchmark istorija</span>
@@ -1582,13 +1672,6 @@ export function BenchmarkPage({
             </div>
           </div>
         </div>
-
-        <SecondaryActionRail
-          eyebrow="Action rail"
-          title="Pokretanje i izvoz"
-          summary="Desno su samo stvarni klikovi za start, prelaz u Tuning Lab, otvaranje logova i izvoz istorije."
-          items={benchmarkRailItems}
-        />
       </div>
     </div>
   );
