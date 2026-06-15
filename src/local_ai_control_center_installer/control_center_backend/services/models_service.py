@@ -278,8 +278,8 @@ def _register_local_model_artifact(
         return action_result(
             "error",
             "add-local-model",
-            "Lokalni GGUF fajl nije pronaÄ‘en.",
-            stderr="Lokalni GGUF fajl nije pronaÄ‘en.",
+            "Lokalni GGUF fajl nije pronađen.",
+            stderr="Lokalni GGUF fajl nije pronađen.",
         )
     normalized_filename = Path(str(target_filename or source_path.name)).name
     if Path(normalized_filename).suffix.lower() != ".gguf":

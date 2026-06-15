@@ -8071,13 +8071,14 @@ select:-webkit-autofill {
   flex: 0 0 auto;
 }
 
-.custom-select .custom-select-menu {
+.custom-select-menu {
   position: absolute;
-  top: calc(100% + 8px);
+  top: 0;
   left: 0;
-  right: 0;
   width: 100%;
-  min-width: 100%;
+  min-width: 0;
+  max-width: min(420px, calc(100vw - 24px));
+  max-height: min(360px, calc(100vh - 24px));
   box-sizing: border-box;
   z-index: 120;
   display: grid;
@@ -8085,14 +8086,22 @@ select:-webkit-autofill {
   justify-items: stretch;
   gap: 6px;
   padding: 8px;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
   border-radius: 16px;
   border: 1px solid var(--app-field-border);
   background: color-mix(in srgb, var(--app-card-soft-bg) 94%, var(--app-overlay-solid-fill) 6%);
   box-shadow: 0 18px 34px rgba(0, 0, 0, 0.26);
 }
 
-.custom-select .custom-select-option {
+.custom-select-menu-portal {
+  position: fixed;
+  isolation: isolate;
+}
+
+.custom-select-option {
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
@@ -8108,19 +8117,19 @@ select:-webkit-autofill {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
-.custom-select .custom-select-option:hover,
-.custom-select .custom-select-option:focus-visible {
+.custom-select-option:hover,
+.custom-select-option:focus-visible {
   outline: none;
   background: var(--app-warning-bg);
   border-color: var(--app-warning-border);
 }
 
-.custom-select .custom-select-option-selected {
+.custom-select-option-selected {
   background: var(--app-theme-name-bg);
   border-color: var(--app-warning-border);
 }
 
-.custom-select .custom-select-option-label {
+.custom-select-option-label {
   display: block;
   min-width: 0;
   overflow: hidden;
@@ -9899,6 +9908,46 @@ select:-webkit-autofill {
   padding: 14px 16px 16px;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   color: #d7cfc2;
+}
+
+.browser-pagination-controls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.browser-page-jump-form {
+  display: flex;
+  align-items: end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.browser-page-jump-label {
+  display: grid;
+  gap: 6px;
+  min-width: 132px;
+  color: var(--app-text-soft);
+  font-size: 0.84rem;
+}
+
+.browser-page-jump-input {
+  width: 100%;
+  min-height: 40px;
+  border-radius: 12px;
+  border: 1px solid var(--app-field-border);
+  background: var(--app-field-bg);
+  color: var(--app-text);
+  padding: 9px 12px;
+  font: inherit;
+}
+
+.browser-page-jump-input:focus {
+  outline: none;
+  border-color: var(--app-button-hover-border);
+  background: var(--app-field-bg-alt);
 }
 
 .scenario-status-badge {
@@ -11976,6 +12025,15 @@ select:-webkit-autofill {
   .browser-pagination {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .browser-pagination-controls,
+  .browser-page-jump-form {
+    justify-content: stretch;
+  }
+
+  .browser-page-jump-form > .secondary-button {
+    width: 100%;
   }
 
   .compatibility-scope-row {

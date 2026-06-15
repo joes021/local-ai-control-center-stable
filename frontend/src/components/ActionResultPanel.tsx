@@ -72,7 +72,11 @@ export function ActionResultPanel({ result }: { result: ActionResult | null }) {
   const statusSummary = describeResultSummary(result.status);
 
   return (
-    <section className="status-card wide-card runtimepilot-section-shell runtimepilot-action-shell runtimepilot-faceplate-module">
+    <section
+      className="status-card wide-card runtimepilot-section-shell runtimepilot-action-shell runtimepilot-faceplate-module"
+      role="status"
+      aria-live="polite"
+    >
       <div className="runtimepilot-action-head">
         <div className="runtimepilot-action-copy">
           <span className="status-label">Poslednja akcija</span>

@@ -443,6 +443,7 @@ export function BrowserPage({
   const [warningsExpanded, setWarningsExpanded] = useState(false);
   const [errorsExpanded, setErrorsExpanded] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [pageJumpValue, setPageJumpValue] = useState("1");
   const [initialRefreshTriggered, setInitialRefreshTriggered] = useState(false);
   const deferredSearch = useDeferredValue(search);
   const progressStatusRef = useRef<string | null>(null);
@@ -622,6 +623,17 @@ export function BrowserPage({
   const pageStart = (currentPage - 1) * rowsPerPage;
   const paginatedItems = filteredItems.slice(pageStart, pageStart + rowsPerPage);
 
+  function jumpToCatalogPage(rawValue: string) {
+    const parsed = Number(rawValue);
+    if (!Number.isFinite(parsed)) {
+      setPageJumpValue(String(currentPage));
+      return;
+    }
+    const nextPage = Math.min(totalPages, Math.max(1, Math.trunc(parsed)));
+    setCurrentPage(nextPage);
+    setPageJumpValue(String(nextPage));
+  }
+
   useEffect(() => {
     setCurrentPage(1);
   }, [deferredSearch, sourceFilter, familyFilter, quantFilter, sizeFilter, mtpFilter, dateFilter, sortKey]);
@@ -631,6 +643,10 @@ export function BrowserPage({
       setCurrentPage(totalPages);
     }
   }, [currentPage, totalPages]);
+
+  useEffect(() => {
+    setPageJumpValue(String(currentPage));
+  }, [currentPage]);
 
   useEffect(() => {
     if (!filteredItems.length) {
@@ -1352,18 +1368,44 @@ export function BrowserPage({
               <span>
                 Strana {currentPage} / {totalPages} | Redovi {pageStart + 1}-{Math.min(pageStart + rowsPerPage, filteredItems.length)} od {filteredItems.length}
               </span>
-              <div className="inline-actions compact-actions">
-                <button type="button" className="secondary-button" disabled={currentPage <= 1} onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}>
-                  Prethodna
-                </button>
-                <button
-                  type="button"
-                  className="secondary-button"
-                  disabled={currentPage >= totalPages}
-                  onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+              <div className="browser-pagination-controls">
+                <div className="inline-actions compact-actions">
+                  <button type="button" className="secondary-button" disabled={currentPage <= 1} onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}>
+                    Prethodna
+                  </button>
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    disabled={currentPage >= totalPages}
+                    onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                  >
+                    Sledeća
+                  </button>
+                </div>
+                <form
+                  className="browser-page-jump-form"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    jumpToCatalogPage(pageJumpValue);
+                  }}
                 >
-                  Sledeća
-                </button>
+                  <label className="browser-page-jump-label">
+                    <span>Idi na stranu</span>
+                    <input
+                      className="browser-page-jump-input"
+                      type="number"
+                      min={1}
+                      max={totalPages}
+                      inputMode="numeric"
+                      value={pageJumpValue}
+                      onChange={(event) => setPageJumpValue(event.target.value)}
+                      aria-label="Idi direktno na stranu Browser kataloga"
+                    />
+                  </label>
+                  <button type="submit" className="secondary-button">
+                    Idi
+                  </button>
+                </form>
               </div>
             </div>
           ) : null}

@@ -3867,3 +3867,35 @@ def test_fleet_source_and_packaged_frontend_use_reserved_example_url_placeholder
     assert "http://192.0.2.10:3210" in bundled_js
     assert legacy_ip not in bundled_js
 
+
+def test_browser_page_source_supports_direct_catalog_page_jump():
+    browser_source = Path("frontend/src/pages/BrowserPage.tsx").read_text(encoding="utf-8")
+    styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
+
+    assert "pageJumpValue" in browser_source
+    assert "jumpToCatalogPage" in browser_source
+    assert "Idi na stranu" in browser_source
+    assert 'aria-label="Idi direktno na stranu Browser kataloga"' in browser_source
+    assert ".browser-pagination-controls" in styles_source
+    assert ".browser-page-jump-form" in styles_source
+    assert ".browser-page-jump-input" in styles_source
+
+
+def test_packaged_frontend_includes_custom_select_portal_and_browser_page_jump():
+    dist_root = Path(
+        "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
+    )
+    js_assets = list((dist_root / "assets").glob("*.js"))
+    css_assets = list((dist_root / "assets").glob("*.css"))
+
+    assert js_assets
+    assert css_assets
+
+    bundled_js = "\n".join(path.read_text(encoding="utf-8") for path in js_assets)
+    bundled_css = "\n".join(path.read_text(encoding="utf-8") for path in css_assets)
+
+    assert "createPortal" in bundled_js
+    assert "Idi na stranu" in bundled_js
+    assert "browser-page-jump-input" in bundled_css
+    assert "custom-select-menu-portal" in bundled_css
+

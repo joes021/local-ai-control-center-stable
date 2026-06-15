@@ -173,7 +173,7 @@ def test_status_route_prefers_running_source_version_over_installed_report_versi
     monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
     monkeypatch.setattr(
         "local_ai_control_center_installer.control_center_backend.services.status_service._read_running_version_from_source_tree",
-        lambda: "0.4.94",
+        lambda: "0.4.95",
     )
     monkeypatch.setattr(
         "local_ai_control_center_installer.control_center_backend.services.status_service.package_version",
@@ -197,7 +197,7 @@ def test_status_route_prefers_running_source_version_over_installed_report_versi
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["version"] == "0.4.94"
+    assert payload["version"] == "0.4.95"
     assert payload["installedVersion"] == "0.4.90"
 
 

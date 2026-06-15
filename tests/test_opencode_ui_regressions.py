@@ -38,12 +38,17 @@ def test_opencode_safe_selects_anchor_to_trigger_and_use_solid_menu_fill():
     opencode_source = Path("frontend/src/pages/OpenCodePage.tsx").read_text(
         encoding="utf-8"
     )
+    custom_select_source = Path("frontend/src/components/CustomSelect.tsx").read_text(
+        encoding="utf-8"
+    )
     styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
 
     assert "Bezbednosni kanal" in opencode_source
     assert "Sloboda i ograničenja OpenCode agenta" in opencode_source
     assert "Bezbednosni režim" in opencode_source
     assert "Autonomija" in opencode_source
+    assert "createPortal(" in custom_select_source
+    assert "custom-select-menu custom-select-menu-portal" in custom_select_source
     assert (
         ".runtimepilot-opencode-settings-row {\n"
         "  display: grid;\n"
@@ -64,13 +69,14 @@ def test_opencode_safe_selects_anchor_to_trigger_and_use_solid_menu_fill():
         "}"
     ) in styles_source
     assert (
-        ".custom-select .custom-select-menu {\n"
+        ".custom-select-menu {\n"
         "  position: absolute;\n"
-        "  top: calc(100% + 8px);\n"
+        "  top: 0;\n"
         "  left: 0;\n"
-        "  right: 0;\n"
         "  width: 100%;\n"
-        "  min-width: 100%;\n"
+        "  min-width: 0;\n"
+        "  max-width: min(420px, calc(100vw - 24px));\n"
+        "  max-height: min(360px, calc(100vh - 24px));\n"
         "  box-sizing: border-box;\n"
         "  z-index: 120;\n"
         "  display: grid;\n"
@@ -78,13 +84,22 @@ def test_opencode_safe_selects_anchor_to_trigger_and_use_solid_menu_fill():
         "  justify-items: stretch;\n"
         "  gap: 6px;\n"
         "  padding: 8px;\n"
-        "  overflow: hidden;\n"
+        "  overflow-x: hidden;\n"
+        "  overflow-y: auto;\n"
+        "  overscroll-behavior: contain;\n"
+        "  scrollbar-gutter: stable;\n"
         "  border-radius: 16px;\n"
         "  border: 1px solid var(--app-field-border);\n"
         "  background: color-mix(in srgb, var(--app-card-soft-bg) 94%, var(--app-overlay-solid-fill) 6%);\n"
     ) in styles_source
     assert (
-        ".custom-select .custom-select-option {\n"
+        ".custom-select-menu-portal {\n"
+        "  position: fixed;\n"
+        "  isolation: isolate;\n"
+        "}"
+    ) in styles_source
+    assert (
+        ".custom-select-option {\n"
         "  width: 100%;\n"
         "  max-width: 100%;\n"
         "  box-sizing: border-box;\n"
@@ -93,7 +108,7 @@ def test_opencode_safe_selects_anchor_to_trigger_and_use_solid_menu_fill():
         "  background: color-mix(in srgb, var(--app-card-soft-bg) 90%, var(--app-overlay-solid-fill) 10%);\n"
     ) in styles_source
     assert (
-        ".custom-select .custom-select-option-label {\n"
+        ".custom-select-option-label {\n"
         "  display: block;\n"
         "  min-width: 0;\n"
         "  overflow: hidden;\n"

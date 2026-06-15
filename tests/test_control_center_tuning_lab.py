@@ -2495,8 +2495,8 @@ def test_tuning_lab_summary_repairs_legacy_mojibake_in_history_items(
             "status": "failed",
             "summary": (
                 "Aktivni Tuning Lab run je ostao bez svog runner procesa tokom restarta panela. "
-                "Preostali runtime/OpenCode procesi biÄ‡e oÄiÅ¡Ä‡eni, "
-                "a run je prebaÄen u istoriju kao prekinut."
+                "Preostali runtime/OpenCode procesi bi\u00c4\u2021e o\u00c4\u008di\u00c5\u00a1\u00c4\u2021eni, "
+                "a run je preba\u00c4\u008den u istoriju kao prekinut."
             ),
             "slots": [
                 {
