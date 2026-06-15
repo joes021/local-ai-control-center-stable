@@ -858,7 +858,8 @@ def test_tuning_lab_source_and_navigation_are_present():
     assert "Dodaj u queue" in page_source
     assert "Primeni pobednički set" in page_source
     assert "Izvezi / podeli" in page_source
-    assert "tuning-lab-overview-grid" in page_source
+    assert "TuningLabStatusDeck" in page_source
+    assert ".tuning-lab-status-deck" in styles_source
     assert "tuning-lab-cockpit-tip-strip" in page_source
     assert "Uvezi forum / Reddit snippet" in page_source
     assert 'className="action-button-soft"' in page_source
@@ -1018,6 +1019,48 @@ def test_tuning_lab_source_mentions_visible_live_opencode_session():
     assert ".tuning-lab-log-lines" in styles_source
     assert ".tuning-lab-log-line" in styles_source
     assert ".tuning-lab-log-raw" in styles_source
+
+
+def test_tuning_lab_tri_slot_components_use_hifi_selects_and_clean_serbian_copy():
+    identity_source = Path(
+        "frontend/src/components/tuning-lab/TuningLabSlotIdentityPanel.tsx"
+    ).read_text(encoding="utf-8")
+    display_source = Path(
+        "frontend/src/components/tuning-lab/TuningLabSlotDisplayPanel.tsx"
+    ).read_text(encoding="utf-8")
+    precision_source = Path(
+        "frontend/src/components/tuning-lab/TuningLabSlotPrecisionRack.tsx"
+    ).read_text(encoding="utf-8")
+    styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
+    normalized_display_source = " ".join(display_source.split())
+
+    assert 'from "../CustomSelect"' in identity_source
+    assert "preporučeno" in identity_source
+    assert "Signal chain" in identity_source
+    assert "Ručni unos" in display_source
+    assert "koliko context-a držiš otvoreno" in display_source
+    assert "koliki output limit stvarno puštaš u radu" in normalized_display_source
+    assert "odmah vidiš ceo miks" in precision_source
+    assert ".tuning-lab-slot-square-control .custom-select-trigger" in styles_source
+    assert ".tuning-lab-slot-square-control .custom-select-menu" in styles_source
+    assert ".tuning-lab-slot-square-select" in styles_source
+    assert ".tuning-lab-slot-square-source" in styles_source
+
+
+def test_tuning_lab_page_uses_plain_serbian_copy_and_active_run_empty_deck():
+    page_source = Path("frontend/src/pages/TuningLabPage.tsx").read_text(encoding="utf-8")
+    styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
+    normalized_page_source = " ".join(page_source.split())
+
+    assert "Auto-detect će odlučiti da li treba pytest, npm test ili cargo test." in page_source
+    assert "Koristi trenutne slot postavke iz Baseline, Recommended i Custom kolona." in page_source
+    assert "OpenCode sesija uživo je prikazana ovde u RuntimePilot-u kao stvarni opencode.exe --pure run proces" in normalized_page_source
+    assert "Queue ostaje sekvencijalan: jedan run po jedan" in page_source
+    assert "Trenutno nema aktivnog Tuning Lab run-a." in page_source
+    assert "Sledeći korak: učitaj task ili batch" in page_source
+    assert ".tuning-lab-progress-card" in styles_source
+    assert ".tuning-lab-progress-empty" in styles_source
+    assert ".tuning-lab-progress-empty-card" in styles_source
 
 
 def test_tuning_lab_source_mentions_history_selection_and_delete_actions():
@@ -2070,13 +2113,13 @@ def test_shared_ux_components_and_guided_flow_copy_are_present_in_core_pages():
     assert "PageFlowCard" in settings_source
     assert "PageDataStateCard" in settings_source
 
-    assert "Tuning Lab tok" in tuning_lab_source
-    assert "Učitaj task ili batch" in tuning_lab_source
-    assert "Pokreni task i prati cockpit" in tuning_lab_source
+    assert "TuningLabStatusDeck" in tuning_lab_source
+    assert "Signal i spremnost" in tuning_lab_source
+    assert "Sledeći korak" in tuning_lab_source
     assert "OpenCode živi output" in tuning_lab_source
     assert "Runtime prompt" in tuning_lab_source
     assert "Runtime generacija" in tuning_lab_source
-    assert "PageFlowCard" in tuning_lab_source
+    assert "PageFlowCard" not in tuning_lab_source
     assert "PageDataStateCard" in tuning_lab_source
 
     assert "Log tok" in logs_source
@@ -2116,6 +2159,30 @@ def test_tuning_lab_source_uses_fast_overview_and_separate_history_loading():
     assert "load_tuning_lab_overview" in route_source
     assert "def load_tuning_lab_overview" in service_source
     assert "def _build_tuning_lab_history_payload" in service_source
+
+
+def test_tuning_lab_shell_uses_b_light_section_order():
+    tuning_lab_source = Path("frontend/src/pages/TuningLabPage.tsx").read_text(encoding="utf-8")
+    deck_source = Path("frontend/src/components/shell/TuningLabStatusDeck.tsx").read_text(
+        encoding="utf-8"
+    )
+    styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
+
+    assert "Signal i spremnost" in tuning_lab_source
+    assert "Aktivni run cockpit" in tuning_lab_source
+    assert "Tri slota" in tuning_lab_source
+    assert "Gotovi batch testovi" in tuning_lab_source
+    assert "Priprema run-a" in tuning_lab_source
+    assert "Aktivni run i red čekanja" in tuning_lab_source
+    assert "Filtriraj istoriju" in tuning_lab_source
+    assert tuning_lab_source.index("Aktivni run cockpit") < tuning_lab_source.index("Tri slota")
+    assert tuning_lab_source.index("Tri slota") < tuning_lab_source.index("Gotovi batch testovi")
+    assert tuning_lab_source.index("Gotovi batch testovi") < tuning_lab_source.index("Priprema run-a")
+    assert tuning_lab_source.index("Priprema run-a") < tuning_lab_source.index("Aktivni run i red čekanja")
+    assert tuning_lab_source.index("Aktivni run i red čekanja") < tuning_lab_source.index("Filtriraj istoriju")
+    assert "TuningLabStatusDeck" in tuning_lab_source
+    assert "tuning-lab-status-deck" in deck_source
+    assert ".tuning-lab-status-deck" in styles_source
     assert ".page-flow-grid" in styles_source
     assert ".page-flow-step" in styles_source
     assert ".page-data-state-card" in styles_source
@@ -2977,9 +3044,12 @@ def test_advanced_page_source_and_app_wire_real_secondary_tool_launchers():
     assert '"Otvori Flotu"' in page_source
     assert '"Otvori Poslove"' in page_source
     assert "SecondaryActionRail" in rail_source
-    assert "SecondaryActionRail" in page_source
+    assert "SecondaryActionRail" not in page_source
+    assert "SupportPageDeck" in page_source
+    assert "runtimepilot-secondary-hub-fullwidth" in page_source
     assert "runtimepilot-secondary-hub" in page_source
     assert "runtimepilot-advanced-summary-grid" in page_source
+    assert "runtimepilot-advanced-summary-actions" in page_source
     assert "HomeHiFiModule" not in page_source
     assert "HomeHiFiCommandButton" not in page_source
     assert "advanced-rack-module" not in page_source
@@ -3637,7 +3707,8 @@ def test_secondary_pages_use_real_action_rail_instead_of_placeholder_modules():
 
     assert "SecondaryActionRail" in rail_source
     assert "runtimepilot-secondary-action-rail" in rail_source
-    assert "SecondaryActionRail" in advanced_source
+    assert "SecondaryActionRail" not in advanced_source
+    assert "SupportPageDeck" in advanced_source
     assert "Otvori Benchmark" in advanced_source
     assert "Otvori Tuning Lab" in advanced_source
     assert "Otvori kompatibilnost" in advanced_source
@@ -3761,14 +3832,17 @@ def test_catalog_memory_and_guided_flow_use_faceplate_modules_for_hifi_layout():
     assert "runtimepilot-faceplate-module" in bundled_js
 
 
-def test_opencode_shell_uses_faceplate_module_for_hifi_layout():
+def test_opencode_shell_uses_faceplate_module_and_full_width_for_hifi_layout():
     opencode_source = Path("frontend/src/pages/OpenCodePage.tsx").read_text(encoding="utf-8")
     dist_root = Path(
         "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
     )
     js_assets = list((dist_root / "assets").glob("*.js"))
 
-    assert "runtimepilot-opencode-shell runtimepilot-faceplate-module" in opencode_source
+    assert (
+        'className="runtimepilot-opencode-shell wide-card runtimepilot-faceplate-module"'
+        in opencode_source
+    )
     assert js_assets
 
     bundled_js = "\n".join(path.read_text(encoding="utf-8") for path in js_assets)

@@ -2,8 +2,8 @@
 
 import { ActionResultPanel } from "../components/ActionResultPanel";
 import { PageDataStateCard } from "../components/PageDataStateCard";
-import { PageFlowCard } from "../components/PageFlowCard";
 import { TuningLabTriSlotReceiverRack } from "../components/tuning-lab/TuningLabTriSlotReceiverRack";
+import { TuningLabStatusDeck } from "../components/shell/TuningLabStatusDeck";
 import {
   applyTuningLabWinner,
   bootstrapOpenCode,
@@ -127,6 +127,15 @@ function formatCount(value: number | undefined) {
     return "--";
   }
   return new Intl.NumberFormat("sr-RS").format(value);
+}
+
+function compactModelLabel(value: string | undefined) {
+  const normalized = String(value || "").trim();
+  if (!normalized) {
+    return "--";
+  }
+  const stripped = normalized.replace(/\.gguf$/i, "");
+  return stripped.length > 28 ? `${stripped.slice(0, 28)}…` : stripped;
 }
 
 function compactPathLike(value: string | undefined, trailingSegments = 3) {
@@ -267,7 +276,7 @@ function buildTaskRunState(
   }
   return {
     badge: "Spremno",
-    summary: "Task je spreman za pokretanje čim klikneš `Pokreni task`.",
+    summary: "Task je spreman za pokretanje čim klikneš Pokreni task.",
     detail: "",
   };
 }
@@ -661,8 +670,11 @@ export function TuningLabPage() {
   const [selectedDiffs, setSelectedDiffs] = useState<Record<string, string>>({});
   const [expandedHistoryDetails, setExpandedHistoryDetails] = useState<Record<string, boolean>>({});
   const editorRef = useRef<HTMLElement | null>(null);
+  const batchRef = useRef<HTMLElement | null>(null);
   const progressRef = useRef<HTMLElement | null>(null);
   const cockpitRef = useRef<HTMLElement | null>(null);
+  const triSlotRef = useRef<HTMLElement | null>(null);
+  const historyRef = useRef<HTMLElement | null>(null);
   const historyPageRef = useRef(historyPage);
   const lastActiveRunIdRef = useRef<string | null>(null);
 
@@ -854,7 +866,7 @@ export function TuningLabPage() {
       {
         label: "Runtime generacija",
         value: formatTok(activeRunSlot?.runtimeGenerationTokensPerSecond),
-        helper: "Skorašnji `n_decoded` signal iz runtime loga; često je niži od prompt ingest-a",
+        helper: "Skorašnji n_decoded signal iz runtime loga; često je niži od prompt ingest-a",
       },
       {
         label: "Poslednje merenje",
@@ -927,12 +939,103 @@ export function TuningLabPage() {
   const hasRuntimeBinary = summary?.context.runtimeBinaryReady ?? false;
   const hasActiveModel = summary?.context.activeModelReady ?? false;
   const hasOpenCode = summary?.context.opencodeReady ?? false;
+  const draftTaskPrompt = draft?.taskPrompt.trim() ?? "";
+  const draftWorkingDirectory = draft?.workingDirectory.trim() ?? "";
   const canQueueCurrentDraft =
-    canQueueRuns && !!draft?.taskPrompt.trim() && !!draft?.workingDirectory.trim() && !isQueueing;
+    canQueueRuns && !!draftTaskPrompt && !!draftWorkingDirectory && !isQueueing;
 
   const recommendedSourceLabel = useMemo(() => {
     return summary?.context.recommendedOrigin || "interna pravila";
   }, [summary?.context.recommendedOrigin]);
+
+  const tuningLabNextStep = useMemo(() => {
+    if (runBlockers.length) {
+      return "Reši blockere i potvrdi radni direktorijum pre nego što pokreneš bilo koji run.";
+    }
+    if (activeRun) {
+      return "Otvori cockpit i prati aktivni slot, workspace i OpenCode signal dok run ne završi.";
+    }
+    if (!draftTaskPrompt) {
+      return "Učitaj task ili batch, pa tek onda proveri slotove i working directory.";
+    }
+    if (!draftWorkingDirectory) {
+      return "Unesi ili potvrdi working directory, pa proveri Baseline, Recommended i Custom slot.";
+    }
+    return "Proveri tri slota, pa pokreni task ili ceo batch iz istog control deck toka.";
+  }, [activeRun, draftTaskPrompt, draftWorkingDirectory, runBlockers]);
+
+  const tuningLabStatusItems = useMemo(
+    () => [
+      {
+        id: "readiness",
+        label: "Spremnost",
+        value: runBlockers.length ? `${runBlockers.length} blokera` : activeRun ? "Run u toku" : "Spremno",
+        detail: runBlockers.length ? runBlockers[0] : tuningLabNextStep,
+        action: runBlockers.length ? "Otvori eksperiment" : activeRun ? "Otvori cockpit" : "Otvori batch",
+        icon: "control" as const,
+        tone: "readiness" as const,
+        onClick: () =>
+          scrollSectionIntoView(
+            runBlockers.length ? editorRef.current : activeRun ? cockpitRef.current : batchRef.current,
+          ),
+      },
+      {
+        id: "opencode",
+        label: "OpenCode",
+        value: hasOpenCode ? "Spreman za rad" : "Treba popravku",
+        detail: hasOpenCode
+          ? "Agent može da krene čim nema blockera u run toku."
+          : "Bez OpenCode-a Tuning Lab ne može da napravi stvarni agent run.",
+        action: hasOpenCode ? "Otvori cockpit" : "Idi na popravku",
+        icon: "opencode" as const,
+        tone: "opencode" as const,
+        onClick: () => scrollSectionIntoView(cockpitRef.current),
+      },
+      {
+        id: "runtime",
+        label: "Runtime",
+        value: summary?.context.activeRuntime || "--",
+        detail: `Model: ${compactModelLabel(summary?.context.activeModel || "--")}`,
+        action: "Otvori cockpit",
+        icon: "server" as const,
+        tone: "runtime" as const,
+        onClick: () => scrollSectionIntoView(cockpitRef.current),
+      },
+      {
+        id: "model",
+        label: "Model",
+        value: compactModelLabel(summary?.context.activeModel || "--"),
+        detail: `Recommended izvor: ${recommendedSourceLabel}`,
+        action: "Otvori tri slota",
+        icon: "models" as const,
+        tone: "model" as const,
+        onClick: () => scrollSectionIntoView(triSlotRef.current),
+      },
+      {
+        id: "workspace",
+        label: "Workspace",
+        value: compactPathLike(summary?.context.workingDirectory || "--", 2),
+        detail: summary?.context.workingDirectoryWasAdjusted
+          ? "Predložen je bezbedniji scratch workspace umesto install root-a."
+          : "Run radi nad izolovanim radnim prostorom, a ne nad install root-om.",
+        action: "Otvori eksperiment",
+        icon: "browser" as const,
+        tone: "workspace" as const,
+        onClick: () => scrollSectionIntoView(editorRef.current),
+      },
+    ],
+    [
+      activeRun,
+      hasOpenCode,
+      recommendedSourceLabel,
+      runBlockers,
+      summary?.context.activeModel,
+      summary?.context.activeRuntime,
+      summary?.context.workingDirectory,
+      summary?.context.workingDirectoryWasAdjusted,
+      tuningLabNextStep,
+    ],
+  );
 
   const historyRuntimeOptions = useMemo(() => {
     const values = new Set<string>();
@@ -1209,76 +1312,22 @@ export function TuningLabPage() {
   return (
     <div className="tuning-lab-page runtimepilot-rack-page">
       {error ? <div className="error-panel wide-card">{error}</div> : null}
-      <PageFlowCard
-        title="Tuning Lab tok"
-        summary="Ovde je prirodan redosled da prvo podesiš task i slotove, zatim pokreneš run ili batch, pa tek onda pratiš cockpit i istoriju."
-        steps={[
-          {
-            title: "Učitaj task ili batch",
-            detail: "Kreni od jednog taska ako proveravaš tok, ili od batch-a kada želiš ozbiljnije poređenje više zadataka.",
-          },
-          {
-            title: "Proveri working directory i slotove",
-            detail: "Pre starta potvrdi gde run radi i da li su Baseline, Recommended i Custom slotovi onakvi kakve želiš.",
-          },
-          {
-            title: "Pokreni task i prati cockpit",
-            detail: "Posle starta pređi u monitoring deck: tamo se vidi šta radi, koji je PID, šta je workspace i kakav je live signal.",
-          },
-        ]}
-      />
       <div className="tuning-lab-hifi-stack">
-      <section className="status-card wide-card runtimepilot-faceplate-module tuning-rack-module">
-        <span className="status-label">Tuning Lab</span>
-        <strong className="status-value">Poređenje, objašnjenje i primena tuning setova</strong>
-        <p className="helper-text">
-          Ovaj lab pokreće stvarni OpenCode task nad izolovanim radnim prostorom i poredi tri seta
-          podešavanja: `Baseline`, `Recommended` i `Custom`.
-        </p>
-        <div className="tuning-lab-overview-grid">
-          <article className="tuning-lab-overview-card">
-            <span className="status-label">OpenCode</span>
-            <strong>{hasOpenCode ? "Spreman za rad" : "Treba popravku ili instalaciju"}</strong>
-            <p className="helper-text">
-              {hasOpenCode
-                ? "Agent task može da se pokrene čim nema blokera u run toku."
-                : "Bez OpenCode-a Tuning Lab ne može da napravi stvarni agent run."}
-            </p>
-          </article>
-          <article className="tuning-lab-overview-card">
-            <span className="status-label">Runtime</span>
-            <strong>{summary.context.activeRuntime || "--"}</strong>
-            <p className="helper-text">
-              Aktivni model: {summary.context.activeModel || "--"}
-            </p>
-          </article>
-          <article className="tuning-lab-overview-card">
-            <span className="status-label">Workspace</span>
-            <strong>{summary.context.workingDirectory ? compactPathLike(summary.context.workingDirectory, 2) : "--"}</strong>
-            <p className="helper-text">
-              Run radi nad izolovanim radnim prostorom, a ne nad install root-om.
-            </p>
-          </article>
-          <article className="tuning-lab-overview-card">
-            <span className="status-label">Recommended izvor</span>
-            <strong>{recommendedSourceLabel}</strong>
-            <p className="helper-text">
-              To je polazna tačka za `Recommended` slot pre poređenja sa `Baseline` i `Custom`.
-            </p>
-          </article>
-        </div>
-        <div className="summary-metrics">
-          <span>Aktivni model: {summary.context.activeModel || "--"}</span>
-          <span>Runtime: {summary.context.activeRuntime || "--"}</span>
-          <span>Radni direktorijum: {summary.context.workingDirectory || "--"}</span>
+        <TuningLabStatusDeck
+          eyebrow="Signal i spremnost"
+          title="Sledeći korak"
+          helper={tuningLabNextStep}
+          items={tuningLabStatusItems}
+        />
+
+        <div className="summary-metrics tuning-lab-status-strip">
           <span>Recommended izvor: {recommendedSourceLabel}</span>
+          <span>Na čekanju: {summary.queue.length}</span>
+          <span>Istorija: {summary.historyTotalItems}</span>
+          <span>Runtime binar: {hasRuntimeBinary ? "spreman" : "nije spreman"}</span>
+          <span>Aktivni model: {hasActiveModel ? "spreman" : "nije spreman"}</span>
         </div>
-        {summary.context.workingDirectoryWasAdjusted ? (
-          <p className="helper-text">
-            Tuning Lab ne koristi install root kao radni direktorijum. Umesto toga je predložen
-            sigurniji scratch workspace: {summary.context.workingDirectory}
-          </p>
-        ) : null}
+
         {runBlockers.length ? (
           <div className="error-panel">
             <strong>Tuning Lab trenutno nije spreman za pokretanje.</strong>
@@ -1301,27 +1350,21 @@ export function TuningLabPage() {
               </div>
             ) : null}
           </div>
-        ) : (
+        ) : null}
+
+        <ActionResultPanel result={result} />
+
+        <div className="tuning-lab-monitor-deck">
+        <section className="status-card wide-card tuning-lab-cockpit runtimepilot-faceplate-module tuning-rack-module" ref={cockpitRef}>
+          <span className="status-label">Aktivni run cockpit</span>
+          <strong className="status-value">
+            {activeRun ? activeRun.name : "Tuning Lab trenutno miruje"}
+          </strong>
           <p className="helper-text">
-            Napredak run-a sada vidiš u `Aktivni run cockpit` monitoring decku, a detaljniji trag
-            ostaje i u panelu `Aktivni run i red čekanja`.
+            OpenCode sesija uživo je prikazana ovde u RuntimePilot-u kao stvarni opencode.exe --pure run
+            proces nad izolovanim projektom. OpenCode u Tuning Lab-u radi u pozadini. Ne otvara dodatni terminal, pa ovaj cockpit možeš
+            direktno da pratiš i snimaš.
           </p>
-        )}
-      </section>
-
-      <ActionResultPanel result={result} />
-
-      <div className="tuning-lab-monitor-deck">
-      <section className="status-card wide-card tuning-lab-cockpit runtimepilot-faceplate-module tuning-rack-module" ref={cockpitRef}>
-        <span className="status-label">Aktivni run cockpit</span>
-        <strong className="status-value">
-          {activeRun ? activeRun.name : "Tuning Lab trenutno miruje"}
-        </strong>
-        <p className="helper-text">
-          OpenCode sesija uživo je prikazana ovde u RuntimePilot-u kao stvarni `opencode.exe --pure run`
-          proces nad izolovanim projektom. OpenCode u Tuning Lab-u radi u pozadini. Ne otvara dodatni terminal, pa ovaj cockpit možeš
-          direktno da pratiš i snimaš.
-        </p>
         <div className="summary-metrics tuning-lab-cockpit-strip">
           <span>Red čekanja radi sekvencijalno: jedan run po jedan, jedan slot po jedan.</span>
           <span>Aktivni run: {activeRun ? "da" : "ne"}</span>
@@ -1357,17 +1400,17 @@ export function TuningLabPage() {
               </p>
               <div className="tuning-lab-cockpit-helper-grid">
                 <div className="tuning-lab-cockpit-helper-card">
-                  <strong>Šta znači niži `Živi output`</strong>
+                  <strong>Šta znači niži Živi output</strong>
                   <p className="helper-text">
-                    `Živa generacija` nije isto što i benchmark prompt brzina. Kod OpenCode taska je
-                    normalno da `Prompt ingest` bude znatno veći, a da stvarna generacija tokom
+                    Živa generacija nije isto što i benchmark prompt brzina. Kod OpenCode taska je
+                    normalno da Prompt ingest bude znatno veći, a da stvarna generacija tokom
                     agent rada bude niža.
                   </p>
                 </div>
                 <div className="tuning-lab-cockpit-helper-card">
                   <strong>Kako se OpenCode ovde vidi uživo</strong>
                   <p className="helper-text">
-                    OpenCode ne otvara zaseban GUI prozor. Ovaj cockpit prikazuje stvarni `opencode.exe`
+                    OpenCode ne otvara zaseban GUI prozor. Ovaj cockpit prikazuje stvarni opencode.exe
                     rad kroz PID, log signal, workspace, komande i runtime throughput.
                   </p>
                 </div>
@@ -1390,7 +1433,7 @@ export function TuningLabPage() {
                 </div>
               ) : null}
               <p className="helper-text">
-                Dve `llama-server` sesije su normalne dok `Tuning Lab` radi: jedna je glavni runtime
+                Dve llama-server sesije su normalne dok Tuning Lab radi: jedna je glavni runtime
                 RuntimePilot-a, a druga je privremeni slot runtime za izolovani eksperiment.
               </p>
             </article>
@@ -1601,7 +1644,7 @@ export function TuningLabPage() {
               <details className="tuning-lab-history-detail tuning-lab-log-raw">
                 <summary>Napredni debug trag</summary>
                 <p className="helper-text">
-                  Ovde je filtriran debug trag iz `opencode-output.jsonl` i `stderr` loga, bez ogromnog
+                  Ovde je filtriran debug trag iz opencode-output.jsonl i stderr loga, bez ogromnog
                   šuma koji nije koristan za čitanje u RuntimePilot-u.
                 </p>
                 <div className="tuning-lab-log-panel">
@@ -1618,12 +1661,12 @@ export function TuningLabPage() {
               <div className="summary-metrics">
                 <span>Aktivna OpenCode poruka = trenutna agent poruka u radu.</span>
                 <span>Alat = konkretan bash/file korak koji agent izvršava.</span>
-                <span>OpenCode tok/s nije isto što i runtime prompt brzina iz `llama.cpp` loga.</span>
+                <span>OpenCode tok/s nije isto što i runtime prompt brzina iz llama.cpp loga.</span>
               </div>
               <p className="helper-text">
                 OpenCode radi kao stvarni pozadinski agent nad izolovanim workspace-om, pa je normalno
-                da `OpenCode živi output` bude niži nego u kratkom benchmark promptu. Zato cockpit sada
-                odvojeno prikazuje i `Runtime prompt` brzinu iz stvarnog `llama.cpp` loga.
+                da OpenCode živi output bude niži nego u kratkom benchmark promptu. Zato cockpit sada
+                odvojeno prikazuje i Runtime prompt brzinu iz stvarnog llama.cpp loga.
               </p>
             </article>
           </div>
@@ -1636,15 +1679,40 @@ export function TuningLabPage() {
       </section>
       </div>
 
+      <div className="tuning-lab-mixer-deck">
+      <section
+        className="status-card wide-card runtimepilot-faceplate-module tuning-rack-module"
+        ref={triSlotRef}
+      >
+        <span className="status-label">Tri slota</span>
+        <strong className="status-value">Široki deck za Baseline, Recommended i Custom poređenje</strong>
+        <p className="helper-text">
+          Svaki slot je složen kao jedan receiver: identitet levo, Context i Output u sredini,
+          pa svih 9 finih kontrola desno.
+        </p>
+        <TuningLabTriSlotReceiverRack
+          slots={draft.slots}
+          referenceSlots={summary?.slots ?? []}
+          buildInferenceSummary={buildInferenceSummary}
+          onPatchSlot={(slotId, patch) =>
+            setDraft({
+              ...draft,
+              slots: patchSlotSettings(draft.slots, slotId, patch),
+            })
+          }
+        />
+      </section>
+      </div>
+
       <div className="tuning-lab-transport-deck">
-      <section className="status-card wide-card runtimepilot-faceplate-module tuning-rack-module">
+      <section className="status-card wide-card runtimepilot-faceplate-module tuning-rack-module" ref={batchRef}>
         <span className="status-label">Gotovi batch testovi</span>
         <strong className="status-value">Prvi uporedivi game batch za Tuning Lab</strong>
         <p className="helper-text">
           Ovi batch testovi su normalizovani za benchmark, tako da isti set podešavanja možeš da
-          porediš kroz `easy`, `medium` i `hard` zadatak bez ručnog kopiranja promptova.
+          porediš kroz easy, medium i hard zadatak bez ručnog kopiranja promptova.
         </p>
-        <p className="helper-text">`Game Batch 01` je prvi gotov batch za browser igre.</p>
+        <p className="helper-text">Game Batch 01 je prvi gotov batch za browser igre.</p>
         <div className="tuning-lab-batch-grid">
           {batchPresets.map((preset) => {
             const loadedTask = preset.tasks.find((task) => isBatchTaskLoaded(draft, task)) || null;
@@ -1672,16 +1740,16 @@ export function TuningLabPage() {
                       za sva tri uporediva run-a.
                     </p>
                     <p className="helper-text">
-                      Osnovni tok sada ostaje u istoj kartici: `Učitaj` → `Pokreni task` → `Otvori rezultat`.
+                      Osnovni tok sada ostaje u istoj kartici: Učitaj → Pokreni task → Otvori rezultat.
                     </p>
                     <p className="helper-text">
-                      Red čekanja radi sekvencijalno: prvo jedan task, a unutar njega `Baseline` →
-                      `Recommended` → `Custom`.
+                      Red čekanja radi sekvencijalno: prvo jedan task, a unutar njega Baseline →
+                      Recommended → Custom.
                     </p>
                     {loadedTask ? (
                       <div className="warning-badge">
                         Trenutno u editoru: {loadedTask.label}. Napredna podešavanja i dalje postoje niže,
-                        u sekciji `Eksperiment`, ali za osnovni tok više ne moraš da skroluješ do njih.
+                        u sekciji Eksperiment, ali za osnovni tok više ne moraš da skroluješ do njih.
                       </div>
                     ) : (
                       <p className="helper-text">
@@ -1905,7 +1973,7 @@ export function TuningLabPage() {
                   </button>
                 </div>
                 <p className="helper-text">
-                  Koristi trenutne slot postavke iz `Baseline`, `Recommended` i `Custom` kolona.
+                  Koristi trenutne slot postavke iz Baseline, Recommended i Custom kolona.
                 </p>
                 {!draft.workingDirectory.trim() ? (
                   <div className="warning-badge">
@@ -2059,7 +2127,7 @@ export function TuningLabPage() {
                 ))
               ) : (
                 <p className="helper-text">
-                  Auto-detect će odlučiti da li treba `pytest`, `npm test` ili `cargo test`.
+                  Auto-detect će odlučiti da li treba pytest, npm test ili cargo test.
                 </p>
               )}
             </div>
@@ -2067,7 +2135,7 @@ export function TuningLabPage() {
           <article className="status-card">
             <span className="status-label">Custom import</span>
             <p className="helper-text">
-              Nalepi forumsku komandu, config snippet ili parametre tipa `temperature=0.6 top_p=0.95`.
+              Nalepi forumsku komandu, config snippet ili parametre tipa temperature=0.6 top_p=0.95.
             </p>
             <textarea
               value={customSnippet}
@@ -2127,31 +2195,9 @@ export function TuningLabPage() {
         {!hasOpenCode ? (
           <div className="warning-badge">
             OpenCode nedostaje za Tuning Lab. Otvori karticu OpenCode ili klikni iznad na
-            `Instaliraj ili popravi OpenCode`.
+            Instaliraj ili popravi OpenCode.
           </div>
         ) : null}
-      </section>
-      </div>
-
-      <div className="tuning-lab-mixer-deck">
-      <section className="status-card wide-card runtimepilot-faceplate-module tuning-rack-module">
-        <span className="status-label">Tri slota</span>
-        <strong className="status-value">Široki deck za Baseline, Recommended i Custom poređenje</strong>
-        <p className="helper-text">
-          Svaki slot je složen kao jedan receiver: identitet levo, Context i Output u sredini,
-          pa svih 9 finih kontrola desno.
-        </p>
-        <TuningLabTriSlotReceiverRack
-          slots={draft.slots}
-          referenceSlots={summary?.slots ?? []}
-          buildInferenceSummary={buildInferenceSummary}
-          onPatchSlot={(slotId, patch) =>
-            setDraft({
-              ...draft,
-              slots: patchSlotSettings(draft.slots, slotId, patch),
-            })
-          }
-        />
       </section>
       </div>
 
@@ -2159,7 +2205,7 @@ export function TuningLabPage() {
       <section className="status-card wide-card runtimepilot-faceplate-module tuning-rack-module" ref={progressRef}>
         <span className="status-label">Aktivni run i red čekanja</span>
         <div className="tuning-lab-progress-grid">
-          <article className="status-card">
+          <article className="status-card tuning-lab-progress-card">
             <strong className="status-value">Aktivni run</strong>
             {activeRun ? (
               <>
@@ -2200,13 +2246,26 @@ export function TuningLabPage() {
                 </div>
               </>
             ) : (
-              <p className="helper-text">Trenutno nema aktivnog Tuning Lab run-a.</p>
+              <>
+                <p className="helper-text">
+                  Trenutno nema aktivnog Tuning Lab run-a. Sledeći klik treba da bude učitaj task ili batch, pa pokreni run i vrati se ovde na signal.
+                </p>
+                <div className="summary-metrics tuning-lab-progress-metrics">
+                  <span>Sledeći korak: učitaj task ili batch</span>
+                  <span>Ovde se pojavljuju run, slot, PID i živi signal</span>
+                  <span>Queue ostaje sekvencijalan: jedan run po jedan</span>
+                </div>
+              </>
             )}
           </article>
-          <article className="status-card">
+          <article className="status-card tuning-lab-progress-card">
             <strong className="status-value">Red čekanja</strong>
             {summary.queue.length ? (
               <>
+                <div className="summary-metrics tuning-lab-progress-metrics">
+                  <span>Na čekanju: {summary.queue.length}</span>
+                  <span>Izvršavanje: sekvencijalno</span>
+                </div>
                 <ul className="tuning-lab-queue-list">
                   {summary.queue.map((item) => (
                     <li key={item.runId}>
@@ -2231,7 +2290,7 @@ export function TuningLabPage() {
       </div>
 
       <div className="tuning-lab-monitor-deck">
-      <section className="status-card wide-card runtimepilot-faceplate-module tuning-rack-module">
+      <section className="status-card wide-card runtimepilot-faceplate-module tuning-rack-module" ref={historyRef}>
         <span className="status-label">Istorija</span>
         <strong className="status-value">Filtriraj istoriju</strong>
         <div className="tuning-lab-filter-grid">
@@ -2303,7 +2362,7 @@ export function TuningLabPage() {
                 <strong>Istorija run-ova</strong>
                 <span className="helper-text">
                   Otvoreno detalja: {expandedHistoryDetailCount}. Kada istorija postane predugačka,
-                  `Skupi sve` odmah vraća pregledan prikaz.
+                  Skupi sve odmah vraća pregledan prikaz.
                 </span>
               </div>
               <div className="inline-actions">
@@ -2663,8 +2722,8 @@ export function TuningLabPage() {
           </>
         ) : (
           <p className="helper-text">
-            Još nema Tuning Lab istorije. Dodaj prvi run u queue da bi počelo poređenje `Baseline /
-            Recommended / Custom`.
+            Još nema Tuning Lab istorije. Dodaj prvi run u queue da bi počelo poređenje Baseline /
+            Recommended / Custom.
           </p>
         )}
       </section>

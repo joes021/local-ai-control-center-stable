@@ -179,9 +179,6 @@ export function OpenCodePage() {
   const openCodeStateSummary =
     opencode.sessionSummary ||
     "Kada su runtime i model zdravi, ovde prelaziš na konkretan rad, taskove i rezultate.";
-  const actionSummary = result
-    ? result.summary
-    : "Posle klika odmah vidiš da li je otvoren direktan rad nad pravim projektom ili izolovani workspace za bezbedan probni tok.";
   const currentInstance = opencode.instances?.[0];
   const directActionLabel = opencode.openActionLabel || "Otvori OpenCode";
   const bootstrapActionLabel = opencode.bootstrapActionLabel || "Instaliraj ili popravi OpenCode";
@@ -189,7 +186,7 @@ export function OpenCodePage() {
   const managedModelLabel = opencode.launchPreview.managedConfig.model || "Model nije postavljen";
   const managedProviderLabel = opencode.launchPreview.managedConfig.selectedProvider || "nije prepoznat";
   const managedBaseUrlLabel = opencode.launchPreview.managedConfig.localProviderBaseUrl || "nije pronađen";
-  const instanceLabel = currentInstance?.name || "Sesija joÅ¡ nije otvorena";
+  const instanceLabel = currentInstance?.name || "Sesija još nije otvorena";
   const instancePidLabel = currentInstance?.pid ?? "nepoznat";
   const sessionSignalTitle = opencode.runtimeConnected ? "Povezano sa runtime-om" : openCodeStateTitle;
   const sessionSignalSummary = opencode.runtimeConnected
@@ -217,7 +214,7 @@ export function OpenCodePage() {
     <>
       {error ? <div className="error-panel wide-card">{error}</div> : null}
 
-      <div className="runtimepilot-opencode-shell runtimepilot-faceplate-module">
+      <div className="runtimepilot-opencode-shell wide-card runtimepilot-faceplate-module">
         <PrimaryTabRack
           eyebrow="OpenCode ekran"
           title="Od otvaranja sesije do rezultata"
@@ -235,13 +232,13 @@ export function OpenCodePage() {
                 <span>Model: {managedModelLabel}</span>
               </div>
               <p className="helper-text runtimepilot-primary-tab-rack-copy">
-                PID / instance: {instancePidLabel} Â· {instanceLabel}
+                PID / instance: {instancePidLabel} · {instanceLabel}
               </p>
               <p className="helper-text runtimepilot-primary-tab-rack-copy">{openCodeStateSummary}</p>
             </div>
           }
           commands={
-            <div className="runtimepilot-primary-tab-rack-command-grid">
+            <div className="runtimepilot-primary-tab-rack-command-grid runtimepilot-primary-tab-rack-command-grid-vertical">
               <button
                 type="button"
                 className="action-button deck-control-button deck-control-button-primary"
@@ -296,7 +293,7 @@ export function OpenCodePage() {
               <article className="runtimepilot-primary-tab-rack-detail-card">
                 <span className="status-label">PID / instance</span>
                 <strong>{instanceLabel}</strong>
-                <p className="helper-text">PID {instancePidLabel} Â· Instanci {opencode.instanceCount ?? 0}</p>
+                <p className="helper-text">PID {instancePidLabel} · Instanci {opencode.instanceCount ?? 0}</p>
                 <p className="helper-text">
                   {currentInstance?.name || "Sesija još nije otvorena"} · Profil {opencode.profile || "--"}
                 </p>
@@ -525,8 +522,8 @@ export function OpenCodePage() {
                 <span>Istraživanje: {stepEditor.exploreSteps}</span>
               </div>
               <p className="helper-text">
-                Preset menja samo OpenCode stepove. Security, autonomija i working directory ostaju
-                odvojena podešavanja.
+                Preset menja samo OpenCode korake. Bezbednosni režim, autonomija i radni
+                direktorijum ostaju odvojena podešavanja.
               </p>
             </div>
             <div className="runtime-faceplate-rail runtime-faceplate-rail-stack">
@@ -552,7 +549,7 @@ export function OpenCodePage() {
             <article className="command-preview-card runtimepilot-faceplate-module runtimepilot-opencode-service-panel">
               <div className="runtimepilot-advanced-card-topline">
                 <span className="runtimepilot-advanced-card-code">SAFE</span>
-                <span className="status-label">Policy kanal</span>
+                <span className="status-label">Kontrolni kanal</span>
               </div>
               <strong className="status-value">Bezbednost i autonomija</strong>
               <p className="helper-text">
@@ -853,7 +850,7 @@ export function OpenCodePage() {
         <section className="status-card wide-card runtimepilot-faceplate-module runtimepilot-advanced-module">
           <div className="runtimepilot-advanced-module-shell">
             <div className="runtime-faceplate-head">
-              <span className="status-label">OpenCode instance</span>
+              <span className="status-label">OpenCode sesije</span>
               <strong className="status-value">{opencode.instances?.length ? `${opencode.instances.length} aktivnih instanci` : "Broj instanci nije dostupan"}</strong>
             </div>
             <div className="runtime-faceplate-copy">

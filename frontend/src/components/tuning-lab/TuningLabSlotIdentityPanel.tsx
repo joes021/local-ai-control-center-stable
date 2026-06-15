@@ -1,3 +1,4 @@
+import { CustomSelect } from "../CustomSelect";
 import type { TuningLabSettingsPatch, TuningLabSlot } from "../../lib/types";
 
 type TuningLabSlotIdentityPanelProps = {
@@ -8,6 +9,20 @@ type TuningLabSlotIdentityPanelProps = {
   slot: TuningLabSlot;
   onPatchSlot: (slotId: string, patch: Partial<TuningLabSettingsPatch>) => void;
 };
+
+const PROFILE_OPTIONS = [
+  { value: "balanced", label: "balanced" },
+  { value: "speed", label: "speed" },
+  { value: "video", label: "video" },
+] as const;
+
+const THINKING_OPTIONS = [
+  { value: "no-thinking", label: "no-thinking" },
+  { value: "low", label: "low" },
+  { value: "mid", label: "mid" },
+  { value: "high", label: "high" },
+  { value: "extra-high", label: "extra-high" },
+] as const;
 
 export function TuningLabSlotIdentityPanel({
   helperText,
@@ -26,33 +41,27 @@ export function TuningLabSlotIdentityPanel({
       <p className="helper-text">{helperText}</p>
 
       <div className="tuning-lab-slot-square-control-grid">
-        <label className="tuning-lab-slot-square-control">
+        <label className="tuning-lab-slot-square-control tuning-lab-slot-square-select">
           <span>Profil</span>
-          <select
+          <CustomSelect
             value={slot.settingsPatch.profile}
-            onChange={(event) => onPatchSlot(slot.id, { profile: event.target.value })}
-          >
-            <option value="balanced">balanced</option>
-            <option value="speed">speed</option>
-            <option value="video">video</option>
-          </select>
+            options={PROFILE_OPTIONS.map((option) => ({ ...option }))}
+            onChange={(value) => onPatchSlot(slot.id, { profile: value })}
+            ariaLabel={`Izaberi profil za ${slot.label}`}
+          />
         </label>
 
-        <label className="tuning-lab-slot-square-control">
+        <label className="tuning-lab-slot-square-control tuning-lab-slot-square-select">
           <span>Thinking</span>
-          <select
+          <CustomSelect
             value={slot.settingsPatch.thinkingMode}
-            onChange={(event) => onPatchSlot(slot.id, { thinkingMode: event.target.value })}
-          >
-            <option value="no-thinking">no-thinking</option>
-            <option value="low">low</option>
-            <option value="mid">mid</option>
-            <option value="high">high</option>
-            <option value="extra-high">extra-high</option>
-          </select>
+            options={THINKING_OPTIONS.map((option) => ({ ...option }))}
+            onChange={(value) => onPatchSlot(slot.id, { thinkingMode: value })}
+            ariaLabel={`Izaberi thinking režim za ${slot.label}`}
+          />
         </label>
 
-        <div className="tuning-lab-slot-square-control tuning-lab-slot-square-control-wide">
+        <div className="tuning-lab-slot-square-control tuning-lab-slot-square-control-wide tuning-lab-slot-square-source">
           <span>Source</span>
           <strong>{slot.source}</strong>
         </div>
@@ -64,7 +73,7 @@ export function TuningLabSlotIdentityPanel({
         ) : null}
         {isRecommended ? (
           <span className="tuning-lab-slot-state-chip tuning-lab-slot-state-recommended">
-            preporuceno
+            preporučeno
           </span>
         ) : null}
         {isActive ? (

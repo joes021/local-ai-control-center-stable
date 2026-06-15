@@ -34,7 +34,7 @@ export function TuningLabSlotPrecisionRack({
         <strong className="status-value">Svih 9 finih kontrola</strong>
       </div>
       <p className="helper-text">
-        Sampling, stabilnost i bias stoje zajedno da odmah vidis ceo miks, bez lutanja po slotu.
+        Sampling, stabilnost i bias stoje zajedno da odmah vidiš ceo miks, bez lutanja po slotu.
       </p>
 
       <div className="tuning-lab-slot-mixer-rack">

@@ -2479,6 +2479,58 @@ def test_tuning_lab_reconciles_orphaned_active_run_even_when_runtime_process_sur
     assert killed == [12345]
 
 
+def test_tuning_lab_summary_repairs_legacy_mojibake_in_history_items(
+    tmp_path: Path,
+    monkeypatch,
+):
+    from local_ai_control_center_installer.control_center_backend.services import tuning_lab_service
+
+    install_root = tmp_path / "install-root"
+    monkeypatch.setenv("LACC_INSTALL_ROOT", str(install_root))
+    config = get_config()
+    config.control_center_config_root.mkdir(parents=True, exist_ok=True)
+    legacy_history = [
+        {
+            "runId": "legacy-mojibake",
+            "status": "failed",
+            "summary": (
+                "Aktivni Tuning Lab run je ostao bez svog runner procesa tokom restarta panela. "
+                "Preostali runtime/OpenCode procesi biÄ‡e oÄiÅ¡Ä‡eni, "
+                "a run je prebaÄen u istoriju kao prekinut."
+            ),
+            "slots": [
+                {
+                    "id": "baseline",
+                    "label": "Baseline",
+                    "status": "failed",
+                    "summary": (
+                        "Run je prekinut pre nego \u00c5\u00a1to je ovaj slot zavr\u00c5\u00a1io."
+                    ),
+                }
+            ],
+        }
+    ]
+    config.tuning_lab_history_path.parent.mkdir(parents=True, exist_ok=True)
+    config.tuning_lab_history_path.write_text(
+        json.dumps(legacy_history, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+    payload = tuning_lab_service.load_tuning_lab_summary(config=config)
+    history = payload["history"]
+    repaired_history = json.loads(config.tuning_lab_history_path.read_text(encoding="utf-8"))
+
+    assert history[0]["summary"] == (
+        "Aktivni Tuning Lab run je ostao bez svog runner procesa tokom restarta panela. "
+        "Preostali runtime/OpenCode procesi biće očišćeni, a run je prebačen u istoriju kao prekinut."
+    )
+    assert history[0]["slots"][0]["summary"] == (
+        "Run je prekinut pre nego što je ovaj slot završio."
+    )
+    assert repaired_history[0]["summary"] == history[0]["summary"]
+    assert repaired_history[0]["slots"][0]["summary"] == history[0]["slots"][0]["summary"]
+
+
 def test_tuning_lab_cleanup_kills_explicit_history_pids_even_without_command_match(
     tmp_path: Path,
     monkeypatch,

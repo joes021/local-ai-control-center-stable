@@ -1,8 +1,4 @@
-import { PageFlowCard } from "../components/PageFlowCard";
-import {
-  SecondaryActionRail,
-  type SecondaryActionRailItem,
-} from "../components/shell/SecondaryActionRail";
+import { SupportPageDeck } from "../components/shell/SupportPageDeck";
 
 type AdvancedPageProps = {
   onOpenBenchmark?: () => void;
@@ -30,247 +26,232 @@ type AdvancedGroup = {
   summary: string;
   whenToUse: string;
   result: string;
-  routes: readonly string[];
+  routes: readonly {
+    title: string;
+    subtitle: string;
+    onClick?: () => void;
+  }[];
 };
 
-const groups: readonly AdvancedGroup[] = [
-  {
-    tone: "analysis",
-    eyebrow: "Analiza",
-    title: "Brojke pre promene",
-    summary:
-      "Benchmark, Tuning Lab, kompatibilnost i telemetrija ostaju zajedno kada želiš da meriš throughput, fit i winner pre sledeće odluke.",
-    whenToUse:
-      "Ulaziš ovde kada menjaš model, profil ili batch i treba ti potvrda na živom runtime-u.",
-    result:
-      "Dobijaš jasan signal šta ostaje aktivno, šta je granično i gde je sledeći tuning korak.",
-    routes: ["Benchmark", "Tuning Lab", "Kompatibilnost", "Telemetrija"],
-  },
-  {
-    tone: "knowledge",
-    eyebrow: "Znanje",
-    title: "Izvor pre taska",
-    summary:
-      "Browser katalog, znanje, pretraga i radni tokovi služe da usidriš pravi dokument, veb trag ili lokalni kontekst pre nego što agent krene da radi.",
-    whenToUse:
-      "Ulaziš kada korisnik zna cilj, ali još nema pravi izvor ili dokaz na koji će se rad osloniti.",
-    result:
-      "Dobijaš čist ulaz, manje lutanja i konkretniji odgovor ili sledeći workflow.",
-    routes: ["Browser", "Znanje", "Pretraga", "Radni tokovi"],
-  },
-  {
-    tone: "focus",
-    eyebrow: "Fokus",
-    title: "Cilj, profil i trag",
-    summary:
-      "Project Memory, podešavanja, logovi i pomoć drže fokus projekta, aktivni profil i poslednji trag problema u jednom prolazu.",
-    whenToUse:
-      "Ulaziš kada rad traje duže, kada menjaš context ili kada želiš da potvrdiš šta je poslednja akcija uradila.",
-    result:
-      "Dobijaš manje gubitka konteksta i brži prelaz sa odluke na proverljiv rezultat.",
-    routes: ["Project Memory", "Podešavanja", "Logovi", "Pomoć"],
-  },
-  {
-    tone: "service",
-    eyebrow: "Servis",
-    title: "Oporavak i nadzor",
-    summary:
-      "Popravka, ažuriranja, flota i poslovi ostaju izdvojeni da glavni tok ne bude zatrpan, ali da servis ostane na jedan klik.",
-    whenToUse:
-      "Ulaziš kada sistem traži održavanje, proveru verzije ili pregled dužih pozadinskih tokova.",
-    result:
-      "Dobijaš kontrolisan servisni prolaz bez praznih kartica i bez skrivanja retkih, ali važnih alata.",
-    routes: ["Popravka", "Ažuriranja", "Flota", "Poslovi"],
-  },
-];
-
 export function AdvancedPage(props: AdvancedPageProps) {
-  const railItems: SecondaryActionRailItem[] = [
+  const groups: readonly AdvancedGroup[] = [
     {
-      code: "BNCH",
-      title: "Otvori Benchmark",
-      subtitle: "BRZINA + ISTORIJA",
-      icon: "benchmark",
-      tone: "primary",
-      onClick: props.onOpenBenchmark,
+      tone: "analysis",
+      eyebrow: "Analiza",
+      title: "Brojke pre promene",
+      summary:
+        "Benchmark, Tuning Lab, kompatibilnost i telemetrija ostaju zajedno kada želiš da meriš throughput, fit i winner pre sledeće odluke.",
+      whenToUse:
+        "Ulaziš ovde kada menjaš model, profil ili batch i treba ti potvrda na živom runtime-u.",
+      result:
+        "Dobijaš jasan signal šta ostaje aktivno, šta je granično i gde je sledeći tuning korak.",
+      routes: [
+        {
+          title: "Otvori Benchmark",
+          subtitle: "BRZINA + ISTORIJA",
+          onClick: props.onOpenBenchmark,
+        },
+        {
+          title: "Otvori Tuning Lab",
+          subtitle: "SLOTOVI + WINNER",
+          onClick: props.onOpenTuningLab,
+        },
+        {
+          title: "Otvori kompatibilnost",
+          subtitle: "VRAM FIT + KALKULATOR",
+          onClick: props.onOpenCompatibility,
+        },
+        {
+          title: "Otvori telemetriju",
+          subtitle: "ŽIVI SIGNAL + GPU",
+          onClick: props.onOpenObservability,
+        },
+      ],
     },
     {
-      code: "LAB",
-      title: "Otvori Tuning Lab",
-      subtitle: "SLOTOVI + WINNER",
-      icon: "tuning",
-      onClick: props.onOpenTuningLab,
+      tone: "knowledge",
+      eyebrow: "Znanje",
+      title: "Izvor pre taska",
+      summary:
+        "Browser katalog, znanje, pretraga i radni tokovi služe da usidriš pravi dokument, veb trag ili lokalni kontekst pre nego što agent krene da radi.",
+      whenToUse:
+        "Ulaziš kada korisnik zna cilj, ali još nema pravi izvor ili dokaz na koji će se rad osloniti.",
+      result:
+        "Dobijaš čist ulaz, manje lutanja i konkretniji odgovor ili sledeći workflow.",
+      routes: [
+        {
+          title: "Otvori Browser katalog",
+          subtitle: "MODELI + IZVORI",
+          onClick: props.onOpenBrowser,
+        },
+        {
+          title: "Otvori Znanje",
+          subtitle: "DOKUMENTI + KONTEKST",
+          onClick: props.onOpenKnowledge,
+        },
+        {
+          title: "Otvori Pretragu",
+          subtitle: "WEB + LOKALNI TRAG",
+          onClick: props.onOpenSearch,
+        },
+        {
+          title: "Otvori Radne tokove",
+          subtitle: "PRESET + TOK",
+          onClick: props.onOpenWorkflows,
+        },
+      ],
     },
     {
-      code: "FIT",
-      title: "Otvori kompatibilnost",
-      subtitle: "VRAM FIT + KALKULATOR",
-      icon: "compatibility",
-      onClick: props.onOpenCompatibility,
+      tone: "focus",
+      eyebrow: "Fokus",
+      title: "Cilj, profil i trag",
+      summary:
+        "Project Memory, podešavanja, logovi i pomoć drže fokus projekta, aktivni profil i poslednji trag problema u jednom prolazu.",
+      whenToUse:
+        "Ulaziš kada rad traje duže, kada menjaš context ili kada želiš da potvrdiš šta je poslednja akcija uradila.",
+      result:
+        "Dobijaš manje gubitka konteksta i brži prelaz sa odluke na proverljiv rezultat.",
+      routes: [
+        {
+          title: "Otvori Project Memory",
+          subtitle: "CILJ + PRAVILA",
+          onClick: props.onOpenProjectMemory,
+        },
+        {
+          title: "Otvori Podešavanja",
+          subtitle: "PROFIL + CONTEXT",
+          onClick: props.onOpenSettings,
+        },
+        {
+          title: "Otvori Logove",
+          subtitle: "TRAG + PORUKE",
+          onClick: props.onOpenLogs,
+        },
+        {
+          title: "Otvori Pomoć",
+          subtitle: "VODIČ + POMOĆ",
+          onClick: props.onOpenHelp,
+        },
+      ],
     },
     {
-      code: "LIVE",
-      title: "Otvori telemetriju",
-      subtitle: "ŽIVI SIGNAL + GPU",
-      icon: "observability",
-      onClick: props.onOpenObservability,
-    },
-    {
-      code: "CAT",
-      title: "Otvori Browser katalog",
-      subtitle: "MODELI + IZVORI",
-      icon: "browser",
-      onClick: props.onOpenBrowser,
-    },
-    {
-      code: "KNOW",
-      title: "Otvori Znanje",
-      subtitle: "DOKUMENTI + KONTEKST",
-      icon: "knowledge",
-      onClick: props.onOpenKnowledge,
-    },
-    {
-      code: "SRC",
-      title: "Otvori Pretragu",
-      subtitle: "WEB + LOKALNI TRAG",
-      icon: "search",
-      onClick: props.onOpenSearch,
-    },
-    {
-      code: "FLOW",
-      title: "Otvori Radne tokove",
-      subtitle: "PRESET + TOK",
-      icon: "workflows",
-      onClick: props.onOpenWorkflows,
-    },
-    {
-      code: "MEM",
-      title: "Otvori Project Memory",
-      subtitle: "CILJ + PRAVILA",
-      icon: "memory",
-      onClick: props.onOpenProjectMemory,
-    },
-    {
-      code: "CFG",
-      title: "Otvori Podešavanja",
-      subtitle: "PROFIL + CONTEXT",
-      icon: "settings",
-      onClick: props.onOpenSettings,
-    },
-    {
-      code: "LOG",
-      title: "Otvori Logove",
-      subtitle: "TRAG + PORUKE",
-      icon: "logs",
-      onClick: props.onOpenLogs,
-    },
-    {
-      code: "HELP",
-      title: "Otvori Pomoć",
-      subtitle: "VODIČ + POMOĆ",
-      icon: "help",
-      onClick: props.onOpenHelp,
-    },
-    {
-      code: "REP",
-      title: "Otvori Popravku",
-      subtitle: "OPORAVAK + SERVIS",
-      icon: "repair",
-      onClick: props.onOpenRepair,
-    },
-    {
-      code: "UPD",
-      title: "Otvori Ažuriranja",
-      subtitle: "VERZIJA + STATUS",
-      icon: "updates",
-      onClick: props.onOpenUpdates,
-    },
-    {
-      code: "FLT",
-      title: "Otvori Flotu",
-      subtitle: "MREŽA + PREGLED",
-      icon: "fleet",
-      onClick: props.onOpenFleet,
-    },
-    {
-      code: "JOB",
-      title: "Otvori Poslove",
-      subtitle: "RED + PRAĆENJE",
-      icon: "jobs",
-      onClick: props.onOpenJobs,
+      tone: "service",
+      eyebrow: "Servis",
+      title: "Oporavak i nadzor",
+      summary:
+        "Popravka, ažuriranja, flota i poslovi ostaju izdvojeni da glavni tok ne bude zatrpan, ali da servis ostane na jedan klik.",
+      whenToUse:
+        "Ulaziš kada sistem traži održavanje, proveru verzije ili pregled dužih pozadinskih tokova.",
+      result:
+        "Dobijaš kontrolisan servisni prolaz bez praznih kartica i bez skrivanja retkih, ali važnih alata.",
+      routes: [
+        {
+          title: "Otvori Popravku",
+          subtitle: "OPORAVAK + SERVIS",
+          onClick: props.onOpenRepair,
+        },
+        {
+          title: "Otvori Ažuriranja",
+          subtitle: "VERZIJA + STATUS",
+          onClick: props.onOpenUpdates,
+        },
+        {
+          title: "Otvori Flotu",
+          subtitle: "MREŽA + PREGLED",
+          onClick: props.onOpenFleet,
+        },
+        {
+          title: "Otvori Poslove",
+          subtitle: "RED + PRAĆENJE",
+          onClick: props.onOpenJobs,
+        },
+      ],
     },
   ];
 
   return (
-    <div className="runtimepilot-secondary-hub">
-      <div className="runtimepilot-secondary-hub-main">
-        <PageFlowCard
-          title="Sekundarni hub"
-          summary="Napredno više nije drugi komandni centar. Levo ostaju samo stvarne oblasti rada, a desno su direktni klikovi ka konkretnim ekranima i rezultatima."
-          steps={[
-            {
-              title: "Nađi pravu oblast",
-              detail: "Prvo proveri da li ti treba analiza, izvor, fokus projekta ili servisni prolaz.",
-            },
-            {
-              title: "Otvori konkretan ekran",
-              detail: "Svaki klik sa rail-a vodi pravo na alat ili rezultat bez placeholder modula i mrtvih footer kartica.",
-            },
-            {
-              title: "Vrati se po sledeći korak",
-              detail: "Kad završiš jednu proveru, Napredno ostaje čista mapa sekundarnih akcija.",
-            },
-          ]}
-        />
-
-        <section className="status-card runtimepilot-faceplate-module runtimepilot-section-shell runtimepilot-secondary-hub-panel">
-          <div className="runtimepilot-advanced-summary-head">
-            <div>
-              <span className="status-label">Grupisani izlazi</span>
-              <strong className="status-value">Četiri stvarne zone umesto placeholder modula</strong>
-            </div>
-            <p className="helper-text runtimepilot-advanced-summary-copy">
-              Sadržaj levo objašnjava kada ulaziš u određenu zonu i kakav rezultat dobijaš, bez lažnih readout
-              kartica koje izgledaju klikabilno, a ništa ne rade.
+    <div className="runtimepilot-secondary-hub runtimepilot-secondary-hub-fullwidth">
+      <SupportPageDeck
+        eyebrow="Sekundarni hub"
+        title="Napredno bez dupliranih komandi"
+        summary="Napredno više nije drugi komandni centar. Levo ostaju samo stvarne oblasti rada, a desno su direktni klikovi ka konkretnim ekranima i rezultatima."
+        steps={[
+          {
+            title: "Nađi pravu oblast",
+            detail: "Prvo proveri da li ti treba analiza, izvor, fokus projekta ili servisni prolaz.",
+          },
+          {
+            title: "Otvori konkretan ekran",
+            detail: "Svaki klik sa rail-a vodi pravo na alat ili rezultat bez placeholder modula i mrtvih footer kartica.",
+          },
+          {
+            title: "Vrati se po sledeći korak",
+            detail: "Kad završiš jednu proveru, Napredno ostaje čista mapa sekundarnih akcija.",
+          },
+        ]}
+        resultHint={
+          <>
+            <span className="status-label">Brzi raspored</span>
+            <strong className="status-value">Četiri radne zone</strong>
+            <p className="helper-text">
+              Analiza, znanje, fokus i servis sada ostaju kao jasne celine. Desni rail više nije
+              duplikat, već samo direktan skok u konkretan alat.
             </p>
-          </div>
-
-          <div className="runtimepilot-advanced-summary-grid">
-            {groups.map((group) => (
-              <article
-                className={`runtimepilot-advanced-summary-card runtimepilot-advanced-summary-card-${group.tone}`}
-                key={group.title}
-              >
-                <span className="status-label">{group.eyebrow}</span>
-                <strong className="runtimepilot-advanced-summary-title">{group.title}</strong>
-                <p className="helper-text runtimepilot-advanced-summary-text">{group.summary}</p>
-                <div className="runtimepilot-advanced-summary-block">
-                  <span className="status-label">Kada ulaziš</span>
-                  <p className="helper-text">{group.whenToUse}</p>
-                </div>
-                <div className="runtimepilot-advanced-summary-block">
-                  <span className="status-label">Šta dobijaš</span>
-                  <p className="helper-text">{group.result}</p>
-                </div>
-                <div className="runtimepilot-advanced-summary-routes">
-                  {group.routes.map((route) => (
-                    <span className="browser-chip" key={route}>
-                      {route}
-                    </span>
-                  ))}
-                </div>
-              </article>
-            ))}
-          </div>
-        </section>
-      </div>
-
-      <SecondaryActionRail
-        eyebrow="Action rail"
-        title="Stvarne akcije"
-        summary="Otvori samo konkretan alat ili rezultat. Sekundarne strane više ne dupliraju komande kroz više slojeva."
-        items={railItems}
+          </>
+        }
       />
+
+      <section className="status-card runtimepilot-faceplate-module runtimepilot-section-shell runtimepilot-secondary-hub-panel">
+        <div className="runtimepilot-advanced-summary-head">
+          <div>
+            <span className="status-label">Grupisani izlazi</span>
+            <strong className="status-value">Četiri stvarne zone umesto placeholder modula</strong>
+          </div>
+          <p className="helper-text runtimepilot-advanced-summary-copy">
+            Sadržaj levo objašnjava kada ulaziš u određenu zonu i kakav rezultat dobijaš, bez lažnih
+            readout kartica koje izgledaju klikabilno, a ništa ne rade.
+          </p>
+        </div>
+
+        <div className="runtimepilot-advanced-summary-grid">
+          {groups.map((group) => (
+            <article
+              className={`runtimepilot-advanced-summary-card runtimepilot-advanced-summary-card-${group.tone}`}
+              key={group.title}
+            >
+              <span className="status-label">{group.eyebrow}</span>
+              <strong className="runtimepilot-advanced-summary-title">{group.title}</strong>
+              <p className="helper-text runtimepilot-advanced-summary-text">{group.summary}</p>
+              <div className="runtimepilot-advanced-summary-block">
+                <span className="status-label">Kada ulaziš</span>
+                <p className="helper-text">{group.whenToUse}</p>
+              </div>
+              <div className="runtimepilot-advanced-summary-block">
+                <span className="status-label">Šta dobijaš</span>
+                <p className="helper-text">{group.result}</p>
+              </div>
+              <div className="runtimepilot-advanced-summary-actions">
+                {group.routes.map((route) => (
+                  <button
+                    type="button"
+                    className="action-button-soft deck-control-button deck-control-button-secondary"
+                    key={route.title}
+                    onClick={() => route.onClick?.()}
+                    disabled={!route.onClick}
+                  >
+                    <span className="runtimepilot-advanced-summary-action-copy">
+                      <span className="runtimepilot-advanced-summary-action-title">{route.title}</span>
+                      <span className="runtimepilot-advanced-summary-action-subtitle">
+                        {route.subtitle}
+                      </span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
     </div>
   );
 }

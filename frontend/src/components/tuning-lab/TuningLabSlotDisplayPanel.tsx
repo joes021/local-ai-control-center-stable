@@ -50,8 +50,8 @@ export function TuningLabSlotDisplayPanel({
         <strong className="status-value">Context i Output</strong>
       </div>
       <p className="helper-text">
-        Glavni signal za ovaj slot: koliko context-a drzis otvoreno i koliki output limit stvarno
-        pustas u radu.
+        Glavni signal za ovaj slot: koliko context-a držiš otvoreno i koliki output limit stvarno
+        puštaš u radu.
       </p>
 
       <div className="tuning-lab-slot-display-stack">

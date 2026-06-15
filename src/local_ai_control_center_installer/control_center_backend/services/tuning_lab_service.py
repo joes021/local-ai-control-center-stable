@@ -75,6 +75,13 @@ TUNING_LAB_DIFF_FILE_LIMIT = 10
 TUNING_LAB_DIFF_FILE_BYTES_LIMIT = 200_000
 TUNING_LAB_DIFF_LINES_LIMIT = 400
 _INVALID_MAIN_GPU_RE = re.compile(r"invalid value for main_gpu", re.IGNORECASE)
+_UTF8_BOM_MOJIBAKE = "\u00ef\u00bb\u00bf"
+_LEGACY_MOJIBAKE_MARKERS = ("Ã", "Å", "Ä", "Â")
+_CP1252_EXTENSION_BYTES = {
+    bytes([value]).decode("cp1252"): value
+    for value in range(0x80, 0xA0)
+    if value not in {0x81, 0x8D, 0x8F, 0x90, 0x9D}
+}
 
 _RUN_LOCK = threading.Lock()
 _RUNNER_THREAD: threading.Thread | None = None
@@ -2803,6 +2810,9 @@ def _rehydrate_history_slot_metrics(slot: dict[str, Any]) -> bool:
 def _rehydrate_history_items(items: list[dict[str, Any]]) -> bool:
     changed = False
     for item in items:
+        _, item_text_changed = _repair_legacy_mojibake_value(item)
+        if item_text_changed:
+            changed = True
         slots = item.get("slots")
         if not isinstance(slots, list):
             continue
@@ -2810,6 +2820,71 @@ def _rehydrate_history_items(items: list[dict[str, Any]]) -> bool:
             if isinstance(slot, dict) and _rehydrate_history_slot_metrics(slot):
                 changed = True
     return changed
+
+
+def _repair_legacy_mojibake_value(value: Any) -> tuple[Any, bool]:
+    if isinstance(value, str):
+        repaired = _repair_legacy_mojibake_text(value)
+        return repaired, repaired != value
+    if isinstance(value, list):
+        changed = False
+        for index, item in enumerate(value):
+            repaired_item, item_changed = _repair_legacy_mojibake_value(item)
+            if item_changed:
+                value[index] = repaired_item
+                changed = True
+        return value, changed
+    if isinstance(value, dict):
+        changed = False
+        for key, item in list(value.items()):
+            repaired_item, item_changed = _repair_legacy_mojibake_value(item)
+            if item_changed:
+                value[key] = repaired_item
+                changed = True
+        return value, changed
+    return value, False
+
+
+def _repair_legacy_mojibake_text(text: str) -> str:
+    repaired = str(text or "")
+    for _ in range(2):
+        normalized = repaired.replace("\ufeff", "").replace(_UTF8_BOM_MOJIBAKE, "")
+        if normalized != repaired:
+            repaired = normalized
+            continue
+        current_score = _legacy_mojibake_score(repaired)
+        if current_score == 0:
+            break
+        encoded_bytes = _reencode_legacy_mojibake_bytes(repaired)
+        if encoded_bytes is None:
+            break
+        try:
+            candidate = encoded_bytes.decode("utf-8")
+        except UnicodeDecodeError:
+            break
+        candidate = candidate.replace("\ufeff", "").replace(_UTF8_BOM_MOJIBAKE, "")
+        if _legacy_mojibake_score(candidate) >= current_score:
+            break
+        repaired = candidate
+    return repaired
+
+
+def _legacy_mojibake_score(text: str) -> int:
+    return sum(text.count(marker) for marker in _LEGACY_MOJIBAKE_MARKERS)
+
+
+def _reencode_legacy_mojibake_bytes(text: str) -> bytes | None:
+    payload = bytearray()
+    for char in text:
+        codepoint = ord(char)
+        if codepoint <= 0xFF:
+            payload.append(codepoint)
+            continue
+        mapped_byte = _CP1252_EXTENSION_BYTES.get(char)
+        if mapped_byte is None:
+            return None
+        payload.append(mapped_byte)
+    return bytes(payload)
 
 
 def _parse_opencode_live_state(output_text: str) -> dict[str, Any]:
