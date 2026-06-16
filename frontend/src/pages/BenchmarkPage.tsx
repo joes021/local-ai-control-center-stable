@@ -170,6 +170,73 @@ function formatBenchmarkState(status: string | undefined | null) {
   return normalized ? normalized : "Spremno";
 }
 
+function formatBenchmarkRunStatusBadge(status: string | undefined | null) {
+  const normalized = String(status || "").trim().toLowerCase();
+  if (normalized === "queued") {
+    return "Čeka";
+  }
+  if (normalized === "running") {
+    return "Radi";
+  }
+  if (normalized === "done" || normalized === "completed") {
+    return "Gotovo";
+  }
+  if (normalized === "failed" || normalized === "error") {
+    return "Greška";
+  }
+  return formatBenchmarkState(status);
+}
+
+function splitBenchmarkRunStatusTitle(scenarioName: string | undefined | null) {
+  const normalizedName = String(scenarioName || "").trim();
+  if (!normalizedName) {
+    return { title: "Scenario", passLabel: "" };
+  }
+  const separator = "· prolaz";
+  const separatorIndex = normalizedName.toLowerCase().indexOf(separator);
+  if (separatorIndex === -1) {
+    return { title: normalizedName, passLabel: "" };
+  }
+  const title = normalizedName.slice(0, separatorIndex).trim();
+  const passDetail = normalizedName.slice(separatorIndex + separator.length).trim();
+  return {
+    title: title || normalizedName,
+    passLabel: passDetail ? `Prolaz ${passDetail}` : "",
+  };
+}
+
+function compactBenchmarkRunStatusSummary(summary: string | undefined | null, status: string | undefined | null) {
+  const normalizedSummary = String(summary || "").trim();
+  const normalizedStatus = String(status || "").trim().toLowerCase();
+  if (!normalizedSummary) {
+    return "";
+  }
+  if (normalizedSummary === "Benchmark scenario je završen." || normalizedStatus === "done") {
+    return "Završen signal.";
+  }
+  if (normalizedSummary === "Scenario se izvršava." || normalizedStatus === "running") {
+    return "Run je u toku.";
+  }
+  if (normalizedSummary === "čeka pokretanje." || normalizedSummary === "Čeka pokretanje." || normalizedStatus === "queued") {
+    return "Čeka start.";
+  }
+  return normalizedSummary;
+}
+
+function shouldShowBenchmarkRunStatusSummary(status: string | undefined | null, summary: string) {
+  const normalizedStatus = String(status || "").trim().toLowerCase();
+  if (normalizedStatus === "done" && summary === "Završen signal.") {
+    return false;
+  }
+  if (normalizedStatus === "running" && summary === "Run je u toku.") {
+    return false;
+  }
+  if (normalizedStatus === "queued" && summary === "Čeka start.") {
+    return false;
+  }
+  return Boolean(summary);
+}
+
 function formatDateTimeLabel(value: string | undefined | null) {
   const timestamp = parseTimestamp(value);
   if (timestamp === null) {
@@ -966,7 +1033,7 @@ export function BenchmarkPage({
                 className="status-card wide-card runtimepilot-section-shell runtimepilot-faceplate-module benchmark-faceplate-panel"
               >
         <div className="benchmark-faceplate-headline">
-          <div>
+          <div className="runtimepilot-inline-heading">
             <span className="status-label">Izbor scenarija i baterije</span>
             <strong className="status-value">Ulaz pre pokretanja</strong>
           </div>
@@ -996,12 +1063,12 @@ export function BenchmarkPage({
                 ariaLabel="Učitaj benchmark bateriju"
               />
             </div>
-            <article className="benchmark-setup-readout">
+            <article className="benchmark-setup-readout runtimepilot-readout-card">
               <span className="status-label">Glavni rezultat</span>
               <strong>{benchmarkRunHeadline}</strong>
               <p className="helper-text">{benchmarkStateDetail}</p>
             </article>
-            <article className="benchmark-setup-readout">
+            <article className="benchmark-setup-readout runtimepilot-readout-card">
               <span className="status-label">Signal sada</span>
               <strong>{benchmarkThroughputLabel}</strong>
               <p className="helper-text">
@@ -1011,7 +1078,7 @@ export function BenchmarkPage({
             </article>
           </div>
           <div className="benchmark-setup-row benchmark-setup-row-compact">
-            <article className="benchmark-setup-readout">
+            <article className="benchmark-setup-readout runtimepilot-readout-card">
               <span className="status-label">Baterija</span>
               <strong>{selectedBattery.name}</strong>
               <p className="helper-text">
@@ -1062,7 +1129,7 @@ export function BenchmarkPage({
 
       <section className="status-card wide-card runtimepilot-section-shell runtimepilot-faceplate-module benchmark-faceplate-panel">
         <div className="benchmark-faceplate-headline">
-          <div>
+          <div className="runtimepilot-inline-heading">
             <span className="status-label">Editor baterije</span>
             <strong className="status-value">Scenario i prompt</strong>
           </div>
@@ -1131,7 +1198,7 @@ export function BenchmarkPage({
 
       <div className="benchmark-transport-deck">
       <section className="status-card wide-card runtimepilot-section-shell runtimepilot-faceplate-module benchmark-faceplate-panel benchmark-support-shell benchmark-context-shell">
-        <div className="runtime-faceplate-head">
+        <div className="runtime-faceplate-head runtimepilot-inline-heading">
           <span className="status-label">Kontekst benchmarka</span>
           <strong className="status-value">
             {benchmarkEnvironment?.modelLabel || "Nema aktivnog modela"}
@@ -1162,7 +1229,7 @@ export function BenchmarkPage({
         className="status-card wide-card runtimepilot-section-shell runtimepilot-faceplate-module benchmark-faceplate-panel benchmark-run-shell"
       >
         <div className="benchmark-support-shell">
-          <div className="runtime-faceplate-head">
+          <div className="runtime-faceplate-head runtimepilot-inline-heading">
             <span className="status-label">Pokretanje benchmarka</span>
             <strong className="status-value">
               {activeRun?.mode === "battery"
@@ -1196,22 +1263,42 @@ export function BenchmarkPage({
           </div>
         </div>
         <div className="benchmark-run-status-list">
-          {(activeRun?.scenarioStatuses ?? []).map((item) => (
-            <article className="benchmark-run-status-row" key={item.scenarioId}>
-              <strong>{item.scenarioName}</strong>
-              <span className={`scenario-status-badge scenario-status-${item.status}`}>
-                {item.status}
-              </span>
-              <div className="muted-line">{item.summary}</div>
-            </article>
-          ))}
+          {(activeRun?.scenarioStatuses ?? []).map((item) => {
+            const titleParts = splitBenchmarkRunStatusTitle(item.scenarioName);
+            const compactSummary = compactBenchmarkRunStatusSummary(item.summary, item.status);
+            const shouldShowSummary = shouldShowBenchmarkRunStatusSummary(item.status, compactSummary);
+
+            return (
+              <article
+                className={`benchmark-run-status-row${shouldShowSummary ? "" : " benchmark-run-status-row-terse"}`}
+                key={item.scenarioId}
+              >
+                <div className="benchmark-run-status-header">
+                  <div className="benchmark-run-status-title-block">
+                    <strong>{titleParts.title}</strong>
+                    {titleParts.passLabel ? (
+                      <span className="benchmark-run-status-pass">{titleParts.passLabel}</span>
+                    ) : null}
+                  </div>
+                  <span className={`scenario-status-badge scenario-status-${item.status}`}>
+                    {formatBenchmarkRunStatusBadge(item.status)}
+                  </span>
+                </div>
+                {shouldShowSummary ? (
+                  <div className="benchmark-run-status-copy">
+                    <div className="muted-line">{compactSummary}</div>
+                  </div>
+                ) : null}
+              </article>
+            );
+          })}
         </div>
         <div style={{ display: "none" }}>queued running done failed</div>
       </section>
 
       <section className="status-card wide-card runtimepilot-section-shell runtimepilot-faceplate-module benchmark-faceplate-panel benchmark-activity-shell">
         <div className="benchmark-support-shell">
-          <div className="runtime-faceplate-head">
+          <div className="runtime-faceplate-head runtimepilot-inline-heading">
             <span className="status-label">Aktivnost zahteva</span>
             <strong className="status-value">
               {benchmark.activity.stability.label} ({benchmark.activity.stability.score})
@@ -1250,20 +1337,22 @@ export function BenchmarkPage({
       >
         <div className="benchmark-card-header">
           <div className="benchmark-chart-head">
-            <span className="status-label">Grafikon benchmarka</span>
-            <strong className="status-value benchmark-chart-status">{chartModel.statusText}</strong>
+            <div className="runtimepilot-inline-heading">
+              <span className="status-label">Grafikon benchmarka</span>
+              <strong className="status-value benchmark-chart-status">{chartModel.statusText}</strong>
+            </div>
             <div className="benchmark-chart-readouts">
-              <article className="benchmark-chart-readout">
+              <article className="benchmark-chart-readout runtimepilot-readout-card">
                 <span className="status-label">Metrika</span>
                 <strong>{selectedMetricOption.shortLabel}</strong>
                 <p className="helper-text">Aktivna linija na display-u.</p>
               </article>
-              <article className="benchmark-chart-readout">
+              <article className="benchmark-chart-readout runtimepilot-readout-card">
                 <span className="status-label">Opseg</span>
                 <strong>{selectedRangeOption.label}</strong>
                 <p className="helper-text">Vremenski prozor prikaza.</p>
               </article>
-              <article className="benchmark-chart-readout">
+              <article className="benchmark-chart-readout runtimepilot-readout-card">
                 <span className="status-label">Uzorci</span>
                 <strong>{chartModel.visibleSamples.length}</strong>
                 <p className="helper-text">Tačke trenutno vidljive na grafu.</p>
@@ -1494,7 +1583,7 @@ export function BenchmarkPage({
         className="status-card wide-card runtimepilot-section-shell runtimepilot-faceplate-module benchmark-faceplate-panel benchmark-history-shell"
       >
         <div className="benchmark-history-head">
-          <div className="benchmark-history-headline">
+          <div className="benchmark-history-headline runtimepilot-inline-heading">
             <span className="status-label">Benchmark istorija</span>
             <strong className="status-value">Sačuvani run-ovi i compare izlaz</strong>
           </div>
@@ -1503,7 +1592,7 @@ export function BenchmarkPage({
             <span className="browser-badge">Compare izbor {selectedCompareRunIds.length}</span>
           </div>
         </div>
-        <article className="benchmark-history-compare-readout">
+        <article className="benchmark-history-compare-readout runtimepilot-readout-card">
           <span className="status-label">Compare signal</span>
           <strong>Uporedi izabrana pokretanja: {selectedCompareRunIds.length}</strong>
           <p className="helper-text">
@@ -1569,7 +1658,7 @@ export function BenchmarkPage({
                   <p className="helper-text">Run: {comparePayload.comparison.totalMs.bestRunId || "--"}</p>
                 </article>
               </div>
-              <article className="benchmark-history-empty">
+              <article className="benchmark-history-empty runtimepilot-readout-card">
                 <span className="status-label">Compare rezime</span>
                 <strong>{comparePayload.summary}</strong>
                 <p className="helper-text">
@@ -1578,7 +1667,7 @@ export function BenchmarkPage({
               </article>
             </>
           ) : (
-            <article className="benchmark-history-empty">
+            <article className="benchmark-history-empty runtimepilot-readout-card">
               <span className="status-label">Compare čeka izbor</span>
               <strong>Izaberi najmanje dva saved run-a da bi compare prikaz bio aktivan.</strong>
               <p className="helper-text">
@@ -1611,22 +1700,22 @@ export function BenchmarkPage({
                   </label>
                 </div>
                 <div className="benchmark-saved-run-strip">
-                  <article className="benchmark-saved-run-readout">
+                  <article className="benchmark-saved-run-readout runtimepilot-readout-card">
                     <span className="status-label">Kontekst</span>
                     <strong>{formatCompactTokens(run.context)}</strong>
                     <p className="helper-text">Aktivni context za taj run.</p>
                   </article>
-                  <article className="benchmark-saved-run-readout">
+                  <article className="benchmark-saved-run-readout runtimepilot-readout-card">
                     <span className="status-label">Izlaz</span>
                     <strong>{formatCompactTokens(run.outputTokens)}</strong>
                     <p className="helper-text">Maksimalni output token limit.</p>
                   </article>
-                  <article className="benchmark-saved-run-readout">
+                  <article className="benchmark-saved-run-readout runtimepilot-readout-card">
                     <span className="status-label">Profil</span>
                     <strong>{run.profile}</strong>
                     <p className="helper-text">Profil koji je bio aktivan.</p>
                   </article>
-                  <article className="benchmark-saved-run-readout">
+                  <article className="benchmark-saved-run-readout runtimepilot-readout-card">
                     <span className="status-label">Razmišljanje</span>
                     <strong>{run.thinkingMode}</strong>
                     <p className="helper-text">Inference način za ovaj run.</p>
@@ -1637,13 +1726,13 @@ export function BenchmarkPage({
                   {run.finishedAt ? `-> ${formatDateTimeLabel(run.finishedAt)}` : ""}
                 </div>
                 <div className="benchmark-saved-run-metrics">
-                  <article className="benchmark-saved-run-metric">
+                  <article className="benchmark-saved-run-metric runtimepilot-readout-card">
                     <span className="status-label">Total tok/s</span>
                     <strong>
                       {run.currentMetric ? formatThroughput(run.currentMetric.totalTokensPerSecond) : "--"}
                     </strong>
                   </article>
-                  <article className="benchmark-saved-run-metric">
+                  <article className="benchmark-saved-run-metric runtimepilot-readout-card">
                     <span className="status-label">Output tok/s</span>
                     <strong>
                       {run.currentMetric
@@ -1651,7 +1740,7 @@ export function BenchmarkPage({
                         : "--"}
                     </strong>
                   </article>
-                  <article className="benchmark-saved-run-metric">
+                  <article className="benchmark-saved-run-metric runtimepilot-readout-card">
                     <span className="status-label">Avg ms</span>
                     <strong>
                       {run.currentMetric?.totalMs !== undefined

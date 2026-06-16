@@ -580,7 +580,8 @@ def test_opencode_source_and_styles_use_service_bay_layout_for_advanced_tools():
     page_source = Path("frontend/src/pages/OpenCodePage.tsx").read_text(encoding="utf-8")
     styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
 
-    assert "PrimaryTabRack" in page_source
+    assert "RuntimePilotStatusDeck" in page_source
+    assert "RuntimePilotActionDeck" in page_source
     assert "Servisni tok OpenCode-a" in page_source
     assert "Komande i launcher" in page_source
     assert "Presetovi i ponašanje agenta" in page_source
@@ -588,11 +589,13 @@ def test_opencode_source_and_styles_use_service_bay_layout_for_advanced_tools():
     assert "runtimepilot-opencode-service-bay" in page_source
     assert "runtimepilot-opencode-service-panel" in page_source
     assert "runtimepilot-opencode-transport-rail" in page_source
+    assert "runtimepilot-opencode-summary-grid" in page_source
+    assert ".runtimepilot-opencode-summary-grid" in styles_source
     assert "runtimepilot-opencode-field-stack" in page_source
     assert "runtimepilot-opencode-preset-grid" in page_source
     assert "runtimepilot-opencode-instance-grid" in page_source
-    assert "runtimepilot-primary-tab-rack-detail-grid" in page_source
-    assert "runtimepilot-primary-tab-rack-detail-actions" in page_source
+    assert "runtimepilot-primary-tab-rack-detail-grid" not in page_source
+    assert "runtimepilot-primary-tab-rack-detail-actions" not in page_source
     assert "runtimepilot-opencode-inline-transport" in page_source
     assert "runtimepilot-opencode-form-actions" in page_source
     assert "runtimepilot-opencode-settings-row" in page_source
@@ -681,13 +684,15 @@ def test_models_and_nav_source_protect_local_model_layout_and_even_nav_card_heig
     models_source = Path("frontend/src/pages/ModelsPage.tsx").read_text(encoding="utf-8")
     styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
 
-    assert 'className="model-item-copy"' in models_source
+    assert 'className="model-item-copy-head"' in models_source
+    assert 'className="model-item-copy-main"' in models_source
     assert 'className="models-local-group-anchor wide-card"' in models_source
     assert 'ref={localGroupRef}' in models_source
     assert "showWhenEmpty = false" in models_source
     assert "if (!items.length && !showWhenEmpty)" in models_source
-    assert ".model-item-copy" in styles_source
-    assert ".model-item-copy code" in styles_source
+    assert ".model-item-copy-head" in styles_source
+    assert ".model-item-copy-main" in styles_source
+    assert ".model-item-copy-head code" in styles_source
     assert ".models-local-group-anchor" in styles_source
     assert "grid-column: 1 / -1;" in styles_source
     assert ".runtimepilot-nav-button-copy" in styles_source
@@ -1080,6 +1085,30 @@ def test_tuning_lab_source_mentions_history_selection_and_delete_actions():
     assert ".tuning-lab-history-select-toggle" in styles_source
 
 
+def test_tuning_lab_history_filters_use_custom_select_instead_of_native_selects():
+    page_source = Path("frontend/src/pages/TuningLabPage.tsx").read_text(encoding="utf-8")
+    styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
+    history_section = page_source.split("Filtriraj istoriju", 1)[1].split(
+        "Učitavam Tuning Lab istoriju...", 1
+    )[0]
+
+    assert 'import { CustomSelect } from "../components/CustomSelect";' in page_source
+    assert "historyGoalFilterOptions" in page_source
+    assert "historyRuntimeFilterOptions" in page_source
+    assert "historyStatusFilterOptions" in page_source
+    assert "draftGoalOptions" in page_source
+    assert 'ariaLabel="Izaberi cilj eksperimenta"' in page_source
+    assert 'ariaLabel="Filtriraj istoriju po cilju"' in page_source
+    assert 'ariaLabel="Filtriraj istoriju po runtime-u"' in page_source
+    assert 'ariaLabel="Filtriraj istoriju po statusu"' in page_source
+    assert page_source.count("<CustomSelect") >= 4
+    assert "<select" not in page_source
+    assert "<CustomSelect" in history_section
+    assert "<select" not in history_section
+    assert ".tuning-lab-filter-grid .custom-select" in styles_source
+    assert ".tuning-lab-filter-grid .custom-select-trigger" in styles_source
+
+
 def test_benchmark_source_explanation_is_present():
     page_source = Path("frontend/src/pages/BenchmarkPage.tsx").read_text(encoding="utf-8")
     styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
@@ -1114,7 +1143,7 @@ def test_server_and_opencode_source_include_equivalent_launch_command_panels():
     assert "opencode-config-grid" in opencode_source
     assert "opencode-env-grid" in opencode_source
     assert "Efektivna local-lacc inference podrazumevana" in opencode_source
-    assert "Otvori rezultat" in opencode_source
+    assert "Skok na rezultat" in opencode_source
     assert "Napredni alati" in opencode_source
     assert "izolovanom workspace-u" in opencode_source
 
@@ -2036,6 +2065,18 @@ def test_settings_source_explains_inference_parameters_and_uses_compact_summary_
     assert "inference-summary-chip-note" in bundled_css
 
 
+def test_settings_inference_guidance_uses_full_width_horizontal_rack_layout():
+    styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
+
+    assert ".inference-parameter-grid {" in styles_source
+    assert "grid-template-columns: 1fr;" in styles_source
+    assert ".inference-parameter-card {" in styles_source
+    assert "grid-template-columns: minmax(150px, 180px) minmax(180px, 220px) minmax(0, 1fr);" in styles_source
+    assert "grid-template-areas:" in styles_source
+    assert ".inference-parameter-ranges {" in styles_source
+    assert "grid-template-columns: repeat(3, minmax(0, 1fr));" in styles_source
+
+
 def test_shared_ux_components_and_guided_flow_copy_are_present_in_core_pages():
     flow_component = Path("frontend/src/components/PageFlowCard.tsx").read_text(encoding="utf-8")
     primary_flow_component = Path("frontend/src/components/PrimaryFlowCard.tsx").read_text(encoding="utf-8")
@@ -2095,7 +2136,10 @@ def test_shared_ux_components_and_guided_flow_copy_are_present_in_core_pages():
     assert "OpenCode radni tok" in opencode_source
     assert "Otvori u izolovanom workspace-u" in opencode_source
     assert "Izolovan workspace" in opencode_source
-    assert "PrimaryTabRack" in opencode_source
+    assert "PageFlowCard" in opencode_source
+    assert "RuntimePilotStatusDeck" in opencode_source
+    assert "RuntimePilotActionDeck" in opencode_source
+    assert "PrimaryTabRack" not in opencode_source
     assert "Napredni OpenCode alati" in opencode_source
     assert "PrimaryFlowCard" not in opencode_source
     assert "PageDataStateCard" in opencode_source
@@ -2277,7 +2321,7 @@ def test_runtimepilot_phase_two_copy_is_present_in_source_and_bundle():
 
     assert "RuntimePilot je stvarno pokušao GPU offload" in server_source
     assert "ručni ekvivalent onoga što RuntimePilot radi" in server_source
-    assert "OpenCode ekran" in opencode_source
+    assert "OpenCode radni tok" in opencode_source
     assert "što RuntimePilot radi kada otvara OpenCode" in opencode_source
     assert "iz trenutnog RuntimePilot okruženja" in opencode_source
     assert "Zajednička RuntimePilot web pretraga" in search_source
@@ -2504,21 +2548,39 @@ def test_action_result_panel_source_uses_human_status_badges_and_clearer_copy():
     assert ".runtimepilot-action-copy" in styles_source
 
 
-def test_models_page_stacks_action_column_before_it_turns_into_a_tall_narrow_tower():
+def test_models_page_keeps_action_rail_inside_its_track_and_stacks_earlier():
     styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
+    models_source = Path("frontend/src/pages/ModelsPage.tsx").read_text(encoding="utf-8")
     dist_root = Path(
         "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
     )
     css_assets = list((dist_root / "assets").glob("index-*.css"))
 
+    assert 'className="model-item-copy-head"' in models_source
+    assert 'className="model-item-copy-main"' in models_source
     assert ".model-item-header" in styles_source
-    assert "@media (max-width: 1180px)" in styles_source
-    assert "grid-template-columns: minmax(0, 1fr) 240px;" in styles_source
+    assert "@media (max-width: 1320px)" in styles_source
+    assert "grid-template-columns: minmax(0, 1fr) minmax(280px, 300px);" in styles_source
+    assert 'grid-template-areas: "head head" "main rail";' in styles_source
+    assert 'grid-template-areas: "head" "main" "rail";' in styles_source
+    assert ".model-item-copy-head" in styles_source
+    assert ".model-item-copy-main" in styles_source
+    assert "grid-area: rail;" in styles_source
+    assert "grid-auto-rows: minmax(0, 1fr);" in styles_source
     assert "display: grid;" in styles_source
-    assert "grid-template-columns: repeat(2, minmax(0, 1fr));" in styles_source
-    assert "justify-self: end;" in styles_source
-    assert "width: 300px;" in styles_source
     assert "grid-template-columns: 1fr;" in styles_source
+    assert "justify-self: stretch;" in styles_source
+    assert "width: 100%;" in styles_source
+    assert "max-width: 300px;" in styles_source
+    assert (
+        ".model-item-header > .inline-actions button {\n"
+        "  width: 100%;\n"
+        "  height: 100%;\n"
+        "  min-height: 52px;\n"
+        "  padding: 8px 14px;\n"
+        "  line-height: 1.15;\n"
+        "}"
+    ) in styles_source
     assert "grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));" in styles_source
     assert "minmax(0, 1.08fr)" in styles_source
     assert "minmax(0, 1.1fr)" in styles_source
@@ -2527,6 +2589,8 @@ def test_models_page_stacks_action_column_before_it_turns_into_a_tall_narrow_tow
     bundled_css = "\n".join(path.read_text(encoding="utf-8") for path in css_assets)
 
     assert ".model-item-header" in bundled_css
+    assert ".model-item-copy-head" in bundled_css
+    assert ".model-item-header>.inline-actions button" in bundled_css
 
 
 def test_runtimepilot_ux_rewrite_shell_exposes_primary_flow_and_guided_entry():
@@ -2632,9 +2696,9 @@ def test_runtimepilot_ux_rewrite_runtime_models_and_opencode_pages_use_new_prima
     assert "PrimaryTabRack" in models_source
     assert "Brzi izbor modela" in models_source
     assert "Napredni katalog i izvori" in models_source
-    assert "PrimaryTabRack" in opencode_source
-    assert "OpenCode ekran" in opencode_source
-    assert "Otvori rezultat" in opencode_source
+    assert "PrimaryTabRack" not in opencode_source
+    assert "OpenCode radni tok" in opencode_source
+    assert "Skok na rezultat" in opencode_source
     assert "Napredni OpenCode alati" in opencode_source
     assert ".runtimepilot-primary-tab-rack" in styles_source
     assert ".runtimepilot-primary-tab-rack-signal" in styles_source
@@ -2652,7 +2716,7 @@ def test_runtimepilot_ux_rewrite_runtime_models_and_opencode_pages_use_new_prima
     assert "Otvori context" in bundled_js
     assert "Aktivni model i brza promena" in bundled_js
     assert "Brzi izbor modela" in bundled_js
-    assert "OpenCode ekran" in bundled_js
+    assert "OpenCode radni tok" in bundled_js
     assert "Napredni OpenCode alati" in bundled_js
     assert ".runtimepilot-primary-tab-rack" in bundled_css
     assert ".runtimepilot-primary-tab-rack-signal" in bundled_css
@@ -2927,6 +2991,35 @@ def test_benchmark_observability_help_and_project_memory_use_hifi_decks():
     assert ".observability-hifi-stack" in styles_source
     assert ".help-hifi-stack" in styles_source
     assert ".project-memory-hifi-stack" in styles_source
+
+
+def test_benchmark_run_statuses_use_compact_readout_grid():
+    benchmark_source = Path("frontend/src/pages/BenchmarkPage.tsx").read_text(encoding="utf-8")
+    styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
+    dist_root = Path(
+        "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
+    )
+    css_assets = list((dist_root / "assets").glob("index-*.css"))
+
+    assert 'className="benchmark-run-status-header"' in benchmark_source
+    assert 'className="benchmark-run-status-copy"' in benchmark_source
+    assert 'className="benchmark-run-status-title-block"' in benchmark_source
+    assert 'className="benchmark-run-status-pass"' in benchmark_source
+    assert "formatBenchmarkRunStatusBadge" in benchmark_source
+    assert "compactBenchmarkRunStatusSummary" in benchmark_source
+    assert ".benchmark-run-status-list" in styles_source
+    assert "grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));" in styles_source
+    assert ".benchmark-run-status-header" in styles_source
+    assert ".benchmark-run-status-title-block" in styles_source
+    assert ".benchmark-run-status-pass" in styles_source
+    assert ".benchmark-run-status-copy .muted-line" in styles_source
+    assert "grid-template-columns: repeat(2, minmax(0, 1fr));" in styles_source
+    assert css_assets
+
+    bundled_css = "\n".join(path.read_text(encoding="utf-8") for path in css_assets)
+
+    assert ".benchmark-run-status-header" in bundled_css
+    assert ".benchmark-run-status-pass" in bundled_css
 
 
 def test_runtimepilot_hi_fi_shell_uses_flat_status_rails_and_rack_style_resources():
@@ -3301,11 +3394,11 @@ def test_primary_flow_and_runtime_pages_use_hifi_deck_controls_for_main_actions(
     assert "runtimepilot-home-transport" not in home_source
     assert 'disabled={opencode?.canOpen === false}' not in home_source
     assert "PrimaryTabRack" in server_source
-    assert "PrimaryTabRack" in opencode_source
+    assert "PrimaryTabRack" not in opencode_source
     assert "Pokreni runtime" in server_source
     assert "Otvori runtime veb" in server_source
     assert "Izolovan workspace" in opencode_source
-    assert "Otvori rezultat" in opencode_source
+    assert "Skok na rezultat" in opencode_source
     assert ".deck-control-button" in styles_source
     assert ".deck-control-symbol" in styles_source
     assert ".deck-control-button-primary" in styles_source
@@ -3468,7 +3561,7 @@ def test_primary_pages_share_primary_tab_rack():
     assert "Duboko" in rack_source
     assert "PrimaryTabRack" in server_source
     assert "PrimaryTabRack" in models_source
-    assert "PrimaryTabRack" in opencode_source
+    assert "PrimaryTabRack" not in opencode_source
     assert 'onClick={() => void runAction(startServer)}' in server_source
     assert 'onClick={() => onOpenContextSettings?.()}' in server_source
     assert "onClick={openRuntimeDiagnostics}" in server_source
@@ -3477,8 +3570,8 @@ def test_primary_pages_share_primary_tab_rack():
     assert "revealLocalModels();" in models_source
     assert 'openOpenCode(opencode.profile || "balanced", "direct")' in opencode_source
     assert 'openOpenCode(opencode.profile || "balanced", "isolated")' in opencode_source
-    assert "onClick={scrollToActionResult}" in opencode_source
-    assert "onClick={openAdvancedTools}" in opencode_source
+    assert "onClick: scrollToActionResult" in opencode_source
+    assert "onClick: openAdvancedTools" in opencode_source
 
 
 def test_primary_tab_rack_supports_page_specific_labels_for_opencode_result_flow():
@@ -3492,20 +3585,24 @@ def test_primary_tab_rack_supports_page_specific_labels_for_opencode_result_flow
     assert "signalLabel?: string" in rack_source
     assert "commandsLabel?: string" in rack_source
     assert "deepLabel?: string" in rack_source
-    assert 'commandsLabel="Akcije"' in opencode_source
-    assert 'deepLabel="Rezultat"' in opencode_source
+    assert "RuntimePilotActionDeck" in opencode_source
+    assert 'title: "Skok na rezultat"' in opencode_source
+    assert 'title: "Napredni alati"' in opencode_source
     assert 'id="opencode-action-result"' in opencode_source
 
 
 def test_opencode_source_keeps_one_primary_work_block_and_advanced_below():
     source = Path("frontend/src/pages/OpenCodePage.tsx").read_text(encoding="utf-8")
 
-    assert "PrimaryTabRack" in source
+    assert "PageFlowCard" in source
+    assert "RuntimePilotStatusDeck" in source
+    assert "RuntimePilotActionDeck" in source
+    assert "PrimaryTabRack" not in source
     assert 'id="opencode-action-result"' in source
     assert 'id="opencode-advanced-tools"' in source
-    assert "Workspace:" in source
-    assert "Model:" in source
-    assert "PID / instance" in source
+    assert "Workspace" in source
+    assert "Managed config" in source
+    assert "PID / instance" not in source
     assert "Managed config sažetak" in source
     assert "Aktivni workspace" not in source
 
@@ -3851,9 +3948,10 @@ def test_opencode_shell_uses_faceplate_module_and_full_width_for_hifi_layout():
     js_assets = list((dist_root / "assets").glob("*.js"))
 
     assert (
-        'className="runtimepilot-opencode-shell wide-card runtimepilot-faceplate-module"'
+        'className="status-card wide-card runtimepilot-faceplate-module runtimepilot-opencode-shell"'
         in opencode_source
     )
+    assert "runtimepilot-opencode-summary-grid" in opencode_source
     assert js_assets
 
     bundled_js = "\n".join(path.read_text(encoding="utf-8") for path in js_assets)

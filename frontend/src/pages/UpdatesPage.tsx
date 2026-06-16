@@ -1,8 +1,16 @@
-﻿import { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { ActionResultPanel } from "../components/ActionResultPanel";
 import { PageDataStateCard } from "../components/PageDataStateCard";
 import { PageFlowCard } from "../components/PageFlowCard";
+import {
+  RuntimePilotActionDeck,
+  type RuntimePilotActionDeckItem,
+} from "../components/shell/RuntimePilotActionDeck";
+import {
+  RuntimePilotStatusDeck,
+  type RuntimePilotStatusDeckItem,
+} from "../components/shell/RuntimePilotStatusDeck";
 import { checkUpdates, fetchUpdateProgress, installUpdate } from "../lib/api";
 import type { ActionResult, UpdateProgressPayload } from "../lib/types";
 
@@ -43,68 +51,75 @@ function formatEta(seconds: number | null) {
   return parts.join(" ") || "0s";
 }
 
+function describeUpdateNextStep(progress: UpdateProgressPayload | null) {
+  if (!progress) {
+    return "Ako pokreneš instalaciju ažuriranja, ovde ćeš videti ceo tok preuzimanja i pokretanja installera.";
+  }
+  if (progress.status === "error") {
+    return "Pročitaj poruku iznad. Ako pominje pristup fajlu ili zaključan installer, zatvori stari installer i probaj ponovo.";
+  }
+  if (progress.status === "completed") {
+    return "Installer je pokrenut. Prati installer prozor da bi update bio završen.";
+  }
+  if (progress.status === "launching-installer") {
+    return "Sačekaj da se installer prozor pojavi. Ne moraš ručno da ga tražiš.";
+  }
+  if (progress.status === "downloading") {
+    return "Sačekaj da download stigne do 100%. Installer će se zatim pokrenuti automatski.";
+  }
+  return "Ovde pratiš ceo update tok bez ručnog traženja installer fajla.";
+}
+
 function UpdateProgressCard({ progress }: { progress: UpdateProgressPayload | null }) {
   if (!progress) {
     return null;
   }
 
-  const nextStep =
-    progress.status === "error"
-      ? "Pročitaj poruku iznad. Ako pominje pristup fajlu ili zaključan installer, zatvori stari installer i probaj ponovo."
-      : progress.status === "completed"
-        ? "Installer je pokrenut. Prati installer prozor da bi update bio završen."
-        : progress.status === "launching-installer"
-          ? "Sačekaj da se installer prozor pojavi. Ne moraš ručno da ga tražiš."
-          : progress.status === "downloading"
-            ? "Sačekaj da download stigne do 100%. Installer će se zatim pokrenuti automatski."
-            : "Ako pokreneš instalaciju ažuriranja, ovde ćeš videti ceo tok preuzimanja i pokretanja installera.";
-
   return (
     <section className="status-card wide-card runtimepilot-faceplate-module">
-      <div className="section-header">
+      <div className="runtimepilot-inline-heading">
         <span className="status-label">Update status</span>
         <strong className="status-value">{progress.status}</strong>
       </div>
-      <div className="helper-text">
-        <strong>Trenutna verzija:</strong> {progress.currentVersion || "nepoznato"}
+      <p className="helper-text">
+        Installer tok sada radi kao jedna jasna cev: provera verzije, download, ETA i automatsko pokretanje installera.
+      </p>
+      <div className="runtimepilot-service-summary-grid">
+        <article className="runtimepilot-service-summary-card">
+          <span className="status-label">Verzije</span>
+          <strong className="status-value">
+            {progress.currentVersion || "nepoznato"} → {progress.latestVersion || "nepoznato"}
+          </strong>
+          <p className="helper-text">Trenutna i ciljna verzija koje učestvuju u ovom update toku.</p>
+        </article>
+        <article className="runtimepilot-service-summary-card">
+          <span className="status-label">Download</span>
+          <strong className="status-value">
+            {progress.percent === null ? "nepoznato" : `${progress.percent.toFixed(1)}%`}
+          </strong>
+          <p className="helper-text">
+            {formatGiB(progress.downloadedGiB)} / {formatGiB(progress.totalGiB)} · {formatSpeed(progress.speedMBps)}
+          </p>
+        </article>
+        <article className="runtimepilot-service-summary-card">
+          <span className="status-label">Faza</span>
+          <strong className="status-value">{progress.phase}</strong>
+          <p className="helper-text">ETA: {formatEta(progress.etaSeconds)}</p>
+        </article>
       </div>
-      <div className="helper-text">
-        <strong>Nova verzija:</strong> {progress.latestVersion || "nepoznato"}
-      </div>
-      <div className="helper-text">
-        <strong>Procenat:</strong>{" "}
-        {progress.percent === null ? "nepoznato" : `${progress.percent.toFixed(1)}%`}
-      </div>
-      <div className="helper-text">
-        <strong>Preuzeto:</strong> {formatGiB(progress.downloadedGiB)} / {formatGiB(progress.totalGiB)}
-      </div>
-      <div className="helper-text">
-        <strong>Brzina:</strong> {formatSpeed(progress.speedMBps)}
-      </div>
-      <div className="helper-text">
-        <strong>ETA:</strong> {formatEta(progress.etaSeconds)}
-      </div>
-      <div className="helper-text">
-        <strong>Faza:</strong> {progress.phase}
-      </div>
-      <div className="helper-text">
-        <strong>Poruka:</strong> {progress.message}
-      </div>
-      <div className="helper-text">
-        <strong>Sledeći korak:</strong> {nextStep}
-      </div>
-      <div className="helper-text">
-        <strong>Pokretanje installera:</strong> Posle preuzimanja installer se pokreće automatski.
+      <div className="summary-metrics">
+        <span>Poruka: {progress.message}</span>
+        <span>Sledeći korak: {describeUpdateNextStep(progress)}</span>
       </div>
       {progress.releaseUrl ? (
-        <div className="helper-text">
+        <p className="helper-text">
           <strong>Release URL:</strong> {progress.releaseUrl}
-        </div>
+        </p>
       ) : null}
       {progress.targetPath ? (
-        <div className="helper-text">
+        <p className="helper-text">
           <strong>Installer putanja:</strong> {progress.targetPath}
-        </div>
+        </p>
       ) : null}
     </section>
   );
@@ -130,6 +145,26 @@ export function UpdatesPage() {
     } finally {
       setHasLoaded(true);
     }
+  }
+
+  function refreshStatus() {
+    setError(null);
+    setHasLoaded(false);
+    void loadUpdates();
+  }
+
+  function scrollToProgress() {
+    document.getElementById("updates-progress-panel")?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  }
+
+  function scrollToResult() {
+    document.getElementById("updates-action-result")?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
   }
 
   useEffect(() => {
@@ -178,9 +213,131 @@ export function UpdatesPage() {
     );
   }
 
+  const updatesStatusItems: RuntimePilotStatusDeckItem[] = [
+    {
+      id: "updates-current",
+      label: "Trenutna verzija",
+      value: progress?.currentVersion || "nepoznato",
+      detail: "Verzija koja je trenutno aktivna u lokalnoj instalaciji.",
+      action: "Lokalna verzija",
+      icon: "updates",
+      accent: "rgba(242, 184, 75, 0.34)",
+    },
+    {
+      id: "updates-latest",
+      label: "Nova verzija",
+      value: progress?.latestVersion || "nepoznato",
+      detail:
+        result?.summary ||
+        "Prvo proveri da li nova verzija postoji, pa tek onda pokreći download i installer tok.",
+      action: "Ciljna verzija",
+      icon: "browser",
+      accent: "rgba(109, 172, 255, 0.34)",
+    },
+    {
+      id: "updates-progress",
+      label: "Download",
+      value:
+        progress?.percent === null || progress?.percent === undefined
+          ? "bez toka"
+          : `${progress.percent.toFixed(1)}%`,
+      detail:
+        progress?.status === "downloading"
+          ? `${formatGiB(progress.downloadedGiB)} / ${formatGiB(progress.totalGiB)} · ${formatSpeed(progress.speedMBps)}`
+          : describeUpdateNextStep(progress),
+      action: "Tok preuzimanja",
+      icon: "reload",
+      accent: "rgba(88, 222, 193, 0.34)",
+      onClick: scrollToProgress,
+    },
+    {
+      id: "updates-installer",
+      label: "Installer",
+      value: progress?.phase || "čeka pokretanje",
+      detail: progress?.message || "Kada se download završi, installer kreće automatski i to se ovde prijavljuje.",
+      action: "Skok na rezultat",
+      icon: "settings",
+      accent: "rgba(205, 162, 255, 0.34)",
+      onClick: scrollToResult,
+    },
+  ];
+
+  const updatesActionItems: RuntimePilotActionDeckItem[] = [
+    {
+      id: "updates-refresh",
+      code: "SYNC",
+      title: "Osveži status",
+      subtitle: "PROVERI CEO UPDATE TOK",
+      icon: "reload",
+      detail: "Ponovo učitava proveru verzije i trenutno stanje download/install toka.",
+      onClick: refreshStatus,
+    },
+    {
+      id: "updates-check",
+      code: "CHK",
+      title: "Proveri ažuriranja",
+      subtitle: "NOVA VERZIJA + RELEASE",
+      icon: "search",
+      detail: "Ručno pokreće proveru nove verzije i osvežava rezultat bez startovanja installera.",
+      onClick: () => {
+        setError(null);
+        void checkUpdates()
+          .then((payload) => {
+            setResult(payload);
+          })
+          .catch((reason: unknown) => {
+            setError(reason instanceof Error ? reason.message : "Provera ažuriranja nije uspela.");
+          });
+      },
+    },
+    {
+      id: "updates-install",
+      code: "UPD",
+      title: "Instaliraj ažuriranje",
+      subtitle: "DOWNLOAD + INSTALLER",
+      icon: "updates",
+      tone: "primary",
+      detail: "Preuzima installer, prati progress i zatim ga automatski pokreće.",
+      onClick: () => {
+        setError(null);
+        void (async () => {
+          try {
+            const actionResult = await installUpdate();
+            setResult(actionResult);
+            const payload = await fetchUpdateProgress();
+            setProgress(payload);
+          } catch (reason: unknown) {
+            setError(
+              reason instanceof Error ? reason.message : "Instalacija ažuriranja nije uspela.",
+            );
+          }
+        })();
+      },
+    },
+    {
+      id: "updates-progress-jump",
+      code: "ETA",
+      title: "Skok na progress",
+      subtitle: "PROCENAT + BRZINA",
+      icon: "telemetry",
+      detail: "Vodi pravo na karticu sa procentom, brzinom, ETA i trenutnom fazom update toka.",
+      onClick: scrollToProgress,
+    },
+    {
+      id: "updates-result-jump",
+      code: "LOG",
+      title: "Skok na rezultat",
+      subtitle: "POSLEDNJA AKCIJA",
+      icon: "logs",
+      detail: "Ovde proveravaš zaključak poslednjeg klika i eventualnu grešku ili sledeći korak.",
+      onClick: scrollToResult,
+    },
+  ];
+
   return (
     <>
       {error ? <div className="error-panel wide-card">{error}</div> : null}
+
       <PageFlowCard
         title="Updates tok"
         summary="Najprirodnije je da prvo proveriš novu verziju, zatim pokreneš instalaciju i onda ovde pratiš ceo download i installer tok."
@@ -198,68 +355,39 @@ export function UpdatesPage() {
             detail: "Status, procenat, brzina i sledeći korak ovde treba da budu dovoljni da ne nagađaš šta se događa.",
           },
         ]}
-        actions={
-          <button
-            type="button"
-            className="secondary-button"
-            onClick={() => {
-              setError(null);
-              setHasLoaded(false);
-              void loadUpdates();
-            }}
-          >
-            Osveži status
-          </button>
-        }
       />
+
+      <RuntimePilotStatusDeck
+        eyebrow="Update signal"
+        title="Verzija, tok i installer"
+        helper="Četiri karte odmah kažu koja je trenutna verzija, šta je novo, kako teče download i u kojoj je fazi installer."
+        items={updatesStatusItems}
+      />
+
+      <RuntimePilotActionDeck
+        eyebrow="Akcije"
+        title="Provera, instalacija i skokovi"
+        helper="Sve glavne komande su gore: osvežavanje, provera, start installera i brzi skok na progress ili rezultat."
+        items={updatesActionItems}
+      />
+
       <section className="status-card wide-card runtimepilot-faceplate-module">
-        <span className="status-label">Ažuriranja</span>
+        <span className="status-label">Kako čitaš ovaj ekran</span>
+        <strong className="status-value">
+          Prvo proveri verziju, pa startuj update, pa prati download i installer bez ručnog traženja fajla.
+        </strong>
         <p className="helper-text">
-          Instalacija ažuriranja sada ide kao pozadinski tok: vidi se napredak preuzimanja, brzina,
-          ETA i jasno je kada kreće pokretanje installera.
+          Update sada ide kao pozadinski tok sa jasnim procentom, brzinom i ETA signalom. Kada installer krene, to se ovde vidi kao sledeća faza.
         </p>
-        <div className="inline-actions">
-          <button
-            type="button"
-            className="secondary-button"
-            onClick={() => {
-              setError(null);
-              void checkUpdates()
-                .then((payload) => {
-                  setResult(payload);
-                })
-                .catch((reason: unknown) => {
-                  setError(reason instanceof Error ? reason.message : "Provera ažuriranja nije uspela.");
-                });
-            }}
-          >
-            Proveri ažuriranja
-          </button>
-          <button
-            type="button"
-            className="action-button"
-            onClick={() => {
-              setError(null);
-              void (async () => {
-                try {
-                  const actionResult = await installUpdate();
-                  setResult(actionResult);
-                  const payload = await fetchUpdateProgress();
-                  setProgress(payload);
-                } catch (reason: unknown) {
-                  setError(
-                    reason instanceof Error ? reason.message : "Instalacija ažuriranja nije uspela.",
-                  );
-                }
-              })();
-            }}
-          >
-            Instaliraj ažuriranje
-          </button>
-        </div>
       </section>
-      <UpdateProgressCard progress={progress} />
-      <ActionResultPanel result={result} />
+
+      <div id="updates-progress-panel" className="wide-card runtimepilot-service-anchor">
+        <UpdateProgressCard progress={progress} />
+      </div>
+
+      <div id="updates-action-result" className="wide-card runtimepilot-service-anchor">
+        <ActionResultPanel result={result} />
+      </div>
     </>
   );
 }

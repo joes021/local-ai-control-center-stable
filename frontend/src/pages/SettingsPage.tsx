@@ -1495,7 +1495,7 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
         className="status-card wide-card settings-cluster-card runtimepilot-faceplate-module settings-rack-module"
       >
         <div className="section-header settings-cluster-header">
-          <div>
+          <div className="runtimepilot-inline-heading">
             <span className="status-label">Disk higijena OpenCode workspace-a</span>
             <strong className="status-value">
               Čistimo samo disposable izolovane workspace foldere, nikad tvoje modele ili regularne projekte
@@ -1632,7 +1632,7 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
         className="status-card wide-card settings-cluster-card runtimepilot-faceplate-module settings-rack-module"
       >
         <div className="section-header settings-cluster-header">
-          <div>
+          <div className="runtimepilot-inline-heading">
             <span className="status-label">Profili i opseg</span>
             <strong className="status-value">
               Aktivni model: {settings.activeModelLabel || "nema"} ({settings.activeModelId || "--"})
@@ -1805,7 +1805,7 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
         className="status-card wide-card settings-cluster-card runtimepilot-faceplate-module settings-rack-module"
       >
         <div className="section-header settings-cluster-header">
-          <div>
+          <div className="runtimepilot-inline-heading">
             <span className="status-label">Opšta podešavanja</span>
             <strong className="status-value">Glavni radni profil za RuntimePilot i lokalni model</strong>
           </div>
@@ -2191,21 +2191,21 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
             </div>
 
             <div className="settings-action-route-grid">
-              <article className="settings-action-route-card">
+              <article className="settings-action-route-card runtimepilot-readout-card">
                 <span className="settings-field-label">Klik i ishod</span>
                 <strong className="status-value">Editor odmah pokazuje šta si promenio.</strong>
                 <p className="helper-text">
                   Menjanje context-a, output-a, teme ili sampling-a vidiš čim napraviš izmenu u gornjem deck-u.
                 </p>
               </article>
-              <article className="settings-action-route-card">
+              <article className="settings-action-route-card runtimepilot-readout-card">
                 <span className="settings-field-label">Sačuvaj opšta podešavanja</span>
                 <strong className="status-value">Poslednja akcija potvrđuje da je config upisan.</strong>
                 <p className="helper-text">
                   Kad klikneš snimanje, potvrdu prvo čitaš u panelu poslednje akcije, pa onda ispod proveravaš poređenje sačuvano vs editor.
                 </p>
               </article>
-              <article className="settings-action-route-card">
+              <article className="settings-action-route-card runtimepilot-readout-card">
                 <span className="settings-field-label">Monitoring</span>
                 <strong className="status-value">Monitoring ispod kaže da li živi sistem stvarno prati sačuvano stanje.</strong>
                 <p className="helper-text">
@@ -2270,19 +2270,19 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
             </div>
 
             <div className="apply-state-panel settings-vram-transport-status">
-              <article className="apply-state-chip">
+              <article className="apply-state-chip runtimepilot-state-chip">
                 <span className="apply-state-chip-title">Editor</span>
                 <strong className="apply-state-chip-value">
                   {hasUnsavedGeneralChanges ? "Ima nesnimljenih promena" : "Usklađen sa configom"}
                 </strong>
               </article>
-              <article className="apply-state-chip">
+              <article className="apply-state-chip runtimepilot-state-chip">
                 <span className="apply-state-chip-title">Profil</span>
                 <strong className="apply-state-chip-value">
                   {selectedSettingsProfile ? selectedSettingsProfile.name : "custom"}
                 </strong>
               </article>
-              <article className="apply-state-chip">
+              <article className="apply-state-chip runtimepilot-state-chip">
                 <span className="apply-state-chip-title">Starter</span>
                 <strong className="apply-state-chip-value">
                   {activeInferenceStarter?.label || "custom kombinacija"}
@@ -2291,15 +2291,15 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
             </div>
 
             <div className="settings-action-route-grid settings-action-route-grid-compact">
-              <article className="settings-action-route-card settings-action-route-card-compact">
+              <article className="settings-action-route-card runtimepilot-readout-card settings-action-route-card-compact">
                 <span className="settings-field-label">Editor</span>
                 <p className="helper-text">Ovde prvo vidiš da li izmena još živi samo u editoru.</p>
               </article>
-              <article className="settings-action-route-card settings-action-route-card-compact">
+              <article className="settings-action-route-card runtimepilot-readout-card settings-action-route-card-compact">
                 <span className="settings-field-label">Config</span>
                 <p className="helper-text">Ako je sačuvano, poređenje ispod mora da se poravna sa editorom.</p>
               </article>
-              <article className="settings-action-route-card settings-action-route-card-compact">
+              <article className="settings-action-route-card runtimepilot-readout-card settings-action-route-card-compact">
                 <span className="settings-field-label">Živi sistem</span>
                 <p className="helper-text">Ako runtime ili drugi tok još ne prati config, ovde to ispliva bez nagađanja.</p>
               </article>
@@ -2341,7 +2341,7 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
 
       <section className="status-card wide-card settings-cluster-card runtimepilot-faceplate-module settings-rack-module">
         <div className="section-header settings-cluster-header">
-          <div>
+          <div className="runtimepilot-inline-heading">
             <span className="status-label">VRAM fit tuning</span>
             <strong className="status-value">Direktan put do cilja da model stane što više u GPU VRAM</strong>
           </div>
@@ -2566,17 +2566,17 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
             </div>
 
             <div className="apply-state-panel settings-vram-transport-status">
-              <article className="apply-state-chip">
+              <article className="apply-state-chip runtimepilot-state-chip">
                 <span className="apply-state-chip-title">Izmenjeno u editoru</span>
                 <strong className="apply-state-chip-value">
                   {hasUnsavedVramFitChanges ? "Da, čeka potvrdu" : "Ne, editor je usklađen"}
                 </strong>
               </article>
-              <article className="apply-state-chip">
+              <article className="apply-state-chip runtimepilot-state-chip">
                 <span className="apply-state-chip-title">Sačuvano u configu</span>
                 <strong className="apply-state-chip-value">{vramFitSavedInConfig ? "Da" : "Još nije"}</strong>
               </article>
-              <article className="apply-state-chip">
+              <article className="apply-state-chip runtimepilot-state-chip">
                 <span className="apply-state-chip-title">Primenjeno na živi sistem</span>
                 <strong className="apply-state-chip-value">{vramFitAppliedToLiveSystem ? "Da" : "Čeka primenu"}</strong>
               </article>
@@ -2654,7 +2654,7 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
 
       <section className="status-card wide-card settings-cluster-card runtimepilot-faceplate-module settings-rack-module">
         <div className="section-header settings-cluster-header">
-          <div>
+          <div className="runtimepilot-inline-heading">
             <span className="status-label">Pretraga i izvori</span>
             <strong className="status-value">Kako Search, Knowledge i local-lacc dolaze do web rezultata</strong>
           </div>
@@ -2867,19 +2867,19 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
             </div>
 
             <div className="apply-state-panel settings-vram-transport-status">
-              <article className="apply-state-chip">
+              <article className="apply-state-chip runtimepilot-state-chip">
                 <span className="apply-state-chip-title">Editor</span>
                 <strong className="apply-state-chip-value">
                   {hasUnsavedSearchChanges ? "Ima promena" : "Usklađen"}
                 </strong>
               </article>
-              <article className="apply-state-chip">
+              <article className="apply-state-chip runtimepilot-state-chip">
                 <span className="apply-state-chip-title">Provider</span>
                 <strong className="apply-state-chip-value">
                   {settings.searchProviderStatus.providerLabel}
                 </strong>
               </article>
-              <article className="apply-state-chip">
+              <article className="apply-state-chip runtimepilot-state-chip">
                 <span className="apply-state-chip-title">Health</span>
                 <strong className="apply-state-chip-value">{settings.searchProviderStatus.label}</strong>
               </article>
@@ -2938,7 +2938,7 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
 
       <section className="status-card wide-card settings-cluster-card runtimepilot-faceplate-module settings-rack-module">
         <div className="section-header settings-cluster-header">
-          <div>
+          <div className="runtimepilot-inline-heading">
             <span className="status-label">TurboQuant podešavanja</span>
             <strong className="status-value">Odvojeni preset i parametri samo za TurboQuant runtime</strong>
           </div>
@@ -3208,19 +3208,19 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
             </div>
 
             <div className="apply-state-panel settings-vram-transport-status">
-              <article className="apply-state-chip">
+              <article className="apply-state-chip runtimepilot-state-chip">
                 <span className="apply-state-chip-title">Editor</span>
                 <strong className="apply-state-chip-value">
                   {hasUnsavedTurboChanges ? "Ima nesnimljenih promena" : "Usklađen sa configom"}
                 </strong>
               </article>
-              <article className="apply-state-chip">
+              <article className="apply-state-chip runtimepilot-state-chip">
                 <span className="apply-state-chip-title">Preset</span>
                 <strong className="apply-state-chip-value">
                   {activeTurboPreset?.name || "Custom kombinacija"}
                 </strong>
               </article>
-              <article className="apply-state-chip">
+              <article className="apply-state-chip runtimepilot-state-chip">
                 <span className="apply-state-chip-title">Runtime veza</span>
                 <strong className="apply-state-chip-value">
                   {observability?.runtime.activeRuntime === "turboquant" ? "TurboQuant aktivan" : "Čeka TurboQuant runtime"}

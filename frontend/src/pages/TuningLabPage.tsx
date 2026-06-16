@@ -1,6 +1,7 @@
 ﻿import { useEffect, useMemo, useRef, useState } from "react";
 
 import { ActionResultPanel } from "../components/ActionResultPanel";
+import { CustomSelect } from "../components/CustomSelect";
 import { PageDataStateCard } from "../components/PageDataStateCard";
 import { TuningLabTriSlotReceiverRack } from "../components/tuning-lab/TuningLabTriSlotReceiverRack";
 import { TuningLabStatusDeck } from "../components/shell/TuningLabStatusDeck";
@@ -1047,6 +1048,48 @@ export function TuningLabPage() {
     return Array.from(values);
   }, [summary?.history]);
 
+  const historyGoalFilterOptions = useMemo(
+    () => [
+      { value: "all", label: "Svi ciljevi" },
+      ...goalOptions.map((option) => ({
+        value: option.id,
+        label: option.label,
+      })),
+    ],
+    [goalOptions],
+  );
+
+  const draftGoalOptions = useMemo(
+    () =>
+      goalOptions.map((option) => ({
+        value: option.id,
+        label: option.label,
+      })),
+    [goalOptions],
+  );
+
+  const historyRuntimeFilterOptions = useMemo(
+    () => [
+      { value: "all", label: "Svi runtime-i" },
+      ...historyRuntimeOptions.map((runtime) => ({
+        value: runtime,
+        label: runtime,
+      })),
+    ],
+    [historyRuntimeOptions],
+  );
+
+  const historyStatusFilterOptions = useMemo(
+    () => [
+      { value: "all", label: "Svi statusi" },
+      { value: "completed", label: "Uspešni" },
+      { value: "failed", label: "Neuspešni" },
+      { value: "running", label: "U toku" },
+      { value: "queued", label: "Na čekanju" },
+    ],
+    [],
+  );
+
   const filteredHistory = useMemo(() => {
     const query = historyFilters.query.trim().toLowerCase();
     return (summary?.history ?? []).filter((run) => {
@@ -2019,16 +2062,12 @@ export function TuningLabPage() {
           </label>
           <label className="settings-compact-field">
             <span>Cilj</span>
-            <select
+            <CustomSelect
               value={draft.goal}
-              onChange={(event) => setDraft({ ...draft, goal: event.target.value })}
-            >
-              {goalOptions.map((option) => (
-                <option key={option.id} value={option.id}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+              options={draftGoalOptions}
+              onChange={(value) => setDraft({ ...draft, goal: value })}
+              ariaLabel="Izaberi cilj eksperimenta"
+            />
           </label>
           <label className="settings-compact-field settings-medium-field">
             <span>Radni direktorijum</span>
@@ -2307,50 +2346,32 @@ export function TuningLabPage() {
           </label>
           <label className="settings-compact-field">
             <span>Cilj</span>
-            <select
+            <CustomSelect
               value={historyFilters.goal}
-              onChange={(event) =>
-                setHistoryFilters((current) => ({ ...current, goal: event.target.value }))
-              }
-            >
-              <option value="all">Svi ciljevi</option>
-              {goalOptions.map((option) => (
-                <option key={option.id} value={option.id}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+              options={historyGoalFilterOptions}
+              onChange={(value) => setHistoryFilters((current) => ({ ...current, goal: value }))}
+              ariaLabel="Filtriraj istoriju po cilju"
+            />
           </label>
           <label className="settings-compact-field">
             <span>Runtime</span>
-            <select
+            <CustomSelect
               value={historyFilters.runtime}
-              onChange={(event) =>
-                setHistoryFilters((current) => ({ ...current, runtime: event.target.value }))
+              options={historyRuntimeFilterOptions}
+              onChange={(value) =>
+                setHistoryFilters((current) => ({ ...current, runtime: value }))
               }
-            >
-              <option value="all">Svi runtime-i</option>
-              {historyRuntimeOptions.map((runtime) => (
-                <option key={runtime} value={runtime}>
-                  {runtime}
-                </option>
-              ))}
-            </select>
+              ariaLabel="Filtriraj istoriju po runtime-u"
+            />
           </label>
           <label className="settings-compact-field">
             <span>Status</span>
-            <select
+            <CustomSelect
               value={historyFilters.status}
-              onChange={(event) =>
-                setHistoryFilters((current) => ({ ...current, status: event.target.value }))
-              }
-            >
-              <option value="all">Svi statusi</option>
-              <option value="completed">Uspešni</option>
-              <option value="failed">Neuspešni</option>
-              <option value="running">U toku</option>
-              <option value="queued">Na čekanju</option>
-            </select>
+              options={historyStatusFilterOptions}
+              onChange={(value) => setHistoryFilters((current) => ({ ...current, status: value }))}
+              ariaLabel="Filtriraj istoriju po statusu"
+            />
           </label>
         </div>
         {isHistoryLoading ? (

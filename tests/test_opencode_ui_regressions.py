@@ -1,19 +1,18 @@
 from pathlib import Path
 
 
-def test_opencode_actions_use_full_height_vertical_command_rail():
+def test_opencode_top_shell_uses_page_flow_status_and_action_decks():
     opencode_source = Path("frontend/src/pages/OpenCodePage.tsx").read_text(
         encoding="utf-8"
     )
     styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
 
-    assert (
-        'className="runtimepilot-primary-tab-rack-command-grid '
-        'runtimepilot-primary-tab-rack-command-grid-vertical"'
-        in opencode_source
-    )
-    assert ".runtimepilot-primary-tab-rack-command-grid-vertical" in styles_source
-    assert "grid-template-columns: 1fr;" in styles_source
+    assert "PageFlowCard" in opencode_source
+    assert "RuntimePilotStatusDeck" in opencode_source
+    assert "RuntimePilotActionDeck" in opencode_source
+    assert "PrimaryTabRack" not in opencode_source
+    assert ".runtimepilot-status-deck" in styles_source
+    assert ".runtimepilot-action-deck" in styles_source
 
 
 def test_opencode_source_uses_clean_serbian_copy_without_mojibake():
@@ -27,11 +26,13 @@ def test_opencode_source_uses_clean_serbian_copy_without_mojibake():
         "Posle klika prvo ovde čitaš da li je otvaranje uspelo i šta je sledeći korak."
         in opencode_source
     )
+    assert "Sesija, workspace i managed config" in opencode_source
+    assert "Otvori GUI, rezultat ili servis" in opencode_source
     assert "joÅ¡" not in opencode_source
     assert "saÅ¾etak" not in opencode_source
     assert "ÄitaÅ¡" not in opencode_source
+    assert "ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â·" not in opencode_source
     assert "Ãƒâ€šÃ‚Â·" not in opencode_source
-    assert "Ã‚Â·" not in opencode_source
 
 
 def test_opencode_safe_selects_anchor_to_trigger_and_use_solid_menu_fill():
@@ -96,6 +97,7 @@ def test_opencode_safe_selects_anchor_to_trigger_and_use_solid_menu_fill():
         ".custom-select-menu-portal {\n"
         "  position: fixed;\n"
         "  isolation: isolate;\n"
+        "  background: var(--app-field-bg-alt);\n"
         "}"
     ) in styles_source
     assert (
@@ -105,7 +107,7 @@ def test_opencode_safe_selects_anchor_to_trigger_and_use_solid_menu_fill():
         "  box-sizing: border-box;\n"
         "  display: block;\n"
         "  border: 1px solid transparent;\n"
-        "  background: color-mix(in srgb, var(--app-card-soft-bg) 90%, var(--app-overlay-solid-fill) 10%);\n"
+        "  background: var(--app-field-bg);\n"
     ) in styles_source
     assert (
         ".custom-select-option-label {\n"

@@ -4,6 +4,15 @@ import { ActionResultPanel } from "../components/ActionResultPanel";
 import { CustomSelect } from "../components/CustomSelect";
 import { PageDataStateCard } from "../components/PageDataStateCard";
 import { PageFlowCard } from "../components/PageFlowCard";
+import { useRef } from "react";
+import {
+  RuntimePilotActionDeck,
+  type RuntimePilotActionDeckItem,
+} from "../components/shell/RuntimePilotActionDeck";
+import {
+  RuntimePilotStatusDeck,
+  type RuntimePilotStatusDeckItem,
+} from "../components/shell/RuntimePilotStatusDeck";
 import {
   applySettings,
   deleteWorkflowPreset,
@@ -311,6 +320,9 @@ export function WorkflowsPage({
     "" | "save-new" | "save-update" | "delete" | "reset"
   >("");
   const [result, setResult] = useState<ActionResult | null>(null);
+  const catalogSectionRef = useRef<HTMLElement | null>(null);
+  const editorSectionRef = useRef<HTMLElement | null>(null);
+  const resultSectionRef = useRef<HTMLDivElement | null>(null);
 
   async function load(options?: {
     preferredPresetId?: string;
@@ -395,6 +407,132 @@ export function WorkflowsPage({
     settingsPayload.selectedWorkflowPresetId || settingsPayload.workflowPresetId;
   const isEditingUserPreset =
     selectedPreset?.kind === "user" && editorUpdatePresetId === selectedPreset.id;
+  const activeWorkflowPreset =
+    presets.find((preset) => preset.id === selectedWorkflowPresetId) ?? null;
+
+  const scrollToCatalog = () => {
+    catalogSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  const scrollToEditor = () => {
+    editorSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  const scrollToResult = () => {
+    resultSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  const workflowStatusItems: RuntimePilotStatusDeckItem[] = [
+    {
+      id: "active-preset",
+      label: "Aktivni preset",
+      value: activeWorkflowPreset?.label ?? "Nema aktivnog preseta",
+      detail:
+        activeWorkflowPreset?.summary ||
+        "Aktivni preset još nije izabran na nivou celog RuntimePilot-a.",
+      action: "Preset koji vodi glavni tok",
+      icon: "workflows",
+      accent: "rgba(242, 184, 75, 0.36)",
+    },
+    {
+      id: "editor-source",
+      label: "Editor",
+      value: selectedPreset?.label ?? "Nema učitanog preseta",
+      detail: selectedPreset
+        ? `${selectedPreset.kind === "user" ? "Korisnički" : "Ugrađeni"} preset u editoru.`
+        : "Prvo učitaj preset ili napravi novu varijantu.",
+      action: "Učitani izvor za uređivanje",
+      icon: "settings",
+      accent: "rgba(109, 172, 255, 0.34)",
+    },
+    {
+      id: "editor-state",
+      label: "Stanje editora",
+      value: editorIsDirty ? "Nesačuvane izmene" : "Usklađen sa bazom",
+      detail: editorUpdatePresetId
+        ? "Sačuvavanje menja postojeći korisnički preset."
+        : "Sačuvavanje pravi novu korisničku varijantu.",
+      action: "Signal čuvanja",
+      icon: "logs",
+      accent: "rgba(88, 222, 193, 0.34)",
+    },
+    {
+      id: "search-knowledge",
+      label: "Pretraga + znanje",
+      value: `${editorDraft.searchProvider} · ${editorDraft.knowledgeMode}`,
+      detail: `Web ${editorDraft.webSearchMode} | Akcija ${editorDraft.searchSuggestedAction}`,
+      action: "Izvor i smer odgovora",
+      icon: "knowledge",
+      accent: "rgba(205, 162, 255, 0.34)",
+    },
+    {
+      id: "benchmark-route",
+      label: "Benchmark smer",
+      value: editorDraft.benchmarkRunLabel || editorDraft.benchmarkBatteryId || "Nema oznake",
+      detail: `Target ${editorDraft.benchmarkLaunchTarget} | ctx ${editorDraft.context} | out ${editorDraft.outputTokens}`,
+      action: "Run label i tok poređenja",
+      icon: "benchmark",
+      accent: "rgba(255, 129, 177, 0.34)",
+    },
+  ];
+
+  const workflowActionItems: RuntimePilotActionDeckItem[] = [
+    {
+      id: "open-search",
+      code: "SRC",
+      title: "Otvori pretragu",
+      subtitle: "IZVORI + UPIT",
+      icon: "search",
+      tone: "primary",
+      detail: "Prebaci se pravo na tok izvora i pitanja.",
+      onClick: onOpenSearch,
+    },
+    {
+      id: "open-knowledge",
+      code: "DOC",
+      title: "Otvori znanje",
+      subtitle: "DOKUMENTI + KONTEKST",
+      icon: "knowledge",
+      detail: "Idi direktno na dokumente, režim i odgovor.",
+      onClick: onOpenKnowledge,
+    },
+    {
+      id: "open-benchmark",
+      code: "BNCH",
+      title: "Otvori benchmark",
+      subtitle: "POREĐENJE + RUN",
+      icon: "benchmark",
+      detail: "Proveri preset na živom throughput signalu.",
+      onClick: onOpenBenchmark,
+    },
+    {
+      id: "jump-catalog",
+      code: "CAT",
+      title: "Skok na katalog",
+      subtitle: "PREGLED PRESETA",
+      icon: "models",
+      detail: "Brz povratak na listu ugrađenih i korisničkih presetova.",
+      onClick: scrollToCatalog,
+    },
+    {
+      id: "jump-editor",
+      code: "EDIT",
+      title: "Skok na editor",
+      subtitle: "IZMENE + ČUVANJE",
+      icon: "settings",
+      detail: "Odmah idi na uređivanje, kloniranje i čuvanje.",
+      onClick: scrollToEditor,
+    },
+    {
+      id: "jump-result",
+      code: "LOG",
+      title: "Skok na rezultat",
+      subtitle: "POSLEDNJA AKCIJA",
+      icon: "logs",
+      detail: result?.summary || "Panel ispod potvrđuje šta je poslednji klik uradio.",
+      onClick: scrollToResult,
+    },
+  ];
 
   return (
     <>
@@ -416,19 +554,18 @@ export function WorkflowsPage({
             detail: "Aktiviraj kada hoćeš da preset vodi RuntimePilot odmah, ili ga sačuvaj kao novu korisničku varijantu.",
           },
         ]}
-        actions={
-          <>
-            <button type="button" className="secondary-button" onClick={onOpenSearch}>
-              Otvori pretragu
-            </button>
-            <button type="button" className="secondary-button" onClick={onOpenKnowledge}>
-              Otvori znanje
-            </button>
-            <button type="button" className="secondary-button" onClick={onOpenBenchmark}>
-              Otvori benchmark
-            </button>
-          </>
-        }
+      />
+      <RuntimePilotStatusDeck
+        eyebrow="Status dashboard"
+        title="Preset, editor i izlazni tok"
+        helper="Pet kartica odmah pokazuje koji preset vodi sistem, šta je učitano u editor, da li ima nesačuvanih izmena i kuda preset šalje pretragu, znanje i benchmark."
+        items={workflowStatusItems}
+      />
+      <RuntimePilotActionDeck
+        eyebrow="Akcije"
+        title="Pretraga, znanje, benchmark i brzi skokovi"
+        helper="Ovde ostaju samo stvarni klikovi: otvori radni tok ili skoči pravo na katalog, editor i rezultat bez ponavljanja dugmadi kroz celu stranu."
+        items={workflowActionItems}
       />
       <section className="status-card wide-card runtimepilot-faceplate-module">
         <span className="status-label">Radni tokovi</span>
@@ -439,7 +576,11 @@ export function WorkflowsPage({
         </p>
       </section>
 
-      <section className="status-card wide-card runtimepilot-faceplate-module">
+      <section
+        id="workflow-preset-catalog"
+        ref={catalogSectionRef}
+        className="status-card wide-card runtimepilot-faceplate-module"
+      >
         <span className="status-label">Katalog preseta</span>
         <div className="workflow-preset-grid">
           {presets.map((preset) => {
@@ -531,7 +672,11 @@ export function WorkflowsPage({
         </div>
       </section>
 
-      <section className="status-card wide-card runtimepilot-faceplate-module">
+      <section
+        id="workflow-preset-editor"
+        ref={editorSectionRef}
+        className="status-card wide-card runtimepilot-faceplate-module"
+      >
         <span className="status-label">Editor preseta radnog toka</span>
         <strong className="status-value">{editorDraft.name || "Novi korisnički preset"}</strong>
         <div className="summary-metrics">
@@ -1084,7 +1229,9 @@ export function WorkflowsPage({
         </div>
       </section>
 
-      <ActionResultPanel result={result} />
+      <div ref={resultSectionRef}>
+        <ActionResultPanel result={result} />
+      </div>
     </>
   );
 }

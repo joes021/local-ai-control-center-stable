@@ -3,8 +3,16 @@ import { useEffect, useMemo, useState } from "react";
 import { ActionResultPanel } from "../components/ActionResultPanel";
 import { CustomSelect } from "../components/CustomSelect";
 import { PageDataStateCard } from "../components/PageDataStateCard";
+import { PageFlowCard } from "../components/PageFlowCard";
 import { RuntimePilotIcon } from "../components/RuntimePilotIcon";
-import { PrimaryTabRack } from "../components/shell/PrimaryTabRack";
+import {
+  RuntimePilotActionDeck,
+  type RuntimePilotActionDeckItem,
+} from "../components/shell/RuntimePilotActionDeck";
+import {
+  RuntimePilotStatusDeck,
+  type RuntimePilotStatusDeckItem,
+} from "../components/shell/RuntimePilotStatusDeck";
 import {
   applyOpenCodeSettings,
   bootstrapOpenCode,
@@ -210,128 +218,189 @@ export function OpenCodePage() {
     }
   };
 
+  const openCodeStatusItems: RuntimePilotStatusDeckItem[] = [
+    {
+      id: "session",
+      label: "Sesija",
+      value: openCodeStateTitle,
+      detail: openCodeStateSummary,
+      action: "CLI i GUI signal",
+      icon: "opencode",
+      accent: "rgba(242, 184, 75, 0.36)",
+    },
+    {
+      id: "runtime",
+      label: "Runtime",
+      value: sessionSignalTitle,
+      detail: sessionSignalSummary,
+      action: "Veza sa engine-om",
+      icon: "runtime",
+      accent: "rgba(109, 172, 255, 0.34)",
+    },
+    {
+      id: "workspace",
+      label: "Workspace",
+      value: workspaceLabel,
+      detail: opencode.workingDirectory || opencode.launchPreview.workingDirectory,
+      action: "Radni direktorijum",
+      icon: "workflows",
+      accent: "rgba(88, 222, 193, 0.34)",
+    },
+    {
+      id: "managed-config",
+      label: "Managed config sažetak",
+      value: managedModelLabel,
+      detail: `Provider ${managedProviderLabel} | Base URL ${managedBaseUrlLabel}`,
+      action: "Model i provider",
+      icon: "models",
+      accent: "rgba(205, 162, 255, 0.34)",
+    },
+    {
+      id: "last-result",
+      label: "Poslednja akcija",
+      value: resultSignalTitle,
+      detail: resultSignalSummary,
+      action: "Skok na rezultat",
+      icon: "logs",
+      accent: "rgba(255, 129, 177, 0.34)",
+      onClick: scrollToActionResult,
+    },
+  ];
+
+  const openCodeActionItems: RuntimePilotActionDeckItem[] = [
+    {
+      id: "open-direct",
+      code: "GUI",
+      title: directActionLabel,
+      subtitle: "OTVORI DESKTOP APP",
+      icon: "opencode",
+      tone: "primary",
+      detail: opencode.openBlockedReason || "Koristi aktivni managed config i trenutni workspace.",
+      disabled: opencode.canOpen === false,
+      onClick: () =>
+        void runOpenCodeAction(() => openOpenCode(opencode.profile || "balanced", "direct")),
+    },
+    {
+      id: "open-isolated",
+      code: "ISO",
+      title: "Izolovan workspace",
+      subtitle: "OTVORI U IZOLOVANOM WORKSPACE-U",
+      icon: "workflows",
+      detail: "Odvojen probni workspace bez gaženja glavnog radnog foldera.",
+      disabled: opencode.canOpen === false,
+      onClick: () =>
+        void runOpenCodeAction(() => openOpenCode(opencode.profile || "balanced", "isolated")),
+    },
+    {
+      id: "bootstrap",
+      code: "FIX",
+      title: bootstrapActionLabel,
+      subtitle: "SERVIS + BOOTSTRAP",
+      icon: "repair",
+      detail: opencode.bootstrapBlockedReason || "Kad GUI ili launcher nisu spremni, ovde kreće popravka.",
+      disabled: opencode.canBootstrap === false,
+      onClick: () => void runOpenCodeAction(bootstrapOpenCode),
+    },
+    {
+      id: "jump-result",
+      code: "LOG",
+      title: "Skok na rezultat",
+      subtitle: "POSLEDNJA AKCIJA",
+      icon: "logs",
+      detail: "Posle klika prvo ovde čitaš da li je otvaranje uspelo i šta je sledeći korak.",
+      onClick: scrollToActionResult,
+    },
+    {
+      id: "advanced-tools",
+      code: "CLI",
+      title: "Napredni alati",
+      subtitle: "KOMANDA + SIGURNOST",
+      icon: "settings",
+      detail: "Launcher preview, env, presetovi koraka i lista instanci ostaju ispod.",
+      onClick: openAdvancedTools,
+    },
+  ];
+
   return (
     <>
       {error ? <div className="error-panel wide-card">{error}</div> : null}
 
-      <div className="runtimepilot-opencode-shell wide-card runtimepilot-faceplate-module">
-        <PrimaryTabRack
-          eyebrow="OpenCode ekran"
-          title="Od otvaranja sesije do rezultata"
-          signalLabel="Signal"
-          commandsLabel="Akcije"
-          deepLabel="Rezultat"
-          signal={
-            <div className="runtimepilot-primary-tab-rack-body">
-              <strong className="runtimepilot-primary-tab-rack-state">{sessionSignalTitle}</strong>
-              <p className="helper-text runtimepilot-primary-tab-rack-copy">{sessionSignalSummary}</p>
-              <div className="summary-metrics">
-                <span>Sesija: {opencode.sessionState}</span>
-                <span>Runtime: {opencode.runtimeConnected ? "povezan" : opencode.runtimeLiveStatus || "--"}</span>
-                <span>Workspace: {workspaceLabel}</span>
-                <span>Model: {managedModelLabel}</span>
-              </div>
-              <p className="helper-text runtimepilot-primary-tab-rack-copy">
-                PID / instance: {instancePidLabel} · {instanceLabel}
-              </p>
-              <p className="helper-text runtimepilot-primary-tab-rack-copy">{openCodeStateSummary}</p>
+      <PageFlowCard
+        title="OpenCode radni tok"
+        summary="Prvo potvrdi sesiju i runtime signal, zatim otvori GUI ili izolovan workspace, pa rezultat odmah pročitaj u panelu ispod bez lutanja kroz sporedne kartice."
+        steps={[
+          {
+            title: "Proveri da li je sesija spremna",
+            detail: "Status deck odmah pokazuje da li je OpenCode dostupan, da li vidi runtime i koji workspace koristi.",
+          },
+          {
+            title: "Otvori GUI ili izolovan workspace",
+            detail: "Direktni GUI koristi glavni workspace, a izolovan tok pali odvojen probni prostor za bezbedan rad.",
+          },
+          {
+            title: "Pročitaj rezultat ili otvori servis",
+            detail: "Poslednja akcija i napredni alati ostaju odmah ispod kao jasno mesto za ishod i dijagnostiku.",
+          },
+        ]}
+      />
+
+      <RuntimePilotStatusDeck
+        eyebrow="Status dashboard"
+        title="Sesija, workspace i managed config"
+        helper="Pet kartica odmah kaže da li je OpenCode spreman, gde radi, koji model koristi i šta se desilo posle poslednjeg klika."
+        items={openCodeStatusItems}
+      />
+
+      <RuntimePilotActionDeck
+        eyebrow="Akcije"
+        title="Otvori GUI, rezultat ili servis"
+        helper="Ovde su samo stvarni klikovi: direktan GUI, izolovan workspace, popravka, rezultat i servisni alati."
+        items={openCodeActionItems}
+      />
+
+      <section className="status-card wide-card runtimepilot-faceplate-module runtimepilot-opencode-shell">
+        <div className="section-header">
+          <div>
+            <span className="status-label">Managed config i sesija</span>
+            <strong className="status-value">Glavni OpenCode readout bez starog trokolonskog rack-a</strong>
+          </div>
+        </div>
+        <p className="helper-text">
+          Ovo je centralni pregled za OpenCode: jedna zona za stanje sesije, druga za managed config, a treća za poslednju potvrdu posle klika.
+        </p>
+        <div className="runtimepilot-opencode-summary-grid">
+          <article className="runtimepilot-opencode-summary-card">
+            <span className="status-label">Sesija i runtime</span>
+            <strong className="status-value">{sessionSignalTitle}</strong>
+            <p className="helper-text">{sessionSignalSummary}</p>
+            <div className="summary-metrics">
+              <span>Sesija: {opencode.sessionState}</span>
+              <span>Runtime: {opencode.runtimeConnected ? "povezan" : opencode.runtimeLiveStatus || "--"}</span>
+              <span>PID i instanca: {instancePidLabel} · {instanceLabel}</span>
             </div>
-          }
-          commands={
-            <div className="runtimepilot-primary-tab-rack-command-grid runtimepilot-primary-tab-rack-command-grid-vertical">
-              <button
-                type="button"
-                className="action-button deck-control-button deck-control-button-primary"
-                onClick={() =>
-                  void runOpenCodeAction(() => openOpenCode(opencode.profile || "balanced", "direct"))
-                }
-                disabled={opencode.canOpen === false}
-                title={opencode.openBlockedReason || undefined}
-              >
-                <span className="deck-control-symbol" aria-hidden="true">
-                  GUI
-                </span>
-                <span className="deck-control-copy">{directActionLabel}</span>
-              </button>
-              <button
-                type="button"
-                className="action-button-soft deck-control-button deck-control-button-secondary"
-                onClick={() =>
-                  void runOpenCodeAction(() => openOpenCode(opencode.profile || "balanced", "isolated"))
-                }
-                disabled={opencode.canOpen === false}
-                title={opencode.openBlockedReason || undefined}
-              >
-                <span className="deck-control-symbol" aria-hidden="true">
-                  ISO
-                </span>
-                <span className="deck-control-copy">Izolovan workspace</span>
-              </button>
-              <button
-                type="button"
-                className="action-button-soft deck-control-button deck-control-button-secondary"
-                onClick={() => void runOpenCodeAction(bootstrapOpenCode)}
-                disabled={opencode.canBootstrap === false}
-                title={opencode.bootstrapBlockedReason || undefined}
-              >
-                <span className="deck-control-symbol" aria-hidden="true">
-                  FIX
-                </span>
-                <span className="deck-control-copy">{bootstrapActionLabel}</span>
-              </button>
+          </article>
+          <article className="runtimepilot-opencode-summary-card">
+            <span className="status-label">Managed config sažetak</span>
+            <strong className="status-value">{managedModelLabel}</strong>
+            <p className="helper-text">
+              Provider: {managedProviderLabel} · Base URL: {managedBaseUrlLabel}
+            </p>
+            <div className="summary-metrics">
+              <span>Workspace: {workspaceLabel}</span>
+              <span>Profil: {opencode.profile || "--"}</span>
+              <span>Instanci: {opencode.instanceCount ?? 0}</span>
             </div>
-          }
-          deep={
-            <div className="runtimepilot-primary-tab-rack-detail-grid">
-              <article className="runtimepilot-primary-tab-rack-detail-card">
-                <span className="status-label">Managed config sažetak</span>
-                <strong>{managedModelLabel}</strong>
-                <p className="helper-text">
-                  Provider: {managedProviderLabel} · Base URL: {managedBaseUrlLabel}
-                </p>
-              </article>
-              <article className="runtimepilot-primary-tab-rack-detail-card">
-                <span className="status-label">PID / instance</span>
-                <strong>{instanceLabel}</strong>
-                <p className="helper-text">PID {instancePidLabel} · Instanci {opencode.instanceCount ?? 0}</p>
-                <p className="helper-text">
-                  {currentInstance?.name || "Sesija još nije otvorena"} · Profil {opencode.profile || "--"}
-                </p>
-              </article>
-              <article className="runtimepilot-primary-tab-rack-detail-card">
-                <span className="status-label">Poslednji rezultat</span>
-                <strong>{resultSignalTitle}</strong>
-                <p className="helper-text">
-                  Posle klika prvo ovde čitaš da li je otvaranje uspelo i šta je sledeći korak.
-                </p>
-                <p className="helper-text">{resultSignalSummary}</p>
-                <div className="runtimepilot-primary-tab-rack-detail-actions">
-                  <button
-                    type="button"
-                    className="action-button-soft deck-control-button deck-control-button-secondary"
-                    onClick={scrollToActionResult}
-                  >
-                    <span className="deck-control-symbol" aria-hidden="true">
-                      LOG
-                    </span>
-                    <span className="deck-control-copy">Otvori rezultat</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="action-button-soft deck-control-button deck-control-button-secondary"
-                    onClick={openAdvancedTools}
-                  >
-                    <span className="deck-control-symbol" aria-hidden="true">
-                      CLI
-                    </span>
-                    <span className="deck-control-copy">Napredni alati</span>
-                  </button>
-                </div>
-              </article>
-            </div>
-          }
-        />
-      </div>
+          </article>
+          <article className="runtimepilot-opencode-summary-card">
+            <span className="status-label">Poslednja akcija</span>
+            <strong className="status-value">{resultSignalTitle}</strong>
+            <p className="helper-text">
+              Posle klika prvo ovde čitaš da li je otvaranje uspelo i šta je sledeći korak.
+            </p>
+            <p className="helper-text">{resultSignalSummary}</p>
+          </article>
+        </div>
+      </section>
 
       <div id="opencode-action-result">
         <ActionResultPanel result={result} />

@@ -619,10 +619,12 @@ export function CompatibilityPage({
               <section className="status-card wide-card compatibility-workspace runtimepilot-faceplate-module compat-rack-module">
                 <div className="section-header">
                   <div>
+                    <div className="runtimepilot-inline-heading">
                     <span className="status-label">Radni prostor kompatibilnosti</span>
                     <strong className="status-value">
                       Vidljiv kalkulator za fit modela i izbor runtime-a
                     </strong>
+                    </div>
                     <p className="helper-text">
                       Ovde možeš da proveriš kako model stoji na lokalnom hardveru, da uporediš llama.cpp i TurboQuant put i da odmah primeniš preporuke.
                     </p>
@@ -632,14 +634,14 @@ export function CompatibilityPage({
                   </div>
                 </div>
                 <div className="compatibility-snapshot-grid compatibility-snapshot-grid-wide">
-                  <div className="compatibility-snapshot-card">
+                  <div className="compatibility-snapshot-card runtimepilot-readout-card">
                     <span className="status-label">Fit signal</span>
                     <strong className="status-value">{lastPayload?.overallFitLabel ?? "--"}</strong>
                     <div className="helper-text">
                       Najbolji runtime {lastPayload?.bestRuntimeLabel ?? "--"} | brzina {lastPayload?.speedLabel ?? "--"}
                     </div>
                   </div>
-                  <div className="compatibility-snapshot-card">
+                  <div className="compatibility-snapshot-card runtimepilot-readout-card">
                     <span className="status-label">Sistem</span>
                     <strong className="status-value">
                       {lastPayload?.systemSnapshot?.vramGiB ?? "--"} GiB VRAM
@@ -653,7 +655,7 @@ export function CompatibilityPage({
 
               <section className="status-card wide-card compatibility-picker-card runtimepilot-faceplate-module compat-rack-module">
                 <div className="section-header">
-                  <div>
+                  <div className="runtimepilot-inline-heading">
                     <span className="status-label">Izbor izvora</span>
                     <strong className="status-value">Izaberi šta proveravaš</strong>
                   </div>
@@ -685,11 +687,13 @@ export function CompatibilityPage({
 
                 {scope === "active" ? (
                   <div className="compatibility-choice-grid">
-                    <div className="compatibility-choice-card">
-                      <span className="status-label">Aktivni model</span>
-                      <strong className="status-value">
-                        {activeModel?.label ?? "Nema aktivnog modela"}
-                      </strong>
+                    <div className="compatibility-choice-card runtimepilot-readout-card">
+                      <div className="runtimepilot-inline-heading">
+                        <span className="status-label">Aktivni model</span>
+                        <strong className="status-value">
+                          {activeModel?.label ?? "Nema aktivnog modela"}
+                        </strong>
+                      </div>
                       <div className="helper-text">
                         {activeModel
                           ? `Izvor: ${formatModelSource(activeModel)} | MTP: ${activeModel.mtpStatusLabel ?? "nepoznato"}`
@@ -710,11 +714,13 @@ export function CompatibilityPage({
                         ariaLabel="Birač modela lokalnog kataloga"
                       />
                     </label>
-                    <div className="compatibility-choice-card">
-                      <span className="status-label">Trenutni lokalni izbor</span>
-                      <strong className="status-value">
-                        {selectedLocalModel?.label ?? "Nije izabran model"}
-                      </strong>
+                    <div className="compatibility-choice-card runtimepilot-readout-card">
+                      <div className="runtimepilot-inline-heading">
+                        <span className="status-label">Trenutni lokalni izbor</span>
+                        <strong className="status-value">
+                          {selectedLocalModel?.label ?? "Nije izabran model"}
+                        </strong>
+                      </div>
                       <div className="helper-text">
                         {selectedLocalModel
                           ? `${formatModelSource(selectedLocalModel)} | ${selectedLocalModel.family ?? "Nepoznato"} | ${selectedLocalModel.lifecycleLabel ?? "Status nepoznat"}`
@@ -758,11 +764,13 @@ export function CompatibilityPage({
                         ariaLabel="Birač modela udaljenog kataloga"
                       />
                     </label>
-                    <div className="compatibility-choice-card">
-                      <span className="status-label">Trenutni udaljeni izbor</span>
-                      <strong className="status-value">
-                        {selectedRemoteModel?.model ?? "Nije izabran model"}
-                      </strong>
+                    <div className="compatibility-choice-card runtimepilot-readout-card">
+                      <div className="runtimepilot-inline-heading">
+                        <span className="status-label">Trenutni udaljeni izbor</span>
+                        <strong className="status-value">
+                          {selectedRemoteModel?.model ?? "Nije izabran model"}
+                        </strong>
+                      </div>
                       <div className="helper-text">
                         {selectedRemoteModel
                           ? `${sourceLabel(String(selectedRemoteModel.source))} | ${selectedRemoteModel.quantization} | ${selectedRemoteModel.fitLabel}`

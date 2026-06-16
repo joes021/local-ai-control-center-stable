@@ -8,6 +8,16 @@ def test_pyproject_packages_windows_icon_assets():
     assert '"assets/*/*"' in pyproject
 
 
+def test_pyproject_packages_only_explicit_turboquant_sidecar_payloads():
+    pyproject = Path("pyproject.toml").read_text(encoding="utf-8")
+
+    assert '"turboquant_sidecars/windows-turboquant-cuda12.4/*.dll"' in pyproject
+    assert '"turboquant_sidecars/windows-turboquant-cuda12.4/*.txt"' in pyproject
+    assert '"turboquant_sidecars/*"' not in pyproject
+    assert '"turboquant_sidecars/*/*"' not in pyproject
+    assert "__pycache__" not in pyproject
+
+
 def test_build_windows_installer_script_cleans_build_root_before_pip_install():
     script = Path("packaging/build_windows_installer.ps1").read_text(encoding="utf-8")
 

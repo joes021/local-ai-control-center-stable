@@ -527,21 +527,21 @@ export function CompatibilityCalculatorPanel({
                 </div>
               </div>
               <div className="compatibility-action-route-grid">
-                <article className="compatibility-action-route-card">
+                <article className="compatibility-action-route-card runtimepilot-readout-card">
                   <span className="status-label">Proveri ponovo</span>
                   <strong className="status-value">Fit, budžet i preporuke gore</strong>
                   <p className="helper-text">
                     Ovaj klik osvežava kalkulator, pa rezultat prvo čitaš u gornjim fit i budget karticama.
                   </p>
                 </article>
-                <article className="compatibility-action-route-card">
+                <article className="compatibility-action-route-card runtimepilot-readout-card">
                   <span className="status-label">Primeni</span>
                   <strong className="status-value">Aktivno sada na runtime-u</strong>
                   <p className="helper-text">
                     Kad klikneš `Primeni`, prvo gledaj `Aktivno sada na runtime-u`.
                   </p>
                 </article>
-                <article className="compatibility-action-route-card">
+                <article className="compatibility-action-route-card runtimepilot-readout-card">
                   <span className="status-label">Napredna izmena</span>
                   <strong className="status-value">Editor čeka proveru</strong>
                   <p className="helper-text">
@@ -550,7 +550,7 @@ export function CompatibilityCalculatorPanel({
                 </article>
               </div>
               <div className="apply-state-panel compatibility-apply-state-panel">
-                <article className="apply-state-chip">
+                <article className="apply-state-chip runtimepilot-state-chip">
                   <span className="apply-state-chip-title">Editor čeka proveru</span>
                   <strong className="apply-state-chip-value">
                     {changedEditorCount
@@ -558,14 +558,14 @@ export function CompatibilityCalculatorPanel({
                       : "Editor je usklađen sa aktivnim stanjem"}
                   </strong>
                 </article>
-                <article className="apply-state-chip">
+                <article className="apply-state-chip runtimepilot-state-chip">
                   <span className="apply-state-chip-title">Aktivno sada</span>
                   <strong className="apply-state-chip-value">
                     {runtimeLabel(liveTurbo?.runtimePreference ?? null)} | ctx{" "}
                     {formatInteger(liveSnapshot?.context ?? null)}
                   </strong>
                 </article>
-                <article className="apply-state-chip">
+                <article className="apply-state-chip runtimepilot-state-chip">
                   <span className="apply-state-chip-title">Poslednja akcija</span>
                   <strong className="apply-state-chip-value">{lastActionSummary}</strong>
                 </article>
@@ -586,31 +586,31 @@ export function CompatibilityCalculatorPanel({
                   </div>
                 </div>
                 <div className="compatibility-live-settings-grid">
-                  <article className="compatibility-live-setting-card">
+                  <article className="compatibility-live-setting-card runtimepilot-readout-card">
                     <span className="status-label">Context</span>
                     <strong className="status-value">
                       {formatInteger(liveSnapshot?.context ?? null)}
                     </strong>
                   </article>
-                  <article className="compatibility-live-setting-card">
+                  <article className="compatibility-live-setting-card runtimepilot-readout-card">
                     <span className="status-label">Output</span>
                     <strong className="status-value">
                       {formatInteger(liveSnapshot?.outputTokens ?? null)}
                     </strong>
                   </article>
-                  <article className="compatibility-live-setting-card">
+                  <article className="compatibility-live-setting-card runtimepilot-readout-card">
                     <span className="status-label">ctk / ctv</span>
                     <strong className="status-value">
                       {liveTurbo ? `${liveTurbo.ctk} / ${liveTurbo.ctv}` : "--"}
                     </strong>
                   </article>
-                  <article className="compatibility-live-setting-card">
+                  <article className="compatibility-live-setting-card runtimepilot-readout-card">
                     <span className="status-label">ncmoe</span>
                     <strong className="status-value">
                       {formatInteger(liveTurbo?.ncmoe ?? null)}
                     </strong>
                   </article>
-                  <article className="compatibility-live-setting-card">
+                  <article className="compatibility-live-setting-card runtimepilot-readout-card">
                     <span className="status-label">Runtime</span>
                     <strong className="status-value">
                       {runtimeLabel(liveTurbo?.runtimePreference ?? null)}

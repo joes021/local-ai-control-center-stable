@@ -4,6 +4,14 @@ import { ActionResultPanel } from "../components/ActionResultPanel";
 import { PageDataStateCard } from "../components/PageDataStateCard";
 import { PageFlowCard } from "../components/PageFlowCard";
 import {
+  RuntimePilotActionDeck,
+  type RuntimePilotActionDeckItem,
+} from "../components/shell/RuntimePilotActionDeck";
+import {
+  RuntimePilotStatusDeck,
+  type RuntimePilotStatusDeckItem,
+} from "../components/shell/RuntimePilotStatusDeck";
+import {
   addFleetMachine,
   fetchFleetSummary,
   refreshFleetMachine,
@@ -96,6 +104,134 @@ export function FleetPage() {
     );
   }
 
+  const healthyMachineCount = machines.filter((machine) => !machine.lastError).length;
+  const fastestMachine =
+    [...machines].sort(
+      (left, right) =>
+        (right.snapshot.liveNowTokensPerSecond ?? -1) -
+        (left.snapshot.liveNowTokensPerSecond ?? -1),
+    )[0] ?? null;
+  const latestMachine =
+    [...machines].sort((left, right) => {
+      const leftTime = Date.parse(left.lastCheckedAt || "");
+      const rightTime = Date.parse(right.lastCheckedAt || "");
+      return (Number.isFinite(rightTime) ? rightTime : 0) - (Number.isFinite(leftTime) ? leftTime : 0);
+    })[0] ?? null;
+
+  const scrollToForm = () => {
+    document.getElementById("fleet-machine-form")?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  };
+
+  const scrollToCatalog = () => {
+    document.getElementById("fleet-machine-catalog")?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  };
+
+  const scrollToResult = () => {
+    document.getElementById("fleet-action-result")?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  };
+
+  const fleetStatusItems: RuntimePilotStatusDeckItem[] = [
+    {
+      id: "machines",
+      label: "Mašine",
+      value: `${summary.machineCount}`,
+      detail: `Zdravih ${healthyMachineCount} | poslednje osvežavanje ${formatDateTime(summary.generatedAt)}`,
+      action: "Broj poznatih instalacija",
+      icon: "fleet",
+      accent: "rgba(242, 184, 75, 0.36)",
+    },
+    {
+      id: "fastest",
+      label: "Najbrži signal",
+      value: fastestMachine?.name ?? "Nema uzorka",
+      detail: fastestMachine
+        ? `${formatTok(fastestMachine.snapshot.liveNowTokensPerSecond)} | ${fastestMachine.snapshot.activeModel}`
+        : "Dodaj mašinu i osveži snimak da vidiš throughput poređenje.",
+      action: "Najviši live tok/s",
+      icon: "benchmark",
+      accent: "rgba(109, 172, 255, 0.34)",
+    },
+    {
+      id: "runtime",
+      label: "Runtime signal",
+      value: fastestMachine?.snapshot.activeRuntime ?? "Nema signala",
+      detail: fastestMachine?.snapshot.runtimeLiveStatus || "Još nema aktivne udaljene runtime potvrde.",
+      action: "Udaljeni engine status",
+      icon: "runtime",
+      accent: "rgba(88, 222, 193, 0.34)",
+    },
+    {
+      id: "latest-check",
+      label: "Poslednja provera",
+      value: latestMachine ? latestMachine.name : "Nema mašina",
+      detail: latestMachine
+        ? formatDateTime(latestMachine.lastCheckedAt)
+        : "Još nema mašina koje su poslale snapshot.",
+      action: "Najskoriji refresh",
+      icon: "logs",
+      accent: "rgba(205, 162, 255, 0.34)",
+    },
+    {
+      id: "result",
+      label: "Poslednja akcija",
+      value: result?.status === "ok" ? "Akcija potvrđena" : "Čeka novu akciju",
+      detail: result?.summary || "Panel ispod potvrđuje dodavanje, osvežavanje ili uklanjanje mašine.",
+      action: "Skok na rezultat",
+      icon: "control",
+      accent: "rgba(255, 129, 177, 0.34)",
+      onClick: scrollToResult,
+    },
+  ];
+
+  const fleetActionItems: RuntimePilotActionDeckItem[] = [
+    {
+      id: "refresh-all",
+      code: "SYNC",
+      title: "Osveži sve",
+      subtitle: "POVUCI NOVE SNAPSHOT-E",
+      icon: "reload",
+      tone: "primary",
+      detail: "Osvežava celu flotu bez pojedinačnog klikanja po karticama.",
+      onClick: () => void runMutation(() => refreshFleetMachine()),
+    },
+    {
+      id: "jump-form",
+      code: "ADD",
+      title: "Skok na formu",
+      subtitle: "DODAJ MAŠINU",
+      icon: "fleet",
+      detail: "Idi pravo na unos naziva i URL-a nove instalacije.",
+      onClick: scrollToForm,
+    },
+    {
+      id: "jump-catalog",
+      code: "CAT",
+      title: "Skok na katalog",
+      subtitle: "LISTA MAŠINA",
+      icon: "server",
+      detail: "Vrati se direktno na katalog i uporedi snapshot-e.",
+      onClick: scrollToCatalog,
+    },
+    {
+      id: "jump-result",
+      code: "LOG",
+      title: "Skok na rezultat",
+      subtitle: "POSLEDNJA AKCIJA",
+      icon: "logs",
+      detail: result?.summary || "Panel ispod pokazuje ishod zadnje akcije.",
+      onClick: scrollToResult,
+    },
+  ];
+
   return (
     <>
       {error ? <div className="error-panel wide-card">{error}</div> : null}
@@ -117,6 +253,18 @@ export function FleetPage() {
           },
         ]}
       />
+      <RuntimePilotStatusDeck
+        eyebrow="Status dashboard"
+        title="Mašine, snapshot i rezultat"
+        helper="Pet kartica odmah pokazuje koliko mašina pratiš, gde je najjači signal, koji runtime je živ i šta je uradila poslednja akcija."
+        items={fleetStatusItems}
+      />
+      <RuntimePilotActionDeck
+        eyebrow="Akcije"
+        title="Osveži, dodaj ili skoči na pravo mesto"
+        helper="Na vrhu ostaju samo stvarne akcije: povuci novi snapshot, idi na formu, vrati se na katalog ili pročitaj rezultat mutacije."
+        items={fleetActionItems}
+      />
 
       <section className="status-card wide-card runtimepilot-faceplate-module">
         <span className="status-label">Flota</span>
@@ -129,14 +277,12 @@ export function FleetPage() {
           <span>Mašina: {summary?.machineCount ?? 0}</span>
           <span>Osveženo: {summary ? formatDateTime(summary.generatedAt) : "--"}</span>
         </div>
-        <div className="inline-actions">
-          <button type="button" className="secondary-button" onClick={() => void runMutation(() => refreshFleetMachine())}>
-            Osveži sve
-          </button>
-        </div>
       </section>
 
-      <section className="status-card wide-card runtimepilot-faceplate-module">
+      <section
+        id="fleet-machine-form"
+        className="status-card wide-card runtimepilot-faceplate-module"
+      >
         <span className="status-label">Dodaj mašinu</span>
         <div className="settings-page-grid">
           <label className="settings-compact-field">
@@ -179,7 +325,10 @@ export function FleetPage() {
         </div>
       </section>
 
-      <section className="status-card wide-card runtimepilot-faceplate-module">
+      <section
+        id="fleet-machine-catalog"
+        className="status-card wide-card runtimepilot-faceplate-module"
+      >
         <span className="status-label">Katalog mašina</span>
         {machines.length ? (
           <div className="model-list">
@@ -200,7 +349,9 @@ export function FleetPage() {
         )}
       </section>
 
-      <ActionResultPanel result={result} />
+      <div id="fleet-action-result">
+        <ActionResultPanel result={result} />
+      </div>
     </>
   );
 }

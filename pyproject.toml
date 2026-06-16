@@ -23,6 +23,6 @@ local_ai_control_center_installer = [
   "assets/*/*",
   "control_center_backend/frontend_dist/*",
   "control_center_backend/frontend_dist/assets/*",
-  "turboquant_sidecars/*",
-  "turboquant_sidecars/*/*",
+  "turboquant_sidecars/windows-turboquant-cuda12.4/*.dll",
+  "turboquant_sidecars/windows-turboquant-cuda12.4/*.txt",
 ]

@@ -650,89 +650,91 @@ function FilterResultsCard({
             {items.map((item) => (
               <article className="model-item" key={`filtered-${item.id}`}>
                 <div className="model-item-header">
-                  <div className="model-item-copy">
-                  <div className="model-title-row">
-                    <strong>{item.label}</strong>
-                    <span className={lifecycleTone(item.lifecycleStatus)}>{item.lifecycleLabel ?? "Status"}</span>
-                  </div>
-                  <div className="muted-line">
-                    {item.active ? "Aktivan" : "Nije aktivan"} |{" "}
-                    {item.installed ? "Skinut" : "Nije skinut"} | {item.source}
-                  </div>
-                  <div className="muted-line">
-                    ID: <code>{item.id}</code>
-                  </div>
-                  <ModelFactGrid item={item} />
-                  {item.lifecycleSummary || mtpActivationGuidance(item) || item.description ? (
-                    <div className="model-guidance-panel">
-                      {item.lifecycleSummary ? <div className="helper-text">{item.lifecycleSummary}</div> : null}
-                      {mtpActivationGuidance(item) ? (
-                        <div className="helper-text">{mtpActivationGuidance(item)}</div>
-                      ) : null}
-                      {item.description ? <p className="helper-text">{item.description}</p> : null}
+                  <div className="model-item-copy-head">
+                    <div className="model-title-row">
+                      <strong>{item.label}</strong>
+                      <span className={lifecycleTone(item.lifecycleStatus)}>{item.lifecycleLabel ?? "Status"}</span>
                     </div>
-                  ) : null}
-                  <ActivationRiskCallout
-                    item={item}
-                    confirmationOpen={forceActivationPrompt === item.id}
-                    pendingAction={Boolean(pendingAction)}
-                    onConfirm={() =>
-                      void (async () => {
-                        setForceActivationPrompt(null);
-                        await handleAction(`activate ${item.id} (force)`, () =>
-                          activateModel(item.id, { force: true }),
-                        );
-                      })()
-                    }
-                    onCancel={() => setForceActivationPrompt(null)}
-                    onOpenCompatibility={() => onCheckCompatibility(item)}
-                  />
+                    <div className="muted-line">
+                      {item.active ? "Aktivan" : "Nije aktivan"} |{" "}
+                      {item.installed ? "Skinut" : "Nije skinut"} | {item.source}
+                    </div>
+                    <div className="muted-line">
+                      ID: <code>{item.id}</code>
+                    </div>
                   </div>
-                <div className="inline-actions model-action-rail">
-                  <button
-                    disabled={Boolean(pendingAction) || !supportsRuntimeActivation(item) || Boolean(item.downloadActive)}
-                    title={
-                      requiresForceActivationConfirmation(item)
-                        ? activationRiskSummary(item)
-                        : (mtpActivationGuidance(item) ?? undefined)
-                    }
-                    onClick={() => {
-                      void handleActivate(item);
-                    }}
-                    type="button"
-                  >
-                    Aktiviraj
-                  </button>
-                  <button
-                    disabled={Boolean(pendingAction) || !item.canDownload || Boolean(item.downloadActive)}
-                    title={item.downloadSummary ?? undefined}
-                    onClick={() => handleAction(`download ${item.id}`, () => downloadModel(item.id))}
-                    type="button"
-                  >
-                    {downloadActionLabel(item)}
-                  </button>
-                  <button
-                    disabled={Boolean(pendingAction)}
-                    onClick={() => onCheckCompatibility(item)}
-                    type="button"
-                  >
-                    Proveri kompatibilnost
-                  </button>
-                  <button
-                    className="danger-button"
-                    disabled={Boolean(pendingAction) || Boolean(item.downloadActive) || !hasAnyDeleteAction(item)}
-                    title={deleteActionHint(item)}
-                    onClick={() => {
-                      setDeleteTargetId(item.id);
-                      setRemoveFile(canRemoveModelFile(item));
-                      setRemoveRegistry(canRemoveModelRegistry(item));
-                    }}
-                    type="button"
-                  >
-                    Obriši
-                  </button>
+                  <div className="model-item-copy-main">
+                    <ModelFactGrid item={item} />
+                    {item.lifecycleSummary || mtpActivationGuidance(item) || item.description ? (
+                      <div className="model-guidance-panel">
+                        {item.lifecycleSummary ? <div className="helper-text">{item.lifecycleSummary}</div> : null}
+                        {mtpActivationGuidance(item) ? (
+                          <div className="helper-text">{mtpActivationGuidance(item)}</div>
+                        ) : null}
+                        {item.description ? <p className="helper-text">{item.description}</p> : null}
+                      </div>
+                    ) : null}
+                  </div>
+                  <div className="inline-actions model-action-rail">
+                    <button
+                      disabled={Boolean(pendingAction) || !supportsRuntimeActivation(item) || Boolean(item.downloadActive)}
+                      title={
+                        requiresForceActivationConfirmation(item)
+                          ? activationRiskSummary(item)
+                          : (mtpActivationGuidance(item) ?? undefined)
+                      }
+                      onClick={() => {
+                        void handleActivate(item);
+                      }}
+                      type="button"
+                    >
+                      Aktiviraj
+                    </button>
+                    <button
+                      disabled={Boolean(pendingAction) || !item.canDownload || Boolean(item.downloadActive)}
+                      title={item.downloadSummary ?? undefined}
+                      onClick={() => handleAction(`download ${item.id}`, () => downloadModel(item.id))}
+                      type="button"
+                    >
+                      {downloadActionLabel(item)}
+                    </button>
+                    <button
+                      disabled={Boolean(pendingAction)}
+                      onClick={() => onCheckCompatibility(item)}
+                      type="button"
+                    >
+                      Proveri kompatibilnost
+                    </button>
+                    <button
+                      className="danger-button"
+                      disabled={Boolean(pendingAction) || Boolean(item.downloadActive) || !hasAnyDeleteAction(item)}
+                      title={deleteActionHint(item)}
+                      onClick={() => {
+                        setDeleteTargetId(item.id);
+                        setRemoveFile(canRemoveModelFile(item));
+                        setRemoveRegistry(canRemoveModelRegistry(item));
+                      }}
+                      type="button"
+                    >
+                      Obriši
+                    </button>
+                  </div>
                 </div>
-              </div>
+                <ActivationRiskCallout
+                  item={item}
+                  confirmationOpen={forceActivationPrompt === item.id}
+                  pendingAction={Boolean(pendingAction)}
+                  onConfirm={() =>
+                    void (async () => {
+                      setForceActivationPrompt(null);
+                      await handleAction(`activate ${item.id} (force)`, () =>
+                        activateModel(item.id, { force: true }),
+                      );
+                    })()
+                  }
+                  onCancel={() => setForceActivationPrompt(null)}
+                  onOpenCompatibility={() => onCheckCompatibility(item)}
+                />
               {deleteTargetId === item.id ? (
                 <ModelDeletePanel
                   item={item}
@@ -859,7 +861,7 @@ function ModelGroup({
                 key={item.id}
               >
                 <div className="model-item-header">
-                  <div className="model-item-copy">
+                  <div className="model-item-copy-head">
                     <div className="model-title-row">
                       <strong>{item.label}</strong>
                       <span className={lifecycleTone(item.lifecycleStatus)}>{item.lifecycleLabel ?? "Status"}</span>
@@ -875,34 +877,21 @@ function ModelGroup({
                       {item.active ? "Aktivan" : "Nije aktivan"} |{" "}
                       {item.installed ? "Skinut" : "Nije skinut"} | {item.family ?? "nepoznato"}
                     </div>
-                  <div className="muted-line">
-                    ID: <code>{item.id}</code>
-                  </div>
-                  <ModelFactGrid item={item} />
-                  {item.lifecycleSummary || mtpActivationGuidance(item) || item.description ? (
-                    <div className="model-guidance-panel">
-                      {item.lifecycleSummary ? <div className="helper-text">{item.lifecycleSummary}</div> : null}
-                      {mtpActivationGuidance(item) ? (
-                        <div className="helper-text">{mtpActivationGuidance(item)}</div>
-                      ) : null}
-                      {item.description ? <p className="helper-text">{item.description}</p> : null}
+                    <div className="muted-line">
+                      ID: <code>{item.id}</code>
                     </div>
-                  ) : null}
-                  <ActivationRiskCallout
-                    item={item}
-                    confirmationOpen={forceActivationPrompt === item.id}
-                    pendingAction={Boolean(pendingAction)}
-                    onConfirm={() =>
-                      void (async () => {
-                        setForceActivationPrompt(null);
-                        await handleAction(`activate ${item.id} (force)`, () =>
-                          activateModel(item.id, { force: true }),
-                        );
-                      })()
-                    }
-                    onCancel={() => setForceActivationPrompt(null)}
-                    onOpenCompatibility={() => onCheckCompatibility(item)}
-                  />
+                  </div>
+                  <div className="model-item-copy-main">
+                    <ModelFactGrid item={item} />
+                    {item.lifecycleSummary || mtpActivationGuidance(item) || item.description ? (
+                      <div className="model-guidance-panel">
+                        {item.lifecycleSummary ? <div className="helper-text">{item.lifecycleSummary}</div> : null}
+                        {mtpActivationGuidance(item) ? (
+                          <div className="helper-text">{mtpActivationGuidance(item)}</div>
+                        ) : null}
+                        {item.description ? <p className="helper-text">{item.description}</p> : null}
+                      </div>
+                    ) : null}
                   </div>
                   <div className="inline-actions model-action-rail">
                     <button
@@ -949,6 +938,21 @@ function ModelGroup({
                     </button>
                   </div>
                 </div>
+                <ActivationRiskCallout
+                  item={item}
+                  confirmationOpen={forceActivationPrompt === item.id}
+                  pendingAction={Boolean(pendingAction)}
+                  onConfirm={() =>
+                    void (async () => {
+                      setForceActivationPrompt(null);
+                      await handleAction(`activate ${item.id} (force)`, () =>
+                        activateModel(item.id, { force: true }),
+                      );
+                    })()
+                  }
+                  onCancel={() => setForceActivationPrompt(null)}
+                  onOpenCompatibility={() => onCheckCompatibility(item)}
+                />
                 {deleteTargetId === item.id ? (
                   <ModelDeletePanel
                     item={item}

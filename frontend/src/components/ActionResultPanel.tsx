@@ -78,7 +78,7 @@ export function ActionResultPanel({ result }: { result: ActionResult | null }) {
       aria-live="polite"
     >
       <div className="runtimepilot-action-head">
-        <div className="runtimepilot-action-copy">
+        <div className="runtimepilot-action-copy runtimepilot-action-copy-inline runtimepilot-inline-heading">
           <span className="status-label">Poslednja akcija</span>
           <strong className="status-value">{result.summary}</strong>
         </div>
