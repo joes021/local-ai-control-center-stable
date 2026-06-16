@@ -3048,7 +3048,7 @@ def test_benchmark_run_statuses_use_compact_readout_grid():
     assert "formatBenchmarkRunStatusBadge" in benchmark_source
     assert "compactBenchmarkRunStatusSummary" in benchmark_source
     assert ".benchmark-run-status-list" in styles_source
-    assert "grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));" in styles_source
+    assert "grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));" in styles_source
     assert ".benchmark-run-status-header" in styles_source
     assert ".benchmark-run-status-title-block" in styles_source
     assert ".benchmark-run-status-pass" in styles_source
@@ -4067,4 +4067,62 @@ def test_packaged_frontend_includes_custom_select_portal_and_browser_page_jump()
     assert "Idi na stranu" in bundled_js
     assert "browser-page-jump-input" in bundled_css
     assert "custom-select-menu-portal" in bundled_css
+
+
+def test_settings_compatibility_benchmark_share_hybrid_shell_layout_contract():
+    settings_source = Path("frontend/src/pages/SettingsPage.tsx").read_text(encoding="utf-8")
+    compatibility_source = Path("frontend/src/pages/CompatibilityPage.tsx").read_text(
+        encoding="utf-8"
+    )
+    benchmark_source = Path("frontend/src/pages/BenchmarkPage.tsx").read_text(
+        encoding="utf-8"
+    )
+    compatibility_panel_source = Path(
+        "frontend/src/components/CompatibilityCalculatorPanel.tsx"
+    ).read_text(encoding="utf-8")
+    styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
+
+    assert "PageFlowCard" in settings_source
+    assert "RuntimePilotStatusDeck" in settings_source
+    assert "RuntimePilotActionDeck" in settings_source
+    assert "runtimepilot-settings-hybrid-grid" in settings_source
+    assert "runtimepilot-settings-primary-rack" in settings_source
+    assert "runtimepilot-settings-apply-zone" in settings_source
+    assert "Sačuvaj bez primene" in settings_source
+    assert "Primeni postojeće" in settings_source
+    assert "Sačuvaj i primeni" in settings_source
+    assert "Sačuvaj opšta podešavanja" in settings_source
+    assert "Sačuvaj TurboQuant podešavanja" in settings_source
+
+    assert "PageFlowCard" in compatibility_source
+    assert "RuntimePilotStatusDeck" in compatibility_source
+    assert "RuntimePilotActionDeck" in compatibility_source
+    assert "runtimepilot-compatibility-hybrid-layout" in compatibility_source
+    assert "runtimepilot-compatibility-main-zone" in compatibility_source
+    assert "runtimepilot-compatibility-truth-zone" in compatibility_panel_source
+    assert "Aktivno sada" in compatibility_panel_source
+    assert "Editor čeka proveru" in compatibility_panel_source
+    assert "Poslednja akcija" in compatibility_panel_source
+
+    assert "PageFlowCard" in benchmark_source
+    assert "RuntimePilotStatusDeck" in benchmark_source
+    assert "RuntimePilotActionDeck" in benchmark_source
+    assert "runtimepilot-benchmark-hybrid-grid" in benchmark_source
+    assert "runtimepilot-benchmark-history-grid" in benchmark_source
+    assert "runtimepilot-benchmark-graph-shell" in benchmark_source
+    assert "Pokreni scenario" in benchmark_source
+    assert "Pokreni bateriju" in benchmark_source
+    assert "Sačuvaj bateriju" in benchmark_source
+    assert "Vrati podrazumevane testove" in benchmark_source
+
+    assert ".runtimepilot-settings-hybrid-grid" in styles_source
+    assert ".runtimepilot-settings-primary-rack" in styles_source
+    assert ".runtimepilot-settings-apply-zone" in styles_source
+    assert ".runtimepilot-settings-apply-card" in styles_source
+    assert ".runtimepilot-compatibility-hybrid-layout" in styles_source
+    assert ".runtimepilot-compatibility-main-zone" in styles_source
+    assert ".runtimepilot-compatibility-truth-zone" in styles_source
+    assert ".runtimepilot-benchmark-hybrid-grid" in styles_source
+    assert ".runtimepilot-benchmark-history-grid" in styles_source
+    assert ".runtimepilot-benchmark-graph-shell" in styles_source
 

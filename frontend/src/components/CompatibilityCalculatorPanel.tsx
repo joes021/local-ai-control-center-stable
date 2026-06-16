@@ -504,7 +504,7 @@ export function CompatibilityCalculatorPanel({
           </section>
           </div>
 
-          <div className="compatibility-transport-deck">
+          <div className="compatibility-transport-deck runtimepilot-compatibility-truth-zone">
             <section className="compat-section">
               <div className="section-header">
                 <span className="status-label">Provera i primena</span>

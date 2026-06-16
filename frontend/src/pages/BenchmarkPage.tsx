@@ -1026,7 +1026,7 @@ export function BenchmarkPage({
             items={benchmarkActionItems}
           />
 
-          <div className="benchmark-hifi-stack">
+          <div className="benchmark-hifi-stack runtimepilot-benchmark-hybrid-grid">
             <div className="benchmark-mixer-deck">
               <section
                 ref={setupSectionRef}
@@ -1333,7 +1333,7 @@ export function BenchmarkPage({
 
       <section
         ref={chartSectionRef}
-        className="status-card wide-card runtimepilot-section-shell runtimepilot-faceplate-module benchmark-faceplate-panel benchmark-chart-shell"
+        className="status-card wide-card runtimepilot-section-shell runtimepilot-faceplate-module benchmark-faceplate-panel benchmark-chart-shell runtimepilot-benchmark-graph-shell"
       >
         <div className="benchmark-card-header">
           <div className="benchmark-chart-head">
@@ -1676,7 +1676,7 @@ export function BenchmarkPage({
             </article>
           )}
         </div>
-        <div className="model-list">
+        <div className="model-list runtimepilot-benchmark-history-grid">
           {savedRuns.length ? (
             paginatedSavedRuns.map((run) => (
               <article className="model-item benchmark-saved-run-card" key={run.runId}>

@@ -305,8 +305,8 @@ frontend\\node_modules\\.bin\\vite.cmd build
 Ako `node` nije u PATH-u, koristiti bundlovani runtime:
 
 ```bash
-C:\\Users\\AzdahaI9\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\node\\bin\\node.exe frontend\\node_modules\\typescript\\bin\\tsc -b
-C:\\Users\\AzdahaI9\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\node\\bin\\node.exe frontend\\node_modules\\vite\\bin\\vite.js build
+<bundled-node> frontend\\node_modules\\typescript\\bin\\tsc -b
+<bundled-node> frontend\\node_modules\\vite\\bin\\vite.js build
 ```
 
 Expected: successful TypeScript + Vite build

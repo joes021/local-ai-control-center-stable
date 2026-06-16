@@ -1485,6 +1485,33 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
     },
   ];
 
+  const settingsScopeLabel =
+    activeSettings.settingsScope === "global" ? "Globalna podrazumevana" : "Override aktivnog modela";
+  const turboRuntimeSignal =
+    observability?.runtime.activeRuntime === "turboquant" ? "TurboQuant runtime aktivan" : "Čeka TurboQuant runtime";
+  const settingsNextStep = hasUnsavedGeneralChanges
+    ? {
+        title: "Sačuvaj opšta podešavanja",
+        detail:
+          "Profil, context, output, provider pretrage ili tema imaju promene u editoru i još nisu upisani.",
+      }
+    : hasUnsavedTurboChanges
+      ? {
+          title: "Sačuvaj TurboQuant podešavanja",
+          detail:
+            "TurboQuant editor odstupa od poslednjeg sačuvanog configa, pa prvo upiši taj deo pre daljeg testa.",
+        }
+      : result?.summary
+        ? {
+            title: "Proveri poslednju akciju",
+            detail: result.summary,
+          }
+        : {
+            title: "Editor je usklađen",
+            detail:
+              "Možeš da nastaviš na VRAM fit, pretragu ili TurboQuant bez dodatnog snimanja, jer editor trenutno ne čeka novi upis.",
+          };
+
   return (
     <div className="settings-page runtimepilot-rack-page">
       {error ? <div className="error-panel wide-card">{error}</div> : null}
@@ -1518,7 +1545,48 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
         helper="Na vrhu ostaju samo četiri jasna skoka: opšta podešavanja, context i VRAM fit, provider pretrage i TurboQuant."
         items={settingsActionItems}
       />
-      <ActionResultPanel result={result} />
+      <div className="runtimepilot-settings-hybrid-grid">
+        <aside className="runtimepilot-settings-apply-zone">
+          <ActionResultPanel result={result} />
+          <article className="runtimepilot-settings-apply-card runtimepilot-faceplate-module">
+            <span className="status-label">Aktivni editor</span>
+            <strong className="status-value">
+              {selectedSettingsProfile?.name ?? activeSettings.profile}
+            </strong>
+            <p className="helper-text">
+              {settingsScopeLabel} · aktivni model {settings.activeModelLabel || "nema"} · preset{" "}
+              {currentWorkflowPreset?.label || "ručno"}
+            </p>
+            <div className="summary-metrics">
+              <span>Context: {formatTokenCount(activeSettings.context)}</span>
+              <span>Output: {formatTokenCount(activeSettings.outputTokens)}</span>
+              <span>Tema: {currentThemeOption?.label ?? activeSettings.themeId}</span>
+            </div>
+          </article>
+          <article className="runtimepilot-settings-apply-card runtimepilot-faceplate-module">
+            <span className="status-label">Provider i health</span>
+            <strong className="status-value">{settings.searchProviderStatus.providerLabel}</strong>
+            <p className="helper-text">{settings.searchProviderStatus.summary}</p>
+            <div className="summary-metrics">
+              <span>Health: {settings.searchProviderStatus.label}</span>
+              <span>Režim: {activeSettings.webSearchMode}</span>
+              <span>Izvor: {settings.searchProviderStatus.source || "--"}</span>
+            </div>
+          </article>
+          <article className="runtimepilot-settings-apply-card runtimepilot-faceplate-module">
+            <span className="status-label">TurboQuant i sledeći klik</span>
+            <strong className="status-value">{activeTurboPreset?.name ?? "Custom kombinacija"}</strong>
+            <p className="helper-text">
+              {turboRuntimeSignal} ·{" "}
+              {hasUnsavedTurboChanges ? "TurboQuant editor ima nesnimljene promene." : "TurboQuant editor je usklađen."}
+            </p>
+            <div className="summary-metrics">
+              <span>{settingsNextStep.title}</span>
+            </div>
+            <p className="helper-text">{settingsNextStep.detail}</p>
+          </article>
+        </aside>
+        <div className="runtimepilot-settings-primary-rack">
 
       <section
         ref={profileSectionRef}
@@ -3306,6 +3374,8 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
           </section>
         </div>
       </section>
+        </div>
+      </div>
     </div>
   );
 }

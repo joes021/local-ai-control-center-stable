@@ -614,8 +614,8 @@ export function CompatibilityPage({
             helper="Ovde ostaju samo stvarni klikovi: aktivni model, lokalni katalog, Browser katalog i izvorni link kada postoji."
             items={compatibilityActionItems}
           />
-          <div className="compatibility-hifi-stack">
-            <div className="compatibility-mixer-deck compatibility-home-shell">
+          <div className="compatibility-hifi-stack runtimepilot-compatibility-hybrid-layout">
+            <div className="compatibility-mixer-deck compatibility-home-shell runtimepilot-compatibility-main-zone">
               <section className="status-card wide-card compatibility-workspace runtimepilot-faceplate-module compat-rack-module">
                 <div className="section-header">
                   <div>

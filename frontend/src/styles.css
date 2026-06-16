@@ -4565,6 +4565,25 @@ code {
   justify-content: flex-end;
 }
 
+.compatibility-calculator-panel {
+  grid-template-columns: minmax(0, 1.3fr) minmax(320px, 0.9fr);
+  align-items: start;
+}
+
+.compatibility-calculator-panel > .section-header {
+  grid-column: 1 / -1;
+}
+
+.compatibility-calculator-panel > .compatibility-monitor-deck {
+  grid-column: 1;
+}
+
+.compatibility-calculator-panel > .runtimepilot-compatibility-truth-zone {
+  grid-column: 2;
+  position: sticky;
+  top: 16px;
+}
+
 .mission-control-shell {
   display: grid;
   gap: 16px;
@@ -7200,6 +7219,81 @@ button.runtimepilot-action-deck-item:focus-visible {
   gap: 14px;
 }
 
+.runtimepilot-settings-hybrid-grid {
+  display: grid;
+  grid-template-columns: minmax(300px, 360px) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.runtimepilot-settings-apply-zone {
+  display: grid;
+  gap: 14px;
+  align-self: start;
+  position: sticky;
+  top: 16px;
+  min-width: 0;
+}
+
+.runtimepilot-settings-primary-rack {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+.runtimepilot-settings-apply-card {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  padding: 16px;
+  border-radius: 18px;
+  border: 1px solid color-mix(in srgb, var(--app-panel-elevated-border) 76%, var(--app-card-soft-border));
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.01)),
+    color-mix(in srgb, var(--app-card-soft-bg) 90%, var(--app-overlay-solid-fill) 10%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.14);
+}
+
+.runtimepilot-settings-apply-card .summary-metrics {
+  display: grid;
+  gap: 8px;
+}
+
+.runtimepilot-compatibility-hybrid-layout {
+  display: grid;
+  gap: 16px;
+}
+
+.runtimepilot-compatibility-main-zone {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+.runtimepilot-compatibility-truth-zone {
+  display: grid;
+  gap: 14px;
+  align-content: start;
+}
+
+.runtimepilot-benchmark-hybrid-grid {
+  display: grid;
+  gap: 16px;
+}
+
+.runtimepilot-benchmark-graph-shell {
+  display: grid;
+}
+
+.runtimepilot-benchmark-history-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  align-items: stretch;
+}
+
 .tuning-lab-hifi-stack,
 .compatibility-hifi-stack,
 .benchmark-hifi-stack,
@@ -7291,6 +7385,26 @@ button.runtimepilot-action-deck-item:focus-visible {
 .compatibility-calculator-panel .compatibility-transport-deck,
 .compatibility-calculator-panel .compatibility-monitor-deck {
   margin-top: 14px;
+}
+
+@media (max-width: 1180px) {
+  .runtimepilot-settings-hybrid-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .runtimepilot-settings-apply-zone {
+    position: static;
+    order: -1;
+  }
+
+  .compatibility-calculator-panel {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .compatibility-calculator-panel > .runtimepilot-compatibility-truth-zone {
+    grid-column: 1;
+    position: static;
+  }
 }
 
 .settings-general-mixer-deck,
@@ -8873,7 +8987,7 @@ select:-webkit-autofill {
 
 .benchmark-run-status-list {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
   gap: 8px;
   margin-top: 12px;
 }
