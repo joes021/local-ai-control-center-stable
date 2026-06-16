@@ -358,52 +358,86 @@ export function OpenCodePage() {
         items={openCodeActionItems}
       />
 
-      <section className="status-card wide-card runtimepilot-faceplate-module runtimepilot-opencode-shell">
-        <div className="section-header">
-          <div>
-            <span className="status-label">Managed config i sesija</span>
-            <strong className="status-value">Glavni OpenCode readout bez starog trokolonskog rack-a</strong>
-          </div>
-        </div>
-        <p className="helper-text">
-          Ovo je centralni pregled za OpenCode: jedna zona za stanje sesije, druga za managed config, a treća za poslednju potvrdu posle klika.
-        </p>
-        <div className="runtimepilot-opencode-summary-grid">
-          <article className="runtimepilot-opencode-summary-card">
-            <span className="status-label">Sesija i runtime</span>
-            <strong className="status-value">{sessionSignalTitle}</strong>
-            <p className="helper-text">{sessionSignalSummary}</p>
-            <div className="summary-metrics">
-              <span>Sesija: {opencode.sessionState}</span>
-              <span>Runtime: {opencode.runtimeConnected ? "povezan" : opencode.runtimeLiveStatus || "--"}</span>
-              <span>PID i instanca: {instancePidLabel} · {instanceLabel}</span>
+      <div className="runtimepilot-opencode-hybrid-grid">
+        <div className="runtimepilot-opencode-main-rack">
+          <section className="status-card wide-card runtimepilot-faceplate-module runtimepilot-opencode-shell">
+            <div className="section-header">
+              <div>
+                <span className="status-label">Managed config i sesija</span>
+                <strong className="status-value">
+                  Glavni OpenCode readout bez starog trokolonskog rack-a
+                </strong>
+              </div>
             </div>
-          </article>
-          <article className="runtimepilot-opencode-summary-card">
-            <span className="status-label">Managed config sažetak</span>
-            <strong className="status-value">{managedModelLabel}</strong>
             <p className="helper-text">
-              Provider: {managedProviderLabel} · Base URL: {managedBaseUrlLabel}
+              Ovo je centralni pregled za OpenCode: jedna zona za stanje sesije, druga za managed
+              config, a treća za poslednju potvrdu posle klika.
             </p>
-            <div className="summary-metrics">
-              <span>Workspace: {workspaceLabel}</span>
-              <span>Profil: {opencode.profile || "--"}</span>
-              <span>Instanci: {opencode.instanceCount ?? 0}</span>
+            <div className="runtimepilot-opencode-summary-grid">
+              <article className="runtimepilot-opencode-summary-card">
+                <span className="status-label">Sesija i runtime</span>
+                <strong className="status-value">{sessionSignalTitle}</strong>
+                <p className="helper-text">{sessionSignalSummary}</p>
+                <div className="summary-metrics">
+                  <span>Sesija: {opencode.sessionState}</span>
+                  <span>
+                    Runtime: {opencode.runtimeConnected ? "povezan" : opencode.runtimeLiveStatus || "--"}
+                  </span>
+                  <span>PID i instanca: {instancePidLabel} · {instanceLabel}</span>
+                </div>
+              </article>
+              <article className="runtimepilot-opencode-summary-card">
+                <span className="status-label">Managed config sažetak</span>
+                <strong className="status-value">{managedModelLabel}</strong>
+                <p className="helper-text">
+                  Provider: {managedProviderLabel} · Base URL: {managedBaseUrlLabel}
+                </p>
+                <div className="summary-metrics">
+                  <span>Workspace: {workspaceLabel}</span>
+                  <span>Profil: {opencode.profile || "--"}</span>
+                  <span>Instanci: {opencode.instanceCount ?? 0}</span>
+                </div>
+              </article>
+              <article className="runtimepilot-opencode-summary-card">
+                <span className="status-label">Poslednja akcija</span>
+                <strong className="status-value">{resultSignalTitle}</strong>
+                <p className="helper-text">
+                  Posle klika prvo ovde čitaš da li je otvaranje uspelo i šta je sledeći korak.
+                </p>
+                <p className="helper-text">{resultSignalSummary}</p>
+              </article>
             </div>
-          </article>
-          <article className="runtimepilot-opencode-summary-card">
-            <span className="status-label">Poslednja akcija</span>
-            <strong className="status-value">{resultSignalTitle}</strong>
-            <p className="helper-text">
-              Posle klika prvo ovde čitaš da li je otvaranje uspelo i šta je sledeći korak.
-            </p>
-            <p className="helper-text">{resultSignalSummary}</p>
-          </article>
+          </section>
         </div>
-      </section>
 
-      <div id="opencode-action-result">
-        <ActionResultPanel result={result} />
+        <aside className="runtimepilot-opencode-side-rail">
+          <div id="opencode-action-result" className="runtimepilot-opencode-action-result-shell">
+            <ActionResultPanel result={result} />
+          </div>
+          <article className="runtimepilot-opencode-quick-card runtimepilot-faceplate-module">
+            <span className="status-label">Napredni alati</span>
+            <strong className="status-value">Komanda, env, presetovi i dijagnostika</strong>
+            <p className="helper-text">
+              Ovaj rail ostaje kratka stanica: prvo rezultat otvaranja, zatim jedan direktan skok u
+              detaljne OpenCode alate kada ti stvarno trebaju.
+            </p>
+            <div className="summary-metrics">
+              <span>Launcher: {opencode.launchPreview.shellLabel}</span>
+              <span>Provider: {managedProviderLabel}</span>
+              <span>Instanca: {instanceLabel}</span>
+            </div>
+            <button
+              type="button"
+              className="action-button-soft deck-control-button deck-control-button-secondary"
+              onClick={openAdvancedTools}
+            >
+              <span className="deck-control-symbol" aria-hidden="true">
+                <RuntimePilotIcon name="settings" />
+              </span>
+              <span className="deck-control-copy">Otvori napredne alate</span>
+            </button>
+          </article>
+        </aside>
       </div>
 
       <details

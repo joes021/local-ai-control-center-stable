@@ -589,6 +589,10 @@ def test_opencode_source_and_styles_use_service_bay_layout_for_advanced_tools():
     assert "runtimepilot-opencode-service-bay" in page_source
     assert "runtimepilot-opencode-service-panel" in page_source
     assert "runtimepilot-opencode-transport-rail" in page_source
+    assert "runtimepilot-opencode-hybrid-grid" in page_source
+    assert "runtimepilot-opencode-main-rack" in page_source
+    assert "runtimepilot-opencode-side-rail" in page_source
+    assert "runtimepilot-opencode-quick-card" in page_source
     assert "runtimepilot-opencode-summary-grid" in page_source
     assert ".runtimepilot-opencode-summary-grid" in styles_source
     assert "runtimepilot-opencode-field-stack" in page_source
@@ -610,6 +614,10 @@ def test_opencode_source_and_styles_use_service_bay_layout_for_advanced_tools():
     assert ".runtimepilot-opencode-service-bay" in styles_source
     assert ".runtimepilot-opencode-service-panel" in styles_source
     assert ".runtimepilot-opencode-transport-rail" in styles_source
+    assert ".runtimepilot-opencode-hybrid-grid" in styles_source
+    assert ".runtimepilot-opencode-main-rack" in styles_source
+    assert ".runtimepilot-opencode-side-rail" in styles_source
+    assert ".runtimepilot-opencode-quick-card" in styles_source
     assert ".runtimepilot-opencode-field-stack" in styles_source
     assert ".runtimepilot-opencode-preset-grid" in styles_source
     assert ".runtimepilot-opencode-instance-grid" in styles_source
