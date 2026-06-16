@@ -6955,6 +6955,11 @@ button.runtimepilot-action-deck-item:focus-visible {
   color: var(--app-text-soft);
 }
 
+.settings-compact-field > .custom-select {
+  width: 100%;
+  min-width: 0;
+}
+
 .settings-medium-field {
   min-width: 0;
 }
@@ -7031,7 +7036,8 @@ button.runtimepilot-action-deck-item:focus-visible {
   gap: 12px;
 }
 
-.knowledge-action-row > select {
+.knowledge-action-row > .settings-control-block,
+.knowledge-action-row > .custom-select {
   flex: 0 1 220px;
   min-width: 200px;
   width: auto;

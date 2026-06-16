@@ -271,8 +271,8 @@ export function SearchPage({ onOpenSettings }: SearchPageProps) {
         <strong className="status-value">Zajednička RuntimePilot web pretraga + lokalni model + OpenCode local-lacc</strong>
         <p className="helper-text">{currentSettingsLine}</p>
         <p className="helper-text">
-          Ovaj tab koristi isti RuntimePilot search sloj kao i OpenCode `local-lacc` provider. Cloud
-          `opencode` modeli ne prolaze kroz ovaj lokalni proxy put.
+          Ovaj tab koristi isti RuntimePilot search sloj kao i OpenCode local-lacc provider. Cloud
+          opencode modeli ne prolaze kroz ovaj lokalni proxy put.
         </p>
         {currentWorkflowPreset ? (
           <p className="helper-text">
@@ -369,8 +369,8 @@ export function SearchPage({ onOpenSettings }: SearchPageProps) {
               SearxNG URL u Settings.
             </p>
             <p className="helper-text">
-              Ako provider status kaže `SearxNG nije podešen`, Search i local answer ostaju ugašeni dok
-              ne podigneš lokalni provider ili ne upišeš pravi endpoint.
+              Ako provider status kaže SearxNG nije podešen, Search i local answer ostaju ugašeni
+              dok ne podigneš lokalni provider ili ne upišeš pravi endpoint.
             </p>
           </>
         ) : (
@@ -437,17 +437,17 @@ export function SearchPage({ onOpenSettings }: SearchPageProps) {
           </button>
         </div>
         <p className="helper-text">
-          `Pronađi veb izvore` vraća samo izvore. `Pretraži i odgovori lokalno` prvo radi istu veb
-          pretragu, pa onda šalje rezultate kao dodatni kontekst aktivnom lokalnom runtime-u i vraća
-          konačan odgovor.
+          Pronađi veb izvore vraća samo izvore. Pretraži i odgovori lokalno prvo radi istu veb
+          pretragu, pa onda šalje rezultate kao dodatni kontekst aktivnom lokalnom runtime-u i
+          vraća konačan odgovor.
         </p>
         <p className="helper-text">
-          `Uporedi providere` paralelno prikazuje kako isti upit izgleda kroz SearxNG i DuckDuckGo.
+          Uporedi providere paralelno prikazuje kako isti upit izgleda kroz SearxNG i DuckDuckGo.
         </p>
         {providerStatus.canQuery === false ? (
           <p className="helper-text">
             Search akcije su trenutno ugašene dok provider nije zdrav. Ako hoćeš managed local
-            provider, klikni na `Setup managed SearxNG (Windows + WSL)`.
+            provider, klikni na Setup managed SearxNG (Windows + WSL).
           </p>
         ) : null}
       </section>
@@ -460,7 +460,7 @@ export function SearchPage({ onOpenSettings }: SearchPageProps) {
         {searchPayload?.results?.length && !answerPayload ? (
           <div className="inline-actions compact-actions">
             <p className="helper-text">
-              Ovo su izvori, ne konačan odgovor. Klikni `Pretraži i odgovori lokalno` da isti upit
+              Ovo su izvori, ne konačan odgovor. Klikni Pretraži i odgovori lokalno da isti upit
               odmah proslediš lokalnom modelu.
             </p>
             <button
@@ -500,7 +500,7 @@ export function SearchPage({ onOpenSettings }: SearchPageProps) {
         <span className="status-label">Konačan odgovor lokalnog modela</span>
         <strong className="status-value">
           {answerPayload?.answer ||
-            "Još nema konačnog odgovora. Koristi `Pretraži i odgovori lokalno` za odgovor zasnovan na veb izvorima."}
+            "Još nema konačnog odgovora. Koristi Pretraži i odgovori lokalno za odgovor zasnovan na veb izvorima."}
         </strong>
         <div className="summary-metrics">
           <span>Provider: {answerPayload?.providerLabel || providerLabel(selectedProvider, summary.availableProviders)}</span>

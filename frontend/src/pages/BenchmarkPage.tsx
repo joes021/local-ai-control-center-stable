@@ -434,7 +434,7 @@ function buildChartStatus(
   const lastThroughput = formatThroughput(lastSample[metricKey]);
 
   if (inactiveForMs <= CHART_GAP_MS) {
-    return `live | ${metricLabel}: ${lastThroughput} | pre ${formatDurationLabel(inactiveForMs)}`;
+    return `uživo | ${metricLabel}: ${lastThroughput} | pre ${formatDurationLabel(inactiveForMs)}`;
   }
 
   return `nema novih zahteva u poslednjih ${formatDurationLabel(inactiveForMs)} | poslednji ${metricLabel.toLowerCase()}: ${lastThroughput}`;
@@ -959,7 +959,7 @@ export function BenchmarkPage({
       icon: "benchmark",
       detail:
         selectedCompareRunIds.length >= 1
-          ? `Izabrano za compare: ${selectedCompareRunIds.length}`
+          ? `Izabrano za poređenje: ${selectedCompareRunIds.length}`
           : `Sačuvani run-ovi: ${savedRuns.length}`,
       actions: (
         <>
@@ -997,19 +997,19 @@ export function BenchmarkPage({
         <div className="runtimepilot-secondary-hub-main">
           <PageFlowCard
             title="Benchmark tok"
-            summary="Prvo namesti scenario ili bateriju, zatim pokreni benchmark iz vršnog action deck-a, pa dole prati throughput, grafikon i istoriju bez bočnog rail-a."
+            summary="Prvo namesti scenario ili bateriju, zatim pokreni benchmark iz gornjeg deka akcija, pa dole prati throughput, grafikon i istoriju bez bočnog rail-a."
             steps={[
               {
                 title: "Izaberi scenario ili bateriju",
                 detail: "Prvo namesti ulaz koji želiš da meriš, bez lutanja po dodatnim komandnim blokovima.",
               },
               {
-                title: "Pokreni run sa desnog rail-a",
-                detail: "Scenario i baterija se pokreću direktno sa action rail-a, pa ekran levo ostaje fokusiran na rezultat.",
+                title: "Pokreni run iz gornjih akcija",
+                detail: "Scenario i baterija se pokreću direktno iz gornjih akcija, pa ekran levo ostaje fokusiran na rezultat.",
               },
               {
                 title: "Gledaj telemetriju i istoriju",
-                detail: "Kad vidiš signal, uporedi ga sa saved run-ovima ili pređi u Tuning Lab za dublji winner workflow.",
+                detail: "Kad vidiš signal, uporedi ga sa sačuvanim run-ovima ili pređi u Tuning Lab za dublji pobednički tuning tok.",
               },
             ]}
           />
@@ -1123,7 +1123,7 @@ export function BenchmarkPage({
           </div>
         </div>
         <p className="helper-text benchmark-command-note">
-          {actionMessage || "Rail desno pokreće scenario ili celu bateriju, a ovde ostaju izbor, repeat i uređivanje."}
+          {actionMessage || "Gornje akcije pokreću scenario ili celu bateriju, a ovde ostaju izbor, repeat i uređivanje."}
         </p>
       </section>
 
@@ -1310,7 +1310,7 @@ export function BenchmarkPage({
           </div>
           <div className="runtime-faceplate-rail">
             <span className="status-label">Trag uživo</span>
-            <p className="helper-text">Otvaranje punih logova je premešteno na desni action rail.</p>
+            <p className="helper-text">Otvaranje punih logova je premešteno u gornje akcije.</p>
           </div>
         </div>
         <p className="helper-text">Zadnjih 30 linija</p>
@@ -1502,7 +1502,7 @@ export function BenchmarkPage({
                 {chartModel.lastSampleOutsideRange
                   ? `Nema uzoraka u izabranom opsegu. Poslednji stvarni uzorak je star ${formatDurationLabel(
                       chartModel.inactiveForMs ?? 0,
-                    )}; probaj 15m ili 1h za siri pregled.`
+                    )}; probaj 15m ili 1h za širi pregled.`
                   : "Nema uzoraka u izabranom opsegu. Graf i dalje prati vreme u realnom intervalu od 5s."}
               </p>
             ) : null}
@@ -1589,11 +1589,11 @@ export function BenchmarkPage({
           </div>
           <div className="browser-chip-row">
             <span className="browser-badge">Run-ovi {savedRuns.length}</span>
-            <span className="browser-badge">Compare izbor {selectedCompareRunIds.length}</span>
+            <span className="browser-badge">Poređenje {selectedCompareRunIds.length}</span>
           </div>
         </div>
         <article className="benchmark-history-compare-readout runtimepilot-readout-card">
-          <span className="status-label">Compare signal</span>
+          <span className="status-label">Signal poređenja</span>
           <strong>Uporedi izabrana pokretanja: {selectedCompareRunIds.length}</strong>
           <p className="helper-text">
             Kad čekiraš dva ili više run-a, dole se pali compare blok. Izvoz JSON/CSV je premešten na desni rail.
@@ -1659,7 +1659,7 @@ export function BenchmarkPage({
                 </article>
               </div>
               <article className="benchmark-history-empty runtimepilot-readout-card">
-                <span className="status-label">Compare rezime</span>
+                <span className="status-label">Rezime poređenja</span>
                 <strong>{comparePayload.summary}</strong>
                 <p className="helper-text">
                   Ovde je namerno samo kratak zaključak, da ne tražiš bitan signal po karticama ispod.
@@ -1668,8 +1668,8 @@ export function BenchmarkPage({
             </>
           ) : (
             <article className="benchmark-history-empty runtimepilot-readout-card">
-              <span className="status-label">Compare čeka izbor</span>
-              <strong>Izaberi najmanje dva saved run-a da bi compare prikaz bio aktivan.</strong>
+              <span className="status-label">Poređenje čeka izbor</span>
+              <strong>Izaberi najmanje dva sačuvana run-a da bi prikaz poređenja bio aktivan.</strong>
               <p className="helper-text">
                 Čim čekiraš dva run-a, ovde ćeš dobiti pobednika bez ručnog poređenja po metrikama.
               </p>
@@ -1683,7 +1683,7 @@ export function BenchmarkPage({
                 <div className="benchmark-saved-run-topline">
                   <div className="benchmark-saved-run-head">
                     <span className="status-label">
-                      {run.mode === "battery" ? "Battery run" : "Single scenario"}
+                      {run.mode === "battery" ? "Baterijski run" : "Jedan scenario"}
                     </span>
                     <strong>{run.mode === "battery" ? run.batteryName : run.scenarioName}</strong>
                     <div className="muted-line">
@@ -1696,7 +1696,7 @@ export function BenchmarkPage({
                       checked={selectedCompareRunIds.includes(run.runId)}
                       onChange={() => toggleCompareRun(run.runId)}
                     />
-                    Compare
+                    Poredi
                   </label>
                 </div>
                 <div className="benchmark-saved-run-strip">

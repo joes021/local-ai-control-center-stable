@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 
 from local_ai_control_center_installer.control_center_backend.main import app
 from local_ai_control_center_installer.control_center_backend.services.updates_service import (
+    fetch_latest_release_metadata,
     load_update_progress_payload,
     _launch_installer,
     run_update_install_worker,
@@ -30,6 +31,44 @@ def _latest_release(version: str = "0.4.5") -> dict[str, object]:
         "installer_download_url": f"https://github.com/joes021/local-ai-control-center-stable/releases/download/v{version}/RuntimePilotSetup-v{version}.exe",
         "installer_size_bytes": 2 * 1024 * 1024 * 1024,
     }
+
+
+def test_fetch_latest_release_metadata_falls_back_to_windows_rest_on_ssl_cert_failure(
+    monkeypatch,
+):
+    class FakeCompleted:
+        returncode = 0
+        stdout = json.dumps(_latest_release("0.4.95"), ensure_ascii=False)
+        stderr = ""
+
+    import ssl
+    from urllib.error import URLError
+
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.updates_service.urlopen",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            URLError(
+                ssl.SSLCertVerificationError(
+                    1,
+                    "[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed",
+                )
+            )
+        ),
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.updates_service.os.name",
+        "nt",
+    )
+    monkeypatch.setattr(
+        "local_ai_control_center_installer.control_center_backend.services.updates_service.subprocess.run",
+        lambda *args, **kwargs: FakeCompleted(),
+    )
+
+    payload = fetch_latest_release_metadata()
+
+    assert payload["version"] == "0.4.95"
+    assert payload["tag_name"] == "v0.4.95"
+    assert payload["installer_asset_name"] == "RuntimePilotSetup-v0.4.95.exe"
 
 
 def test_updates_check_route_reports_available_update_and_persists_progress(

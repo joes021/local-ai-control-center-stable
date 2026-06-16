@@ -449,6 +449,29 @@ function formatGpuLayersModeLabel(mode: string, override: number, autoRecommenda
   return `Auto ${autoRecommendation || 0}`;
 }
 
+function sanitizeSearchProviderSummary(summary: string | null | undefined) {
+  const legacySetupPrefix = "Pokreni ";
+  const legacySetupBody = "Setup local SearxNG ili unesi ";
+  const legacyManualBaseUrl = `${legacySetupPrefix}${legacySetupBody}ručni base URL.`;
+  const legacyRealBaseUrl = `${legacySetupPrefix}${legacySetupBody}pravi base URL.`;
+
+  return String(summary || "")
+    .replace(legacyManualBaseUrl, "Pokreni podešavanje lokalnog SearxNG-a ili unesi ručni base URL.")
+    .replace(legacyRealBaseUrl, "Pokreni podešavanje lokalnog SearxNG-a ili unesi pravi base URL.")
+    .replace("nije podeÅ¡en", "nije podešen")
+    .replace("ruÄni", "ručni")
+    .replace("viÅ¡e", "više");
+}
+
+function normalizeSearchProviderStatusPayload(
+  nextStatus: SearchProviderStatusPayload,
+): SearchProviderStatusPayload {
+  return {
+    ...nextStatus,
+    summary: sanitizeSearchProviderSummary(nextStatus.summary),
+  };
+}
+
 function formatWorkspaceHygieneKind(kind: string) {
   if (kind === "scratch") {
     return "Scratch workspace";
@@ -525,9 +548,13 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
     ]);
     const turboDraft = readDraft<TurboQuantConfig>(TURBOQUANT_DRAFT_STORAGE_KEY);
     const savedTurboConfig = schemaPayload.currentConfig;
+    const normalizedSettingsPayload = {
+      ...settingsPayload,
+      searchProviderStatus: normalizeSearchProviderStatusPayload(settingsPayload.searchProviderStatus),
+    };
 
-    setSettings(settingsPayload);
-    setSettingsDefaults(settingsPayload);
+    setSettings(normalizedSettingsPayload);
+    setSettingsDefaults(normalizedSettingsPayload);
     setSchema(schemaPayload);
     setTurboConfigDefaults(savedTurboConfig);
     setTurboConfig(turboDraft ? { ...savedTurboConfig, ...turboDraft } : savedTurboConfig);
@@ -1252,7 +1279,9 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
   async function checkSearchProviderAction() {
     setProviderBusy("check");
     try {
-      const providerStatus = await fetchSearchProviderStatus(activeSettings.webSearchProvider);
+      const providerStatus = normalizeSearchProviderStatusPayload(
+        await fetchSearchProviderStatus(activeSettings.webSearchProvider),
+      );
       updateProviderStatus(providerStatus);
       setResult({
         status: providerStatus.status === "healthy" ? "ok" : "error",
@@ -1305,11 +1334,12 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
   }
 
   function updateProviderStatus(nextStatus: SearchProviderStatusPayload) {
+    const normalizedStatus = normalizeSearchProviderStatusPayload(nextStatus);
     setSettings((current) =>
       current
         ? {
             ...current,
-            searchProviderStatus: nextStatus,
+            searchProviderStatus: normalizedStatus,
           }
         : current,
     );
@@ -1363,7 +1393,7 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
       id: "profile",
       label: "Profil",
       value: selectedSettingsProfile?.name ?? activeSettings.profile,
-      detail: `Opseg ${activeSettings.settingsScope === "global" ? "globalni" : "override modela"} | aktivni model ${
+      detail: `Opseg ${activeSettings.settingsScope === "global" ? "globalni" : "posebno pravilo modela"} | aktivni model ${
         settings.activeModelLabel || "nema"
       }`,
       action: "Idi na profile",
@@ -1375,7 +1405,7 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
       id: "context",
       label: "Context",
       value: formatTokenCount(activeSettings.context),
-      detail: `Output ${formatTokenCount(activeSettings.outputTokens)} | workflow ${
+      detail: `Output ${formatTokenCount(activeSettings.outputTokens)} | radni tok ${
         currentWorkflowPreset?.label || "ručno"
       }`,
       action: "Idi na context i VRAM fit",
@@ -1385,10 +1415,10 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
     },
     {
       id: "search",
-      label: "Search",
+      label: "Pretraga",
       value: settings.searchProviderStatus.providerLabel,
       detail: `${settings.searchProviderStatus.label} | režim ${activeSettings.webSearchMode}`,
-      action: "Idi na search provider",
+      action: "Idi na provider pretrage",
       icon: "search",
       accent: "rgba(88, 222, 193, 0.36)",
       onClick: () => searchSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
@@ -1440,7 +1470,7 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
     {
       id: "search",
       code: "WEB",
-      title: "Search provider",
+      title: "Provider pretrage",
       subtitle: "PROVIDER + HEALTH",
       icon: "search",
       onClick: () => searchSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
@@ -1460,15 +1490,15 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
       {error ? <div className="error-panel wide-card">{error}</div> : null}
       <PageFlowCard
         title="Settings tok"
-        summary="Ova strana je najlakša kada je koristiš redom: prvo izaberi scope i preset, zatim sredi opšta podešavanja i search, pa tek onda sačuvaj opšti ili TurboQuant deo."
+        summary="Ova strana je najlakša kada je koristiš redom: prvo izaberi opseg i preset, zatim sredi opšta podešavanja i pretragu, pa tek onda sačuvaj opšti ili TurboQuant deo."
         steps={[
           {
-            title: "Izaberi scope i preset",
-            detail: "Prvo odluči da li menjaš globalna pravila ili override aktivnog modela, pa onda učitaj profil ili workflow preset.",
+            title: "Izaberi opseg i preset",
+            detail: "Prvo odluči da li menjaš globalna pravila ili posebno pravilo aktivnog modela, pa onda učitaj profil ili preset radnog toka.",
           },
           {
-            title: "Podesi generaciju, search i temu",
-            detail: "Kada je scope jasan, menjaj inference, provider pretrage, temu i ostala opšta podešavanja.",
+            title: "Podesi generaciju, pretragu i temu",
+            detail: "Kada je opseg jasan, menjaj inferenciju, provider pretrage, temu i ostala opšta podešavanja.",
           },
           {
             title: "Sačuvaj opšta podešavanja",
@@ -1479,13 +1509,13 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
       <RuntimePilotStatusDeck
         eyebrow="Status dashboard"
         title="Brzi signal podešavanja"
-        helper="Pet kartica ti odmah pokazuje koji profil, context, search provider, temu i TurboQuant kombinaciju trenutno drži editor."
+        helper="Pet kartica ti odmah pokazuju koji profil, kontekst, provider pretrage, temu i TurboQuant kombinaciju trenutno drži editor."
         items={settingsStatusItems}
       />
       <RuntimePilotActionDeck
         eyebrow="Akcije"
         title="Skokovi kroz glavne zone"
-        helper="Na vrhu ostaju samo četiri jasna skoka: opšta podešavanja, context i VRAM fit, search provider i TurboQuant."
+        helper="Na vrhu ostaju samo četiri jasna skoka: opšta podešavanja, context i VRAM fit, provider pretrage i TurboQuant."
         items={settingsActionItems}
       />
       <ActionResultPanel result={result} />
@@ -1643,7 +1673,7 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
           <article className="settings-field settings-field-wide">
             <span className="settings-field-label">Opseg podešavanja</span>
             <p className="helper-text">
-              Globalna podrazumevana važe za sve modele bez posebnog override-a. Override aktivnog modela važi
+              Globalna podrazumevana važe za sve modele bez posebnog pravila. Posebno pravilo aktivnog modela važi
               samo za trenutno aktivni model.
             </p>
             <div className="settings-control-block">
@@ -1664,8 +1694,8 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
             </div>
             <p className="helper-text">
               {settings.modelOverrideExists
-                ? "Za aktivni model već postoji poseban override."
-                : "Za aktivni model trenutno nema posebnog override-a."}
+                ? "Za aktivni model već postoji posebno pravilo."
+                : "Za aktivni model trenutno nema posebnog pravila."}
             </p>
           </article>
 
@@ -1832,16 +1862,18 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
                     </strong>
                     <div className="inference-spotlight-tips">
                       <span>Brzi orijentiri</span>
-                      <span>Za kod: niža `temperature`, niži `top-k`, fiksan `seed`.</span>
-                      <span>Za chat: viša `temperature` i širi `top-k` / `top-p`.</span>
-                      <span>Za benchmark: fiksan `seed` i mirniji sampling.</span>
+                      <span>Za kod: niža temperatura, niži top-k, fiksan seed.</span>
+                      <span>Za chat: viša temperatura i širi top-k / top-p.</span>
+                      <span>Za benchmark: fiksan seed i mirniji sampling.</span>
                     </div>
                     <p className="helper-text">
-                      Ove vrednosti trenutno ulaze u `llama.cpp` ili `TurboQuant` start komandu i postaju local-lacc podrazumevana inference podešavanja kada klijent ne pošalje svoje sampling argumente.
+                      Ove vrednosti trenutno ulaze u start komandu za llama.cpp ili TurboQuant i
+                      postaju podrazumevana inference podešavanja za local-lacc kada klijent ne
+                      pošalje svoje sampling argumente.
                     </p>
                     <p className="helper-text">
-                      Workflow preset: {currentWorkflowPreset?.label || "--"} | Starter orijentir:{" "}
-                      {activeInferenceStarter?.label || "custom kombinacija"}
+                      Radni preset: {currentWorkflowPreset?.label || "--"} | Početni orijentir:{" "}
+                      {activeInferenceStarter?.label || "prilagođena kombinacija"}
                     </p>
                   </div>
                   <div className="inference-spotlight-rail">
@@ -2060,7 +2092,10 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
               <article className="settings-field settings-field-wide settings-general-panel">
                 <span className="settings-field-label">Generacija i sampling</span>
                 <p className="helper-text">
-                  Ovo su inference argumenti koji najviše utiču na ponašanje `llama.cpp`, lokalnog modela i `OpenCode local-lacc` toka. Iste vrednosti se koriste i za start komandu servera i kao podrazumevani runtime-proxy fallback kada klijent ne pošalje svoje sampling parametre.
+                  Ovo su inference argumenti koji najviše utiču na ponašanje llama.cpp servera,
+                  lokalnog modela i OpenCode local-lacc toka. Iste vrednosti se koriste i za start
+                  komandu servera i kao podrazumevani runtime-proxy fallback kada klijent ne
+                  pošalje svoje sampling parametre.
                 </p>
                 <div className="settings-option-grid">
                   {settings.availableGenerationStarters.map((starter) => (
@@ -2093,7 +2128,9 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
                 <div className="inference-guide-head">
                   <span className="settings-field-label">Šta radi i kada da ga menjaš</span>
                   <p className="helper-text">
-                    Kratke smernice ispod služe kao praktičan početak. Za ozbiljno poređenje run-ova drži se fiksnog `seed`-a i niže `temperature`, a za opušteniji razgovor pomeraj `temperature`, `top-k` i `top-p`.
+                    Kratke smernice ispod služe kao praktičan početak. Za ozbiljno poređenje
+                    run-ova drži se fiksnog seed-a i niže temperature, a za opušteniji razgovor
+                    pomeraj temperature, top-k i top-p.
                   </p>
                 </div>
                 <div className="inference-parameter-grid">
@@ -2118,7 +2155,8 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
                   ))}
                 </div>
                 <p className="helper-text">
-                  Qwen instruct preporuke često idu oko `temp 0.7`, `top-p 0.8`, `top-k 20`, dok je za coding i reprodukciju korisno spustiti temperaturu i koristiti fiksiran seed.
+                  Qwen instruct preporuke često idu oko temp 0.7, top-p 0.8 i top-k 20, dok je za
+                  kodiranje i reprodukciju korisno spustiti temperaturu i koristiti fiksiran seed.
                 </p>
               </article>
 
@@ -2152,7 +2190,7 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
                   </button>
                 </div>
                 <p className="helper-text">
-                  Ovo važi za opšti radni kontekst RuntimePilot-a, OpenCode integraciju i lokalne workflow tokove.
+                  Ovo važi za opšti radni kontekst RuntimePilot-a, OpenCode integraciju i lokalne tokove radnih zadataka.
                 </p>
               </article>
             </div>
@@ -2330,8 +2368,8 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
               <strong>Aktivni orijentiri</strong>
               <div className="summary-metrics">
                 <span>Tema: {currentThemeOption?.label || "Dark Chocolate"}</span>
-                <span>Workflow preset: {currentWorkflowPreset?.label || "--"}</span>
-                <span>Inference starter: {activeInferenceStarter?.label || "custom kombinacija"}</span>
+                <span>Radni preset: {currentWorkflowPreset?.label || "--"}</span>
+                <span>Početni inference set: {activeInferenceStarter?.label || "prilagođena kombinacija"}</span>
                 <span>Poslednja akcija: {settingsSaveResult?.summary || "Nema nove potvrde"}</span>
               </div>
             </div>
@@ -2427,7 +2465,8 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
                   <span>Ukupno slojeva modela: {totalModelLayers ?? "--"}</span>
                 </div>
                 <p className="helper-text">
-                  `Auto` prati procenu po VRAM-u. `Ručno` ti daje direktnu kontrolu kada želiš da guraš čvršći GPU fit.
+                  Auto prati procenu po VRAM-u. Ručno ti daje direktnu kontrolu kada želiš da
+                  guraš čvršći GPU fit.
                 </p>
                 <p className="helper-text">
                   Više GPU slojeva = više VRAM, ali i veći deo modela ostaje na GPU-u umesto da preliva u RAM.
@@ -2466,7 +2505,8 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
                 <span className="settings-field-label">Model preliv za editor</span>
                 <strong className="status-value">{formatMiB(runtimeFitPreview?.estimatedModelRamSpillMiB)}</strong>
                 <p className="helper-text">
-                  Ovaj broj se najviše menja kada menjaš `GPU layers`. Pokazuje koliko bi sam model deo i dalje ostao van VRAM-a.
+                  Ovaj broj se najviše menja kada menjaš GPU layers. Pokazuje koliko bi sam model
+                  deo i dalje ostao van VRAM-a.
                 </p>
               </article>
               <article className="settings-vram-meter-card">
@@ -2488,7 +2528,8 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
                 <strong className="status-value">Transport deck za config i runtime</strong>
               </div>
               <p className="helper-text">
-                `Sačuvaj bez primene` upisuje config. `Primeni postojeće` tera runtime da uzme poslednje sačuvano stanje. `Sačuvaj i primeni` radi oba koraka odjednom.
+                Sačuvaj bez primene upisuje config. Primeni postojeće tera runtime da uzme
+                poslednje sačuvano stanje. Sačuvaj i primeni radi oba koraka odjednom.
               </p>
             </div>
 
@@ -2604,7 +2645,9 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
             </article>
 
             <p className="helper-text settings-vram-monitor-copy">
-              `Pokušaj VRAM fit` samo popunjava editor smislenijim VRAM-fit vrednostima. `Primeni postojeće` ne dira editor, nego restartuje ili pokreće runtime po poslednjem sačuvanom stanju.
+              Pokušaj VRAM fit samo popunjava editor smislenijim VRAM-fit vrednostima. Primeni
+              postojeće ne dira editor, nego restartuje ili pokreće runtime po poslednjem
+              sačuvanom stanju.
             </p>
 
             {vramFitLocalResult ? (
@@ -2620,7 +2663,7 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
                   {vramFitLocalResult.action === "try-fit-in-vram"
                     ? "Ovo još nije sačuvano ni aktivno u runtime-u."
                     : vramFitLocalResult.action === "save-vram-tuning-without-apply"
-                      ? "Config je ažuriran, ali runtime još radi po starom dok ne klikneš `Primeni postojeće` ili `Sačuvaj i primeni`."
+                      ? "Config je ažuriran, ali runtime još radi po starom dok ne klikneš Primeni postojeće ili Sačuvaj i primeni."
                       : "Posle primene, živi resursi mogu da kasne nekoliko sekundi dok novi runtime signal ne stigne."}
                 </p>
                 <p className="helper-text">{vramFitLocalResult.summary}</p>
@@ -2638,7 +2681,8 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
               <div className="compat-empty-state settings-vram-turbo-guidance">
                 <strong>TurboQuant smernice za čistiji VRAM fit</strong>
                 <p className="helper-text">
-                  Ako hoćeš da sve stane u VRAM, redosled je obično: prvo spusti `context`, zatim proveri `GPU layers`, pa tek onda idi na agresivnije TurboQuant kompromise.
+                  Ako hoćeš da sve stane u VRAM, redosled je obično: prvo spusti context, zatim
+                  proveri GPU layers, pa tek onda idi na agresivnije TurboQuant kompromise.
                 </p>
                 <div className="summary-metrics">
                   <span>Prvo probaj: ctv turbo3</span>
@@ -2656,7 +2700,7 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
         <div className="section-header settings-cluster-header">
           <div className="runtimepilot-inline-heading">
             <span className="status-label">Pretraga i izvori</span>
-            <strong className="status-value">Kako Search, Knowledge i local-lacc dolaze do web rezultata</strong>
+            <strong className="status-value">Kako Pretraga, Znanje i local-lacc dolaze do veb rezultata</strong>
           </div>
         </div>
         <div className="settings-search-hifi-stack">
@@ -2667,7 +2711,8 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
                 <strong className="status-value">Provider, režim i granice pretrage</strong>
               </div>
               <p className="helper-text">
-                Ovde biraš odakle Search, Knowledge i local-lacc vuku rezultate. Tek posle toga odlučuješ da li prvo proveravaš stanje ili odmah čuvaš opšti config.
+                Ovde biraš odakle Pretraga, Znanje i local-lacc vuku rezultate. Tek posle toga
+                odlučuješ da li prvo proveravaš stanje ili odmah čuvaš opšti config.
               </p>
             </div>
 
@@ -2721,7 +2766,7 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
                   />
                 </div>
                 <p className="helper-text">
-                  Ovo važi za Search tab i za OpenCode kada koristi lokalni `local-lacc` provider.
+                  Ovo važi za tab Pretraga i za OpenCode kada koristi lokalni local-lacc provider.
                 </p>
               </article>
 
@@ -2944,8 +2989,8 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
           </div>
         </div>
         <p className="helper-text">
-          `safe` je najbezbedniji, `daily` je preporučeni balans, a `max-context` je agresivniji
-          kada juriš što duži kontekst.
+          Safe je najbezbedniji, daily je preporučeni balans, a max-context je agresivniji kada
+          juriš što duži kontekst.
         </p>
         <p className="helper-text">
           TurboQuant editor ne menja opšta podešavanja. Njegove promene se čuvaju samo kroz posebno

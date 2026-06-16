@@ -1,5 +1,6 @@
 ﻿import { useEffect, useMemo, useState } from "react";
 
+import { CustomSelect } from "../components/CustomSelect";
 import { PageDataStateCard } from "../components/PageDataStateCard";
 import { SupportPageDeck } from "../components/shell/SupportPageDeck";
 import {
@@ -86,6 +87,28 @@ export function KnowledgePage({ onOpenSearch }: { onOpenSearch: () => void }) {
     }
     return summary.supportedExtensions.join(", ");
   }, [summary]);
+  const collectionOptions = useMemo(
+    () => [
+      { value: "", label: "Sve kolekcije" },
+      ...(summary?.collections ?? []).map((item) => ({ value: item, label: item })),
+    ],
+    [summary?.collections],
+  );
+  const tagOptions = useMemo(
+    () => [
+      { value: "", label: "Sve oznake" },
+      ...(summary?.tags ?? []).map((item) => ({ value: item, label: item })),
+    ],
+    [summary?.tags],
+  );
+  const knowledgeModeOptions = useMemo(
+    () => [
+      { value: "documents-only", label: "Samo dokumenti" },
+      { value: "documents+web", label: "Dokumenti + veb" },
+      { value: "web-only", label: "Samo veb" },
+    ],
+    [],
+  );
   const currentWorkflowPreset = useMemo(
     () => resolveSelectedWorkflowPreset(settingsPayload),
     [settingsPayload],
@@ -153,9 +176,9 @@ export function KnowledgePage({ onOpenSearch }: { onOpenSearch: () => void }) {
         <span className="status-label">Radni prostor znanja</span>
         <strong className="status-value">Lokalni dokumenti + opcioni veb kontekst</strong>
         <p className="helper-text">
-          Ovaj tab indeksira lokalne fajlove installer-managed putem i omogućava `Samo dokumenti`,
-          `Dokumenti + veb` i `Samo veb` tok odgovora. Kada ti treba samo veb sloj, možeš i direktno
-          da otvoriš tab Pretraga.
+          Ovaj tab indeksira lokalne fajlove installer-managed putem i omogućava tokove Samo
+          dokumenti, Dokumenti + veb i Samo veb. Kada ti treba samo veb sloj, možeš i direktno da
+          otvoriš tab Pretraga.
         </p>
         {currentWorkflowPreset ? (
           <p className="helper-text">
@@ -336,33 +359,32 @@ export function KnowledgePage({ onOpenSearch }: { onOpenSearch: () => void }) {
         <div className="settings-page-grid knowledge-form-grid">
           <label className="settings-compact-field">
             <span>Kolekcije</span>
-            <select value={collectionFilter} onChange={(event) => setCollectionFilter(event.target.value)}>
-              <option value="">Sve kolekcije</option>
-              {summary.collections.map((item) => (
-                <option key={item} value={item}>
-                  {item}
-                </option>
-              ))}
-            </select>
+            <CustomSelect
+              value={collectionFilter}
+              options={collectionOptions}
+              onChange={setCollectionFilter}
+              ariaLabel="Filtriraj kolekcije znanja"
+            />
           </label>
           <label className="settings-compact-field">
             <span>Oznake</span>
-            <select value={tagFilter} onChange={(event) => setTagFilter(event.target.value)}>
-              <option value="">Sve oznake</option>
-              {summary.tags.map((item) => (
-                <option key={item} value={item}>
-                  {item}
-                </option>
-              ))}
-            </select>
+            <CustomSelect
+              value={tagFilter}
+              options={tagOptions}
+              onChange={setTagFilter}
+              ariaLabel="Filtriraj oznake znanja"
+            />
           </label>
         </div>
         <div className="settings-action-row knowledge-action-row">
-          <select value={mode} onChange={(event) => setMode(event.target.value as KnowledgeMode)}>
-            <option value="documents-only">Samo dokumenti</option>
-            <option value="documents+web">Dokumenti + veb</option>
-            <option value="web-only">Samo veb</option>
-          </select>
+          <div className="settings-control-block">
+            <CustomSelect
+              value={mode}
+              options={knowledgeModeOptions}
+              onChange={(value) => setMode(value as KnowledgeMode)}
+              ariaLabel="Izaberi režim znanja"
+            />
+          </div>
           <input
             className="settings-path-input"
             placeholder={
@@ -431,9 +453,9 @@ export function KnowledgePage({ onOpenSearch }: { onOpenSearch: () => void }) {
           </button>
         </div>
         <p className="helper-text">
-          `Samo dokumenti` koristi samo lokalni indeks. `Dokumenti + veb` spaja lokalne dokumente sa
-          istim zajedničkim SearxNG slojem koji koristi tab Pretraga. `Samo veb` ovde ostaje samo zgodan
-          prelaz ka istom toku veb odgovora preko lokalnog modela.
+          Samo dokumenti koristi samo lokalni indeks. Dokumenti + veb spaja lokalne dokumente sa
+          istim zajedničkim SearxNG slojem koji koristi tab Pretraga. Samo veb ovde ostaje samo
+          zgodan prelaz ka istom toku veb odgovora preko lokalnog modela.
         </p>
       </section>
 

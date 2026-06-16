@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import re
+import ssl
 import subprocess
 import sys
 import time
@@ -406,13 +407,82 @@ def fetch_latest_release_metadata() -> dict[str, object]:
     except HTTPError as exc:
         raise RuntimeError(f"GitHub release API returned HTTP {exc.code}") from exc
     except URLError as exc:
-        raise RuntimeError(f"GitHub release API is unavailable: {exc.reason}") from exc
+        if _can_fallback_to_windows_release_request(exc):
+            payload = _fetch_latest_release_metadata_via_windows_rest()
+        else:
+            raise RuntimeError(f"GitHub release API is unavailable: {exc.reason}") from exc
+    except ssl.SSLCertVerificationError as exc:
+        if _can_fallback_to_windows_release_request(exc):
+            payload = _fetch_latest_release_metadata_via_windows_rest()
+        else:
+            raise RuntimeError(f"GitHub release API is unavailable: {exc}") from exc
     except (OSError, ValueError, json.JSONDecodeError) as exc:
         raise RuntimeError(f"GitHub release API returned invalid data: {exc}") from exc
 
     if not isinstance(payload, dict):
         raise ValueError("GitHub release payload is not an object.")
     return _normalize_release_payload(payload)
+
+
+def _can_fallback_to_windows_release_request(exc: Exception) -> bool:
+    if os.name != "nt":
+        return False
+
+    reason = getattr(exc, "reason", None)
+    if isinstance(exc, ssl.SSLCertVerificationError) or isinstance(
+        reason, ssl.SSLCertVerificationError
+    ):
+        return True
+
+    message_parts = [str(exc)]
+    if reason is not None:
+        message_parts.append(str(reason))
+    message = " ".join(part for part in message_parts if part).lower()
+    return (
+        "certificate_verify_failed" in message
+        or "unable to get local issuer certificate" in message
+        or "basic constraints of ca cert not marked critical" in message
+    )
+
+
+def _fetch_latest_release_metadata_via_windows_rest() -> dict[str, object]:
+    command = [
+        "powershell.exe",
+        "-NoProfile",
+        "-Command",
+        (
+            "$ProgressPreference='SilentlyContinue'; "
+            "$headers=@{ 'Accept'='application/vnd.github+json'; 'User-Agent'='LocalAIControlCenterUpdater/1.0' }; "
+            f"$resp = Invoke-RestMethod -Uri '{GITHUB_RELEASES_LATEST_URL}' -Headers $headers -TimeoutSec {int(GITHUB_RELEASE_TIMEOUT_SECONDS)}; "
+            "$resp | ConvertTo-Json -Depth 20 -Compress"
+        ),
+    ]
+    completed = subprocess.run(
+        command,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+    )
+    if completed.returncode != 0:
+        error_text = (
+            completed.stderr.strip()
+            or completed.stdout.strip()
+            or "Windows release metadata fallback nije uspeo."
+        )
+        raise RuntimeError(f"GitHub release API is unavailable: {error_text}")
+
+    try:
+        payload = json.loads(completed.stdout)
+    except (TypeError, ValueError, json.JSONDecodeError) as exc:
+        raise RuntimeError(
+            f"GitHub release API returned invalid data via Windows fallback: {exc}"
+        ) from exc
+
+    if not isinstance(payload, dict):
+        raise RuntimeError("GitHub release API returned non-object payload via Windows fallback.")
+    return payload
 
 
 def _normalize_release_payload(payload: dict[str, object]) -> dict[str, object]:

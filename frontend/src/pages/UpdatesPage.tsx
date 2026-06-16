@@ -11,8 +11,8 @@ import {
   RuntimePilotStatusDeck,
   type RuntimePilotStatusDeckItem,
 } from "../components/shell/RuntimePilotStatusDeck";
-import { checkUpdates, fetchUpdateProgress, installUpdate } from "../lib/api";
-import type { ActionResult, UpdateProgressPayload } from "../lib/types";
+import { checkUpdates, fetchStatus, fetchUpdateProgress, installUpdate } from "../lib/api";
+import type { ActionResult, StatusPayload, UpdateProgressPayload } from "../lib/types";
 
 function formatGiB(value: number | null) {
   if (value === null || Number.isNaN(value)) {
@@ -86,11 +86,13 @@ function UpdateProgressCard({ progress }: { progress: UpdateProgressPayload | nu
       </p>
       <div className="runtimepilot-service-summary-grid">
         <article className="runtimepilot-service-summary-card">
-          <span className="status-label">Verzije</span>
+          <span className="status-label">Instalirano → release</span>
           <strong className="status-value">
             {progress.currentVersion || "nepoznato"} → {progress.latestVersion || "nepoznato"}
           </strong>
-          <p className="helper-text">Trenutna i ciljna verzija koje učestvuju u ovom update toku.</p>
+          <p className="helper-text">
+            Instalirana verzija koju updater poredi sa ciljnom GitHub release verzijom.
+          </p>
         </article>
         <article className="runtimepilot-service-summary-card">
           <span className="status-label">Download</span>
@@ -128,17 +130,20 @@ function UpdateProgressCard({ progress }: { progress: UpdateProgressPayload | nu
 export function UpdatesPage() {
   const [result, setResult] = useState<ActionResult | null>(null);
   const [progress, setProgress] = useState<UpdateProgressPayload | null>(null);
+  const [status, setStatus] = useState<StatusPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [hasLoaded, setHasLoaded] = useState(false);
 
   async function loadUpdates() {
     try {
-      const [updateResult, progressPayload] = await Promise.all([
+      const [updateResult, progressPayload, statusPayload] = await Promise.all([
         checkUpdates(),
         fetchUpdateProgress(),
+        fetchStatus().catch(() => null),
       ]);
       setResult(updateResult);
       setProgress(progressPayload);
+      setStatus(statusPayload);
       setError(null);
     } catch (reason: unknown) {
       setError(reason instanceof Error ? reason.message : "Provera ažuriranja nije uspela.");
@@ -216,12 +221,22 @@ export function UpdatesPage() {
   const updatesStatusItems: RuntimePilotStatusDeckItem[] = [
     {
       id: "updates-current",
-      label: "Trenutna verzija",
-      value: progress?.currentVersion || "nepoznato",
-      detail: "Verzija koja je trenutno aktivna u lokalnoj instalaciji.",
-      action: "Lokalna verzija",
+      label: "Portal build",
+      value: status?.version || "nepoznato",
+      detail: "Verzija pokrenutog RuntimePilot portala.",
+      action: "Portal build",
       icon: "updates",
       accent: "rgba(242, 184, 75, 0.34)",
+    },
+    {
+      id: "updates-installed",
+      label: "Instalirana verzija",
+      value: status?.installedVersion || progress?.currentVersion || "nepoznato",
+      detail:
+        "Verzija upisana u lokalnu instalaciju koju updater poredi sa GitHub release-om.",
+      action: "Installer kanal",
+      icon: "settings",
+      accent: "rgba(205, 162, 255, 0.34)",
     },
     {
       id: "updates-latest",
@@ -257,7 +272,7 @@ export function UpdatesPage() {
       detail: progress?.message || "Kada se download završi, installer kreće automatski i to se ovde prijavljuje.",
       action: "Skok na rezultat",
       icon: "settings",
-      accent: "rgba(205, 162, 255, 0.34)",
+      accent: "rgba(166, 205, 255, 0.34)",
       onClick: scrollToResult,
     },
   ];
@@ -360,7 +375,7 @@ export function UpdatesPage() {
       <RuntimePilotStatusDeck
         eyebrow="Update signal"
         title="Verzija, tok i installer"
-        helper="Četiri karte odmah kažu koja je trenutna verzija, šta je novo, kako teče download i u kojoj je fazi installer."
+        helper="Pet kartica odmah razdvajaju portal build, instaliranu verziju, novu verziju, download tok i fazu installera."
         items={updatesStatusItems}
       />
 

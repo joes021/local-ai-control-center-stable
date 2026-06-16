@@ -1211,6 +1211,32 @@ def test_settings_source_clearly_separates_general_search_and_turboquant_section
     assert "Sačuvaj TurboQuant podešavanja" in bundled_text
 
 
+def test_settings_compatibility_and_benchmark_use_plain_serbian_copy_in_key_helpers():
+    settings_source = Path("frontend/src/pages/SettingsPage.tsx").read_text(encoding="utf-8")
+    benchmark_source = Path("frontend/src/pages/BenchmarkPage.tsx").read_text(encoding="utf-8")
+    compatibility_panel_source = Path(
+        "frontend/src/components/CompatibilityCalculatorPanel.tsx"
+    ).read_text(encoding="utf-8")
+
+    assert "Za kod: niža temperatura, niži top-k, fiksan seed." in settings_source
+    assert "Za kod: niža `temperature`, niži `top-k`, fiksan `seed`." not in settings_source
+    assert (
+        "Ovo važi za tab Pretraga i za OpenCode kada koristi lokalni local-lacc provider."
+        in settings_source
+    )
+    assert "Ovo važi za Search tab i za OpenCode kada koristi lokalni `local-lacc` provider." not in settings_source
+    assert "Pokreni podešavanje lokalnog SearxNG-a ili unesi ručni base URL." in settings_source
+    assert "Pokreni Setup local SearxNG ili unesi ručni base URL." not in settings_source
+    assert "Kalkulator kompatibilnosti" in compatibility_panel_source
+    assert "Compatibility calculator" not in compatibility_panel_source
+    assert "Kad klikneš Primeni, prvo gledaj Aktivno sada na runtime-u." in compatibility_panel_source
+    assert "Kad klikneš `Primeni`, prvo gledaj `Aktivno sada na runtime-u`." not in compatibility_panel_source
+    assert "Scenario i baterija se pokreću direktno iz gornjih akcija" in benchmark_source
+    assert "action rail-a" not in benchmark_source
+    assert "probaj 15m ili 1h za širi pregled." in benchmark_source
+    assert "siri pregled" not in benchmark_source
+
+
 def test_packaged_settings_action_and_browse_buttons_use_panel_button_theme():
     dist_root = Path(
         "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
@@ -1480,7 +1506,8 @@ def test_app_source_and_packaged_frontend_include_search_navigation():
     assert "Ovo su izvori, ne konačan odgovor." in bundled_text
     assert "Otvori izvor" in bundled_text
     assert "Kad pokreneš upit, ovde će se pojaviti normalizovani veb rezultati." in bundled_text
-    assert "Ako provider status kaže `SearxNG nije podešen`" in bundled_text
+    assert "Ako provider status kaže SearxNG nije podešen" in bundled_text
+    assert "`SearxNG nije podešen`" not in bundled_text
 
 
 def test_app_source_and_packaged_frontend_include_knowledge_navigation():
@@ -1503,6 +1530,8 @@ def test_app_source_and_packaged_frontend_include_knowledge_navigation():
     assert "Radni prostor znanja" in bundled_text
     assert "Dokumenti + veb" in bundled_text
     assert "Pregledaj" in bundled_text
+    assert "Samo dokumenti koristi samo lokalni indeks." in bundled_text
+    assert "`Samo dokumenti`" not in bundled_text
     assert "Kolekcije" in knowledge_source
     assert "Oznake" in knowledge_source
     assert "Citati" in knowledge_source
@@ -1538,7 +1567,17 @@ def test_knowledge_page_source_and_styles_define_spacing_for_fields_and_actions(
     bundled_css = "\n".join(path.read_text(encoding="utf-8") for path in css_assets)
 
     assert ".knowledge-panel" in bundled_css
-    assert ".knowledge-action-row" in bundled_css
+
+
+def test_knowledge_page_uses_custom_selects_instead_of_native_select_dropdowns():
+    knowledge_source = Path("frontend/src/pages/KnowledgePage.tsx").read_text(encoding="utf-8")
+    styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
+
+    assert 'import { CustomSelect } from "../components/CustomSelect";' in knowledge_source
+    assert knowledge_source.count("<CustomSelect") >= 3
+    assert "<select value=" not in knowledge_source
+    assert ".settings-compact-field > .custom-select" in styles_source
+    assert ".knowledge-action-row > .settings-control-block" in styles_source
 
 
 def test_updates_page_source_uses_serbian_diacritics_in_progress_guidance():
@@ -1650,7 +1689,7 @@ def test_benchmark_page_source_includes_compare_export_and_idle_truth():
     assert "await runBatteryBenchmark(selectedBattery.id, repeatCount);" in source
     assert "telemetry?.flowStateReason" in telemetry_source
     assert "telemetry?.lastSignalTokensPerSecond" in telemetry_source
-    assert "Izaberi najmanje dva saved run-a da bi compare prikaz bio aktivan." in source
+    assert "Izaberi najmanje dva sačuvana run-a da bi prikaz poređenja bio aktivan." in source
     assert "Model:" in source
     assert "Runtime:" in source
 
@@ -2154,12 +2193,13 @@ def test_shared_ux_components_and_guided_flow_copy_are_present_in_core_pages():
     assert "SecondaryActionRail" not in benchmark_source
 
     assert "Settings tok" in settings_source
-    assert "Izaberi scope i preset" in settings_source
+    assert "Izaberi opseg i preset" in settings_source
     assert "Sačuvaj opšta podešavanja" in settings_source
     assert "PageFlowCard" in settings_source
     assert "PageDataStateCard" in settings_source
     assert "RuntimePilotStatusDeck" in settings_source
     assert "RuntimePilotActionDeck" in settings_source
+    assert "Provider pretrage" in settings_source
 
     assert "TuningLabStatusDeck" in tuning_lab_source
     assert "Signal i spremnost" in tuning_lab_source
@@ -3669,7 +3709,7 @@ def test_compatibility_panel_source_maps_apply_actions_to_live_runtime_and_edito
     js_assets = list((dist_root / "assets").glob("*.js"))
     css_assets = list((dist_root / "assets").glob("index-*.css"))
 
-    assert "Kad klikneš `Primeni`, prvo gledaj `Aktivno sada na runtime-u`." in compatibility_panel_source
+    assert "Kad klikneš Primeni, prvo gledaj Aktivno sada na runtime-u." in compatibility_panel_source
     assert "compatibility-action-route-grid" in compatibility_panel_source
     assert "compatibility-action-route-card" in compatibility_panel_source
     assert "Editor čeka proveru" in compatibility_panel_source
@@ -3684,7 +3724,7 @@ def test_compatibility_panel_source_maps_apply_actions_to_live_runtime_and_edito
     bundled_js = "\n".join(path.read_text(encoding="utf-8") for path in js_assets)
     bundled_css = "\n".join(path.read_text(encoding="utf-8") for path in css_assets)
 
-    assert "Kad klikneš `Primeni`, prvo gledaj `Aktivno sada na runtime-u`." in bundled_js
+    assert "Kad klikneš Primeni, prvo gledaj Aktivno sada na runtime-u." in bundled_js
     assert "Editor čeka proveru" in bundled_js
     assert ".compatibility-action-route-grid" in bundled_css
     assert ".compatibility-action-route-card" in bundled_css
@@ -3886,6 +3926,26 @@ def test_secondary_support_pages_use_faceplate_modules_for_hifi_layout():
     bundled_js = "\n".join(path.read_text(encoding="utf-8") for path in js_assets)
 
     assert "runtimepilot-faceplate-module" in bundled_js
+
+
+def test_updates_page_distinguishes_portal_build_from_installed_version():
+    updates_source = Path("frontend/src/pages/UpdatesPage.tsx").read_text(encoding="utf-8")
+    dist_root = Path(
+        "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
+    )
+    js_assets = list((dist_root / "assets").glob("*.js"))
+
+    assert "fetchStatus" in updates_source
+    assert 'label: "Portal build"' in updates_source
+    assert 'label: "Instalirana verzija"' in updates_source
+    assert "Verzija pokrenutog RuntimePilot portala" in updates_source
+    assert "Verzija upisana u lokalnu instalaciju" in updates_source
+    assert js_assets
+
+    bundled_js = "\n".join(path.read_text(encoding="utf-8") for path in js_assets)
+
+    assert "Portal build" in bundled_js
+    assert "Instalirana verzija" in bundled_js
 
 
 def test_support_pages_share_runtimepilot_support_deck_shell():

@@ -338,7 +338,7 @@ export function CompatibilityCalculatorPanel({
     >
       <div className="section-header">
         <div>
-          <span className="status-label">Compatibility calculator</span>
+          <span className="status-label">Kalkulator kompatibilnosti</span>
           <strong className="status-value">{title}</strong>
         </div>
         <div className="inline-actions compact-actions">
@@ -358,7 +358,7 @@ export function CompatibilityCalculatorPanel({
       {!request ? (
         emptyState ?? (
           <div className="helper-text">
-            Izaberi model da bi compatibility kalkulator mogao da radi proveru.
+            Izaberi model da bi kalkulator kompatibilnosti mogao da radi proveru.
           </div>
         )
       ) : null}
@@ -531,21 +531,23 @@ export function CompatibilityCalculatorPanel({
                   <span className="status-label">Proveri ponovo</span>
                   <strong className="status-value">Fit, budžet i preporuke gore</strong>
                   <p className="helper-text">
-                    Ovaj klik osvežava kalkulator, pa rezultat prvo čitaš u gornjim fit i budget karticama.
+                    Ovaj klik osvežava kalkulator, pa rezultat prvo čitaš u gornjim fit i budžet
+                    karticama.
                   </p>
                 </article>
                 <article className="compatibility-action-route-card runtimepilot-readout-card">
                   <span className="status-label">Primeni</span>
                   <strong className="status-value">Aktivno sada na runtime-u</strong>
                   <p className="helper-text">
-                    Kad klikneš `Primeni`, prvo gledaj `Aktivno sada na runtime-u`.
+                    Kad klikneš Primeni, prvo gledaj Aktivno sada na runtime-u.
                   </p>
                 </article>
                 <article className="compatibility-action-route-card runtimepilot-readout-card">
                   <span className="status-label">Napredna izmena</span>
                   <strong className="status-value">Editor čeka proveru</strong>
                   <p className="helper-text">
-                    Napredne izmene menjaju samo editor. Tek posle `Proveri` ili `Primeni` poredi ih sa aktivnim stanjem.
+                    Napredne izmene menjaju samo editor. Tek posle Proveri ili Primeni poredi ih sa
+                    aktivnim stanjem.
                   </p>
                 </article>
               </div>
@@ -618,7 +620,9 @@ export function CompatibilityCalculatorPanel({
                   </article>
                 </div>
                 <p className="helper-text">
-                  Proveri ili primeni da bi aktivno stanje ispod bilo ažurirano. Kad klikneš `Primeni`, prvo gledaj ove vrednosti. Ako brojevi ostanu isti, akcija još nije stigla do živog runtime-a.
+                  Proveri ili primeni da bi aktivno stanje ispod bilo ažurirano. Kad klikneš
+                  Primeni, prvo gledaj ove vrednosti. Ako brojevi ostanu isti, akcija još nije
+                  stigla do živog runtime-a.
                 </p>
               </section>
               {payload.recommendations?.length ? (
@@ -673,8 +677,8 @@ export function CompatibilityCalculatorPanel({
                 </div>
               </div>
               <p className="helper-text">
-                Ovde menjaš radne vrednosti za sledeću proveru ili primenu. Tek posle `Proveri` ili
-                `Primeni` aktivno stanje iznad treba da se promeni.
+                Ovde menjaš radne vrednosti za sledeću proveru ili primenu. Tek posle Proveri ili
+                Primeni aktivno stanje iznad treba da se promeni.
               </p>
               <div className="compat-advanced-grid">
                 <label className="browser-field compat-advanced-control">
