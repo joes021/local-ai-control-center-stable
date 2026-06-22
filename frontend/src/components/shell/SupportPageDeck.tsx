@@ -13,6 +13,8 @@ type SupportPageDeckProps = {
   summary: string;
   steps: readonly SupportPageDeckStep[];
   actions?: ReactNode;
+  actionsBelowTitle?: boolean;
+  actionsClassName?: string;
   resultHint?: ReactNode;
 };
 
@@ -22,23 +24,38 @@ export function SupportPageDeck({
   summary,
   steps,
   actions,
+  actionsBelowTitle = false,
+  actionsClassName,
   resultHint,
 }: SupportPageDeckProps) {
+  const actionContent = actions ? (
+    <div
+      className={`inline-actions compact-actions runtimepilot-support-page-deck-actions${
+        actionsBelowTitle ? " runtimepilot-support-page-deck-actions-below" : ""
+      }${actionsClassName ? ` ${actionsClassName}` : ""}`}
+    >
+      {actions}
+    </div>
+  ) : null;
+
   return (
     <section className="status-card wide-card runtimepilot-section-shell runtimepilot-faceplate-module runtimepilot-support-page-deck">
-      <div className="runtimepilot-support-page-deck-head">
+      <div
+        className={`runtimepilot-support-page-deck-head${
+          actionsBelowTitle ? " runtimepilot-support-page-deck-head-actions-below" : ""
+        }`}
+      >
         <div className="runtimepilot-section-heading">
           <span className="runtimepilot-section-glyph">
             <RuntimePilotIcon className="runtimepilot-section-glyph-icon" name="control" />
           </span>
-          <div>
+          <div className="runtimepilot-support-page-deck-heading-copy">
             <span className="status-label">{eyebrow}</span>
             <strong className="status-value">{title}</strong>
+            {actionsBelowTitle ? actionContent : null}
           </div>
         </div>
-        {actions ? (
-          <div className="inline-actions compact-actions runtimepilot-support-page-deck-actions">{actions}</div>
-        ) : null}
+        {!actionsBelowTitle ? actionContent : null}
       </div>
       <p className="helper-text runtimepilot-support-page-deck-summary">{summary}</p>
       <div

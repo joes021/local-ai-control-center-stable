@@ -25,6 +25,19 @@ def test_packaged_frontend_dist_contains_built_assets():
     assert any(path.is_file() for path in (dist_root / "assets").glob("*"))
 
 
+def test_readme_public_screens_exist_and_are_nonempty():
+    assets_root = Path(".github/assets")
+    expected_assets = [
+        assets_root / "home-overview.png",
+        assets_root / "browser-catalog.png",
+        assets_root / "settings-profiles.png",
+    ]
+
+    for asset_path in expected_assets:
+        assert asset_path.is_file()
+        assert asset_path.stat().st_size > 0
+
+
 def test_control_center_serves_built_frontend_asset():
     client = TestClient(app)
     index_response = client.get("/")
@@ -369,6 +382,20 @@ def test_shell_source_recomputes_sticky_visibility_when_status_layer_resizes():
     assert "resizeObserver.disconnect()" in layer_source
 
 
+def test_shell_source_reserves_layout_space_when_compact_status_layer_becomes_sticky():
+    layer_source = Path(
+        "frontend/src/components/shell/SystemStatusLayer.tsx"
+    ).read_text(encoding="utf-8")
+    styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
+
+    assert "compactLayerRef" in layer_source
+    assert "stickyReserveHeight" in layer_source
+    assert "--runtimepilot-system-status-sticky-reserve" in layer_source
+    assert "resizeObserver.observe(compactLayer)" in layer_source
+    assert ".runtimepilot-system-status-layer-sticky[data-visible=\"true\"]" in styles_source
+    assert "height: var(--runtimepilot-system-status-sticky-reserve, 0px);" in styles_source
+
+
 def test_packaged_frontend_includes_unified_system_status_layer():
     dist_root = Path(
         "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
@@ -388,6 +415,26 @@ def test_packaged_frontend_includes_unified_system_status_layer():
     assert ".runtimepilot-system-status-layer-sticky" in bundled_css
     assert ".runtimepilot-system-status-layer-compact" in bundled_css
     assert ".live-resource-strip-compact" in bundled_css
+
+
+def test_packaged_frontend_includes_sticky_status_layer_reserve_space_contract():
+    dist_root = Path(
+        "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
+    )
+    js_assets = list((dist_root / "assets").glob("*.js"))
+    css_assets = list((dist_root / "assets").glob("index-*.css"))
+
+    assert js_assets
+    assert css_assets
+
+    bundled_js = "\n".join(path.read_text(encoding="utf-8") for path in js_assets)
+    bundled_css = "\n".join(path.read_text(encoding="utf-8") for path in css_assets)
+
+    assert "runtimepilot-system-status-sticky-reserve" in bundled_js
+    assert "runtimepilot-system-status-sticky-reserve" in bundled_css
+    assert "height:var(--runtimepilot-system-status-sticky-reserve,0px)" in bundled_css.replace(
+        " ", ""
+    )
 
 
 def test_project_memory_source_and_packaged_frontend_keep_project_memory_as_page_and_nav_tool():
@@ -590,9 +637,10 @@ def test_opencode_source_and_styles_use_service_bay_layout_for_advanced_tools():
     assert "runtimepilot-opencode-service-panel" in page_source
     assert "runtimepilot-opencode-transport-rail" in page_source
     assert "runtimepilot-opencode-hybrid-grid" in page_source
+    assert 'className="runtimepilot-opencode-hybrid-grid wide-card"' in page_source
     assert "runtimepilot-opencode-main-rack" in page_source
     assert "runtimepilot-opencode-side-rail" in page_source
-    assert "runtimepilot-opencode-quick-card" in page_source
+    assert "runtimepilot-opencode-quick-card" not in page_source
     assert "runtimepilot-opencode-summary-grid" in page_source
     assert ".runtimepilot-opencode-summary-grid" in styles_source
     assert "runtimepilot-opencode-field-stack" in page_source
@@ -615,9 +663,18 @@ def test_opencode_source_and_styles_use_service_bay_layout_for_advanced_tools():
     assert ".runtimepilot-opencode-service-panel" in styles_source
     assert ".runtimepilot-opencode-transport-rail" in styles_source
     assert ".runtimepilot-opencode-hybrid-grid" in styles_source
+    assert (
+        ".runtimepilot-opencode-hybrid-grid {\n"
+        "  display: grid;\n"
+        "  grid-template-columns: minmax(0, 1fr);\n"
+        "  gap: 16px;\n"
+        "  align-items: start;\n"
+        "}"
+    ) in styles_source
+    assert "grid-template-columns: minmax(0, 1.45fr) minmax(300px, 0.72fr);" not in styles_source
     assert ".runtimepilot-opencode-main-rack" in styles_source
     assert ".runtimepilot-opencode-side-rail" in styles_source
-    assert ".runtimepilot-opencode-quick-card" in styles_source
+    assert ".runtimepilot-opencode-quick-card" not in styles_source
     assert ".runtimepilot-opencode-field-stack" in styles_source
     assert ".runtimepilot-opencode-preset-grid" in styles_source
     assert ".runtimepilot-opencode-instance-grid" in styles_source
@@ -813,6 +870,22 @@ def test_workflows_source_and_navigation_are_present():
     assert "workflow-preset-grid" in workflows_source
     assert ".workflow-preset-grid" in styles_source
     assert "grid-template-columns: repeat(3, minmax(0, 1fr));" in styles_source
+
+
+def test_workflow_preset_catalog_uses_horizontal_hifi_decks():
+    workflows_source = Path("frontend/src/pages/WorkflowsPage.tsx").read_text(encoding="utf-8")
+    styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
+
+    assert "workflow-preset-deck" in workflows_source
+    assert "workflow-preset-header" in workflows_source
+    assert "workflow-preset-signal-grid" in workflows_source
+    assert "workflow-preset-command-row" in workflows_source
+    assert ".workflow-preset-deck" in styles_source
+    assert ".workflow-preset-signal-grid" in styles_source
+    assert ".workflow-preset-command-row" in styles_source
+    assert "cursor: default;" in styles_source
+    assert ".workflow-preset-deck:hover" in styles_source
+    assert "transform: none;" in styles_source
 
 
 def test_workflows_source_supports_user_editable_presets_with_editor_state_and_clone():
@@ -1217,6 +1290,48 @@ def test_settings_source_clearly_separates_general_search_and_turboquant_section
     assert "TurboQuant podešavanja" in bundled_text
     assert "Sačuvaj opšta podešavanja" in bundled_text
     assert "Sačuvaj TurboQuant podešavanja" in bundled_text
+
+
+def test_settings_apply_zone_uses_clickable_signal_links_and_compact_readouts():
+    settings_source = Path("frontend/src/pages/SettingsPage.tsx").read_text(encoding="utf-8")
+    styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
+
+    assert "settings-apply-link-button" in settings_source
+    assert "settings-apply-next-button" in settings_source
+    assert "settings-apply-chip-grid" in settings_source
+    assert "settings-apply-mini-grid" in settings_source
+    assert ".settings-apply-link-button" in styles_source
+    assert ".settings-apply-chip-grid" in styles_source
+    assert ".settings-apply-mini-grid" in styles_source
+    assert "generalSectionRef" in settings_source
+
+
+def test_settings_turboquant_presets_and_save_form_use_horizontal_hifi_layout():
+    settings_source = Path("frontend/src/pages/SettingsPage.tsx").read_text(encoding="utf-8")
+    styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
+
+    assert "settings-turbo-preset-grid" in settings_source
+    assert "settings-turbo-preset-card" in settings_source
+    assert "settings-turbo-preset-actions" in settings_source
+    assert "settings-turbo-save-row" in settings_source
+    assert ".settings-turbo-preset-grid" in styles_source
+    assert ".settings-turbo-preset-card" in styles_source
+    assert ".settings-turbo-preset-actions" in styles_source
+    assert ".settings-turbo-save-row" in styles_source
+
+
+def test_settings_theme_moves_to_dedicated_appearance_zone_with_left_signal_link():
+    settings_source = Path("frontend/src/pages/SettingsPage.tsx").read_text(encoding="utf-8")
+    styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
+
+    assert "appearanceSectionRef" in settings_source
+    assert "scrollToAppearanceSection" in settings_source
+    assert "Izgled sistema" in settings_source
+    assert "Tema i izgled" in settings_source
+    assert "settings-appearance-shell" in settings_source
+    assert "settings-appearance-preview-card" in settings_source
+    assert ".settings-appearance-shell" in styles_source
+    assert ".settings-appearance-preview-card" in styles_source
 
 
 def test_settings_compatibility_and_benchmark_use_plain_serbian_copy_in_key_helpers():
@@ -1674,6 +1789,7 @@ def test_telemetry_source_and_styles_keep_live_now_layout_stable_when_signal_dro
 def test_benchmark_page_source_includes_compare_export_and_idle_truth():
     source = Path("frontend/src/pages/BenchmarkPage.tsx").read_text(encoding="utf-8")
     telemetry_source = Path("frontend/src/components/TelemetryPanel.tsx").read_text(encoding="utf-8")
+    styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
 
     assert "const REALTIME_REFRESH_MS = 1000;" in source
     assert "TelemetryPanel" in source
@@ -1706,6 +1822,41 @@ def test_benchmark_page_source_includes_compare_export_and_idle_truth():
     assert "Prethodna strana" in source
     assert "Sledeća strana" in source
     assert "setSavedRunsPage(1);" in source
+    assert "runtimepilot-benchmark-history-grid" in source
+    assert "benchmark-saved-run-strip" in source
+    assert (
+        ".runtimepilot-benchmark-history-grid {\n"
+        "  display: grid;\n"
+        "  gap: 14px;\n"
+        "  grid-template-columns: repeat(3, minmax(0, 1fr));\n"
+        "  align-items: stretch;\n"
+        "}"
+    ) in styles_source
+    assert (
+        ".benchmark-saved-run-strip {\n"
+        "  display: grid;\n"
+        "  grid-template-columns: repeat(2, minmax(0, 1fr));\n"
+        "  gap: 10px;\n"
+        "}"
+    ) in styles_source
+    assert (
+        ".benchmark-saved-run-metrics {\n"
+        "  display: grid;\n"
+        "  grid-template-columns: repeat(3, minmax(0, 1fr));\n"
+        "  gap: 10px;\n"
+        "}"
+    ) in styles_source
+    assert (
+        "@media (max-width: 1280px) {\n"
+        "  .runtimepilot-benchmark-history-grid {\n"
+        "    grid-template-columns: repeat(2, minmax(0, 1fr));\n"
+        "  }"
+    ) in styles_source
+    assert "@media (max-width: 860px) {" in styles_source
+    assert "  .runtimepilot-benchmark-history-grid," in styles_source
+    assert "  .benchmark-saved-run-strip," in styles_source
+    assert "  .benchmark-saved-run-metrics {" in styles_source
+    assert "    grid-template-columns: 1fr;" in styles_source
 
     telemetry_index = source.index("TelemetryPanel")
     chart_index = source.index("Grafikon benchmarka")
@@ -1838,8 +1989,12 @@ def test_compatibility_modal_source_and_packaged_frontend_include_runtime_breakd
 
     assert "Najbolji runtime" in source
     assert "Pregled po runtime-u" in source
+    assert "Procenjeni VRAM za model" in source
+    assert "Živo GPU zauzeće sada" in source
     assert "Opterećenje izlaza" in source
     assert "Rezerva memorije" in source
+    assert "Leva VRAM kartica je procena za izabrani model i trenutna compatibility" in source
+    assert "Task Manager i živa GPU kartica mogu pokazati više zauzeća" in source
 
     dist_root = Path(
         "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
@@ -1851,7 +2006,10 @@ def test_compatibility_modal_source_and_packaged_frontend_include_runtime_breakd
 
     assert "Najbolji runtime" in bundled_text
     assert "Pregled po runtime-u" in bundled_text
+    assert "Procenjeni VRAM za model" in bundled_text
+    assert "Živo GPU zauzeće sada" in bundled_text
     assert "Opterećenje izlaza" in bundled_text
+    assert "Leva VRAM kartica je procena za izabrani model i trenutna compatibility" in bundled_text
 
 
 def test_app_source_and_packaged_frontend_include_compatibility_navigation():
@@ -4058,6 +4216,58 @@ def test_browser_page_source_supports_direct_catalog_page_jump():
     assert ".browser-page-jump-input" in styles_source
 
 
+def test_browser_page_source_uses_hifi_refresh_strip_link_button_and_inline_pagination():
+    browser_source = Path("frontend/src/pages/BrowserPage.tsx").read_text(encoding="utf-8")
+    support_deck_source = Path(
+        "frontend/src/components/shell/SupportPageDeck.tsx"
+    ).read_text(encoding="utf-8")
+    styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
+
+    assert 'actionsBelowTitle' in support_deck_source
+    assert 'actionsBelowTitle={true}' in browser_source
+    assert "browser-support-actions" in browser_source
+    assert "browser-model-link-button" in browser_source
+    assert "browser-pagination-inline" in browser_source
+    assert ".browser-support-actions" in styles_source
+    assert ".browser-model-link-button" in styles_source
+    assert ".browser-pagination-inline" in styles_source
+
+
+def test_browser_page_styles_keep_refresh_and_pagination_controls_in_compact_rows():
+    styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
+
+    assert ".browser-support-actions {" in styles_source
+    assert "flex-wrap: nowrap;" in styles_source
+    assert ".browser-support-actions > .secondary-button" in styles_source
+    assert "width: auto;" in styles_source
+    assert ".browser-pagination-inline > .secondary-button" in styles_source
+    assert ".browser-page-jump-form.browser-pagination-inline" in styles_source
+
+
+def test_browser_detail_actions_use_single_horizontal_command_row():
+    browser_source = Path("frontend/src/pages/BrowserPage.tsx").read_text(encoding="utf-8")
+    styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
+
+    assert "browser-detail-action-row" in browser_source
+    assert ".browser-detail-action-row {" in styles_source
+    assert "grid-template-columns: repeat(4, minmax(0, 1fr));" in styles_source
+    assert ".browser-detail-action-row > .status-label" in styles_source
+
+
+def test_browser_detail_uses_single_full_width_specs_module_without_next_step_card():
+    browser_source = Path("frontend/src/pages/BrowserPage.tsx").read_text(encoding="utf-8")
+    styles_source = Path("frontend/src/styles.css").read_text(encoding="utf-8")
+
+    assert "browser-detail-specs-wide" in browser_source
+    assert "browser-detail-guidance" not in browser_source
+    assert "Sledeći korak" not in browser_source
+    assert "Kompatibilnost pa lokalni katalog" in browser_source
+    assert ".browser-detail-specs-wide {" in styles_source
+    assert "grid-column: 1 / -1;" in styles_source
+    assert ".browser-detail-specs-note" in styles_source
+    assert "grid-template-columns: repeat(4, minmax(0, 1fr));" in styles_source
+
+
 def test_packaged_frontend_includes_custom_select_portal_and_browser_page_jump():
     dist_root = Path(
         "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
@@ -4075,6 +4285,62 @@ def test_packaged_frontend_includes_custom_select_portal_and_browser_page_jump()
     assert "Idi na stranu" in bundled_js
     assert "browser-page-jump-input" in bundled_css
     assert "custom-select-menu-portal" in bundled_css
+
+
+def test_packaged_frontend_includes_browser_refresh_strip_link_button_and_inline_pagination():
+    dist_root = Path(
+        "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
+    )
+    js_assets = list((dist_root / "assets").glob("*.js"))
+    css_assets = list((dist_root / "assets").glob("*.css"))
+
+    assert js_assets
+    assert css_assets
+
+    bundled_js = "\n".join(path.read_text(encoding="utf-8") for path in js_assets)
+    bundled_css = "\n".join(path.read_text(encoding="utf-8") for path in css_assets)
+
+    assert "browser-support-actions" in bundled_js
+    assert "browser-model-link-button" in bundled_js
+    assert "browser-pagination-inline" in bundled_js
+    assert "browser-support-actions" in bundled_css
+    assert "browser-model-link-button" in bundled_css
+    assert "browser-pagination-inline" in bundled_css
+
+
+def test_packaged_frontend_includes_browser_detail_action_row_contract():
+    dist_root = Path(
+        "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
+    )
+    js_assets = list((dist_root / "assets").glob("*.js"))
+    css_assets = list((dist_root / "assets").glob("*.css"))
+
+    assert js_assets
+    assert css_assets
+
+    bundled_js = "\n".join(path.read_text(encoding="utf-8") for path in js_assets)
+    bundled_css = "\n".join(path.read_text(encoding="utf-8") for path in css_assets)
+
+    assert "browser-detail-action-row" in bundled_js
+    assert "browser-detail-action-row" in bundled_css
+
+
+def test_packaged_frontend_includes_full_width_browser_specs_module_contract():
+    dist_root = Path(
+        "src/local_ai_control_center_installer/control_center_backend/frontend_dist"
+    )
+    js_assets = list((dist_root / "assets").glob("*.js"))
+    css_assets = list((dist_root / "assets").glob("*.css"))
+
+    assert js_assets
+    assert css_assets
+
+    bundled_js = "\n".join(path.read_text(encoding="utf-8") for path in js_assets)
+    bundled_css = "\n".join(path.read_text(encoding="utf-8") for path in css_assets)
+
+    assert "browser-detail-specs-wide" in bundled_js
+    assert "browser-detail-guidance" not in bundled_js
+    assert "browser-detail-specs-note" in bundled_css
 
 
 def test_settings_compatibility_benchmark_share_hybrid_shell_layout_contract():
@@ -4108,6 +4374,13 @@ def test_settings_compatibility_benchmark_share_hybrid_shell_layout_contract():
     assert "runtimepilot-compatibility-hybrid-layout" in compatibility_source
     assert "runtimepilot-compatibility-main-zone" in compatibility_source
     assert "runtimepilot-compatibility-truth-zone" in compatibility_panel_source
+    assert "compatibility-primary-monitor-deck" in compatibility_panel_source
+    assert "compatibility-secondary-monitor-deck" in compatibility_panel_source
+    assert "compatibility-summary-rack" in compatibility_panel_source
+    assert "compatibility-runtime-breakdown-grid" in compatibility_panel_source
+    assert "compatibility-budget-rack" in compatibility_panel_source
+    assert "compatibility-action-shell" in compatibility_panel_source
+    assert "compatibility-reason-shell" in compatibility_panel_source
     assert "Aktivno sada" in compatibility_panel_source
     assert "Editor čeka proveru" in compatibility_panel_source
     assert "Poslednja akcija" in compatibility_panel_source
@@ -4130,6 +4403,52 @@ def test_settings_compatibility_benchmark_share_hybrid_shell_layout_contract():
     assert ".runtimepilot-compatibility-hybrid-layout" in styles_source
     assert ".runtimepilot-compatibility-main-zone" in styles_source
     assert ".runtimepilot-compatibility-truth-zone" in styles_source
+    assert (
+        ".compatibility-calculator-panel {\n"
+        "  grid-template-columns: minmax(0, 1fr);\n"
+        "  align-items: start;\n"
+        "}"
+    ) in styles_source
+    assert ".compatibility-calculator-panel > .compatibility-primary-monitor-deck" in styles_source
+    assert ".compatibility-calculator-panel > .compatibility-secondary-monitor-deck" in styles_source
+    assert ".compatibility-summary-rack" in styles_source
+    assert ".compatibility-runtime-breakdown-grid" in styles_source
+    assert ".compatibility-budget-rack" in styles_source
+    assert ".compatibility-action-shell" in styles_source
+    assert ".compatibility-reason-shell" in styles_source
+    assert (
+        ".compatibility-calculator-panel > .runtimepilot-compatibility-truth-zone {\n"
+        "  grid-column: 1 / -1;\n"
+        "  position: static;\n"
+        "  top: auto;\n"
+        "  order: 2;\n"
+        "}"
+    ) in styles_source
+    assert (
+        ".compatibility-calculator-panel > .compatibility-primary-monitor-deck {\n"
+        "  grid-column: 1 / -1;\n"
+        "  order: 1;\n"
+        "}"
+    ) in styles_source
+    assert (
+        ".compatibility-calculator-panel > .compatibility-secondary-monitor-deck {\n"
+        "  grid-column: 1 / -1;\n"
+        "  order: 3;\n"
+        "}"
+    ) in styles_source
+    assert (
+        ".compatibility-calculator-panel > .runtimepilot-compatibility-truth-zone {\n"
+        "  grid-column: 2;\n"
+        "  position: sticky;\n"
+        "  top: 16px;\n"
+        "}"
+    ) not in styles_source
+    assert (
+        ".compatibility-calculator-panel {\n"
+        "  grid-template-columns: minmax(0, 1.3fr) minmax(320px, 0.9fr);\n"
+        "  align-items: start;\n"
+        "}"
+    ) not in styles_source
     assert ".runtimepilot-benchmark-hybrid-grid" in styles_source
     assert ".runtimepilot-benchmark-history-grid" in styles_source
     assert ".runtimepilot-benchmark-graph-shell" in styles_source

@@ -869,6 +869,11 @@ export type BrowserCompatibilityPayload = {
   systemSnapshot?: {
     ramGiB?: number;
     vramGiB?: number;
+    liveVramUsage?: {
+      usedGiB?: number | null;
+      totalGiB?: number | null;
+      usagePercent?: number | null;
+    } | null;
     context?: number;
     outputTokens?: number;
     turboQuantAvailable?: boolean;

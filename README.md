@@ -33,6 +33,8 @@ The Windows product is intended to be launched with a double-click. No ZIP extra
 
 ## Product Screens
 
+All public screenshots in this repository are intended to be sanitized product captures without personal usernames, private local paths, or machine-specific secrets.
+
 ### Home
 
 ![Home overview](.github/assets/home-overview.png)

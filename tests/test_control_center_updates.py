@@ -38,7 +38,7 @@ def test_fetch_latest_release_metadata_falls_back_to_windows_rest_on_ssl_cert_fa
 ):
     class FakeCompleted:
         returncode = 0
-        stdout = json.dumps(_latest_release("0.4.96"), ensure_ascii=False)
+        stdout = json.dumps(_latest_release("0.4.97"), ensure_ascii=False)
         stderr = ""
 
     import ssl
@@ -66,9 +66,9 @@ def test_fetch_latest_release_metadata_falls_back_to_windows_rest_on_ssl_cert_fa
 
     payload = fetch_latest_release_metadata()
 
-    assert payload["version"] == "0.4.96"
-    assert payload["tag_name"] == "v0.4.96"
-    assert payload["installer_asset_name"] == "RuntimePilotSetup-v0.4.96.exe"
+    assert payload["version"] == "0.4.97"
+    assert payload["tag_name"] == "v0.4.97"
+    assert payload["installer_asset_name"] == "RuntimePilotSetup-v0.4.97.exe"
 
 
 def test_updates_check_route_reports_available_update_and_persists_progress(

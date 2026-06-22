@@ -588,26 +588,60 @@ export function WorkflowsPage({
             const isLoadedInEditor = editorPresetId === preset.id;
             return (
               <article
-                className={`theme-option-card ${isActive ? "theme-option-card-active" : ""}`}
+                className={`theme-option-card workflow-preset-deck ${isActive ? "theme-option-card-active" : ""}`}
                 key={preset.id}
               >
-                <strong className="theme-option-name">{preset.label}</strong>
-                <p className="theme-option-copy">{preset.summary}</p>
-                <div className="summary-metrics">
-                  <span>{preset.kind === "user" ? "korisnički preset" : "ugrađeni preset"}</span>
+                <div className="workflow-preset-header">
+                  <div className="workflow-preset-heading">
+                    <div className="workflow-preset-title-row">
+                      <strong className="theme-option-name">{preset.label}</strong>
+                      <span className="workflow-preset-kind">
+                        {preset.kind === "user" ? "korisnički preset" : "ugrađeni preset"}
+                      </span>
+                    </div>
+                    <p className="theme-option-copy">{preset.summary}</p>
+                  </div>
+                  <div className="workflow-preset-status-stack">
+                    <span
+                      className={`workflow-preset-status-chip ${isActive ? "workflow-preset-status-chip-active" : ""}`}
+                    >
+                      {isActive ? "Aktivan preset" : "Spreman"}
+                    </span>
+                    {isLoadedInEditor ? (
+                      <span className="workflow-preset-status-chip">U editoru</span>
+                    ) : null}
+                  </div>
+                </div>
+                <div className="workflow-preset-badge-row">
                   {preset.badges.map((badge) => (
                     <span key={`${preset.id}-${badge}`}>{badge}</span>
                   ))}
                 </div>
-                <p className="helper-text">
-                  Pretraga: {preset.searchDefaults.provider} | Znanje:{" "}
-                  {preset.knowledgeDefaults.mode} | Benchmark:{" "}
-                  {preset.benchmarkDefaults.runLabel}
-                </p>
-                <p className="helper-text">
-                  Sažetak inferencije: {buildWorkflowInferenceSummary(preset)}
-                </p>
-                <div className="inline-actions">
+                <div className="workflow-preset-signal-grid">
+                  <div className="workflow-preset-signal-card">
+                    <span className="workflow-preset-signal-label">Pretraga</span>
+                    <strong className="workflow-preset-signal-value">{preset.searchDefaults.provider}</strong>
+                    <p className="workflow-preset-signal-note">Provider i prvi izvor za ovaj tok.</p>
+                  </div>
+                  <div className="workflow-preset-signal-card">
+                    <span className="workflow-preset-signal-label">Znanje</span>
+                    <strong className="workflow-preset-signal-value">{preset.knowledgeDefaults.mode}</strong>
+                    <p className="workflow-preset-signal-note">Kako preset koristi lokalne dokumente i web.</p>
+                  </div>
+                  <div className="workflow-preset-signal-card">
+                    <span className="workflow-preset-signal-label">Benchmark</span>
+                    <strong className="workflow-preset-signal-value">{preset.benchmarkDefaults.runLabel}</strong>
+                    <p className="workflow-preset-signal-note">Koji run se pali kada tražiš proveru.</p>
+                  </div>
+                  <div className="workflow-preset-signal-card workflow-preset-signal-card-wide">
+                    <span className="workflow-preset-signal-label">Sažetak inferencije</span>
+                    <strong className="workflow-preset-signal-value">Sačuvan miks</strong>
+                    <p className="workflow-preset-signal-note">
+                      {buildWorkflowInferenceSummary(preset)}
+                    </p>
+                  </div>
+                </div>
+                <div className="workflow-preset-command-row">
                   <button
                     type="button"
                     className="action-button"

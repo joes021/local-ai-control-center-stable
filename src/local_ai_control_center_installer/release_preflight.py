@@ -53,6 +53,7 @@ INSTALLER_SCOPE_TARGETS = (
     "tests",
 )
 PUBLIC_SCOPE_TARGETS = (
+    ".github",
     "README.md",
     "docs",
     "frontend",

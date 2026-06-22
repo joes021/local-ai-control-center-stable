@@ -879,6 +879,8 @@ export function BrowserPage({
         eyebrow="Browser katalog"
         title="Osveži, filtriraj, pa odluči"
         summary="Najzdraviji redosled je da prvo osvežiš katalog, zatim filtriraš modele, pa tek onda dodaješ lokalno ili proveravaš fit za svoju mašinu."
+        actionsBelowTitle={true}
+        actionsClassName="browser-support-actions"
         steps={[
           {
             title: "Osveži katalog",
@@ -928,15 +930,6 @@ export function BrowserPage({
             </p>
           </div>
           <div className="inline-actions compact-actions browser-refresh-actions">
-            <button type="button" className="secondary-button" disabled={Boolean(pendingAction)} onClick={() => void handleRefresh()}>
-              Osveži sa interneta
-            </button>
-            <button type="button" className="secondary-button" disabled={Boolean(pendingAction)} onClick={() => void handleRefresh("huggingface")}>
-              Osveži Hugging Face
-            </button>
-            <button type="button" className="secondary-button" disabled={Boolean(pendingAction)} onClick={() => void handleRefresh("unsloth")}>
-              Osveži Unsloth
-            </button>
             <button
               type="button"
               className="secondary-button"
@@ -1131,7 +1124,7 @@ export function BrowserPage({
                   ) : null}
                 </div>
 
-                <div className="runtime-faceplate-rail runtime-faceplate-rail-stack browser-detail-action-rail">
+                <div className="runtime-faceplate-rail browser-detail-action-rail browser-detail-action-row">
                   <span className="status-label">Komande</span>
                   <button
                     type="button"
@@ -1181,10 +1174,17 @@ export function BrowserPage({
               </section>
 
               <div className="browser-detail-module-grid">
-                <section className="browser-detail-module browser-detail-specs">
+                <section className="browser-detail-module browser-detail-specs browser-detail-specs-wide">
                   <div className="browser-detail-module-header">
                     <span className="status-label">Signal i specifikacije</span>
                     <strong className="status-value">Šta vidiš pre nego što krene download</strong>
+                  </div>
+                  <div className="browser-detail-specs-note">
+                    <strong>Kompatibilnost pa lokalni katalog.</strong>
+                    <p className="helper-text">
+                      Koristi <strong>Proveri kompatibilnost</strong> da otvoriš kalkulator kompatibilnosti pre nego što
+                      dodaš model u lokalni katalog.
+                    </p>
                   </div>
                   <div className="browser-metadata-grid browser-metadata-grid-hifi">
                     <article className="browser-readout-card">
@@ -1213,16 +1213,6 @@ export function BrowserPage({
                       ))}
                     </div>
                   ) : null}
-                </section>
-
-                <section className="browser-detail-module browser-detail-guidance">
-                  <div className="browser-detail-module-header">
-                    <span className="status-label">Sledeći korak</span>
-                    <strong className="status-value">Kompatibilnost pa lokalni katalog</strong>
-                  </div>
-                  <p className="helper-text">
-                    Koristi <strong>Proveri kompatibilnost</strong> da otvoriš kalkulator kompatibilnosti pre nego što dodaš model u lokalni katalog.
-                  </p>
                   {downloadOffer && downloadOffer.label === selectedItem.model ? (
                     <div className="browser-callout">
                       <strong>Dodato u lokalni katalog.</strong> Preuzimanje je i dalje ručno. Ako želiš fajl odmah, pokreni ga sada.
@@ -1324,6 +1314,7 @@ export function BrowserPage({
                         </button>
                         {item.sourceUrl ? (
                           <a
+                            className="secondary-button browser-model-link-button"
                             href={item.sourceUrl}
                             target="_blank"
                             rel="noopener noreferrer"
@@ -1368,22 +1359,20 @@ export function BrowserPage({
               <span>
                 Strana {currentPage} / {totalPages} | Redovi {pageStart + 1}-{Math.min(pageStart + rowsPerPage, filteredItems.length)} od {filteredItems.length}
               </span>
-              <div className="browser-pagination-controls">
-                <div className="inline-actions compact-actions">
-                  <button type="button" className="secondary-button" disabled={currentPage <= 1} onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}>
-                    Prethodna
-                  </button>
-                  <button
-                    type="button"
-                    className="secondary-button"
-                    disabled={currentPage >= totalPages}
-                    onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
-                  >
-                    Sledeća
-                  </button>
-                </div>
+              <div className="browser-pagination-controls browser-pagination-inline">
+                <button type="button" className="secondary-button" disabled={currentPage <= 1} onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}>
+                  Prethodna
+                </button>
+                <button
+                  type="button"
+                  className="secondary-button"
+                  disabled={currentPage >= totalPages}
+                  onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                >
+                  Sledeća
+                </button>
                 <form
-                  className="browser-page-jump-form"
+                  className="browser-page-jump-form browser-pagination-inline"
                   onSubmit={(event) => {
                     event.preventDefault();
                     jumpToCatalogPage(pageJumpValue);

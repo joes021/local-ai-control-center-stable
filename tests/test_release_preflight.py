@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from local_ai_control_center_installer.release_preflight import (
+    PUBLIC_SCOPE_TARGETS,
     ReleasePreflightFinding,
     scan_release_preflight_paths,
 )
@@ -8,7 +9,7 @@ from local_ai_control_center_installer.release_preflight import (
 
 def test_release_preflight_flags_hardcoded_user_paths_and_machine_markers(tmp_path: Path):
     report = tmp_path / "report.md"
-    local_user = "Azdaha" + "I9"
+    local_user = "Private" + "User42"
     remote_user = "Server" + "1"
     remote_host = remote_user + "@"
     remote_ip = ".".join(["100", "108", "15", "57"])
@@ -71,3 +72,7 @@ def test_release_preflight_allows_generic_placeholders_and_reserved_examples(tmp
     findings = scan_release_preflight_paths([report])
 
     assert findings == []
+
+
+def test_public_release_scope_includes_github_assets_surface():
+    assert ".github" in PUBLIC_SCOPE_TARGETS

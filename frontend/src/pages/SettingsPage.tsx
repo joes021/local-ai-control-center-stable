@@ -533,7 +533,10 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
   const [hygieneBusy, setHygieneBusy] = useState<"" | "refresh" | "cleanup">("");
   const [vramFitBusy, setVramFitBusy] = useState(false);
   const [showTurboQuantGuidance, setShowTurboQuantGuidance] = useState(false);
+  const hygieneSectionRef = useRef<HTMLElement | null>(null);
   const profileSectionRef = useRef<HTMLElement | null>(null);
+  const generalSectionRef = useRef<HTMLElement | null>(null);
+  const appearanceSectionRef = useRef<HTMLElement | null>(null);
   const contextSectionRef = useRef<HTMLElement | null>(null);
   const vramFitSectionRef = useRef<HTMLElement | null>(null);
   const searchSectionRef = useRef<HTMLElement | null>(null);
@@ -725,6 +728,13 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
   const fitBaselineSettings = settingsDefaults ?? activeSettings;
   const fitBaselineTurboConfig = turboConfigDefaults ?? activeTurboConfig;
   const runtimeUsesTurboQuant = observability?.runtime.activeRuntime === "turboquant";
+  const scrollToProfileSection = () => profileSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  const scrollToGeneralSection = () => generalSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  const scrollToAppearanceSection = () =>
+    appearanceSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  const scrollToSearchSection = () => searchSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  const scrollToTurboSection = () => turboSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  const scrollToVramFitSection = () => vramFitSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   const savedGpuLayersValue =
     fitBaselineSettings.gpuLayersMode === "manual" && fitBaselineSettings.gpuLayersOverride > 0
       ? fitBaselineSettings.gpuLayersOverride
@@ -1399,7 +1409,7 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
       action: "Idi na profile",
       icon: "settings",
       accent: "rgba(109, 172, 255, 0.34)",
-      onClick: () => profileSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
+      onClick: scrollToProfileSection,
     },
     {
       id: "context",
@@ -1411,7 +1421,7 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
       action: "Idi na context i VRAM fit",
       icon: "memory",
       accent: "rgba(156, 126, 255, 0.34)",
-      onClick: () => vramFitSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
+      onClick: scrollToVramFitSection,
     },
     {
       id: "search",
@@ -1421,19 +1431,17 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
       action: "Idi na provider pretrage",
       icon: "search",
       accent: "rgba(88, 222, 193, 0.36)",
-      onClick: () => searchSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
+      onClick: scrollToSearchSection,
     },
     {
       id: "theme",
-      label: "Tema",
+      label: "Izgled",
       value: currentThemeOption?.label ?? activeSettings.themeId,
-      detail: hasUnsavedGeneralChanges
-        ? "Opšti editor ima promene koje još nisu snimljene."
-        : "Opšti editor je usklađen sa poslednjim sačuvanim stanjem.",
-      action: "Idi na opšti editor",
+      detail: "Tema i izgled su odvojeni od inference i pretrage, ali ostaju deo opšteg config-a.",
+      action: "Idi na izgled sistema",
       icon: "control",
       accent: "rgba(242, 184, 75, 0.38)",
-      onClick: () => contextSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
+      onClick: scrollToAppearanceSection,
     },
     {
       id: "turboquant",
@@ -1445,7 +1453,7 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
       action: "Idi na TurboQuant",
       icon: "runtime",
       accent: "rgba(255, 129, 177, 0.34)",
-      onClick: () => turboSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
+      onClick: scrollToTurboSection,
     },
   ];
 
@@ -1454,10 +1462,10 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
       id: "general",
       code: "GEN",
       title: "Opšta podešavanja",
-      subtitle: "PROFIL + TEMA + INFERENCE",
+      subtitle: "PROFIL + INFERENCE",
       icon: "settings",
       tone: "primary",
-      onClick: () => profileSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
+      onClick: scrollToGeneralSection,
     },
     {
       id: "vram",
@@ -1465,7 +1473,7 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
       title: "Context i VRAM fit",
       subtitle: "TOKENI + GPU FIT",
       icon: "memory",
-      onClick: () => vramFitSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
+      onClick: scrollToVramFitSection,
     },
     {
       id: "search",
@@ -1473,7 +1481,7 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
       title: "Provider pretrage",
       subtitle: "PROVIDER + HEALTH",
       icon: "search",
-      onClick: () => searchSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
+      onClick: scrollToSearchSection,
     },
     {
       id: "turboquant",
@@ -1481,7 +1489,7 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
       title: "TurboQuant",
       subtitle: "PRESET + CONFIG",
       icon: "runtime",
-      onClick: () => turboSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
+      onClick: scrollToTurboSection,
     },
   ];
 
@@ -1489,27 +1497,34 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
     activeSettings.settingsScope === "global" ? "Globalna podrazumevana" : "Override aktivnog modela";
   const turboRuntimeSignal =
     observability?.runtime.activeRuntime === "turboquant" ? "TurboQuant runtime aktivan" : "Čeka TurboQuant runtime";
+  const searchProviderNeedsAttention =
+    !settings.searchProviderStatus.canQuery || settings.searchProviderStatus.source === "none";
   const settingsNextStep = hasUnsavedGeneralChanges
     ? {
         title: "Sačuvaj opšta podešavanja",
-        detail:
-          "Profil, context, output, provider pretrage ili tema imaju promene u editoru i još nisu upisani.",
+        detail: "Opšti editor ima promene. Klik vodi pravo na transport deck za opšti config.",
+        onClick: scrollToGeneralSection,
+        buttonClassName: "action-button",
       }
     : hasUnsavedTurboChanges
       ? {
-          title: "Sačuvaj TurboQuant podešavanja",
-          detail:
-            "TurboQuant editor odstupa od poslednjeg sačuvanog configa, pa prvo upiši taj deo pre daljeg testa.",
+        title: "Sačuvaj TurboQuant podešavanja",
+        detail: "TurboQuant editor odstupa od sačuvanog stanja. Klik vodi pravo na TurboQuant transport deck.",
+        onClick: scrollToTurboSection,
+        buttonClassName: "action-button",
         }
-      : result?.summary
+      : searchProviderNeedsAttention
         ? {
-            title: "Proveri poslednju akciju",
-            detail: result.summary,
+            title: "Podesi provider pretrage",
+            detail: "Provider još nije spreman za upite. Klik vodi direktno na sekciju Pretraga i izvori.",
+            onClick: scrollToSearchSection,
+            buttonClassName: "secondary-button",
           }
         : {
-            title: "Editor je usklađen",
-            detail:
-              "Možeš da nastaviš na VRAM fit, pretragu ili TurboQuant bez dodatnog snimanja, jer editor trenutno ne čeka novi upis.",
+            title: "Otvori VRAM fit",
+            detail: "Editor je usklađen, pa sledeći smislen korak može da bude VRAM fit i provera budžeta.",
+            onClick: scrollToVramFitSection,
+            buttonClassName: "secondary-button",
           };
 
   return (
@@ -1524,8 +1539,8 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
             detail: "Prvo odluči da li menjaš globalna pravila ili posebno pravilo aktivnog modela, pa onda učitaj profil ili preset radnog toka.",
           },
           {
-            title: "Podesi generaciju, pretragu i temu",
-            detail: "Kada je opseg jasan, menjaj inferenciju, provider pretrage, temu i ostala opšta podešavanja.",
+            title: "Podesi generaciju, pretragu i izgled",
+            detail: "Kada je opseg jasan, menjaj inferenciju i provider pretrage, a temu drži u posebnoj sekciji Izgled sistema.",
           },
           {
             title: "Sačuvaj opšta podešavanja",
@@ -1550,46 +1565,124 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
           <ActionResultPanel result={result} />
           <article className="runtimepilot-settings-apply-card runtimepilot-faceplate-module">
             <span className="status-label">Aktivni editor</span>
-            <strong className="status-value">
+            <button
+              type="button"
+              className="settings-apply-link-button"
+              onClick={scrollToProfileSection}
+            >
               {selectedSettingsProfile?.name ?? activeSettings.profile}
-            </strong>
-            <p className="helper-text">
-              {settingsScopeLabel} · aktivni model {settings.activeModelLabel || "nema"} · preset{" "}
-              {currentWorkflowPreset?.label || "ručno"}
-            </p>
-            <div className="summary-metrics">
-              <span>Context: {formatTokenCount(activeSettings.context)}</span>
-              <span>Output: {formatTokenCount(activeSettings.outputTokens)}</span>
-              <span>Tema: {currentThemeOption?.label ?? activeSettings.themeId}</span>
+            </button>
+            <div className="settings-apply-chip-grid">
+              <span className="settings-apply-chip">Opseg: {settingsScopeLabel}</span>
+              <span className="settings-apply-chip">Model: {settings.activeModelLabel || "nema"}</span>
+              <span className="settings-apply-chip">Preset: {currentWorkflowPreset?.label || "ručno"}</span>
             </div>
+            <div className="settings-apply-mini-grid">
+              <article className="settings-apply-mini-card">
+                <span className="settings-apply-mini-label">Context</span>
+                <strong className="settings-apply-mini-value">{formatTokenCount(activeSettings.context)}</strong>
+              </article>
+              <article className="settings-apply-mini-card">
+                <span className="settings-apply-mini-label">Output</span>
+                <strong className="settings-apply-mini-value">{formatTokenCount(activeSettings.outputTokens)}</strong>
+              </article>
+              <article className="settings-apply-mini-card">
+                <span className="settings-apply-mini-label">Starter</span>
+                <strong className="settings-apply-mini-value">
+                  {activeInferenceStarter?.label || "custom kombinacija"}
+                </strong>
+              </article>
+            </div>
+          </article>
+          <article className="runtimepilot-settings-apply-card runtimepilot-faceplate-module">
+            <span className="status-label">Izgled sistema</span>
+            <button
+              type="button"
+              className="settings-apply-link-button"
+              onClick={scrollToAppearanceSection}
+            >
+              {currentThemeOption?.label ?? activeSettings.themeId}
+            </button>
+            <div className="settings-apply-chip-grid">
+              <span className="settings-apply-chip">Odvojeno od inference i pretrage</span>
+              <span className="settings-apply-chip">Promena se vidi odmah u editoru</span>
+            </div>
+            <div className="settings-apply-mini-grid">
+              <article className="settings-apply-mini-card">
+                <span className="settings-apply-mini-label">Akcenat</span>
+                <strong className="settings-apply-mini-value">{currentThemeOption?.accent ?? "--"}</strong>
+              </article>
+              <article className="settings-apply-mini-card">
+                <span className="settings-apply-mini-label">Tekst</span>
+                <strong className="settings-apply-mini-value">{currentThemeOption?.textColor ?? "--"}</strong>
+              </article>
+              <article className="settings-apply-mini-card">
+                <span className="settings-apply-mini-label">Snimanje</span>
+                <strong className="settings-apply-mini-value">Opšta podešavanja</strong>
+              </article>
+            </div>
+            <p className="settings-apply-note">
+              Tema je sistemski izgled portala. Menjaj je ovde kada želiš drugačiji vizuelni osećaj, a ne kada podešavaš inference tok.
+            </p>
           </article>
           <article className="runtimepilot-settings-apply-card runtimepilot-faceplate-module">
             <span className="status-label">Provider i health</span>
-            <strong className="status-value">{settings.searchProviderStatus.providerLabel}</strong>
-            <p className="helper-text">{settings.searchProviderStatus.summary}</p>
-            <div className="summary-metrics">
-              <span>Health: {settings.searchProviderStatus.label}</span>
-              <span>Režim: {activeSettings.webSearchMode}</span>
-              <span>Izvor: {settings.searchProviderStatus.source || "--"}</span>
+            <button
+              type="button"
+              className="settings-apply-link-button"
+              onClick={scrollToSearchSection}
+            >
+              {settings.searchProviderStatus.providerLabel}
+            </button>
+            <div className="settings-apply-mini-grid">
+              <article className="settings-apply-mini-card">
+                <span className="settings-apply-mini-label">Health</span>
+                <strong className="settings-apply-mini-value">{settings.searchProviderStatus.label}</strong>
+              </article>
+              <article className="settings-apply-mini-card">
+                <span className="settings-apply-mini-label">Režim</span>
+                <strong className="settings-apply-mini-value">{activeSettings.webSearchMode}</strong>
+              </article>
+              <article className="settings-apply-mini-card">
+                <span className="settings-apply-mini-label">Izvor</span>
+                <strong className="settings-apply-mini-value">{settings.searchProviderStatus.source || "--"}</strong>
+              </article>
             </div>
+            <p className="settings-apply-note">
+              {settings.searchProviderStatus.canQuery
+                ? "Provider daje zdrav signal za Search, Znanje i local-lacc."
+                : "Provider još nije spreman za upite. Detalji i podešavanje su u sekciji Pretraga i izvori."}
+            </p>
           </article>
           <article className="runtimepilot-settings-apply-card runtimepilot-faceplate-module">
             <span className="status-label">TurboQuant i sledeći klik</span>
-            <strong className="status-value">{activeTurboPreset?.name ?? "Custom kombinacija"}</strong>
-            <p className="helper-text">
-              {turboRuntimeSignal} ·{" "}
-              {hasUnsavedTurboChanges ? "TurboQuant editor ima nesnimljene promene." : "TurboQuant editor je usklađen."}
-            </p>
-            <div className="summary-metrics">
-              <span>{settingsNextStep.title}</span>
+            <button
+              type="button"
+              className="settings-apply-link-button"
+              onClick={scrollToTurboSection}
+            >
+              {activeTurboPreset?.name ?? "Custom kombinacija"}
+            </button>
+            <div className="settings-apply-chip-grid">
+              <span className="settings-apply-chip">{turboRuntimeSignal}</span>
+              <span className="settings-apply-chip">
+                {hasUnsavedTurboChanges ? "Editor čeka snimanje" : "Editor je usklađen"}
+              </span>
             </div>
-            <p className="helper-text">{settingsNextStep.detail}</p>
+            <button
+              type="button"
+              className={`${settingsNextStep.buttonClassName} settings-apply-next-button`}
+              onClick={settingsNextStep.onClick}
+            >
+              {settingsNextStep.title}
+            </button>
+            <p className="settings-apply-note">{settingsNextStep.detail}</p>
           </article>
         </aside>
         <div className="runtimepilot-settings-primary-rack">
 
       <section
-        ref={profileSectionRef}
+        ref={hygieneSectionRef}
         className="status-card wide-card settings-cluster-card runtimepilot-faceplate-module settings-rack-module"
       >
         <div className="section-header settings-cluster-header">
@@ -1726,7 +1819,7 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
       </section>
 
       <section
-        ref={searchSectionRef}
+        ref={profileSectionRef}
         className="status-card wide-card settings-cluster-card runtimepilot-faceplate-module settings-rack-module"
       >
         <div className="section-header settings-cluster-header">
@@ -1899,7 +1992,7 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
       </section>
 
       <section
-        ref={turboSectionRef}
+        ref={generalSectionRef}
         className="status-card wide-card settings-cluster-card runtimepilot-faceplate-module settings-rack-module"
       >
         <div className="section-header settings-cluster-header">
@@ -2118,44 +2211,6 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
                   </div>
                 </article>
               </div>
-
-              <article className="settings-field settings-field-wide settings-general-panel">
-                <span className="settings-field-label">Tema boja</span>
-                <div className="settings-option-grid">
-                  {availableThemeOptions.map((theme) => {
-                    const active = settings.themeId === theme.id;
-                    return (
-                      <button
-                        key={theme.id}
-                        type="button"
-                        className={`theme-option-card ${active ? "theme-option-card-active" : ""}`}
-                        onClick={() => {
-                          setSettings({
-                            ...settings,
-                            themeId: theme.id,
-                          });
-                          applyTheme(theme.id);
-                        }}
-                      >
-                        <span
-                          className="theme-option-name"
-                          style={{
-                            color: theme.textColor,
-                            borderColor: `${theme.accent}55`,
-                            background: `${theme.accent}18`,
-                          }}
-                        >
-                          {theme.label}
-                        </span>
-                        <span className="theme-option-copy">{theme.summary}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-                <p className="helper-text">
-                  Trenutna tema: {currentThemeOption?.label || "Dark Chocolate"}.
-                </p>
-              </article>
 
               <article className="settings-field settings-field-wide settings-general-panel">
                 <span className="settings-field-label">Generacija i sampling</span>
@@ -2445,7 +2500,97 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
         </div>
       </section>
 
-      <section className="status-card wide-card settings-cluster-card runtimepilot-faceplate-module settings-rack-module">
+      <section
+        ref={appearanceSectionRef}
+        className="status-card wide-card settings-cluster-card runtimepilot-faceplate-module settings-rack-module"
+      >
+        <div className="section-header settings-cluster-header">
+          <div className="runtimepilot-inline-heading">
+            <span className="status-label">Izgled sistema</span>
+            <strong className="status-value">Tema i izgled</strong>
+          </div>
+        </div>
+        <p className="helper-text">
+          Ovaj deo je namerno odvojen od inference i pretrage. Tema menja osećaj celog portala,
+          ali ne treba da guši radni tok za context, provider i TurboQuant.
+        </p>
+        <div className="settings-appearance-shell">
+          <article className="settings-appearance-preview-card runtimepilot-readout-card">
+            <span className="settings-field-label">Aktivna tema</span>
+            <strong className="status-value">{currentThemeOption?.label || "Dark Chocolate"}</strong>
+            <p className="helper-text">
+              {currentThemeOption?.summary || "Topla tamna podloga sa bronzanim i cijan akcentima."}
+            </p>
+            <div className="settings-appearance-swatch-row">
+              <div className="settings-appearance-swatch-chip">
+                <span className="settings-appearance-swatch-label">Akcenat</span>
+                <span
+                  className="settings-appearance-swatch"
+                  style={{ background: currentThemeOption?.accent || "#f2b84b" }}
+                />
+                <strong>{currentThemeOption?.accent || "#f2b84b"}</strong>
+              </div>
+              <div className="settings-appearance-swatch-chip">
+                <span className="settings-appearance-swatch-label">Tekst</span>
+                <span
+                  className="settings-appearance-swatch"
+                  style={{ background: currentThemeOption?.textColor || "#f7dfb0" }}
+                />
+                <strong>{currentThemeOption?.textColor || "#f7dfb0"}</strong>
+              </div>
+            </div>
+            <div className="summary-metrics">
+              <span>Promena se vidi odmah u editoru</span>
+              <span>Trajno ostaje posle snimanja opštih podešavanja</span>
+              <span>Opseg: {settingsScopeLabel}</span>
+            </div>
+          </article>
+
+          <article className="settings-field settings-field-wide settings-general-panel">
+            <span className="settings-field-label">Tema boja</span>
+            <p className="helper-text">
+              Biraj izgled portala odvojeno od radnih parametara. Ovde nema inference logike,
+              samo sistemski vizuelni sloj koji treba da ostane čist i lak za poređenje.
+            </p>
+            <div className="settings-option-grid">
+              {availableThemeOptions.map((theme) => {
+                const active = settings.themeId === theme.id;
+                return (
+                  <button
+                    key={theme.id}
+                    type="button"
+                    className={`theme-option-card ${active ? "theme-option-card-active" : ""}`}
+                    onClick={() => {
+                      setSettings({
+                        ...settings,
+                        themeId: theme.id,
+                      });
+                      applyTheme(theme.id);
+                    }}
+                  >
+                    <span
+                      className="theme-option-name"
+                      style={{
+                        color: theme.textColor,
+                        borderColor: `${theme.accent}55`,
+                        background: `${theme.accent}18`,
+                      }}
+                    >
+                      {theme.label}
+                    </span>
+                    <span className="theme-option-copy">{theme.summary}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section
+        ref={searchSectionRef}
+        className="status-card wide-card settings-cluster-card runtimepilot-faceplate-module settings-rack-module"
+      >
         <div className="section-header settings-cluster-header">
           <div className="runtimepilot-inline-heading">
             <span className="status-label">VRAM fit tuning</span>
@@ -2764,7 +2909,10 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
         </div>
       </section>
 
-      <section className="status-card wide-card settings-cluster-card runtimepilot-faceplate-module settings-rack-module">
+      <section
+        ref={turboSectionRef}
+        className="status-card wide-card settings-cluster-card runtimepilot-faceplate-module settings-rack-module"
+      >
         <div className="section-header settings-cluster-header">
           <div className="runtimepilot-inline-heading">
             <span className="status-label">Pretraga i izvori</span>
@@ -3079,48 +3227,73 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
             <div className="settings-turbo-mixer-grid">
               <article className="settings-field settings-field-wide settings-general-panel">
                 <span className="settings-field-label">TurboQuant preseti</span>
-                <div className="model-list">
+                <div className="settings-turbo-preset-grid">
                   {allTurboPresets.map((preset) => (
-                    <article className="model-item" key={preset.id}>
-                      <div className="model-item-header">
-                        <div>
-                          <strong>{preset.name}</strong>
-                          <div className="muted-line">{preset.description}</div>
-                          <div className="muted-line">
-                            Context {preset.settings.context} | ctk {preset.settings.ctk} | ctv{" "}
-                            {preset.settings.ctv} | ncmoe {preset.settings.ncmoe}
-                          </div>
-                          {preset.notes ? <p className="helper-text">{preset.notes}</p> : null}
+                    <article className="settings-turbo-preset-card" key={preset.id}>
+                      <div className="settings-turbo-preset-head">
+                        <div className="settings-turbo-preset-heading">
+                          <span className="settings-field-label">TurboQuant preset</span>
+                          <strong className="status-value">{preset.name}</strong>
                         </div>
-                        <div className="inline-actions">
+                        <span className="settings-turbo-preset-badge">
+                          {schema.userPresets.some((item) => item.id === preset.id)
+                            ? "Korisnički"
+                            : "Ugrađeni"}
+                        </span>
+                      </div>
+                      <p className="helper-text settings-turbo-preset-description">
+                        {preset.description}
+                      </p>
+                      <div className="settings-turbo-preset-metrics">
+                        <div className="settings-turbo-preset-metric">
+                          <span>Context</span>
+                          <strong>{preset.settings.context}</strong>
+                        </div>
+                        <div className="settings-turbo-preset-metric">
+                          <span>ctk</span>
+                          <strong>{preset.settings.ctk}</strong>
+                        </div>
+                        <div className="settings-turbo-preset-metric">
+                          <span>ctv</span>
+                          <strong>{preset.settings.ctv}</strong>
+                        </div>
+                        <div className="settings-turbo-preset-metric">
+                          <span>ncmoe</span>
+                          <strong>{preset.settings.ncmoe}</strong>
+                        </div>
+                      </div>
+                      <p className="settings-turbo-preset-note">
+                        {preset.notes || "Preset je spreman za brzo učitavanje u TurboQuant editor."}
+                      </p>
+                      <div className="settings-turbo-preset-actions">
+                        <button
+                          type="button"
+                          className="action-button-soft"
+                          onClick={() => {
+                            setTurboConfig(applyPresetToConfig(preset));
+                            setResult({
+                              status: "ok",
+                              action: "apply-preset-local",
+                              summary: `Preset ${preset.name} je učitan u editor.`,
+                              details: { returncode: 0, stdout: "", stderr: "" },
+                            });
+                          }}
+                        >
+                          Učitaj preset
+                        </button>
+                        {schema.userPresets.some((item) => item.id === preset.id) ? (
                           <button
                             type="button"
-                            onClick={() => {
-                              setTurboConfig(applyPresetToConfig(preset));
-                              setResult({
-                                status: "ok",
-                                action: "apply-preset-local",
-                                summary: `Preset ${preset.name} je učitan u editor.`,
-                                details: { returncode: 0, stdout: "", stderr: "" },
-                              });
+                            className="danger-button"
+                            onClick={async () => {
+                              const actionResult = await deleteTurboQuantPreset(preset.id);
+                              setResult(actionResult);
+                              await reload();
                             }}
                           >
-                            Učitaj preset
+                            Obriši
                           </button>
-                          {schema.userPresets.some((item) => item.id === preset.id) ? (
-                            <button
-                              type="button"
-                              className="danger-button"
-                              onClick={async () => {
-                                const actionResult = await deleteTurboQuantPreset(preset.id);
-                                setResult(actionResult);
-                                await reload();
-                              }}
-                            >
-                              Obriši
-                            </button>
-                          ) : null}
-                        </div>
+                        ) : null}
                       </div>
                     </article>
                   ))}
@@ -3129,47 +3302,63 @@ export function SettingsPage({ focusSectionId = null, onFocusHandled }: Settings
 
               <article className="settings-field settings-field-wide settings-general-panel">
                 <span className="settings-field-label">Sačuvaj trenutni preset</span>
-                <div className="form-grid">
-                  <input
-                    placeholder="Ime preset-a"
-                    value={presetName}
-                    onChange={(event) => setPresetName(event.target.value)}
-                  />
-                  <input
-                    placeholder="Kratak opis"
-                    value={presetDescription}
-                    onChange={(event) => setPresetDescription(event.target.value)}
-                  />
-                  <input
-                    placeholder="Model pattern, npr qwen36-*"
-                    value={presetTargetPattern}
-                    onChange={(event) => setPresetTargetPattern(event.target.value)}
-                  />
-                  <input
-                    placeholder="Napomena"
-                    value={presetNotes}
-                    onChange={(event) => setPresetNotes(event.target.value)}
-                  />
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      const actionResult = await saveTurboQuantPreset({
-                        name: presetName,
-                        description: presetDescription,
-                        targetModelPattern: presetTargetPattern,
-                        notes: presetNotes,
-                        settings: turboConfig,
-                      });
-                      setResult(actionResult);
-                      setPresetName("");
-                      setPresetDescription("");
-                      setPresetTargetPattern("");
-                      setPresetNotes("");
-                      await reload();
-                    }}
-                  >
-                    Sačuvaj preset
-                  </button>
+                <div className="settings-turbo-save-row">
+                  <label className="settings-turbo-save-cell">
+                    <span className="settings-field-label">Ime preset-a</span>
+                    <input
+                      placeholder="Ime preset-a"
+                      value={presetName}
+                      onChange={(event) => setPresetName(event.target.value)}
+                    />
+                  </label>
+                  <label className="settings-turbo-save-cell">
+                    <span className="settings-field-label">Kratak opis</span>
+                    <input
+                      placeholder="Kratak opis"
+                      value={presetDescription}
+                      onChange={(event) => setPresetDescription(event.target.value)}
+                    />
+                  </label>
+                  <label className="settings-turbo-save-cell">
+                    <span className="settings-field-label">Model pattern</span>
+                    <input
+                      placeholder="Model pattern, npr qwen36-*"
+                      value={presetTargetPattern}
+                      onChange={(event) => setPresetTargetPattern(event.target.value)}
+                    />
+                  </label>
+                  <label className="settings-turbo-save-cell">
+                    <span className="settings-field-label">Napomena</span>
+                    <input
+                      placeholder="Napomena"
+                      value={presetNotes}
+                      onChange={(event) => setPresetNotes(event.target.value)}
+                    />
+                  </label>
+                  <div className="settings-turbo-save-action">
+                    <span className="settings-field-label">Upis</span>
+                    <button
+                      type="button"
+                      className="action-button"
+                      onClick={async () => {
+                        const actionResult = await saveTurboQuantPreset({
+                          name: presetName,
+                          description: presetDescription,
+                          targetModelPattern: presetTargetPattern,
+                          notes: presetNotes,
+                          settings: turboConfig,
+                        });
+                        setResult(actionResult);
+                        setPresetName("");
+                        setPresetDescription("");
+                        setPresetTargetPattern("");
+                        setPresetNotes("");
+                        await reload();
+                      }}
+                    >
+                      Sačuvaj preset
+                    </button>
+                  </div>
                 </div>
               </article>
 

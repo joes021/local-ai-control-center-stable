@@ -65,7 +65,7 @@ LOCAL_SYSTEM_INFO_CACHE_TTL_SECONDS = 2.0
 SYSTEM_CAPACITY_CACHE_TTL_SECONDS = 30.0
 _LOCAL_SYSTEM_INFO_CACHE: dict[str, tuple[float, tuple[tuple[str, int | None, int | None], ...], dict[str, object]]] = {}
 _SYSTEM_CAPACITY_CACHE_LOCK = threading.Lock()
-_SYSTEM_CAPACITY_CACHE: dict[str, tuple[float, float | None]] = {}
+_SYSTEM_CAPACITY_CACHE: dict[str, tuple[float, object | None]] = {}
 
 
 def run_compatibility_check(
@@ -214,6 +214,7 @@ def calculate_compatibility(model: dict[str, object], *, system_info: dict[str, 
         "systemSnapshot": {
             "ramGiB": ram_gib,
             "vramGiB": vram_gib,
+            "liveVramUsage": dict(normalized_system["liveVramUsage"]) if normalized_system["liveVramUsage"] else None,
             "context": normalized_system["context"],
             "outputTokens": normalized_system["outputTokens"],
             "turboQuantAvailable": normalized_system["turboQuantAvailable"],
@@ -259,6 +260,7 @@ def detect_local_system_info(*, config: ControlCenterConfig | None = None) -> di
     payload = {
         "ramGiB": detect_ram_gib(),
         "vramGiB": detect_vram_gib(),
+        "liveVramUsage": detect_live_vram_usage(),
         "turboQuantAvailable": _detect_packaged_turboquant_available(config),
         "context": int(settings.get("context", 262144) or 262144),
         "outputTokens": int(settings.get("outputTokens", 8192) or 8192),
@@ -356,6 +358,48 @@ def detect_vram_gib() -> float | None:
         with _SYSTEM_CAPACITY_CACHE_LOCK:
             _SYSTEM_CAPACITY_CACHE["vramGiB"] = (time.monotonic(), value)
         return value
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def detect_live_vram_usage() -> dict[str, float] | None:
+    now = time.monotonic()
+    with _SYSTEM_CAPACITY_CACHE_LOCK:
+        cached_payload = _SYSTEM_CAPACITY_CACHE.get("liveVramUsage")
+        if cached_payload is not None:
+            cached_at, cached_value = cached_payload
+            if (now - cached_at) <= SYSTEM_CAPACITY_CACHE_TTL_SECONDS:
+                return dict(cached_value) if isinstance(cached_value, dict) else None
+    try:
+        completed = subprocess.run(
+            ["nvidia-smi", "--query-gpu=memory.used,memory.total", "--format=csv,noheader,nounits"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+        if completed.returncode != 0:
+            with _SYSTEM_CAPACITY_CACHE_LOCK:
+                _SYSTEM_CAPACITY_CACHE["liveVramUsage"] = (time.monotonic(), None)
+            return None
+        first_line = next((line.strip() for line in completed.stdout.splitlines() if line.strip()), "")
+        used_text, _, total_text = first_line.partition(",")
+        used_mib = _as_float(used_text.strip())
+        total_mib = _as_float(total_text.strip())
+        if used_mib is None or total_mib is None or total_mib <= 0:
+            with _SYSTEM_CAPACITY_CACHE_LOCK:
+                _SYSTEM_CAPACITY_CACHE["liveVramUsage"] = (time.monotonic(), None)
+            return None
+        payload = {
+            "usedGiB": round(used_mib / 1024, 2),
+            "totalGiB": round(total_mib / 1024, 2),
+            "usagePercent": round((used_mib / total_mib) * 100, 1),
+        }
+        with _SYSTEM_CAPACITY_CACHE_LOCK:
+            _SYSTEM_CAPACITY_CACHE["liveVramUsage"] = (time.monotonic(), payload)
+        return payload
     except Exception:  # noqa: BLE001
         return None
 
@@ -469,6 +513,18 @@ def _size_gib_from_model_path(path_text: str) -> float | None:
 
 def _normalize_system(system_info: dict[str, object]) -> dict[str, object]:
     turbo_config = dict(system_info.get("turboQuantConfig") or {})
+    live_vram = system_info.get("liveVramUsage")
+    normalized_live_vram = None
+    if isinstance(live_vram, dict):
+        used_gib = _as_float(live_vram.get("usedGiB"))
+        total_gib = _as_float(live_vram.get("totalGiB"))
+        usage_percent = _as_float(live_vram.get("usagePercent"))
+        if used_gib is not None and total_gib is not None and usage_percent is not None:
+            normalized_live_vram = {
+                "usedGiB": used_gib,
+                "totalGiB": total_gib,
+                "usagePercent": usage_percent,
+            }
     merged_turbo = {
         "ctk": str(turbo_config.get("ctk", "turbo4") or "turbo4"),
         "ctv": str(turbo_config.get("ctv", "turbo3") or "turbo3"),
@@ -478,6 +534,7 @@ def _normalize_system(system_info: dict[str, object]) -> dict[str, object]:
     return {
         "ramGiB": _as_float(system_info.get("ramGiB")),
         "vramGiB": _as_float(system_info.get("vramGiB")),
+        "liveVramUsage": normalized_live_vram,
         "turboQuantAvailable": bool(system_info.get("turboQuantAvailable")),
         "context": int(_as_float(system_info.get("context")) or 32768),
         "outputTokens": int(_as_float(system_info.get("outputTokens")) or 2048),

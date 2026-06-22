@@ -70,40 +70,58 @@ const HELP_SECTIONS: HelpSection[] = [
 
 const PAGE_GUIDES: HelpPageCard[] = [
   {
+    title: "Početna",
+    when: "Kad hoćeš najkraći pregled bez lutanja",
+    detail: "Pet status kartica, aktivni model i telemetrija ti odmah kažu da li je sistem zdrav i koji je sledeći klik.",
+    icon: "home",
+  },
+  {
     title: "Server",
-    when: "Kad proveravaš da li je runtime stvarno živ",
-    detail: "Ovde vidiš start/stop/restart, CLI ekvivalente, health i da li config i živi proces pričaju istu priču.",
+    when: "Kad proveravaš runtime signal, health i pristup",
+    detail: "Ovde su start, stop, restart, health URL, živi context i ručna dijagnostika ako runtime ne priča istu priču kao config.",
     icon: "server",
   },
   {
     title: "Modeli",
-    when: "Kad biraš, preuzimaš ili aktiviraš model",
-    detail: "Ovde rešavaš lokalne GGUF fajlove, kompatibilnost, aktivaciju i poreklo modela.",
+    when: "Kad biraš lokalni GGUF i aktivni runtime par",
+    detail: "Ovde rešavaš lokalni katalog, aktivaciju, dodavanje sopstvenog GGUF-a i brzi skok na kompatibilnost.",
     icon: "models",
   },
   {
     title: "OpenCode",
-    when: "Kad radiš stvarni agent task nad projektom",
-    detail: "Ovde su sesija, komande i živa veza sa agentom. To nije benchmark, nego pravi rad.",
+    when: "Kad otvaraš pravi radni tok nad projektom",
+    detail: "Sesija, managed config, poslednja akcija i napredni alati ovde govore da li je agent stvarno otvoren i vezan za aktivni model.",
     icon: "opencode",
   },
   {
-    title: "Benchmark",
-    when: "Kad meriš sirovu brzinu i upoređuješ tokene",
-    detail: "Fokus je na throughput-u, istoriji merenja i čistim performansama runtime-a.",
+    title: "Browser + Search + Znanje",
+    when: "Kad tražiš model, izvor ili dokument pre rada",
+    detail: "Browser služi za GGUF katalog, Search za veb trag, a Znanje za lokalne dokumente i knowledge-first tokove.",
+    icon: "browser",
+  },
+  {
+    title: "Kompatibilnost",
+    when: "Kad proveravaš da li mašina stvarno nosi izabrani setup",
+    detail: "Tu dobijaš procenu za runtime, VRAM, RAM, context i output, plus živo GPU stanje kad je dostupno.",
+    icon: "compatibility",
+  },
+  {
+    title: "Benchmark + Tuning Lab",
+    when: "Kad meriš brzinu ili porediš stvarne slotove",
+    detail: "Benchmark daje sirov throughput i istoriju, a Tuning Lab pravi stvaran task, diff i winner logiku za tri slota.",
     icon: "benchmark",
   },
   {
-    title: "Tuning Lab",
-    when: "Kad porediš podešavanja kroz stvarne zadatke",
-    detail: "Ovde dobijaš queue, slotove, diff, success check i predlog pobednika.",
-    icon: "tuning",
+    title: "Podešavanja",
+    when: "Kad menjaš profile, context, Search ili TurboQuant",
+    detail: "Ovde su opšti editor, presetovi, Search provider, tema, TurboQuant parametri i primena sa jasnim readout signalom.",
+    icon: "settings",
   },
   {
-    title: "Podešavanja",
-    when: "Kad juriš VRAM fit ili menjaš opštu kontrolu",
-    detail: "Tu su opšta podešavanja, TurboQuant parametri i VRAM fit tokovi.",
-    icon: "settings",
+    title: "Napredno, Logovi i Servis",
+    when: "Kad radiš dublju proveru ili održavanje",
+    detail: "Napredno grupiše sekundarne tokove, Logovi čuvaju trag, a Repair i Updates služe kada sistem treba oporavak ili novu verziju.",
+    icon: "repair",
   },
 ];
 
@@ -242,19 +260,19 @@ export function HelpPage({
       <SupportPageDeck
         eyebrow="Pomoć"
         title="Najkraći put do rezultata"
-        summary="Ovaj help centar je praktičan vodič kroz RuntimePilot. Ne objašnjava teoriju radi teorije, nego ti kaže gde da klikneš i šta da očekuješ."
+        summary="Ovaj help centar prati sadašnji RuntimePilot raspored: Početna za brz signal, Server za runtime, Modeli za lokalni katalog, OpenCode za pravi rad i Napredno za dublje tokove."
         steps={[
           {
-            title: "Pokreni runtime i proveri model",
-            detail: "Ako runtime nije zdrav ili model nije aktivan, skoro sve dalje deluje kao da ne radi kako treba.",
+            title: "Prvo potvrdi health, runtime i aktivni model",
+            detail: "Ako ove tri stvari nisu usklađene, skoro svaki sledeći ekran deluje kao kvar iako je uzrok već gore vidljiv.",
           },
           {
-            title: "Radi u OpenCode-u ili meri kroz Tuning Lab",
-            detail: "OpenCode je za stvarni agent rad, a Tuning Lab za poređenje slotova i batch testove.",
+            title: "Zatim biraj: OpenCode za rad ili Benchmark/Tuning Lab za merenje",
+            detail: "OpenCode je stvarni agent tok. Benchmark i Tuning Lab služe kada meriš, porediš ili tražiš pobednički profil.",
           },
           {
-            title: "Kad zapne, idi na Troubleshooting",
-            detail: "Najčešći problemi su VRAM fit, GPU offload, mismatch config/live context i zaglavljeni agent tokovi.",
+            title: "Kad zapne, idi na dijagnostiku umesto nasumičnog klikanja",
+            detail: "Najčešći problemi su GPU fit, mismatch config/live context, loš Search provider signal ili sesija koja nije stvarno otvorena.",
           },
         ]}
         actions={
@@ -278,8 +296,8 @@ export function HelpPage({
             <span className="status-label">Gde vidiš rezultat</span>
             <strong className="status-value">Jump linkovi i praktične sekcije odmah ispod</strong>
             <p className="helper-text">
-              Ovaj ekran nije mrtav help tekst. Ispod odmah dobijaš brzu navigaciju, vizuelni redosled
-              rada i prečice ka pravim tabovima.
+              Ovaj ekran nije mrtav help tekst. Ispod odmah dobijaš brzu navigaciju, redosled rada,
+              mapu ekrana i prvu dijagnostiku kada nešto ne izgleda logično.
             </p>
           </>
         }
@@ -300,12 +318,13 @@ export function HelpPage({
           </div>
         </div>
         <p className="helper-text">
-          Ovo nije običan zid teksta. Svaka sekcija ima kratku namenu, jump link i praktične prečice do pravih delova aplikacije.
+          Ovo nije običan zid teksta. Svaka sekcija ima kratku namenu, jump link i praktične prečice
+          do pravih delova aplikacije, usklađene sa sadašnjim headerom i hi-fi rasporedom stranica.
         </p>
         <div className="help-signal-strip">
-          <span>Server prvo, pa model, pa agent rad.</span>
+          <span>Početna daje brzi signal, ali Server potvrđuje istinu.</span>
+          <span>Browser i Kompatibilnost idu pre lokalne aktivacije kad tek biraš model.</span>
           <span>Tuning Lab koristi stvaran task, ne samo sirov benchmark.</span>
-          <span>Troubleshooting je prečica do uzroka, ne poslednje utočište.</span>
         </div>
         <HelpJumpStrip />
         <div className="help-overview-grid">
@@ -330,20 +349,20 @@ export function HelpPage({
         <div className="help-visual-workbench">
           <article className="help-visual-step">
             <span className="help-visual-step-icon">
-              <RuntimePilotIcon className="runtimepilot-nav-icon" name="server" />
+              <RuntimePilotIcon className="runtimepilot-nav-icon" name="home" />
             </span>
-            <strong>1. Server</strong>
-            <p className="helper-text">Runtime mora da bude stvarno zdrav pre svega ostalog.</p>
+            <strong>1. Početna</strong>
+            <p className="helper-text">Prvo pogledaj health, runtime, model, context i OpenCode signal u jednoj liniji.</p>
           </article>
           <span className="help-visual-arrow" aria-hidden="true">
             →
           </span>
           <article className="help-visual-step">
             <span className="help-visual-step-icon">
-              <RuntimePilotIcon className="runtimepilot-nav-icon" name="models" />
+              <RuntimePilotIcon className="runtimepilot-nav-icon" name="server" />
             </span>
-            <strong>2. Modeli</strong>
-            <p className="helper-text">Aktiviraj model tek kad znaš da ga mašina može da nosi.</p>
+            <strong>2. Server + Modeli</strong>
+            <p className="helper-text">Potvrdi runtime signal, pa aktiviraj model tek kad znaš da ga mašina može da nosi.</p>
           </article>
           <span className="help-visual-arrow" aria-hidden="true">
             →
@@ -352,27 +371,27 @@ export function HelpPage({
             <span className="help-visual-step-icon">
               <RuntimePilotIcon className="runtimepilot-nav-icon" name="opencode" />
             </span>
-            <strong>3. OpenCode / Tuning Lab</strong>
-            <p className="helper-text">Tek tada idi na pravi rad ili uporedne eksperimente.</p>
+            <strong>3. OpenCode / Benchmark / Tuning Lab</strong>
+            <p className="helper-text">Tek tada idi na pravi rad, čisto merenje ili uporedne eksperimente.</p>
           </article>
         </div>
         <div className="help-checklist">
           <article className="help-checklist-item">
-            <strong>Pokreni runtime i proveri model</strong>
+            <strong>Početna ti govori gde prvo da klikneš</strong>
             <p className="helper-text">
-              Ovde odmah otkrivaš da li je problem u runtime-u, modelu ili samo u kasnijem toku rada.
+              Ako Početna kaže da je runtime ugašen, nema smisla odmah juriti Browser, OpenCode ili batch tokove.
             </p>
           </article>
           <article className="help-checklist-item">
-            <strong>Izaberi radni put</strong>
+            <strong>Browser i Kompatibilnost su put za nov model</strong>
             <p className="helper-text">
-              OpenCode koristiš za stvarni agent rad, a Tuning Lab kada želiš poređenje slotova i winner logiku.
+              Kad model još nije lokalno spreman, idi kroz Browser katalog i proveri fit pre nego što ga dodaš ili aktiviraš.
             </p>
           </article>
           <article className="help-checklist-item">
-            <strong>Kad zapne, idi na pomoć za problem</strong>
+            <strong>OpenCode i Tuning Lab nisu ista stvar</strong>
             <p className="helper-text">
-              Troubleshooting je tu da skrati lutanje, ne da bude poslednja stanica kada se već izgubiš.
+              OpenCode koristiš za stvaran rad nad projektom, a Tuning Lab kada želiš da isti zadatak pustiš kroz više slotova i dobiješ winner predlog.
             </p>
           </article>
         </div>
@@ -397,7 +416,7 @@ export function HelpPage({
       <HelpSectionCard
         id="common-paths"
         title="Najčešći tokovi"
-        summary="Kada nemaš vremena da čitaš sve, kreni od ovih tri najčešća praktična puta kroz RuntimePilot."
+        summary="Kada nemaš vremena da čitaš sve, kreni od ovih praktičnih tokova koji pokrivaju najčešće upotrebe sadašnjeg RuntimePilot-a."
         icon="workflows"
       >
         <div className="help-path-grid">
@@ -419,6 +438,23 @@ export function HelpPage({
             </div>
           </article>
           <article className="help-callout-card">
+            <strong>Nađi novi model bez slepog preuzimanja</strong>
+            <p className="helper-text">
+              Kada tek biraš model, idi redom: <strong>Browser → Kompatibilnost → Modeli</strong>. Tako prvo proveriš fit, pa tek onda praviš lokalni katalog.
+            </p>
+            <div className="inline-actions compact-actions">
+              <button type="button" className="secondary-button" onClick={onOpenSearch}>
+                Pretraga
+              </button>
+              <button type="button" className="secondary-button" onClick={onOpenSettings}>
+                Kompatibilnost / Podešavanja
+              </button>
+              <button type="button" className="secondary-button" onClick={onOpenModels}>
+                Modeli
+              </button>
+            </div>
+          </article>
+          <article className="help-callout-card">
             <strong>Poredi podešavanja kroz stvaran zadatak</strong>
             <p className="helper-text">
               Kada želiš da saznaš koji slot stvarno radi bolje, idi na <strong>Tuning Lab</strong>, učitaj batch i prati cockpit umesto da gledaš samo sirov benchmark throughput.
@@ -433,16 +469,16 @@ export function HelpPage({
             </div>
           </article>
           <article className="help-callout-card">
-            <strong>Nađi model i proveri da li staje</strong>
+            <strong>Nađi izvor pa tek onda pitaj model</strong>
             <p className="helper-text">
-              Kada nisi siguran šta mašina može da nosi, idi na <strong>Pretragu</strong> ili <strong>Modele</strong>, pa odmah proveri kompatibilnost pre aktivacije.
+              Kada radiš knowledge-first tok, koristi <strong>Pretragu</strong> i lokalno <strong>Znanje</strong> pre nego što očekuješ da OpenCode sam pogodi pravi kontekst.
             </p>
             <div className="inline-actions compact-actions">
               <button type="button" className="secondary-button" onClick={onOpenSearch}>
                 Pretraga
               </button>
-              <button type="button" className="secondary-button" onClick={onOpenModels}>
-                Modeli
+              <button type="button" className="secondary-button" onClick={onOpenOpenCode}>
+                OpenCode
               </button>
               <button type="button" className="secondary-button" onClick={onOpenSettings}>
                 Podešavanja
@@ -455,7 +491,7 @@ export function HelpPage({
       <HelpSectionCard
         id="pages"
         title="Šta radi svaki tab"
-        summary="Ovo je najkraće objašnjenje glavnih strana bez internog žargona."
+        summary="Ovo je najkraće objašnjenje glavnih strana bez internog žargona i sa fokusom na trenutno važeći raspored aplikacije."
         icon="browser"
       >
         <div className="help-page-grid">
@@ -475,6 +511,12 @@ export function HelpPage({
           ))}
         </div>
         <div className="inline-actions compact-actions">
+          <button type="button" className="secondary-button" onClick={onOpenServer}>
+            Otvori Server
+          </button>
+          <button type="button" className="secondary-button" onClick={onOpenModels}>
+            Otvori Modele
+          </button>
           <button type="button" className="secondary-button" onClick={onOpenBenchmark}>
             Otvori Benchmark
           </button>
@@ -492,7 +534,7 @@ export function HelpPage({
       <HelpSectionCard
         id="tuning-lab"
         title="Tuning Lab i batch testovi"
-        summary="Tuning Lab nije samo benchmark; on pokreće stvarni agent zadatak, success check i diff poređenje."
+        summary="Tuning Lab nije samo benchmark; on pokreće stvarni agent zadatak, success check, diff poređenje i winner logiku za tri slota."
         icon="tuning"
       >
         <div className="help-callout-grid">
@@ -520,7 +562,8 @@ export function HelpPage({
             <RuntimePilotIcon className="runtimepilot-nav-icon" name="observability" />
           </span>
           <p className="helper-text">
-            Ako ti ručni OpenCode uspe, a isti zadatak kroz Tuning Lab deluje čudno, gledaj success check, diff i aktivni slot signal pre nego što zaključiš da je model loš.
+            Ako ti ručni OpenCode uspe, a isti zadatak kroz Tuning Lab deluje čudno, gledaj success check,
+            diff, poslednju poruku slota i aktivni run cockpit pre nego što zaključiš da je model loš.
           </p>
         </div>
       </HelpSectionCard>
@@ -528,7 +571,7 @@ export function HelpPage({
       <HelpSectionCard
         id="troubleshooting"
         title="Rešavanje problema"
-        summary="Ovo su prve stvari koje proveravaš kada nešto deluje sporo, nelogično ili zaglavljeno."
+        summary="Ovo su prve stvari koje proveravaš kada nešto deluje sporo, nelogično, previše optimistično ili zaglavljeno."
         icon="repair"
       >
         <div className="help-troubleshooting-list">
@@ -558,7 +601,7 @@ export function HelpPage({
       <HelpSectionCard
         id="glossary"
         title="Pojmovnik"
-        summary="Kratka objašnjenja za izraze koji se stalno pojavljuju kroz RuntimePilot."
+        summary="Kratka objašnjenja za izraze koji se stalno pojavljuju kroz RuntimePilot, posebno kroz Compatibility, Settings i Tuning Lab."
         icon="knowledge"
       >
         <div className="help-glossary-grid">

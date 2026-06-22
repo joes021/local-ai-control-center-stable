@@ -200,6 +200,7 @@ export function CompatibilityCalculatorPanel({
 
   const liveSnapshot = payload?.systemSnapshot ?? null;
   const liveTurbo = liveSnapshot?.turboQuantConfig ?? null;
+  const liveVramUsage = liveSnapshot?.liveVramUsage ?? null;
   const editorDiffs = useMemo(
     () => [
       {
@@ -329,7 +330,6 @@ export function CompatibilityCalculatorPanel({
     <section
       className={[
         "compatibility-calculator-panel",
-        "runtimepilot-faceplate-module",
         "compat-rack-module",
         className || "",
       ]
@@ -369,143 +369,170 @@ export function CompatibilityCalculatorPanel({
 
       {payload ? (
         <>
-          <div className="compatibility-monitor-deck">
-          <div className="compat-header">
-            <span className={fitBadgeClass(payload.fitStatus)}>
-              {payload.fitLabel}
-            </span>
-            <span className={speedBadgeClass(payload.speedStatus)}>
-              {payload.speedLabel ?? "Slično"}
-            </span>
-          </div>
-          <p className="helper-text">{payload.summary}</p>
-
-          <section className="compat-section">
-            <span className="status-label">Najbolji runtime</span>
-            <div className="compat-budget-grid">
-              <div className="compat-budget-card">
+          <div className="compatibility-monitor-deck compatibility-primary-monitor-deck runtimepilot-faceplate-module">
+            <section className="compatibility-summary-rack">
+              <div className="compatibility-summary-copy">
+                <div className="compat-header">
+                  <span className={fitBadgeClass(payload.fitStatus)}>
+                    {payload.fitLabel}
+                  </span>
+                  <span className={speedBadgeClass(payload.speedStatus)}>
+                    {payload.speedLabel ?? "Slično"}
+                  </span>
+                </div>
+                <p className="helper-text">{payload.summary}</p>
+              </div>
+              <article className="compatibility-summary-best-card runtimepilot-readout-card">
+                <span className="status-label">Najbolji runtime</span>
                 <strong className="status-value">
                   {payload.bestRuntimeLabel ?? "llama.cpp"}
                 </strong>
                 <div className="helper-text">
                   Ukupni fit: {payload.overallFitLabel ?? payload.fitLabel}
                 </div>
-              </div>
-            </div>
-          </section>
-
-          {payload.runtimeBreakdown ? (
-            <section className="compat-section">
-              <span className="status-label">Pregled po runtime-u</span>
-              <div className="compat-budget-grid">
-                {Object.values(payload.runtimeBreakdown).map((runtime) => (
-                  <div className="compat-budget-card" key={runtime.runtime}>
-                    <div className="compat-header">
-                      <strong className="status-value">
-                        {runtime.runtimeLabel}
-                      </strong>
-                      <span className={fitBadgeClass(runtime.fitStatus)}>
-                        {runtime.fitLabel}
-                      </span>
-                    </div>
-                    <div className="helper-text">{runtime.summary}</div>
-                    <div className="summary-metrics">
-                      <span>{runtime.speedLabel ?? "Slično"}</span>
-                      <span>
-                        {runtime.estimated?.contextPressureLabel ?? "--"} kontekst
-                      </span>
-                      <span>
-                        {runtime.estimated?.outputPressureLabel ?? "--"} izlaz
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
+              </article>
             </section>
-          ) : null}
 
-          <section className="compat-budget-grid">
-            <div className="compat-budget-card">
-              <span className="status-label">VRAM</span>
-              <strong className="status-value">
-                {formatGiB(payload.memoryBudget?.vram.requiredGiB)} /{" "}
-                {formatGiB(payload.memoryBudget?.vram.availableGiB)}
-              </strong>
-              <div className="compat-bar">
-                <div
-                  className="compat-bar-fill compat-bar-fill-vram"
-                  style={barStyle(payload.memoryBudget?.vram.usagePercent)}
-                />
+            {payload.runtimeBreakdown ? (
+              <section className="compatibility-runtime-breakdown-shell">
+                <span className="status-label">Pregled po runtime-u</span>
+                <div className="compatibility-runtime-breakdown-grid">
+                  {Object.values(payload.runtimeBreakdown).map((runtime) => (
+                    <div className="compat-budget-card" key={runtime.runtime}>
+                      <div className="compat-header">
+                        <strong className="status-value">
+                          {runtime.runtimeLabel}
+                        </strong>
+                        <span className={fitBadgeClass(runtime.fitStatus)}>
+                          {runtime.fitLabel}
+                        </span>
+                      </div>
+                      <div className="helper-text">{runtime.summary}</div>
+                      <div className="summary-metrics">
+                        <span>{runtime.speedLabel ?? "Slično"}</span>
+                        <span>
+                          {runtime.estimated?.contextPressureLabel ?? "--"} kontekst
+                        </span>
+                        <span>
+                          {runtime.estimated?.outputPressureLabel ?? "--"} izlaz
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            ) : null}
+
+            <section className="compatibility-budget-shell">
+              <span className="status-label">Budžet i pritisci</span>
+              <div className="compatibility-budget-rack">
+                <div className="compat-budget-card">
+                  <span className="status-label">Procenjeni VRAM za model</span>
+                  <strong className="status-value">
+                    {formatGiB(payload.memoryBudget?.vram.requiredGiB)} /{" "}
+                    {formatGiB(payload.memoryBudget?.vram.availableGiB)}
+                  </strong>
+                  <div className="compat-bar">
+                    <div
+                      className="compat-bar-fill compat-bar-fill-vram"
+                      style={barStyle(payload.memoryBudget?.vram.usagePercent)}
+                    />
+                  </div>
+                  <div className="helper-text">
+                    {formatPercent(payload.memoryBudget?.vram.usagePercent)} |{" "}
+                    Rezerva memorije{" "}
+                    {formatHeadroom(payload.memoryBudget?.vram.headroomGiB)}
+                  </div>
+                </div>
+                <div className="compat-budget-card">
+                  <span className="status-label">Živo GPU zauzeće sada</span>
+                  <strong className="status-value">
+                    {formatGiB(liveVramUsage?.usedGiB)} /{" "}
+                    {formatGiB(liveVramUsage?.totalGiB ?? liveSnapshot?.vramGiB)}
+                  </strong>
+                  <div className="compat-bar">
+                    <div
+                      className="compat-bar-fill compat-bar-fill-vram"
+                      style={barStyle(liveVramUsage?.usagePercent)}
+                    />
+                  </div>
+                  <div className="helper-text">
+                    {liveVramUsage?.usagePercent !== null &&
+                    liveVramUsage?.usagePercent !== undefined
+                      ? `${formatPercent(liveVramUsage?.usagePercent)} | `
+                      : ""}
+                    Ukupno trenutno GPU zauzeće na mašini
+                  </div>
+                </div>
+                <div className="compat-budget-card">
+                  <span className="status-label">RAM</span>
+                  <strong className="status-value">
+                    {formatGiB(payload.memoryBudget?.ram.requiredGiB)} /{" "}
+                    {formatGiB(payload.memoryBudget?.ram.availableGiB)}
+                  </strong>
+                  <div className="compat-bar">
+                    <div
+                      className="compat-bar-fill compat-bar-fill-ram"
+                      style={barStyle(payload.memoryBudget?.ram.usagePercent)}
+                    />
+                  </div>
+                  <div className="helper-text">
+                    {formatPercent(payload.memoryBudget?.ram.usagePercent)} |{" "}
+                    Rezerva memorije{" "}
+                    {formatHeadroom(payload.memoryBudget?.ram.headroomGiB)}
+                  </div>
+                </div>
+                <div className="compat-budget-card">
+                  <span className="status-label">Opterećenje konteksta</span>
+                  <strong className="status-value">
+                    {payload.memoryBudget?.contextPressure.label}
+                  </strong>
+                  <div className="compat-bar">
+                    <div
+                      className="compat-bar-fill compat-bar-fill-context"
+                      style={barStyle(
+                        payload.memoryBudget?.contextPressure.usagePercent,
+                      )}
+                    />
+                  </div>
+                  <div className="helper-text">
+                    {payload.memoryBudget?.contextPressure.currentContext ?? "--"} |
+                    kapacitet{" "}
+                    {payload.memoryBudget?.contextPressure.effectiveCapacity ?? "--"}
+                  </div>
+                </div>
+                <div className="compat-budget-card">
+                  <span className="status-label">Opterećenje izlaza</span>
+                  <strong className="status-value">
+                    {payload.memoryBudget?.outputPressure?.label ?? "--"}
+                  </strong>
+                  <div className="compat-bar">
+                    <div
+                      className="compat-bar-fill compat-bar-fill-context"
+                      style={barStyle(
+                        payload.memoryBudget?.outputPressure?.usagePercent,
+                      )}
+                    />
+                  </div>
+                  <div className="helper-text">
+                    {payload.memoryBudget?.outputPressure?.currentOutputTokens ??
+                      "--"}{" "}
+                    | default{" "}
+                    {payload.memoryBudget?.outputPressure?.defaultOutputTokens ??
+                      "--"}
+                  </div>
+                </div>
               </div>
-              <div className="helper-text">
-                {formatPercent(payload.memoryBudget?.vram.usagePercent)} |{" "}
-                Rezerva memorije{" "}
-                {formatHeadroom(payload.memoryBudget?.vram.headroomGiB)}
-              </div>
-            </div>
-            <div className="compat-budget-card">
-              <span className="status-label">RAM</span>
-              <strong className="status-value">
-                {formatGiB(payload.memoryBudget?.ram.requiredGiB)} /{" "}
-                {formatGiB(payload.memoryBudget?.ram.availableGiB)}
-              </strong>
-              <div className="compat-bar">
-                <div
-                  className="compat-bar-fill compat-bar-fill-ram"
-                  style={barStyle(payload.memoryBudget?.ram.usagePercent)}
-                />
-              </div>
-              <div className="helper-text">
-                {formatPercent(payload.memoryBudget?.ram.usagePercent)} |{" "}
-                Rezerva memorije{" "}
-                {formatHeadroom(payload.memoryBudget?.ram.headroomGiB)}
-              </div>
-            </div>
-            <div className="compat-budget-card">
-              <span className="status-label">Opterećenje konteksta</span>
-              <strong className="status-value">
-                {payload.memoryBudget?.contextPressure.label}
-              </strong>
-              <div className="compat-bar">
-                <div
-                  className="compat-bar-fill compat-bar-fill-context"
-                  style={barStyle(
-                    payload.memoryBudget?.contextPressure.usagePercent,
-                  )}
-                />
-              </div>
-              <div className="helper-text">
-                {payload.memoryBudget?.contextPressure.currentContext ?? "--"} |
-                kapacitet{" "}
-                {payload.memoryBudget?.contextPressure.effectiveCapacity ?? "--"}
-              </div>
-            </div>
-            <div className="compat-budget-card">
-              <span className="status-label">Opterećenje izlaza</span>
-              <strong className="status-value">
-                {payload.memoryBudget?.outputPressure?.label ?? "--"}
-              </strong>
-              <div className="compat-bar">
-                <div
-                  className="compat-bar-fill compat-bar-fill-context"
-                  style={barStyle(
-                    payload.memoryBudget?.outputPressure?.usagePercent,
-                  )}
-                />
-              </div>
-              <div className="helper-text">
-                {payload.memoryBudget?.outputPressure?.currentOutputTokens ??
-                  "--"}{" "}
-                | default{" "}
-                {payload.memoryBudget?.outputPressure?.defaultOutputTokens ??
-                  "--"}
-              </div>
-            </div>
-          </section>
+              <p className="helper-text compatibility-budget-note">
+                Leva VRAM kartica je procena za izabrani model i trenutna compatibility
+                podešavanja. Task Manager i živa GPU kartica mogu pokazati više zauzeća
+                jer mere stvarni runtime, KV cache, buffere i druge GPU procese.
+              </p>
+            </section>
           </div>
 
-          <div className="compatibility-transport-deck runtimepilot-compatibility-truth-zone">
-            <section className="compat-section">
+          <div className="compatibility-transport-deck runtimepilot-compatibility-truth-zone runtimepilot-faceplate-module">
+            <section className="compatibility-action-shell">
               <div className="section-header">
                 <span className="status-label">Provera i primena</span>
                 <div className="inline-actions compact-actions">
@@ -572,7 +599,7 @@ export function CompatibilityCalculatorPanel({
                   <strong className="apply-state-chip-value">{lastActionSummary}</strong>
                 </article>
               </div>
-              <section className="compatibility-live-settings-panel runtimepilot-faceplate-module">
+              <section className="compatibility-live-settings-panel">
                 <div className="compatibility-live-settings-heading">
                   <span className="runtimepilot-section-glyph">
                     <RuntimePilotIcon
@@ -660,8 +687,8 @@ export function CompatibilityCalculatorPanel({
               </div>
             </section>
 
-          {advancedOpen ? (
-            <section className="compat-section compatibility-editor-settings-panel runtimepilot-faceplate-module">
+            {advancedOpen ? (
+              <section className="compatibility-editor-settings-panel">
               <div className="compatibility-live-settings-heading">
                 <span className="runtimepilot-section-glyph">
                   <RuntimePilotIcon
@@ -787,8 +814,8 @@ export function CompatibilityCalculatorPanel({
           ) : null}
           </div>
 
-          <div className="compatibility-monitor-deck">
-            <section className="compat-section">
+          <div className="compatibility-monitor-deck compatibility-secondary-monitor-deck runtimepilot-faceplate-module">
+            <section className="compatibility-reason-shell">
               <div className="section-header">
                 <span className="status-label">Razlozi</span>
                 <span className="helper-text">

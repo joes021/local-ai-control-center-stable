@@ -358,7 +358,7 @@ export function OpenCodePage() {
         items={openCodeActionItems}
       />
 
-      <div className="runtimepilot-opencode-hybrid-grid">
+      <div className="runtimepilot-opencode-hybrid-grid wide-card">
         <div className="runtimepilot-opencode-main-rack">
           <section className="status-card wide-card runtimepilot-faceplate-module runtimepilot-opencode-shell">
             <div className="section-header">
@@ -414,29 +414,6 @@ export function OpenCodePage() {
           <div id="opencode-action-result" className="runtimepilot-opencode-action-result-shell">
             <ActionResultPanel result={result} />
           </div>
-          <article className="runtimepilot-opencode-quick-card runtimepilot-faceplate-module">
-            <span className="status-label">Napredni alati</span>
-            <strong className="status-value">Komanda, env, presetovi i dijagnostika</strong>
-            <p className="helper-text">
-              Ovaj rail ostaje kratka stanica: prvo rezultat otvaranja, zatim jedan direktan skok u
-              detaljne OpenCode alate kada ti stvarno trebaju.
-            </p>
-            <div className="summary-metrics">
-              <span>Launcher: {opencode.launchPreview.shellLabel}</span>
-              <span>Provider: {managedProviderLabel}</span>
-              <span>Instanca: {instanceLabel}</span>
-            </div>
-            <button
-              type="button"
-              className="action-button-soft deck-control-button deck-control-button-secondary"
-              onClick={openAdvancedTools}
-            >
-              <span className="deck-control-symbol" aria-hidden="true">
-                <RuntimePilotIcon name="settings" />
-              </span>
-              <span className="deck-control-copy">Otvori napredne alate</span>
-            </button>
-          </article>
         </aside>
       </div>
 

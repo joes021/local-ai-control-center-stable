@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 
 import { LiveResourceStrip, useLiveResourceStripState } from "../LiveResourceStrip";
 
@@ -14,8 +14,10 @@ export function SystemStatusLayer({
   onOpenSettingsSection,
 }: SystemStatusLayerProps) {
   const fullLayerRef = useRef<HTMLDivElement | null>(null);
+  const compactLayerRef = useRef<HTMLDivElement | null>(null);
   const liveResourceStripState = useLiveResourceStripState();
   const [stickyVisible, setStickyVisible] = useState(false);
+  const [stickyReserveHeight, setStickyReserveHeight] = useState(0);
 
   useEffect(() => {
     const fullLayer = fullLayerRef.current;
@@ -50,6 +52,36 @@ export function SystemStatusLayer({
     };
   }, []);
 
+  useEffect(() => {
+    const compactLayer = compactLayerRef.current;
+    const syncStickyReserveHeight = () => {
+      setStickyReserveHeight(compactLayer ? Math.ceil(compactLayer.getBoundingClientRect().height) : 0);
+    };
+
+    syncStickyReserveHeight();
+    const resizeObserver =
+      compactLayer && typeof ResizeObserver !== "undefined"
+        ? new ResizeObserver(() => {
+            syncStickyReserveHeight();
+          })
+        : null;
+    if (resizeObserver && compactLayer) {
+      resizeObserver.observe(compactLayer);
+    }
+    window.addEventListener("resize", syncStickyReserveHeight);
+
+    return () => {
+      window.removeEventListener("resize", syncStickyReserveHeight);
+      if (resizeObserver) {
+        resizeObserver.disconnect();
+      }
+    };
+  }, []);
+
+  const stickyStyle = {
+    "--runtimepilot-system-status-sticky-reserve": stickyVisible ? `${stickyReserveHeight}px` : "0px",
+  } as CSSProperties;
+
   return (
     <div className="runtimepilot-system-status-layer">
       <div className="runtimepilot-system-status-layer-full" ref={fullLayerRef}>
@@ -63,19 +95,18 @@ export function SystemStatusLayer({
         aria-hidden={stickyVisible ? undefined : true}
         className="runtimepilot-system-status-layer-sticky"
         data-visible={stickyVisible ? "true" : "false"}
+        style={stickyStyle}
       >
-        {stickyVisible ? (
-          <div className="runtimepilot-system-status-layer-compact">
-            <div className="runtimepilot-status-rack runtimepilot-status-rack-compact">
-              {activeModelStrip}
-            </div>
-            <LiveResourceStrip
-              compact
-              onOpenSettingsSection={onOpenSettingsSection}
-              state={liveResourceStripState}
-            />
+        <div className="runtimepilot-system-status-layer-compact" ref={compactLayerRef}>
+          <div className="runtimepilot-status-rack runtimepilot-status-rack-compact">
+            {activeModelStrip}
           </div>
-        ) : null}
+          <LiveResourceStrip
+            compact
+            onOpenSettingsSection={onOpenSettingsSection}
+            state={liveResourceStripState}
+          />
+        </div>
       </div>
     </div>
   );

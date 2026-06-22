@@ -80,6 +80,11 @@ def test_calculate_compatibility_returns_runtime_breakdown_and_best_runtime():
                 "ncmoe": 20,
                 "runtimePreference": "turboquant",
             },
+            "liveVramUsage": {
+                "usedGiB": 9.4,
+                "totalGiB": 12.0,
+                "usagePercent": 78.3,
+            },
         },
     )
 
@@ -93,6 +98,8 @@ def test_calculate_compatibility_returns_runtime_breakdown_and_best_runtime():
     assert runtime_breakdown["turboquant"]["fitStatus"] in {"radi", "granicno", "ne radi"}
     assert "outputPressure" in payload["memoryBudget"]
     assert "headroomGiB" in payload["memoryBudget"]["vram"]
+    assert payload["systemSnapshot"]["liveVramUsage"]["usedGiB"] == 9.4
+    assert payload["systemSnapshot"]["liveVramUsage"]["usagePercent"] == 78.3
 
 
 def test_calculate_compatibility_marks_mtp_as_not_working_for_turboquant():
@@ -302,6 +309,7 @@ def test_detect_local_system_info_reuses_recent_hardware_snapshot(monkeypatch, t
         "turbo": 0,
         "ram": 0,
         "vram": 0,
+        "live_vram": 0,
         "availability": 0,
     }
 
@@ -325,21 +333,28 @@ def test_detect_local_system_info_reuses_recent_hardware_snapshot(monkeypatch, t
         calls["availability"] += 1
         return True
 
+    def fake_live_vram():
+        calls["live_vram"] += 1
+        return {"usedGiB": 11.4, "totalGiB": 12.0, "usagePercent": 95.0}
+
     monkeypatch.setattr(module, "load_settings_payload", fake_settings)
     monkeypatch.setattr(module, "load_turboquant_config", fake_turbo_config)
     monkeypatch.setattr(module, "detect_ram_gib", fake_ram)
     monkeypatch.setattr(module, "detect_vram_gib", fake_vram)
+    monkeypatch.setattr(module, "detect_live_vram_usage", fake_live_vram)
     monkeypatch.setattr(module, "_detect_packaged_turboquant_available", fake_packaged)
 
     first = module.detect_local_system_info(config=config)
     second = module.detect_local_system_info(config=config)
 
     assert first == second
+    assert first["liveVramUsage"]["usedGiB"] == 11.4
     assert calls == {
         "settings": 1,
         "turbo": 1,
         "ram": 1,
         "vram": 1,
+        "live_vram": 1,
         "availability": 1,
     }
 
@@ -388,6 +403,34 @@ def test_detect_vram_gib_reuses_recent_probe(monkeypatch):
     second = module.detect_vram_gib()
 
     assert first == 12.0
+    assert second == first
+    assert len(calls) == 1
+    assert calls[0]["creationflags"] == getattr(module.subprocess, "CREATE_NO_WINDOW", 0)
+
+
+def test_detect_live_vram_usage_reuses_recent_probe(monkeypatch):
+    module = importlib.reload(compatibility_service)
+    calls: list[dict[str, object]] = []
+
+    class FakeCompletedProcess:
+        returncode = 0
+        stdout = "11857, 12288"
+        stderr = ""
+
+    def fake_run(*args, **kwargs):
+        calls.append(kwargs)
+        return FakeCompletedProcess()
+
+    monkeypatch.setattr(module.subprocess, "run", fake_run)
+
+    first = module.detect_live_vram_usage()
+    second = module.detect_live_vram_usage()
+
+    assert first == {
+        "usedGiB": 11.58,
+        "totalGiB": 12.0,
+        "usagePercent": 96.5,
+    }
     assert second == first
     assert len(calls) == 1
     assert calls[0]["creationflags"] == getattr(module.subprocess, "CREATE_NO_WINDOW", 0)
